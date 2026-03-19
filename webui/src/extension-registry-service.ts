@@ -505,6 +505,7 @@ export interface AdminService {
     updateTier(abortController: AbortController, name: string, tier: Tier): Promise<Readonly<Tier>>;
     deleteTier(abortController: AbortController, name: string): Promise<Readonly<SuccessResult | ErrorResult>>;
     getCustomers(abortController: AbortController): Promise<Readonly<CustomerList>>;
+    getCustomer(abortController: AbortController, name: string): Promise<Readonly<Customer>>;
     createCustomer(abortController: AbortController, customer: Customer): Promise<Readonly<Customer>>;
     updateCustomer(abortController: AbortController, name: string, customer: Customer): Promise<Readonly<Customer>>;
     deleteCustomer(abortController: AbortController, name: string): Promise<Readonly<SuccessResult | ErrorResult>>;
@@ -884,12 +885,66 @@ export class AdminServiceImpl implements AdminService {
         }, false);
     }
 
+    // TODO: Remove mock users when backend returns real user data
+    private static readonly MOCK_USERS: UserData[] = [
+        {
+            loginName: 'rhdevelopers-ci',
+            fullName: 'Red Hat Developers CI',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/18214726?v=4',
+            homepage: 'https://github.com/rhdevelopers-ci',
+            provider: 'github',
+            tokensUrl: '',
+            createTokenUrl: ''
+        },
+        {
+            loginName: 'midudev',
+            fullName: 'Miguel Ángel Durán',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
+            homepage: 'https://github.com/midudev',
+            provider: 'github',
+            tokensUrl: '',
+            createTokenUrl: ''
+        },
+        {
+            loginName: 'jakubmisek',
+            fullName: 'Jakub Míšek',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/842150?v=4',
+            homepage: 'https://github.com/jakubmisek',
+            provider: 'github',
+            tokensUrl: '',
+            createTokenUrl: ''
+        },
+        {
+            loginName: 'test',
+            fullName: 'Miguel Ángel Durán',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
+            homepage: 'https://github.com/midudev',
+            provider: 'github',
+            tokensUrl: '',
+            createTokenUrl: ''
+        }
+    ];
+
+    private injectMockUsers(customer: Customer): Customer {
+        return { ...customer, users: AdminServiceImpl.MOCK_USERS };
+    }
+
     async getCustomers(abortController: AbortController): Promise<Readonly<CustomerList>> {
-        return sendRequest({
+        const data: CustomerList = await sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers']),
             credentials: true
         }, false);
+        return { customers: data.customers.map(this.injectMockUsers) };
+    }
+
+    async getCustomer(abortController: AbortController, name: string): Promise<Readonly<Customer>> {
+        const data: Customer = await sendRequest({
+            abortController,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
+            credentials: true
+        }, false);
+        return this.injectMockUsers(data);
     }
 
     async createCustomer(abortController: AbortController, customer: Customer): Promise<Readonly<Customer>> {

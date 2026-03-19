@@ -222,6 +222,26 @@ public class RateLimitAPI {
         }
     }
 
+    @GetMapping(
+            path = "/customers/{name}",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<CustomerJson> getCustomer(@PathVariable String name) {
+        try {
+            admins.checkAdminUser();
+
+            var customer = repositories.findCustomer(name);
+            if (customer == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(customer.toJson());
+        } catch (Exception exc) {
+            logger.error("failed retrieving customer {}", name, exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @PostMapping(
             path = "/customers/create",
             consumes = MediaType.APPLICATION_JSON_VALUE,

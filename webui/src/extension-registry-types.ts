@@ -452,6 +452,7 @@ export interface Customer {
     tier?: Tier;
     state: EnforcementState;
     cidrBlocks: string[];
+    users?: UserData[];
 }
 
 export interface CustomerList {
