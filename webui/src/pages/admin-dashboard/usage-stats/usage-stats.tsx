@@ -11,18 +11,17 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC, useContext, useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { FC, useContext, useState, useEffect, useRef, useMemo } from "react";
 import { Box, Alert } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainContext } from "../../../context";
-import type { UsageStats, Customer } from "../../../extension-registry-types";
+import type { Customer } from "../../../extension-registry-types";
 import { handleError } from "../../../utils";
 import { AdminDashboardRoutes } from "../admin-dashboard";
 import { SearchListContainer } from "../search-list-container";
 import { CustomerSearch } from "./usage-stats-search";
 import { UsageStatsChart } from "./usage-stats-chart";
-import { getDefaultStartDate } from "./usage-stats-utils";
-import { DateTime } from "luxon";
+import { useUsageStats } from "./use-usage-stats";
 
 export const UsageStatsView: FC = () => {
     const { customer } = useParams<{ customer: string }>();
@@ -32,10 +31,9 @@ export const UsageStatsView: FC = () => {
 
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [customersLoading, setCustomersLoading] = useState(true);
-    const [usageStats, setUsageStats] = useState<readonly UsageStats[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [startDate, setStartDate] = useState<DateTime>(getDefaultStartDate);
+    const [customersError, setCustomersError] = useState<string | null>(null);
+
+    const { usageStats, loading, error: statsError, startDate, setStartDate } = useUsageStats(customer);
 
     // Load customers for autocomplete
     useEffect(() => {
@@ -45,7 +43,7 @@ export const UsageStatsView: FC = () => {
                 const data = await service.admin.getCustomers(abortController.current);
                 setCustomers(data.customers);
             } catch (err) {
-                setError(handleError(err as Error));
+                setCustomersError(handleError(err as Error));
             } finally {
                 setCustomersLoading(false);
             }
@@ -67,35 +65,7 @@ export const UsageStatsView: FC = () => {
         }
     };
 
-    const loadUsageStats = useCallback(async () => {
-        if (!customer) {
-            setUsageStats([]);
-            setLoading(false);
-            return;
-        }
-
-        try {
-            setLoading(true);
-            setError(null);
-            const data = await service.admin.getUsageStats(
-                abortController.current,
-                customer,
-                startDate.toJSDate()
-            );
-            setUsageStats(data.stats);
-        } catch (err) {
-            setError(handleError(err as Error));
-        } finally {
-            setLoading(false);
-        }
-    }, [service, customer, startDate]);
-
-    useEffect(() => {
-        if (customer) {
-            loadUsageStats();
-        }
-    }, [loadUsageStats, customer]);
-
+    const error = customersError || statsError;
     if (error) {
         return <Alert severity='error'>{error}</Alert>;
     }

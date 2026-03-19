@@ -21,18 +21,20 @@ import {
     Alert,
     IconButton,
     Stack,
-    Chip
+    Chip,
+    Avatar,
+    AvatarGroup
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
-import BarChartIcon from "@mui/icons-material/BarChart";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { MainContext } from "../../../context";
 import type { Customer } from "../../../extension-registry-types";
 import { CustomerFormDialog } from "./customer-form-dialog";
 import { DeleteCustomerDialog } from "./delete-customer-dialog";
-import { handleError } from "../../../utils";
+import { createRoute, handleError } from "../../../utils";
 import { createMultiSelectFilterOperators, createArrayContainsFilterOperators } from "../components";
 import { AdminDashboardRoutes } from "../admin-dashboard";
 import { Link } from "react-router-dom";
@@ -171,6 +173,25 @@ export const Customers: FC = () => {
       }
     },
     {
+      field: 'users',
+      headerName: 'Members',
+      minWidth: 140,
+      sortable: false,
+      filterable: false,
+      renderCell: (params: GridRenderCellParams<Customer>) => {
+        const users = params.row.users ?? [];
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <AvatarGroup max={3} sx={{ justifyContent: 'flex-start', '& .MuiAvatar-root': { width: 28, height: 28, fontSize: 12 } }}>
+              {users.map((user) => (
+                <Avatar key={user.loginName} alt={user.fullName || user.loginName} src={user.avatarUrl} />
+              ))}
+            </AvatarGroup>
+          </Box>
+        );
+      }
+    },
+    {
       field: 'actions',
       headerName: 'Actions',
       width: 160,
@@ -181,10 +202,10 @@ export const Customers: FC = () => {
           <IconButton
             size='small'
             component={Link}
-            to={`${AdminDashboardRoutes.USAGE_STATS}/${params.row.name}`}
-            title='View Usage Stats'
+            to={createRoute([AdminDashboardRoutes.CUSTOMERS, params.row.name])}
+            title='View Details'
           >
-            <BarChartIcon />
+            <VisibilityIcon />
           </IconButton>
           <IconButton
             size='small'

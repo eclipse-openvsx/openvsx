@@ -136,16 +136,7 @@ export const Logs: FC = () => {
     ];
 
     return (
-        <Box sx={{
-            width: 'min(1500px, 100vw - 280px)',
-            maxWidth: 'none',
-            mx: 'auto',
-            px: 2,
-            pb: 3,
-            position: 'relative',
-            left: '50%',
-            transform: 'translateX(-50%)',
-        }}>
+        <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Box sx={{
                 display: "flex",
                 justifyContent: "space-between",

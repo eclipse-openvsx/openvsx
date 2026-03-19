@@ -31,6 +31,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import HistoryIcon from '@mui/icons-material/History';
 import { Tiers } from './tiers/tiers';
 import { Customers } from './customers/customers';
+import { CustomerDetails } from './customers/customer-details';
 import { UsageStatsView } from './usage-stats/usage-stats';
 import { Logs } from './logs/logs';
 import { LoginComponent } from "../../default/login";
@@ -111,9 +112,11 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                         <Route path='/extensions' element={<ExtensionAdmin/>} />
                         <Route path='/extensions/:namespace/:extension' element={<ExtensionAdmin/>} />
                         <Route path='/publisher' element={<PublisherAdmin/>} />
+                        <Route path='/publisher/:publisher' element={<PublisherAdmin/>} />
                         <Route path='/scans' element={<ScanAdmin/>} />
                         <Route path='/tiers' element={<Tiers/>} />
                         <Route path='/customers' element={<Customers/>} />
+                        <Route path='/customers/:customer' element={<CustomerDetails/>} />
                         <Route path='/usage' element={<UsageStatsView/>} />
                         <Route path='/usage/:customer' element={<UsageStatsView/>} />
                         <Route path='/logs' element={<Logs/>} />
