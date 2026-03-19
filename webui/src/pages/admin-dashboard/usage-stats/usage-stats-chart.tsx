@@ -136,7 +136,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                                 id: 'requests',
                                 scaleType: 'linear',
                                 min: 0,
-                                max: Math.max(tierCapacity, maxDataValue) + 10
+                                max: Math.max(tierCapacity, maxDataValue) + 30
                             },
                         ]}
                     >
@@ -156,7 +156,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                         }
 
                         <ChartsXAxis
-                            label='Time'
+                            label='Time (UTC)'
                             position='bottom'
                             axisId='date'
                             tickInterval={(value, index) => {
