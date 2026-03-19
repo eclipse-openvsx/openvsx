@@ -17,8 +17,6 @@ import {
     Typography,
     Paper,
     type PaperProps,
-    type SxProps,
-    type Theme,
     Chip,
     Stack,
     Alert,
@@ -33,11 +31,10 @@ import {
     Grid,
     LinearProgress
 } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useParams, useNavigate, Link as RouterLink } from "react-router-dom";
+import { useParams, Link as RouterLink } from "react-router-dom";
 import { MainContext } from "../../../context";
 import type { Customer, UserData, UsageStats } from "../../../extension-registry-types";
 import type { DateTime } from "luxon";
@@ -50,25 +47,14 @@ import { AddUserDialog } from "../../user/add-user-dialog";
 
 const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
-const BackToCustomersButton: FC<{ sx?: SxProps<Theme> }> = ({ sx }) => {
-    const navigate = useNavigate();
-    return (
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(AdminDashboardRoutes.CUSTOMERS)} sx={sx}>
-            Back to Customers
-        </Button>
-    );
-};
-
 const CustomerDetailsLoading: FC = () => (
     <Box sx={{ p: 3 }}>
-        <BackToCustomersButton sx={{ mb: 2 }} />
         <LinearProgress color='secondary' sx={{ width: "100%" }} />
     </Box>
 );
 
 const CustomerDetailsError: FC<{ message: string }> = ({ message }) => (
     <Box sx={{ p: 3 }}>
-        <BackToCustomersButton sx={{ mb: 2 }} />
         <Alert severity='error'>{message}</Alert>
     </Box>
 );
@@ -302,9 +288,8 @@ export const CustomerDetails: FC = () => {
 
     return (
       <>
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <BackToCustomersButton sx={{ mr: 2 }} />
                 <Typography variant='h4' component='h1'>
                     {customer.name}
                 </Typography>
