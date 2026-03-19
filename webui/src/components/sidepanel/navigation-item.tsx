@@ -21,7 +21,7 @@ export const NavigationItem: FunctionComponent<PropsWithChildren<NavigationProps
         if (props.children) {
             setOpen(!open);
         } else if (props.route) {
-            props.onOpenRoute?.call(props.route);
+            props.onOpenRoute?.call(this, props.route);
             navigate(props.route);
         }
     };
