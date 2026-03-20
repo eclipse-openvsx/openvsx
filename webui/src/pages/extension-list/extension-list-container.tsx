@@ -11,14 +11,10 @@
 import { FunctionComponent, useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { useLocation } from 'react-router-dom';
-import { createRoute, addQuery } from '../../utils';
+import { addQuery } from '../../utils';
 import { ExtensionCategory, SortOrder, SortBy } from '../../extension-registry-types';
 import { ExtensionList } from './extension-list';
 import { ExtensionListHeader } from './extension-list-header';
-
-export namespace ExtensionListRoutes {
-    export const MAIN = createRoute([]);
-}
 
 export const ExtensionListContainer: FunctionComponent = () => {
 

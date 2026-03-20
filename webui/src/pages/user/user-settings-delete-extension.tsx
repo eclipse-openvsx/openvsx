@@ -15,7 +15,7 @@ import { isError, Extension, TargetPlatformVersion } from '../../extension-regis
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { ExtensionVersionContainer } from '../admin-dashboard/extension-version-container';
 import { useNavigate } from 'react-router';
-import { UserSettingsRoutes } from './user-settings';
+import { UserSettingsRoutes } from './user-settings-routes';
 
 export const UserSettingsDeleteExtension: FunctionComponent<UserSettingsDeleteExtensionProps> = props => {
     const navigate = useNavigate();

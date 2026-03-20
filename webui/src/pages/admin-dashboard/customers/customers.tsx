@@ -36,7 +36,7 @@ import { CustomerFormDialog } from "./customer-form-dialog";
 import { DeleteCustomerDialog } from "./delete-customer-dialog";
 import { createRoute, handleError } from "../../../utils";
 import { createMultiSelectFilterOperators, createArrayContainsFilterOperators } from "../components";
-import { AdminDashboardRoutes } from "../admin-dashboard";
+import { AdminDashboardRoutes } from "../admin-routes";
 import { Link } from "react-router-dom";
 
 export const Customers: FC = () => {

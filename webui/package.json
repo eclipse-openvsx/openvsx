@@ -102,6 +102,7 @@
         "chai": "^4.3.0",
         "eslint": "^9.39.0",
         "eslint-plugin-react": "^7.37.0",
+        "eslint-plugin-react-refresh": "^0.5.2",
         "express": "^4.21.0",
         "express-rate-limit": "^7.4.0",
         "mocha": "^11.7.0",

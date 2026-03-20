@@ -16,7 +16,7 @@ import { MainContext } from '../../context';
 import { StyledInput } from './namespace-input';
 import { SearchListContainer } from './search-list-container';
 import { PublisherDetails } from './publisher-details';
-import { AdminDashboardRoutes } from './admin-dashboard';
+import { AdminDashboardRoutes } from './admin-routes';
 
 export const UpdateContext = createContext({ handleUpdate: () => { } });
 export const PublisherAdmin: FunctionComponent = () => {
