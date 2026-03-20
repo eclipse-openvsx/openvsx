@@ -188,11 +188,11 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
 
     let content: ReactNode = null;
     if (user?.role === 'admin') {
-        content = <>
+        content =
             <Box sx={{ display: 'flex', width: '100%' }}>
                 <CssBaseline />
-                <AppBar position='fixed' open={drawerOpen}>
-                    <Toolbar sx={{ backgroundColor: 'aliceblue' }}>
+                <AppBar position='fixed' open={drawerOpen} color='default' enableColorOnDark elevation={0}>
+                    <Toolbar>
                         <IconButton
                             aria-label='open drawer'
                             onClick={() => setDrawerOpen(true)}
@@ -257,8 +257,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                         </Container>
                     </Box>
                 </Main>
-            </Box>
-        </>;
+            </Box>;
     } else if (user) {
         content = <Message message='You are not authorized as administrator.'/>;
     } else if (!props.userLoading && loginProviders) {
