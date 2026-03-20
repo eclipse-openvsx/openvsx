@@ -39,7 +39,7 @@ import { MainContext } from "../../../context";
 import type { Customer, UserData, UsageStats } from "../../../extension-registry-types";
 import type { DateTime } from "luxon";
 import { handleError } from "../../../utils";
-import { AdminDashboardRoutes } from "../admin-dashboard";
+import { AdminDashboardRoutes } from "../admin-routes";
 import { UsageStatsChart } from "../usage-stats/usage-stats-chart";
 import { useUsageStats } from "../usage-stats/use-usage-stats";
 import { CustomerFormDialog } from "./customer-form-dialog";

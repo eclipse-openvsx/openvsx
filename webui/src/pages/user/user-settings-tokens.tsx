@@ -16,7 +16,7 @@ import { Timestamp } from '../../components/timestamp';
 import { PersonalAccessToken } from '../../extension-registry-types';
 import { MainContext } from '../../context';
 import { GenerateTokenDialog } from './generate-token-dialog';
-import { UserSettingsRoutes } from './user-settings';
+import { UserSettingsRoutes } from './user-settings-routes';
 import styled from '@mui/material/styles/styled';
 
 const link = ({ theme }: { theme: Theme }) => ({
@@ -216,10 +216,3 @@ export const UserSettingsTokens: FunctionComponent = () => {
         </Dialog>
     </>;
 };
-
-export namespace UserSettingsTokens {
-    export interface State {
-        tokens: PersonalAccessToken[];
-        loading: boolean;
-    }
-}

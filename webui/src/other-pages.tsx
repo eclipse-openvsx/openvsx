@@ -1,3 +1,16 @@
+/******************************************************************************
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *****************************************************************************/
+
 import { FunctionComponent, useContext, useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AppBar, Box, Toolbar } from '@mui/material';
@@ -5,10 +18,14 @@ import { styled, Theme } from '@mui/material/styles';
 import { Banner } from './components/banner';
 import { MainContext } from './context';
 import { HeaderMenu } from './header-menu';
-import { ExtensionListContainer, ExtensionListRoutes } from './pages/extension-list/extension-list-container';
-import { UserSettings, UserSettingsRoutes } from './pages/user/user-settings';
-import { NamespaceDetail, NamespaceDetailRoutes } from './pages/namespace-detail/namespace-detail';
-import { ExtensionDetail, ExtensionDetailRoutes } from './pages/extension-detail/extension-detail';
+import { ExtensionListContainer } from './pages/extension-list/extension-list-container';
+import { ExtensionListRoutes } from "./pages/extension-list/extension-list-routes";
+import { UserSettings } from './pages/user/user-settings';
+import { UserSettingsRoutes } from './pages/user/user-settings-routes';
+import { NamespaceDetail } from './pages/namespace-detail/namespace-detail';
+import { NamespaceDetailRoutes } from './pages/namespace-detail/namespace-detail-routes';
+import { ExtensionDetail } from './pages/extension-detail/extension-detail';
+import { ExtensionDetailRoutes } from './pages/extension-detail/extension-detail-routes';
 import { getCookieValueByKey, setCookie } from './utils';
 import { UserData } from './extension-registry-types';
 import { NotFound } from './not-found';

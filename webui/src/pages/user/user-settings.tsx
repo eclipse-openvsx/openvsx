@@ -12,7 +12,6 @@ import { FunctionComponent, ReactNode, useContext } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Grid, Container, Box, Typography, Link } from '@mui/material';
 import { useParams } from 'react-router-dom';
-import { createRoute } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { UserSettingTabs } from './user-setting-tabs';
 import { UserSettingsTokens } from './user-settings-tokens';
@@ -23,16 +22,6 @@ import { MainContext } from '../../context';
 import { UserData } from '../../extension-registry-types';
 import { LoginComponent } from '../../default/login';
 import { UserSettingsDeleteExtension } from './user-settings-delete-extension';
-
-export namespace UserSettingsRoutes {
-    export const ROOT = createRoute(['user-settings']);
-    export const MAIN = createRoute([ROOT, ':tab']);
-    export const PROFILE = createRoute([ROOT, 'profile']);
-    export const TOKENS = createRoute([ROOT, 'tokens']);
-    export const NAMESPACES = createRoute([ROOT, 'namespaces']);
-    export const EXTENSIONS = createRoute([ROOT, 'extensions']);
-    export const DELETE_EXTENSION = createRoute([ROOT, 'extensions', ':namespace', ':extension', 'delete']);
-}
 
 export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
 

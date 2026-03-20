@@ -29,7 +29,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import HistoryIcon from '@mui/icons-material/History';
-import MenuIcon from "@mui/icons-material/Menu";
+import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -37,32 +37,20 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
 import { CustomerDetails } from './customers/customer-details';
 import { Customers } from './customers/customers';
-import { DrawerHeader, Sidepanel } from "../../components/sidepanel/sidepanel";
+import { DrawerHeader } from '../../components/sidepanel/drawer-header';
+import { Sidepanel } from "../../components/sidepanel/sidepanel";
 import { ExtensionAdmin } from './extension-admin';
 import { LoginComponent } from "../../default/login";
 import { Logs } from './logs/logs';
 import { MainContext } from '../../context';
 import { NamespaceAdmin } from './namespace-admin';
-import { NavigationItem } from "../../components/sidepanel/navigation-item";
+import { NavigationItem } from '../../components/sidepanel/navigation-item';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
 import { Tiers } from './tiers/tiers';
 import { UsageStatsView } from './usage-stats/usage-stats';
 import { Welcome } from './welcome';
-import { createRoute } from '../../utils';
-
-export namespace AdminDashboardRoutes {
-    export const ROOT = 'admin-dashboard';
-    export const MAIN = createRoute([ROOT]);
-    export const NAMESPACE_ADMIN = createRoute([ROOT, 'namespaces']);
-    export const EXTENSION_ADMIN = createRoute([ROOT, 'extensions']);
-    export const PUBLISHER_ADMIN = createRoute([ROOT, 'publisher']);
-    export const SCANS_ADMIN = createRoute([ROOT, 'scans']);
-    export const TIERS = createRoute([ROOT, 'tiers']);
-    export const CUSTOMERS = createRoute([ROOT, 'customers']);
-    export const USAGE_STATS = createRoute([ROOT, 'usage']);
-    export const LOGS = createRoute([ROOT, 'logs']);
-}
+import { AdminDashboardRoutes } from "./admin-routes";
 
 const Message: FunctionComponent<{message: string}> = ({ message }) => {
     return (<Box sx={{

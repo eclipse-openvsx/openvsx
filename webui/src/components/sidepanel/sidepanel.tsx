@@ -10,17 +10,8 @@
 
 import { FunctionComponent, PropsWithChildren } from 'react';
 import { Divider, Drawer, IconButton, List } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-
-export const DrawerHeader = styled('div')(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    padding: theme.spacing(0, 1),
-    // necessary for content to be below app bar
-    ...theme.mixins.toolbar,
-    justifyContent: 'flex-end',
-}));
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import { DrawerHeader } from './drawer-header';
 
 export const Sidepanel: FunctionComponent<PropsWithChildren<SidepanelProps>> = props => {
     const width = props.width;

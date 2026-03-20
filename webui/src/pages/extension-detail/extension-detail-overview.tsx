@@ -21,8 +21,8 @@ import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { SanitizedMarkdown } from '../../components/sanitized-markdown';
 import { Timestamp } from '../../components/timestamp';
 import { Extension, ExtensionReference, VERSION_ALIASES } from '../../extension-registry-types';
-import { ExtensionListRoutes } from '../extension-list/extension-list-container';
-import { ExtensionDetailRoutes } from './extension-detail';
+import { ExtensionListRoutes } from '../extension-list/extension-list-routes';
+import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { ExtensionDetailDownloadsMenu } from './extension-detail-downloads-menu';
 
 export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewProps> = props => {

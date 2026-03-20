@@ -12,7 +12,7 @@ import { FunctionComponent } from 'react';
 import { Typography, Grid, Paper } from '@mui/material';
 import { styled, Theme } from '@mui/material/styles';
 import { Link } from 'react-router-dom';
-import { AdminDashboardRoutes } from './admin-dashboard';
+import { AdminDashboardRoutes } from './admin-routes';
 
 export const Welcome: FunctionComponent = props => {
     return <Grid container direction='column' spacing={2} sx={{ height: '100%' }}>

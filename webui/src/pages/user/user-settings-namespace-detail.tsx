@@ -14,7 +14,7 @@ import { Box, Button, Link, Paper, Grid, Typography } from '@mui/material';
 import { styled, Theme } from '@mui/material/styles';
 import WarningIcon from '@mui/icons-material/Warning';
 import { UserNamespaceExtensionListContainer } from './user-namespace-extension-list';
-import { AdminDashboardRoutes } from '../admin-dashboard/admin-dashboard';
+import { AdminDashboardRoutes } from '../admin-dashboard/admin-routes';
 import { Namespace, UserData } from '../../extension-registry-types';
 import { NamespaceChangeDialog } from '../admin-dashboard/namespace-change-dialog';
 import { UserNamespaceMemberList } from './user-namespace-member-list';
