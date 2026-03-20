@@ -176,7 +176,7 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
 
 export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
     const { user, loginProviders } = useContext(MainContext);
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [drawerOpen, setDrawerOpen] = useState(true);
 
     const navigate = useNavigate();
     const toMainPage = () => navigate('/');
