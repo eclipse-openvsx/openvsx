@@ -33,6 +33,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
+import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
 import { CustomerDetails } from './customers/customer-details';
 import { Customers } from './customers/customers';
@@ -74,16 +75,53 @@ const Message: FunctionComponent<{message: string}> = ({ message }) => {
     </Box>);
 };
 
-const routes: { [key: string]: { name: string; component: ReactNode; icon?: ReactNode } } = {};
-routes[AdminDashboardRoutes.MAIN] = { name: 'Admin Dashboard', component: <Welcome /> };
-routes[AdminDashboardRoutes.NAMESPACE_ADMIN] = { name: 'Namespaces', component: <NamespaceAdmin />, icon: <AssignmentIndIcon /> };
-routes[AdminDashboardRoutes.EXTENSION_ADMIN] = { name: 'Extensions', component: <ExtensionAdmin />, icon: <ExtensionSharpIcon /> };
-routes[AdminDashboardRoutes.PUBLISHER_ADMIN] = { name: 'Publisher', component: <PublisherAdmin />, icon: <PersonIcon /> };
-routes[AdminDashboardRoutes.SCANS_ADMIN] = { name: 'Scans', component: <ScanAdmin />, icon: <SecurityIcon /> };
-routes[AdminDashboardRoutes.TIERS] = { name: 'Tiers', component: <Tiers />, icon: <StarIcon /> };
-routes[AdminDashboardRoutes.CUSTOMERS] = { name: 'Customers', component: <Customers />, icon: <PeopleIcon /> };
-routes[AdminDashboardRoutes.USAGE_STATS] = { name: 'Usage Stats', component: <UsageStatsView />, icon: <BarChartIcon /> };
-routes[AdminDashboardRoutes.LOGS] = { name: 'Logs', component: <Logs />, icon: <HistoryIcon /> };
+interface RouteEntry {
+    path: string;
+    name: string;
+    icon: ReactNode;
+}
+
+interface NavGroup {
+    name: string;
+    icon: ReactNode;
+    children: RouteEntry[];
+}
+
+type NavEntry = RouteEntry | NavGroup;
+
+const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in entry;
+
+const navConfig: NavEntry[] = [
+    { path: AdminDashboardRoutes.NAMESPACE_ADMIN, name: 'Namespaces', icon: <AssignmentIndIcon /> },
+    { path: AdminDashboardRoutes.EXTENSION_ADMIN, name: 'Extensions', icon: <ExtensionSharpIcon /> },
+    { path: AdminDashboardRoutes.PUBLISHER_ADMIN, name: 'Publisher', icon: <PersonIcon /> },
+    { path: AdminDashboardRoutes.SCANS_ADMIN, name: 'Scans', icon: <SecurityIcon /> },
+    {
+        name: 'Rate Limiting',
+        icon: <SpeedIcon />,
+        children: [
+            { path: AdminDashboardRoutes.TIERS, name: 'Tiers', icon: <StarIcon /> },
+            { path: AdminDashboardRoutes.CUSTOMERS, name: 'Customers', icon: <PeopleIcon /> },
+            { path: AdminDashboardRoutes.USAGE_STATS, name: 'Usage Stats', icon: <BarChartIcon /> },
+        ],
+    },
+    { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon /> },
+];
+
+// Flat name lookup for breadcrumbs
+const routeNames: { [key: string]: string } = {
+    [AdminDashboardRoutes.MAIN]: 'Admin Dashboard',
+    ...navConfig.reduce<{ [key: string]: string }>((acc, entry) => {
+        if (isNavGroup(entry)) {
+            entry.children.forEach(child => {
+                acc[child.path] = child.name;
+            });
+        } else {
+            acc[entry.path] = entry.name;
+        }
+        return acc;
+    }, {}),
+};
 
 const drawerWidth = 240;
 
@@ -138,11 +176,11 @@ const BreadcrumbsComponent = () => {
 
                 return last ? (
                     <Typography color='text.primary' key={to}>
-                        {routes[to]?.name ?? value}
+                        {routeNames[to] ?? value}
                     </Typography>
                 ) : (
                     <LinkRouter underline='hover' color='inherit' to={to} key={to}>
-                        {routes[to]?.name}
+                        {routeNames[to]}
                     </LinkRouter>
                 );
             })}
@@ -210,11 +248,26 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                     </Toolbar>
                 </AppBar>
                 <Sidepanel width={drawerWidth} open={drawerOpen} handleDrawerClose={() => setDrawerOpen(false)} >
-                    {Object.keys(routes).map((key, i) => (
-                        routes[key].icon &&
-                        <NavigationItem key={i} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(key)}
-                                        label={routes[key].name} icon={routes[key].icon} route={key}/>
-                    ))}
+                    {navConfig.map((entry) => {
+                        if (isNavGroup(entry)) {
+                            return (
+                                <NavigationItem
+                                    key={entry.name}
+                                    label={entry.name}
+                                    icon={entry.icon}
+                                >
+                                    {entry.children.map((child) => (
+                                        <NavigationItem key={child.path} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(child.path)}
+                                                        label={child.name} icon={child.icon} route={child.path}/>
+                                    ))}
+                                </NavigationItem>
+                            );
+                        }
+                        return (
+                            <NavigationItem key={entry.path} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(entry.path)}
+                                            label={entry.name} icon={entry.icon} route={entry.path}/>
+                        );
+                    })}
                 </Sidepanel>
                 <Main open={drawerOpen} >
                     <DrawerHeader />
