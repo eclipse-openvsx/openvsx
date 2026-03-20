@@ -18,7 +18,9 @@ import { SearchListContainer } from './search-list-container';
 import { PublisherDetails } from './publisher-details';
 import { AdminDashboardRoutes } from './admin-routes';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const UpdateContext = createContext({ handleUpdate: () => { } });
+
 export const PublisherAdmin: FunctionComponent = () => {
     const { publisher: publisherParam } = useParams<{ publisher: string }>();
     const navigate = useNavigate();

@@ -30,6 +30,7 @@ import { LogoutForm } from '../pages/user/logout';
 import { LoginComponent } from './login';
 
 //-------------------- Mobile View --------------------//
+// eslint-disable-next-line react-refresh/only-export-components
 export const itemIcon = {
     mr: 1,
     width: '16px',
@@ -161,6 +162,7 @@ export const MobileMenuContent: FunctionComponent = () => {
 
 //-------------------- Default View --------------------//
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const headerItem = ({ theme }: { theme: Theme }) => ({
     margin: theme.spacing(2.5),
     color: theme.palette.text.primary,
@@ -175,7 +177,9 @@ export const headerItem = ({ theme }: { theme: Theme }) => ({
     }
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const MenuLink = styled(Link)(headerItem);
+// eslint-disable-next-line react-refresh/only-export-components
 export const MenuRouteLink = styled(RouteLink)(headerItem);
 
 export const DefaultMenuContent: FunctionComponent = () => {
