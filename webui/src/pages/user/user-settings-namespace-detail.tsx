@@ -23,6 +23,8 @@ import { UserNamespaceDetails } from './user-namespace-details';
 export interface NamespaceDetailConfig {
     defaultMemberRole?: 'contributor' | 'owner';
 }
+
+// eslint-disable-next-line react-refresh/only-export-components
 export const NamespaceDetailConfigContext = createContext<NamespaceDetailConfig>({});
 
 const NamespaceDetailContainer = styled(Grid)(({ theme }: { theme: Theme }) => ({
