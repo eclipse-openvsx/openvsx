@@ -18,6 +18,7 @@ import { UserSettingsTokens } from './user-settings-tokens';
 import { UserSettingsProfile } from './user-settings-profile';
 import { UserSettingsNamespaces } from './user-settings-namespaces';
 import { UserSettingsExtensions } from './user-settings-extensions';
+import { UserSettingsCustomers } from './user-settings-customers';
 import { MainContext } from '../../context';
 import { UserData } from '../../extension-registry-types';
 import { LoginComponent } from '../../default/login';
@@ -42,6 +43,8 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
                 return <UserSettingsNamespaces />;
             case 'extensions':
                 return <UserSettingsExtensions />;
+            case 'customers':
+                return <UserSettingsCustomers />;
             default:
                 return null;
         }

@@ -20,8 +20,8 @@ import { handleError } from "../../../utils";
 import { AdminDashboardRoutes } from "../admin-routes";
 import { SearchListContainer } from "../search-list-container";
 import { CustomerSearch } from "./usage-stats-search";
-import { UsageStatsChart } from "./usage-stats-chart";
-import { useUsageStats } from "./use-usage-stats";
+import { UsageStatsChart } from "../../../components/rate-limiting/usage-stats/usage-stats-chart";
+import { useAdminUsageStats } from "./use-usage-stats";
 
 export const UsageStatsView: FC = () => {
     const { customer } = useParams<{ customer: string }>();
@@ -33,7 +33,7 @@ export const UsageStatsView: FC = () => {
     const [customersLoading, setCustomersLoading] = useState(true);
     const [customersError, setCustomersError] = useState<string | null>(null);
 
-    const { usageStats, loading, error: statsError, startDate, setStartDate } = useUsageStats(customer);
+    const { usageStats, loading, error: statsError, startDate, setStartDate } = useAdminUsageStats(customer);
 
     // Load customers for autocomplete
     useEffect(() => {

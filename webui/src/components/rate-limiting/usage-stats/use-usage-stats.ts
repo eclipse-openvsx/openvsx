@@ -15,10 +15,10 @@ import { useContext, useState, useEffect, useRef, useCallback } from "react";
 import { MainContext } from "../../../context";
 import type { UsageStats } from "../../../extension-registry-types";
 import { handleError } from "../../../utils";
-import { getDefaultStartDate } from "../../../components/rate-limiting/usage-stats/usage-stats-utils";
+import { getDefaultStartDate } from "./usage-stats-utils";
 import { DateTime } from "luxon";
 
-export const useAdminUsageStats = (customerName: string | undefined) => {
+export const useUsageStats = (customerName: string | undefined) => {
     const abortController = useRef(new AbortController());
     const { service } = useContext(MainContext);
 
@@ -40,7 +40,7 @@ export const useAdminUsageStats = (customerName: string | undefined) => {
         try {
             setLoading(true);
             setError(null);
-            const data = await service.admin.getUsageStats(
+            const data = await service.getUsageStatsForUser(
                 abortController.current,
                 customerName,
                 date.toJSDate()
