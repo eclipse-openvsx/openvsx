@@ -21,4 +21,5 @@ export namespace UserSettingsRoutes {
     export const NAMESPACES = createRoute([ROOT, 'namespaces']);
     export const EXTENSIONS = createRoute([ROOT, 'extensions']);
     export const DELETE_EXTENSION = createRoute([ROOT, 'extensions', ':namespace', ':extension', 'delete']);
+    export const CUSTOMERS = createRoute([ROOT, 'customers']);
 }

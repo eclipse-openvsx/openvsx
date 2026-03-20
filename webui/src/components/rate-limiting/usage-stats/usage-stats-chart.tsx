@@ -42,6 +42,7 @@ interface UsageStatsChartProps {
     startDate: DateTime;
     onStartDateChange: (date: DateTime) => void;
     embedded?: boolean;
+    compact?: boolean;
 }
 
 export const UsageStatsChart: FC<UsageStatsChartProps> = ({
@@ -49,7 +50,8 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
     customer,
     startDate,
     onStartDateChange,
-    embedded = false
+    embedded = false,
+    compact = false
 }) => {
     const dayStart = startDate.startOf('day').toMillis() / 1000;
     const dayEnd = startDate.endOf('day').toMillis() / 1000;
@@ -134,8 +136,8 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             color: 'lightgray',
                         }]}
 
-                        height={400}
-                        margin={{ top: 10 }}
+                        height={compact ? 300 : 400}
+                        margin={{ top: 30 }}
                         xAxis={[
                             {
                                 id: 'date',
@@ -172,11 +174,13 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             label='Time (UTC)'
                             position='bottom'
                             axisId='date'
-                            tickInterval={(value, index) => {
-                                return new Date(value).getMinutes() === 0;
+                            tickInterval={(value) => {
+                                const d = new Date(value);
+                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
                             }}
-                            tickLabelInterval={(value, index) => {
-                                return new Date(value).getMinutes() === 0;
+                            tickLabelInterval={(value) => {
+                                const d = new Date(value);
+                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
                             }}
                             tickLabelStyle={{
                                 fontSize: 10,

@@ -15,10 +15,55 @@ import {
     LoginProviders, ScanResultJson, ScanCounts, ScanResultsResponse, ScanFilterOptions,
     FilesResponse, FileDecisionCountsJson, ScanDecisionRequest, ScanDecisionResponse,
     FileDecisionRequest, FileDecisionResponse, FileDecisionDeleteRequest, FileDecisionDeleteResponse,
-    Tier, TierList, Customer, CustomerList, UsageStatsList, LogPageableList,
+    Tier, TierList, Customer, CustomerList, UsageStats, UsageStatsList, LogPageableList,
+    EnforcementState, TierType, RefillStrategy,
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse } from './server-request';
+
+// TODO: Remove mock users when backend returns real user data
+const MOCK_USERS: UserData[] = [
+    {
+        loginName: 'rhdevelopers-ci',
+        fullName: 'Red Hat Developers CI',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/18214726?v=4',
+        homepage: 'https://github.com/rhdevelopers-ci',
+        provider: 'github',
+        tokensUrl: '',
+        createTokenUrl: ''
+    },
+    {
+        loginName: 'midudev',
+        fullName: 'Miguel Ángel Durán',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
+        homepage: 'https://github.com/midudev',
+        provider: 'github',
+        tokensUrl: '',
+        createTokenUrl: ''
+    },
+    {
+        loginName: 'jakubmisek',
+        fullName: 'Jakub Míšek',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/842150?v=4',
+        homepage: 'https://github.com/jakubmisek',
+        provider: 'github',
+        tokensUrl: '',
+        createTokenUrl: ''
+    },
+    {
+        loginName: 'test',
+        fullName: 'Miguel Ángel Durán',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
+        homepage: 'https://github.com/midudev',
+        provider: 'github',
+        tokensUrl: '',
+        createTokenUrl: ''
+    }
+];
+
+const injectMockUsers = (customer: Customer): Customer => {
+    return { ...customer, users: MOCK_USERS };
+};
 
 export class ExtensionRegistryService {
 
@@ -324,6 +369,75 @@ export class ExtensionRegistryService {
             credentials: true,
             endpoint: createAbsoluteURL([this.serverUrl, 'user', 'namespaces'])
         });
+    }
+
+    // TODO: Replace with real user-scoped endpoint when backend is ready
+    async getCustomersForUser(_abortController: AbortController): Promise<Readonly<Customer>[]> {
+        return [
+            {
+                name: 'eclipse',
+                state: EnforcementState.ENFORCEMENT,
+                tier: {
+                    name: 'Enterprise',
+                    description: 'Enterprise tier with higher rate limits',
+                    tierType: TierType.NON_FREE,
+                    capacity: 800,
+                    duration: 300,
+                    refillStrategy: RefillStrategy.GREEDY,
+                },
+                cidrBlocks: ['192.168.1.0/24', '10.0.0.0/8'],
+            },
+            {
+                name: 'test',
+                state: EnforcementState.EVALUATION,
+                tier: {
+                    name: 'Free',
+                    tierType: TierType.FREE,
+                    capacity: 500,
+                    duration: 300,
+                    refillStrategy: RefillStrategy.INTERVAL,
+                },
+                cidrBlocks: [],
+            },
+        ].map(injectMockUsers);
+    }
+
+    // TODO: Replace with real user-scoped endpoint when backend is ready
+    async getUsageStatsForUser(_abortController: AbortController, _customerName: string, date: Date): Promise<Readonly<UsageStatsList>> {
+        /** Generated using Gemini */
+        const STEP = 5 * 60; // 5-minute windows in seconds
+        const dayStart = new Date(date);
+        dayStart.setUTCHours(0, 0, 0, 0);
+        const startEpoch = Math.floor(dayStart.getTime() / 1000);
+
+        // Generate mock usage with a smooth traffic pattern (two overlapping peaks)
+        const stats: UsageStats[] = [];
+        // Simple seeded pseudo-random for deterministic but smooth noise
+        let seed = 42;
+        const rand = () => {
+          seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647;
+        };
+
+        for (let i = 0; i < 288; i++) { // 288 five-minute windows per day
+            const hour = i / 12;
+            // Two overlapping gaussian peaks for a more natural shape
+            const morning = Math.exp(-0.5 * Math.pow((hour - 10) / 2.5, 2));
+            const afternoon = Math.exp(-0.5 * Math.pow((hour - 15) / 2, 2));
+            const base = (morning * 500 + afternoon * 700);
+            // Smooth jitter: ±15% of base
+            const jitter = base * (rand() * 0.3 - 0.15);
+            const count = Math.round(Math.max(0, base + jitter));
+
+            if (count > 0) {
+                stats.push({
+                    windowStart: startEpoch + i * STEP,
+                    duration: STEP,
+                    count,
+                });
+            }
+        }
+
+        return { stats };
     }
 
     getNamespaceMembers(abortController: AbortController, namespace: Namespace): Promise<Readonly<NamespaceMembershipList>> {
@@ -885,57 +999,13 @@ export class AdminServiceImpl implements AdminService {
         }, false);
     }
 
-    // TODO: Remove mock users when backend returns real user data
-    private static readonly MOCK_USERS: UserData[] = [
-        {
-            loginName: 'rhdevelopers-ci',
-            fullName: 'Red Hat Developers CI',
-            avatarUrl: 'https://avatars.githubusercontent.com/u/18214726?v=4',
-            homepage: 'https://github.com/rhdevelopers-ci',
-            provider: 'github',
-            tokensUrl: '',
-            createTokenUrl: ''
-        },
-        {
-            loginName: 'midudev',
-            fullName: 'Miguel Ángel Durán',
-            avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
-            homepage: 'https://github.com/midudev',
-            provider: 'github',
-            tokensUrl: '',
-            createTokenUrl: ''
-        },
-        {
-            loginName: 'jakubmisek',
-            fullName: 'Jakub Míšek',
-            avatarUrl: 'https://avatars.githubusercontent.com/u/842150?v=4',
-            homepage: 'https://github.com/jakubmisek',
-            provider: 'github',
-            tokensUrl: '',
-            createTokenUrl: ''
-        },
-        {
-            loginName: 'test',
-            fullName: 'Miguel Ángel Durán',
-            avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
-            homepage: 'https://github.com/midudev',
-            provider: 'github',
-            tokensUrl: '',
-            createTokenUrl: ''
-        }
-    ];
-
-    private injectMockUsers(customer: Customer): Customer {
-        return { ...customer, users: AdminServiceImpl.MOCK_USERS };
-    }
-
     async getCustomers(abortController: AbortController): Promise<Readonly<CustomerList>> {
         const data: CustomerList = await sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers']),
             credentials: true
         }, false);
-        return { customers: data.customers.map(this.injectMockUsers) };
+        return { customers: data.customers.map(injectMockUsers) };
     }
 
     async getCustomer(abortController: AbortController, name: string): Promise<Readonly<Customer>> {
@@ -944,7 +1014,7 @@ export class AdminServiceImpl implements AdminService {
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
             credentials: true
         }, false);
-        return this.injectMockUsers(data);
+        return injectMockUsers(data);
     }
 
     async createCustomer(abortController: AbortController, customer: Customer): Promise<Readonly<Customer>> {
