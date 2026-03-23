@@ -7,14 +7,14 @@
 </h1>
 
 <p align="center">
-  <a href="https://gitpod.io/#https://github.com/eclipse/openvsx"><img alt="Gitpod Ready-to-Code" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod" /></a>
-  <a href="https://workspaces.openshift.com#https://github.com/eclipse/openvsx"><img alt="Contribute" src="https://www.eclipse.org/che/contribute.svg" /></a>
+  <a href="https://gitpod.io/#https://github.com/eclipse-openvsx/openvsx"><img alt="Gitpod Ready-to-Code" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod" /></a>
+  <a href="https://workspaces.openshift.com#https://github.com/eclipse-openvsx/openvsx"><img alt="Contribute" src="https://www.eclipse.org/che/contribute.svg" /></a>
   <a href="https://join.slack.com/t/openvsxworkinggroup/shared_invite/zt-2y07y1ggy-ct3IfJljjGI6xWUQ9llv6A"><img alt="Slack workspace" src="https://img.shields.io/badge/Slack-Join%20workspace-4A154B?logo=slack&logoColor=white" /></a>
-  <a href="https://github.com/eclipse/openvsx/blob/master/LICENSE"><img alt="EPLv2 License" src="https://img.shields.io/github/license/eclipse/openvsx" /></a>
-  <a href="https://github.com/eclipse/openvsx/releases"><img alt="Release" src="https://img.shields.io/github/v/tag/eclipse/openvsx?sort=semver" /></a>
+  <a href="https://github.com/eclipse-openvsx/openvsx/blob/master/LICENSE"><img alt="EPLv2 License" src="https://img.shields.io/github/license/eclipse-openvsx/openvsx" /></a>
+  <a href="https://github.com/eclipse-openvsx/openvsx/releases"><img alt="Release" src="https://img.shields.io/github/v/tag/eclipse-openvsx/openvsx?sort=semver" /></a>
   <a href="https://www.npmjs.com/package/ovsx"><img alt="cli" src="https://img.shields.io/npm/v/ovsx?label=cli" /></a>
-  <a href="https://github.com/eclipse/openvsx/actions/workflows/main.yml?query=branch%3Amaster"><img alt="Build Status" src="https://github.com/eclipse/openvsx/actions/workflows/main.yml/badge.svg?branch:master" /></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/eclipse/openvsx"><img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/eclipse/openvsx/badge" /></a>
+  <a href="https://github.com/eclipse-openvsx/openvsx/actions/workflows/main.yml?query=branch%3Amaster"><img alt="Build Status" src="https://github.com/eclipse-openvsx/openvsx/actions/workflows/main.yml/badge.svg?branch:master" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/eclipse-openvsx/openvsx"><img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/eclipse-openvsx/openvsx/badge" /></a>
 </p>
 
 # Eclipse Open VSX
@@ -28,19 +28,19 @@ the [EclipseFdn/open-vsx.org wiki](https://github.com/EclipseFdn/open-vsx.org/wi
 
 ## Getting Started
 
-See the [openvsx Wiki](https://github.com/eclipse/openvsx/wiki) for documentation of general concepts and usage of this project.
+See the [openvsx Wiki](https://github.com/eclipse-openvsx/openvsx/wiki) for documentation of general concepts and usage of this project.
 
 ## Development
 
 - The easiest way to get a development environment for this project is to open it in [Gitpod](https://gitpod.io/).
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/eclipse/openvsx)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/eclipse-openvsx/openvsx)
 
 Click _Open Browser_ on port 3000 to see the running web application.
 
 - Open a development environment in [Red Hat OpenShift Dev Spaces](https://docs.redhat.com/en/documentation/red_hat_openshift_dev_spaces), it is an open source product based on Eclipse Che that is running on [OpenShift Dedicated](https://www.redhat.com/en/technologies/cloud-computing/openshift/dedicated).
 
-[![Open in Dev Spaces](https://www.eclipse.org/che/contribute.svg)](https://workspaces.openshift.com#https://github.com/eclipse/openvsx)
+[![Open in Dev Spaces](https://www.eclipse.org/che/contribute.svg)](https://workspaces.openshift.com#https://github.com/eclipse-openvsx/openvsx)
 
 ### cli
 

@@ -12,7 +12,7 @@ Instead, you can report it using one of the following ways:
 
 * Contact the [Eclipse Foundation Security Team](mailto:security@eclipse-foundation.org) via email
 * Create a [confidential issue](https://gitlab.eclipse.org/security/vulnerability-reports/-/issues/new?issuable_template=new_vulnerability) in the Eclipse Foundation Vulnerability Reporting Tracker
-* Report a [vulnerability](https://github.com/eclipse-csi/otterdog/security/advisories/new) directly via private vulnerability reporting on GitHub
+* Report a [vulnerability](https://github.com/eclipse-openvsx/openvsx/security/advisories/new) directly via private vulnerability reporting on GitHub
 
 You can find more information about reporting and disclosure at the [Eclipse Foundation Security page](https://www.eclipse.org/security/).
 
@@ -32,4 +32,4 @@ This information will help us triage your report more quickly.
 
 # Supported Versions
 
-This project supports and provides security fixes only for the latest released version (see [Open VSX releases](https://github.com/eclipse/openvsx/releases)).
+This project supports and provides security fixes only for the latest released version (see [Open VSX releases](https://github.com/eclipse-openvsx/openvsx/releases)).

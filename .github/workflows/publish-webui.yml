@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.repository == 'eclipse/openvsx'
+    if: github.repository == 'eclipse-openvsx/openvsx'
     runs-on: ubuntu-22.04
     outputs:
       release-tag: ${{ steps.context.outputs.RELEASE_TAG }}

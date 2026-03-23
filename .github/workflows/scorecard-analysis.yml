@@ -15,7 +15,7 @@ permissions: read-all
 
 jobs:
   analysis:
-    if: github.repository_owner == 'eclipse'
+    if: github.repository_owner == 'eclipse-openvsx'
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:

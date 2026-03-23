@@ -4,13 +4,13 @@
 
 To get started quickly, it is recommended to use Gitpod as default with the development environment already configured.
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/eclipse/openvsx)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/eclipse-openvsx/openvsx)
 
 ### Using Red Hat OpenShift Dev Spaces
 
 Open a development environment in Red Hat OpenShift Dev Spaces. 
 
-[![Open in Dev Spaces](https://www.eclipse.org/che/contribute.svg)](https://workspaces.openshift.com#https://github.com/eclipse/openvsx)
+[![Open in Dev Spaces](https://www.eclipse.org/che/contribute.svg)](https://workspaces.openshift.com#https://github.com/eclipse-openvsx/openvsx)
 
 In the workspace, you'll find a set of predefined commands from the devfile.yaml that will assist you in building, running, and testing the application:
 * 1.1. Build OVSX CLI

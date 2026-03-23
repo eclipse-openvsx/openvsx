@@ -12,7 +12,7 @@ env:
 
 jobs:
   prepare:
-    if: github.repository == 'eclipse/openvsx'
+    if: github.repository == 'eclipse-openvsx/openvsx'
     permissions:
       contents: none
     runs-on: ubuntu-22.04
