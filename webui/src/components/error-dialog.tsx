@@ -8,9 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useEffect } from 'react';
+import { FunctionComponent, ReactNode, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, Button, DialogContentText, DialogActions, Box, Link } from '@mui/material';
-import { MainContext } from '../context';
 import { styled, Theme } from '@mui/material/styles';
 
 const ErrorLink = styled(Link)(({ theme }: { theme: Theme }) => ({
@@ -62,14 +61,13 @@ export const ErrorDialog: FunctionComponent<ErrorDialogProps> = props => {
         }
     };
 
-    const context = useContext(MainContext);
     const codeContent = getContentForCode();
     return <Dialog
             open={props.isErrorDialogOpen}
             onClose={props.handleCloseDialog} >
         <DialogTitle>Error</DialogTitle>
         <DialogContent>
-            <DialogContentText sx={{ color: context.pageSettings.themeType === 'dark' ? '#ff849e' : '#c54a64' }}>
+            <DialogContentText sx={{ color: (theme) => theme.palette.error.main }}>
                 {props.errorMessage}
                 {
                     codeContent ?
