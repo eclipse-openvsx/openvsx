@@ -76,6 +76,7 @@ public class RepositoryService {
     private final ScanCheckResultRepository scanCheckResultRepo;
     private final TierRepository tierRepo;
     private final CustomerRepository customerRepo;
+    private final CustomerMembershipRepository customerMembershipRepo;
     private final UsageStatsRepository usageStatsRepository;
 
     public RepositoryService(
@@ -110,6 +111,7 @@ public class RepositoryService {
             ScanCheckResultRepository scanCheckResultRepo,
             TierRepository tierRepo,
             CustomerRepository customerRepo,
+            CustomerMembershipRepository customerMembershipRepo,
             UsageStatsRepository usageStatsRepository
     ) {
         this.namespaceRepo = namespaceRepo;
@@ -143,6 +145,7 @@ public class RepositoryService {
         this.scanCheckResultRepo = scanCheckResultRepo;
         this.tierRepo = tierRepo;
         this.customerRepo = customerRepo;
+        this.customerMembershipRepo = customerMembershipRepo;
         this.usageStatsRepository = usageStatsRepository;
     }
 
@@ -1274,6 +1277,10 @@ public class RepositoryService {
 
     public void deleteCustomer(Customer customer) {
         customerRepo.delete(customer);
+    }
+
+    public Streamable<CustomerMembership> findCustomerMemberships(Customer customer) {
+        return customerMembershipRepo.findByCustomer(customer);
     }
 
     public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {

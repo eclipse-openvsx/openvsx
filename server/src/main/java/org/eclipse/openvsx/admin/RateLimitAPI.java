@@ -12,17 +12,16 @@
  *****************************************************************************/
 package org.eclipse.openvsx.admin;
 
-import org.eclipse.openvsx.entities.Customer;
-import org.eclipse.openvsx.entities.Tier;
-import org.eclipse.openvsx.entities.TierType;
-import org.eclipse.openvsx.entities.UsageStats;
+import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -322,6 +321,29 @@ public class RateLimitAPI {
             return ResponseEntity.ok(result);
         } catch (Exception exc) {
             logger.error("failed updating tier {}", name, exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping(
+            path = "/customers/{name}/members",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<CustomerMembershipListJson> getCustomerMembers(@PathVariable String name) {
+        try {
+            admins.checkAdminUser();
+
+            var customer = repositories.findCustomer(name);
+            if (customer == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            var memberships = repositories.findCustomerMemberships(customer);
+            var membershipList = new CustomerMembershipListJson();
+            membershipList.setCustomerMemberships(memberships.stream().map(CustomerMembership::toJson).toList());
+            return ResponseEntity.ok(membershipList);
+        } catch (Exception exc) {
+            logger.error("failed retrieving customer members {}", name, exc);
             return ResponseEntity.internalServerError().build();
         }
     }
