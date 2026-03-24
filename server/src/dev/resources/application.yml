@@ -184,15 +184,6 @@ ovsx:
     notification: 0
   mail:
     from: no-reply@example.com
-    revoked-access-tokens:
-      subject: 'Open VSX Access Tokens Revoked'
-      template: 'revoked-access-tokens.html'
-    access-token-expiry:
-      subject: 'Open VSX Access Token Expiry Notification'
-      template: 'access-token-expiry-notification.html'
-    access-token-expired:
-      subject: 'Open VSX Access Token Expired'
-      template: 'access-token-expired.html'
   # dynamic tier-based rate limiting configuration
   rate-limit:
     enabled: false

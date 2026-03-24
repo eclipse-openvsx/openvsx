@@ -26,9 +26,6 @@ public class SendMailJobRequestHandler implements JobRequestHandler<SendMailJobR
     private final JavaMailSender sender;
     private final TemplateEngine templateEngine;
 
-    @Value("${ovsx.mail.from:}")
-    String from;
-
     public SendMailJobRequestHandler(@Autowired(required = false) JavaMailSender sender, TemplateEngine templateEngine) {
         this.sender = sender;
         this.templateEngine = templateEngine;
@@ -42,7 +39,7 @@ public class SendMailJobRequestHandler implements JobRequestHandler<SendMailJobR
 
         var message = sender.createMimeMessage();
         var helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-        helper.setFrom(from);
+        helper.setFrom(request.getFrom());
         helper.setTo(request.getTo());
         helper.setSubject(request.getSubject());
         helper.setText(htmlContent, true);

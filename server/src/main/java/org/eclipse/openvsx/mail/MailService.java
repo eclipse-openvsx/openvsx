@@ -9,6 +9,7 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.mail;
 
+import jakarta.annotation.PostConstruct;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.UserData;
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -18,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.Map;
 
@@ -29,27 +31,50 @@ public class MailService {
     private final boolean disabled;
     private final JobRequestScheduler scheduler;
 
-    @Value("${ovsx.mail.revoked-access-tokens.subject:}")
+    @Value("${ovsx.mail.from:}")
+    String from;
+
+    @Value("${ovsx.mail.revoked-access-tokens.subject:Open VSX Access Tokens Revoked}")
     String revokedAccessTokensSubject;
 
-    @Value("${ovsx.mail.revoked-access-tokens.template:}")
+    @Value("${ovsx.mail.revoked-access-tokens.template:revoked-access-tokens.html}")
     String revokedAccessTokensTemplate;
 
-    @Value("${ovsx.mail.access-token-expiry.subject:}")
+    @Value("${ovsx.mail.access-token-expiry.subject:Open VSX Access Token Expiry Notification}")
     String accessTokenExpirySubject;
 
-    @Value("${ovsx.mail.access-token-expiry.template:}")
+    @Value("${ovsx.mail.access-token-expiry.template:access-token-expiry-notification.html}")
     String accessTokenExpiryTemplate;
 
-    @Value("${ovsx.mail.access-token-expired.subject:}")
+    @Value("${ovsx.mail.access-token-expired.subject:Open VSX Access Token Expired}")
     String accessTokenExpiredSubject;
 
-    @Value("${ovsx.mail.access-token-expired.template:}")
+    @Value("${ovsx.mail.access-token-expired.template:access-token-expired.html}")
     String accessTokenExpiredTemplate;
 
     public MailService(@Autowired(required = false) JavaMailSender sender, JobRequestScheduler scheduler) {
         this.disabled = sender == null;
         this.scheduler = scheduler;
+    }
+
+    @PostConstruct
+    public void validate() {
+        if (!disabled) {
+            if (!StringUtils.hasText(from)) {
+                throw new IllegalArgumentException(
+                        "ovsx.mail.from is not set while sending mails is enabled");
+            }
+
+            if (!StringUtils.hasText(revokedAccessTokensSubject)) {
+                throw new IllegalArgumentException(
+                        "ovsx.mail.revoked-access-tokens.subject is not set while sending mails is enabled");
+            }
+
+            if (!StringUtils.hasText(revokedAccessTokensTemplate)) {
+                throw new IllegalArgumentException(
+                        "ovsx.mail.revoked-access-tokens.template is not set while sending mails is enabled");
+            }
+        }
     }
 
     public void scheduleAccessTokenExpiryNotification(PersonalAccessToken token) {
@@ -76,6 +101,7 @@ public class MailService {
                 "expiryDate", token.getExpiresTimestamp()
         );
         var jobRequest = new SendMailJobRequest(
+                from,
                 email,
                 accessTokenExpirySubject,
                 accessTokenExpiryTemplate,
@@ -110,6 +136,7 @@ public class MailService {
                 "expiryDate", token.getExpiresTimestamp()
         );
         var jobRequest = new SendMailJobRequest(
+                from,
                 email,
                 accessTokenExpiredSubject,
                 accessTokenExpiredTemplate,
@@ -134,6 +161,7 @@ public class MailService {
         var name = user.getFullName() == null ? user.getLoginName() : user.getFullName();
         var variables = Map.<String, Object>of("name", name);
         var jobRequest = new SendMailJobRequest(
+                from,
                 user.getEmail(),
                 revokedAccessTokensSubject,
                 revokedAccessTokensTemplate,
