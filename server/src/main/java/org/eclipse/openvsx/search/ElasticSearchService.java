@@ -15,6 +15,7 @@ import co.elastic.clients.elasticsearch._types.mapping.FieldType;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders;
 import co.elastic.clients.util.ObjectBuilder;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
@@ -41,7 +42,7 @@ import org.springframework.data.elasticsearch.core.query.DeleteQuery;
 import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StopWatch;
 
 import java.time.ZoneId;
@@ -52,7 +53,7 @@ import java.util.stream.Collectors;
 
 import static org.eclipse.openvsx.cache.CacheService.CACHE_AVERAGE_REVIEW_RATING;
 
-@Component
+@Service
 public class ElasticSearchService implements ISearchService {
 
     protected final ReadWriteLock rwLock = new ReentrantReadWriteLock();
@@ -68,7 +69,7 @@ public class ElasticSearchService implements ISearchService {
     @Value("${ovsx.elasticsearch.clear-on-start:false}")
     boolean clearOnStart;
 
-    private Long maxResultWindow;
+    private long maxResultWindow;
 
     public ElasticSearchService(
             RepositoryService repositories,
@@ -81,7 +82,13 @@ public class ElasticSearchService implements ISearchService {
         this.relevanceService = relevanceService;
         this.scheduler = scheduler;
     }
-    
+
+    @PostConstruct
+    public void initialize() {
+        var settings = searchOperations.indexOps(ExtensionSearch.class).getSettings(true);
+        maxResultWindow = Long.parseLong(settings.getOrDefault("index.max_result_window", "10000").toString());
+    }
+
     public boolean isEnabled() {
         return enableSearch;
     }
@@ -90,10 +97,10 @@ public class ElasticSearchService implements ISearchService {
      * Application start listener that initializes the search index. If the application property
      * {@code ovsx.elasticsearch.clear-on-start} is set to {@code true}, the index is cleared
      * and rebuilt from scratch. If the property is {@code false} and the search index does
-     * not exist yet, it is created and initialized. Otherwise nothing happens.
+     * not exist yet, it is created and initialized. Otherwise, nothing happens.
      */
     @EventListener
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     @CacheEvict(value = CACHE_AVERAGE_REVIEW_RATING, allEntries = true)
     public void initSearchIndex(ApplicationStartedEvent event) {
         scheduler.scheduleRecurrently("ElasticSearchUpdateIndex", Cron.daily(4), ZoneId.of("UTC"), new HandlerJobRequest<>(ElasticSearchUpdateIndexJobRequestHandler.class));
@@ -112,7 +119,7 @@ public class ElasticSearchService implements ISearchService {
      * consider the extension publishing timestamps in relation to the current
      * time or the extension rating.
      */
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     @CacheEvict(value = CACHE_AVERAGE_REVIEW_RATING, allEntries = true)
     public void updateSearchIndex() {
         if (!isEnabled()) {
@@ -134,7 +141,7 @@ public class ElasticSearchService implements ISearchService {
      * In any case, this method scans all extensions in the database and indexes their
      * relevant metadata.
      */
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     public void updateSearchIndex(boolean clear) {
         var locked = false;
         try {
@@ -180,12 +187,12 @@ public class ElasticSearchService implements ISearchService {
     }
 
     @Async
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     public void updateSearchEntriesAsync(List<Extension> extensions) {
         updateSearchEntries(extensions);
     }
 
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     public void updateSearchEntries(List<Extension> extensions) {
         if (!isEnabled() || extensions.isEmpty()) {
             return;
@@ -205,7 +212,7 @@ public class ElasticSearchService implements ISearchService {
         }
     }
 
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     public void updateSearchEntry(Extension extension) {
         if (!isEnabled()) {
             return;
@@ -223,7 +230,7 @@ public class ElasticSearchService implements ISearchService {
         }
     }
 
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     public void removeSearchEntries(Collection<Long> ids) {
         if (!isEnabled()) {
             return;
@@ -235,7 +242,7 @@ public class ElasticSearchService implements ISearchService {
     }
 
 
-    @Retryable(DataAccessResourceFailureException.class)
+    @Retryable(retryFor = DataAccessResourceFailureException.class)
     public void removeSearchEntry(Extension extension) {
         if (!isEnabled()) {
             return;
@@ -251,7 +258,7 @@ public class ElasticSearchService implements ISearchService {
 
     public SearchResult search(Options options) {
         var resultWindow = options.requestedOffset() + options.requestedSize();
-        if(resultWindow > getMaxResultWindow()) {
+        if (resultWindow > maxResultWindow) {
             return new SearchResult(0L, Collections.emptyList());
         }
 
@@ -263,15 +270,16 @@ public class ElasticSearchService implements ISearchService {
 
         var pages = new ArrayList<Pageable>();
         pages.add(PageRequest.of(options.requestedOffset() / options.requestedSize(), options.requestedSize()));
-        if(options.requestedOffset() % options.requestedSize() > 0) {
+        if (options.requestedOffset() % options.requestedSize() > 0) {
             // size is not exact multiple of offset; this means we need to get two pages
             // e.g. when offset is 20 and size is 50, you want results 20 to 70 which span pages 0 and 1 of a 50 item page
-            pages.add(pages.get(0).next());
+            pages.add(pages.getFirst().next());
         }
 
         var searchHitsList = new ArrayList<SearchHits<ExtensionSearch>>(pages.size());
-        for(var page : pages) {
+        for (var page : pages) {
             queryBuilder.withPageable(page);
+            queryBuilder.withTrackTotalHits(true);
             try {
                 rwLock.readLock().lock();
                 var searchHits = searchOperations.search(queryBuilder.build(), ExtensionSearch.class, searchOperations.indexOps(ExtensionSearch.class).getIndexCoordinates());
@@ -283,7 +291,7 @@ public class ElasticSearchService implements ISearchService {
 
         var firstSearchHitsPage = searchHitsList.get(0);
         List<SearchHit<ExtensionSearch>> searchHits = new ArrayList<>(firstSearchHitsPage.getSearchHits());
-        if(searchHitsList.size() == 2) {
+        if (searchHitsList.size() == 2) {
             var secondSearchHitsPage = searchHitsList.get(1);
 
             searchHits.addAll(secondSearchHitsPage.getSearchHits());
@@ -383,7 +391,7 @@ public class ElasticSearchService implements ISearchService {
         );
 
         var type = types.get(sortBy);
-        if(type == null) {
+        if (type == null) {
             throw new ErrorResultException("sortBy parameter must be " + SortBy.OPTIONS + ".");
         }
 
@@ -391,14 +399,5 @@ public class ElasticSearchService implements ISearchService {
         var fieldSort = new SortOptions.Builder().field(builder -> builder.field(sortBy).unmappedType(type).order(order)).build();
         var sortOptions = sortBy.equals(SortBy.RELEVANCE) ? List.of(scoreSort, fieldSort) : List.of(fieldSort, scoreSort);
         queryBuilder.withSort(sortOptions);
-    }
-
-    private long getMaxResultWindow() {
-        if(maxResultWindow == null) {
-            var settings = searchOperations.indexOps(ExtensionSearch.class).getSettings(true);
-            maxResultWindow = Long.parseLong(settings.getOrDefault("index.max_result_window", "10000").toString());
-        }
-
-        return maxResultWindow;
     }
 }
