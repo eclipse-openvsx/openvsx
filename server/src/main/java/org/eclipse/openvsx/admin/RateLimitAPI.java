@@ -14,6 +14,7 @@ package org.eclipse.openvsx.admin;
 
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
+import org.eclipse.openvsx.ratelimit.CustomerService;
 import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -21,12 +22,10 @@ import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 
@@ -38,17 +37,20 @@ public class RateLimitAPI {
     private final RepositoryService repositories;
     private final AdminService admins;
     private final LogService logs;
+    private final CustomerService customerService;
     private RateLimitCacheService rateLimitCacheService;
 
     public RateLimitAPI(
             RepositoryService repositories,
             AdminService admins,
             LogService logs,
+            CustomerService customerService,
             Optional<RateLimitCacheService> rateLimitCacheService
     ) {
         this.repositories = repositories;
         this.admins = admins;
         this.logs = logs;
+        this.customerService = customerService;
         rateLimitCacheService.ifPresent(service -> this.rateLimitCacheService = service);
     }
 
@@ -344,6 +346,52 @@ public class RateLimitAPI {
             return ResponseEntity.ok(membershipList);
         } catch (Exception exc) {
             logger.error("failed retrieving customer members {}", name, exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping(
+            path = "/customers/{name}/add-member",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ResultJson> addCustomerMember(
+            @PathVariable String name,
+            @RequestParam("user") String userName,
+            @RequestParam(required = false) String provider
+    ) {
+        try {
+            var admin = admins.checkAdminUser();
+
+            var result = customerService.addCustomerMember(name, userName, provider);
+            logs.logAction(admin, result);
+            return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        } catch (Exception exc) {
+            logger.error("failed adding user {} to customer {}", userName, name, exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping(
+            path = "/customers/{name}/remove-member",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ResultJson> removeCustomerMember(
+            @PathVariable String name,
+            @RequestParam("user") String userName,
+            @RequestParam(required = false) String provider
+    ) {
+        try {
+            var admin = admins.checkAdminUser();
+
+            var result = customerService.removeCustomerMember(name, userName, provider);
+            logs.logAction(admin, result);
+            return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        } catch (Exception exc) {
+            logger.error("failed removing user {} from customer {}", userName, name, exc);
             return ResponseEntity.internalServerError().build();
         }
     }

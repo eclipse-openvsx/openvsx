@@ -1283,6 +1283,10 @@ public class RepositoryService {
         return customerMembershipRepo.findByCustomer(customer);
     }
 
+    public CustomerMembership findCustomerMembership(UserData user, Customer customer) {
+        return customerMembershipRepo.findByUserAndCustomer(user, customer);
+    }
+
     public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {
         var startTime = date.truncatedTo(ChronoUnit.DAYS).minusMinutes(5);
         var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1);

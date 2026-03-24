@@ -452,11 +452,19 @@ export interface Customer {
     tier?: Tier;
     state: EnforcementState;
     cidrBlocks: string[];
-    users?: UserData[];
 }
 
 export interface CustomerList {
     customers: Customer[];
+}
+
+export interface CustomerMembership {
+    customer: string;
+    user: UserData;
+}
+
+export interface CustomerMembershipList {
+    customerMemberships: CustomerMembership[];
 }
 
 export interface UsageStats {
