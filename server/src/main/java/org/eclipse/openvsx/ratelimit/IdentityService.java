@@ -69,24 +69,23 @@ public class IdentityService {
         String ipAddress = getIPAddress(request);
         String cacheKey = null;
 
-        var token = request.getParameter("token");
-        if (token != null) {
-            // This will update the database with the time the token is last accessed,
-            // but we need to ensure that we only take valid tokens into account for rate limiting.
-            // If this turns out to be a bottleneck, we need to cache the token hashcode.
-            var tokenEntity = tokenService.useAccessToken(token);
-            if (tokenEntity != null) {
-                // if a valid token is present we use it as a cache key
-                cacheKey = "token_" + token.hashCode();
-            }
+        // check first for user session to ensure that users can't extend their rate limit through tokens
+        var user = userService.findLoggedInUser();
+        if (user != null && StringUtils.isNotBlank(user.getAuthId())) {
+            cacheKey = "user_" + user.getAuthId();
         }
 
-        // if we don't have a valid token, we check if the user is logged in to generate a cache key
-        // we want to only do this if we don't have a valid token to avoid unnecessary database calls
         if (cacheKey == null) {
-            var user = userService.findLoggedInUser();
-            if (user != null && StringUtils.isNotBlank(user.getAuthId())) {
-                cacheKey = "user_" + user.getAuthId();
+            var token = request.getParameter("token");
+            if (token != null) {
+                // This will update the database with the time the token is last accessed,
+                // but we need to ensure that we only take valid tokens into account for rate limiting.
+                // If this turns out to be a bottleneck, we need to cache the token hashcode.
+                var tokenEntity = tokenService.useAccessToken(token);
+                if (tokenEntity != null) {
+                    // if a valid token is present we use it as a cache key
+                    cacheKey = "token_" + token.hashCode();
+                }
             }
         }
 

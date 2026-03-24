@@ -53,7 +53,7 @@ public class IdentityServiceTest {
 
     @Test
     public void testResolveIdentityAuthenticatedUser() {
-        var request = mockRequest();
+        var request = Mockito.mock(HttpServletRequest.class);
         var userData = mockUserData();
 
         Mockito.when(customerService.getCustomerByIpAddress(ArgumentMatchers.anyString())).thenReturn(Optional.empty());
@@ -64,12 +64,6 @@ public class IdentityServiceTest {
 
         assertTrue(resolvedIdentity.cacheKey().startsWith("user_"), "Cache key should start with 'user_'");
         assertEquals("user_" + userData.getAuthId(), resolvedIdentity.cacheKey(), "Cache key should be based on user auth ID");
-    }
-
-    private HttpServletRequest mockRequest() {
-        var request = Mockito.mock(HttpServletRequest.class);
-        Mockito.when(request.getParameter("token")).thenReturn(null);
-        return request;
     }
 
     private UserData mockUserData() {
