@@ -15,7 +15,6 @@ import co.elastic.clients.elasticsearch._types.mapping.FieldType;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders;
 import co.elastic.clients.util.ObjectBuilder;
-import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
@@ -83,16 +82,6 @@ public class ElasticSearchService implements ISearchService {
         this.scheduler = scheduler;
     }
 
-    @PostConstruct
-    public void initialize() {
-        var indexOps = searchOperations.indexOps(ExtensionSearch.class);
-        // need to do an explicit null check as searchOperations is mocked in unit tests right now
-        if (indexOps != null) {
-            var settings = indexOps.getSettings(true);
-            maxResultWindow = Long.parseLong(settings.getOrDefault("index.max_result_window", "10000").toString());
-        }
-    }
-
     public boolean isEnabled() {
         return enableSearch;
     }
@@ -107,15 +96,29 @@ public class ElasticSearchService implements ISearchService {
     @Retryable(retryFor = DataAccessResourceFailureException.class)
     @CacheEvict(value = CACHE_AVERAGE_REVIEW_RATING, allEntries = true)
     public void initSearchIndex(ApplicationStartedEvent event) {
-        scheduler.scheduleRecurrently("ElasticSearchUpdateIndex", Cron.daily(4), ZoneId.of("UTC"), new HandlerJobRequest<>(ElasticSearchUpdateIndexJobRequestHandler.class));
-        if (!isEnabled() || !clearOnStart && searchOperations.indexOps(ExtensionSearch.class).exists()) {
+        if (!isEnabled()) {
+            scheduler.deleteRecurringJob("ElasticSearchUpdateIndex");
             return;
         }
-        var stopWatch = new StopWatch();
-        stopWatch.start();
-        updateSearchIndex(clearOnStart);
-        stopWatch.stop();
-        logger.info("Initialized search index in {} ms", stopWatch.getTotalTimeMillis());
+
+        // schedule recurring job to update the search index
+        scheduler.scheduleRecurrently(
+                "ElasticSearchUpdateIndex",
+                Cron.daily(4),
+                ZoneId.of("UTC"),
+                new HandlerJobRequest<>(ElasticSearchUpdateIndexJobRequestHandler.class)
+        );
+
+        if (clearOnStart || !searchOperations.indexOps(ExtensionSearch.class).exists()) {
+            var stopWatch = new StopWatch();
+            stopWatch.start();
+            updateSearchIndex(clearOnStart);
+            stopWatch.stop();
+            logger.info("Initialized search index in {} ms", stopWatch.getTotalTimeMillis());
+        }
+
+        var settings = searchOperations.indexOps(ExtensionSearch.class).getSettings(true);
+        maxResultWindow = Long.parseLong(settings.getOrDefault("index.max_result_window", "10000").toString());
     }
 
     /**
