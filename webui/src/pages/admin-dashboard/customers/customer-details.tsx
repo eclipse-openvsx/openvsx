@@ -16,22 +16,18 @@ import {
     Box,
     Typography,
     Button,
-    IconButton,
     Alert,
     LinearProgress
 } from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import DeleteIcon from "@mui/icons-material/Delete";
-import { useParams, Link as RouterLink } from "react-router-dom";
-import { MainContext } from "../../../context";
-import type { Customer, UserData } from "../../../extension-registry-types";
-import { createRoute, handleError } from "../../../utils";
-import { AdminDashboardRoutes } from "../admin-routes";
-import { useAdminUsageStats } from "../usage-stats/use-usage-stats";
-import { GeneralDetails, Members, UsageStats } from "../../../components/rate-limiting/customer";
-import { CustomerFormDialog } from "./customer-form-dialog";
-import { AddUserDialog } from "../../user/add-user-dialog";
+import EditIcon from '@mui/icons-material/Edit';
+import { useParams } from 'react-router-dom';
+import { MainContext } from '../../../context';
+import type { Customer } from '../../../extension-registry-types';
+import { handleError } from '../../../utils';
+import { useAdminUsageStats } from '../usage-stats/use-usage-stats';
+import { GeneralDetails, UsageStats } from '../../../components/rate-limiting/customer';
+import { CustomerFormDialog } from './customer-form-dialog';
+import { CustomerMemberList } from './customer-member-list';
 
 const CustomerDetailsLoading: FC = () => (
     <Box sx={{ p: 3 }}>
@@ -54,7 +50,6 @@ export const CustomerDetails: FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [formDialogOpen, setFormDialogOpen] = useState(false);
-    const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
 
     const { usageStats, error: statsError, startDate, setStartDate } = useAdminUsageStats(customerName);
 
@@ -88,15 +83,6 @@ export const CustomerDetails: FC = () => {
         }
     };
 
-    const users = customer?.users ?? [];
-
-    // TODO: Replace with real API calls when backend is ready
-    const handleAddUser = (user: UserData) => {
-    };
-
-    const handleRemoveUser = (user: UserData) => {
-    };
-
     if (loading) {
         return <CustomerDetailsLoading />;
     }
@@ -126,23 +112,8 @@ export const CustomerDetails: FC = () => {
                     </Button>
                 }
             />
-            <Members
-                users={users}
-                headerAction={
-                    <Button size='small' startIcon={<PersonAddIcon />} onClick={() => setAddUserDialogOpen(true)}>
-                        Add Member
-                    </Button>
-                }
-                renderUserAction={(user) => (
-                    <IconButton edge='end' size='small' color='error' onClick={() => handleRemoveUser(user)} title='Remove member'>
-                        <DeleteIcon fontSize='small' />
-                    </IconButton>
-                )}
-                renderUserPrimary={(user) => (
-                    <RouterLink style={{ color: 'inherit' }} to={createRoute([AdminDashboardRoutes.PUBLISHER_ADMIN, user.loginName])}>
-                        {user.loginName}
-                    </RouterLink>
-                )}
+            <CustomerMemberList
+                customer={customer}
             />
             <UsageStats usageStats={usageStats} customer={customer} startDate={startDate} onStartDateChange={setStartDate} />
         </Box>
@@ -152,15 +123,6 @@ export const CustomerDetails: FC = () => {
             customer={customer}
             onClose={() => setFormDialogOpen(false)}
             onSubmit={handleFormSubmit}
-        />
-
-        <AddUserDialog
-            open={addUserDialogOpen}
-            title='Add Member'
-            description='Search for a user by login name to add them to this customer.'
-            existingUsers={users}
-            onClose={() => setAddUserDialogOpen(false)}
-            onAddUser={handleAddUser}
         />
       </>
     );

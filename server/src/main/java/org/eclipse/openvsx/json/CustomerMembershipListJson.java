@@ -36,7 +36,7 @@ public class CustomerMembershipListJson extends ResultJson {
     @NotNull
     private List<CustomerMembershipJson> customerMemberships;
 
-    public List<CustomerMembershipJson> getNamespaceMemberships() {
+    public List<CustomerMembershipJson> getCustomerMemberships() {
         return customerMemberships;
     }
 

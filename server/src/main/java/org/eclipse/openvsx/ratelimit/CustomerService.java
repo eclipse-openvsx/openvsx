@@ -15,11 +15,18 @@ package org.eclipse.openvsx.ratelimit;
 import inet.ipaddr.IPAddressString;
 import inet.ipaddr.ipv4.IPv4AddressAssociativeTrie;
 import jakarta.annotation.PostConstruct;
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 import org.eclipse.openvsx.entities.Customer;
+import org.eclipse.openvsx.entities.CustomerMembership;
+import org.eclipse.openvsx.entities.NamespaceMembership;
+import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.ratelimit.cache.ConfigurationChanged;
 import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
 import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -30,15 +37,16 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 @Service
-@ConditionalOnBean(RateLimitConfig.class)
 public class CustomerService {
 
     private final Logger logger = LoggerFactory.getLogger(CustomerService.class);
 
+    private final EntityManager entityManager;
     private final RepositoryService repositories;
     private IPv4AddressAssociativeTrie<Customer> customersByIPAddress;
 
-    public CustomerService(RepositoryService repositories) {
+    public CustomerService(EntityManager entityManager, RepositoryService repositories) {
+        this.entityManager = entityManager;
         this.repositories = repositories;
     }
 
@@ -83,5 +91,48 @@ public class CustomerService {
             }
         }
         return trie;
+    }
+
+    @Transactional(rollbackOn = ErrorResultException.class)
+    public ResultJson addCustomerMember(String customerName, String userName, String provider) throws ErrorResultException {
+        var customer = repositories.findCustomer(customerName);
+        if (customer == null) {
+            throw new ErrorResultException("Customer not found: " + customerName);
+        }
+        var user = repositories.findUserByLoginName(provider, userName);
+        if (user == null) {
+            throw new ErrorResultException("User not found: " + (provider + "/" + userName));
+        }
+
+        var membership = repositories.findCustomerMembership(user, customer);
+        if (membership != null) {
+            throw new ErrorResultException("User " + user.getLoginName() + " is already member of customer " + customer.getName() + ".");
+        }
+
+        membership = new CustomerMembership();
+        membership.setCustomer(customer);
+        membership.setUser(user);
+        entityManager.persist(membership);
+        return ResultJson.success("Added " + user.getLoginName() + " as member of customer " + customer.getName() + ".");
+    }
+
+    @Transactional(rollbackOn = ErrorResultException.class)
+    public ResultJson removeCustomerMember(String customerName, String userName, String provider) throws ErrorResultException {
+        var customer = repositories.findCustomer(customerName);
+        if (customer == null) {
+            throw new ErrorResultException("Customer not found: " + customerName);
+        }
+        var user = repositories.findUserByLoginName(provider, userName);
+        if (user == null) {
+            throw new ErrorResultException("User not found: " + (provider + "/" + userName));
+        }
+
+        var membership = repositories.findCustomerMembership(user, customer);
+        if (membership == null) {
+            throw new ErrorResultException("User " + user.getLoginName() + " is not a member of customer " + customer.getName() + ".");
+        }
+
+        entityManager.remove(membership);
+        return ResultJson.success("Removed " + user.getLoginName() + " as member of customer " + customer.getName() + ".");
     }
 }

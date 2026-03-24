@@ -16,54 +16,10 @@ import {
     FilesResponse, FileDecisionCountsJson, ScanDecisionRequest, ScanDecisionResponse,
     FileDecisionRequest, FileDecisionResponse, FileDecisionDeleteRequest, FileDecisionDeleteResponse,
     Tier, TierList, Customer, CustomerList, UsageStats, UsageStatsList, LogPageableList,
-    EnforcementState, TierType, RefillStrategy,
+    EnforcementState, TierType, RefillStrategy, CustomerMembershipList,
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse } from './server-request';
-
-// TODO: Remove mock users when backend returns real user data
-const MOCK_USERS: UserData[] = [
-    {
-        loginName: 'rhdevelopers-ci',
-        fullName: 'Red Hat Developers CI',
-        avatarUrl: 'https://avatars.githubusercontent.com/u/18214726?v=4',
-        homepage: 'https://github.com/rhdevelopers-ci',
-        provider: 'github',
-        tokensUrl: '',
-        createTokenUrl: ''
-    },
-    {
-        loginName: 'midudev',
-        fullName: 'Miguel Ángel Durán',
-        avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
-        homepage: 'https://github.com/midudev',
-        provider: 'github',
-        tokensUrl: '',
-        createTokenUrl: ''
-    },
-    {
-        loginName: 'jakubmisek',
-        fullName: 'Jakub Míšek',
-        avatarUrl: 'https://avatars.githubusercontent.com/u/842150?v=4',
-        homepage: 'https://github.com/jakubmisek',
-        provider: 'github',
-        tokensUrl: '',
-        createTokenUrl: ''
-    },
-    {
-        loginName: 'test',
-        fullName: 'Miguel Ángel Durán',
-        avatarUrl: 'https://avatars.githubusercontent.com/u/1561955?v=4',
-        homepage: 'https://github.com/midudev',
-        provider: 'github',
-        tokensUrl: '',
-        createTokenUrl: ''
-    }
-];
-
-const injectMockUsers = (customer: Customer): Customer => {
-    return { ...customer, users: MOCK_USERS };
-};
 
 export class ExtensionRegistryService {
 
@@ -73,7 +29,7 @@ export class ExtensionRegistryService {
         this.admin = new AdminConstructor(this);
     }
 
-    getLoginProviders(abortController: AbortController): Promise<Readonly<LoginProviders|SuccessResult>> {
+    async getLoginProviders(abortController: AbortController): Promise<Readonly<LoginProviders|SuccessResult>> {
         const endpoint = createAbsoluteURL([this.serverUrl, 'login-providers']);
         return sendRequest({ abortController, endpoint });
     }
@@ -94,7 +50,7 @@ export class ExtensionRegistryService {
         return createAbsoluteURL(arr);
     }
 
-    getNamespaceDetails(abortController: AbortController, name: string): Promise<Readonly<NamespaceDetails>> {
+    async getNamespaceDetails(abortController: AbortController, name: string): Promise<Readonly<NamespaceDetails>> {
         const endpoint = createAbsoluteURL([this.serverUrl, 'api', name, 'details']);
         return sendRequest({ abortController, endpoint });
     }
@@ -140,7 +96,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    search(abortController: AbortController, filter?: ExtensionFilter): Promise<Readonly<SearchResult | ErrorResult>> {
+    async search(abortController: AbortController, filter?: ExtensionFilter): Promise<Readonly<SearchResult | ErrorResult>> {
         const query: { key: string, value: string | number }[] = [];
         if (filter) {
             if (filter.query)
@@ -160,11 +116,11 @@ export class ExtensionRegistryService {
         return sendRequest({ abortController, endpoint });
     }
 
-    getExtensionDetail(abortController: AbortController, extensionUrl: UrlString): Promise<Readonly<Extension | ErrorResult>> {
+    async getExtensionDetail(abortController: AbortController, extensionUrl: UrlString): Promise<Readonly<Extension | ErrorResult>> {
         return sendRequest({ abortController, endpoint: extensionUrl });
     }
 
-    getExtensionReadme(abortController: AbortController, extension: Extension): Promise<string> {
+    async getExtensionReadme(abortController: AbortController, extension: Extension): Promise<string> {
         return sendRequest({
             abortController,
             endpoint: extension.files.readme,
@@ -173,7 +129,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getExtensionChangelog(abortController: AbortController, extension: Extension): Promise<string> {
+    async getExtensionChangelog(abortController: AbortController, extension: Extension): Promise<string> {
         return sendRequest({
             abortController,
             endpoint: extension.files.changelog,
@@ -182,7 +138,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getExtensionIcon(abortController: AbortController, extension: Extension | SearchEntry): Promise<string | undefined> {
+    async getExtensionIcon(abortController: AbortController, extension: Extension | SearchEntry): Promise<string | undefined> {
         if (!extension.files.icon) {
             return Promise.resolve(undefined);
         }
@@ -218,7 +174,7 @@ export class ExtensionRegistryService {
         ];
     }
 
-    getExtensionReviews(abortController: AbortController, extension: Extension): Promise<Readonly<ExtensionReviewList>> {
+    async getExtensionReviews(abortController: AbortController, extension: Extension): Promise<Readonly<ExtensionReviewList>> {
         return sendRequest({ abortController, endpoint: extension.reviewsUrl });
     }
 
@@ -273,7 +229,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getUser(abortController: AbortController): Promise<Readonly<UserData | ErrorResult>> {
+    async getUser(abortController: AbortController): Promise<Readonly<UserData | ErrorResult>> {
         return sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.serverUrl, 'user']),
@@ -281,7 +237,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getUserAuthError(abortController: AbortController): Promise<Readonly<ErrorResponse>> {
+    async getUserAuthError(abortController: AbortController): Promise<Readonly<ErrorResponse>> {
         return sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.serverUrl, 'user', 'auth-error']),
@@ -289,7 +245,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getUserByName(abortController: AbortController, name: string): Promise<Readonly<UserData>[]> {
+    async getUserByName(abortController: AbortController, name: string): Promise<Readonly<UserData>[]> {
         return sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.serverUrl, 'user', 'search', name]),
@@ -297,7 +253,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getAccessTokens(abortController: AbortController, user: UserData): Promise<Readonly<PersonalAccessToken>[]> {
+    async getAccessTokens(abortController: AbortController, user: UserData): Promise<Readonly<PersonalAccessToken>[]> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -355,7 +311,7 @@ export class ExtensionRegistryService {
         })));
     }
 
-    getCsrfToken(abortController: AbortController): Promise<Readonly<CsrfTokenJson | ErrorResult>> {
+    async getCsrfToken(abortController: AbortController): Promise<Readonly<CsrfTokenJson | ErrorResult>> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -363,7 +319,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getNamespaces(abortController: AbortController): Promise<Readonly<Namespace>[]> {
+    async getNamespaces(abortController: AbortController): Promise<Readonly<Namespace>[]> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -399,7 +355,7 @@ export class ExtensionRegistryService {
                 },
                 cidrBlocks: [],
             },
-        ].map(injectMockUsers);
+        ];
     }
 
     // TODO: Replace with real user-scoped endpoint when backend is ready
@@ -440,7 +396,7 @@ export class ExtensionRegistryService {
         return { stats };
     }
 
-    getNamespaceMembers(abortController: AbortController, namespace: Namespace): Promise<Readonly<NamespaceMembershipList>> {
+    async getNamespaceMembers(abortController: AbortController, namespace: Namespace): Promise<Readonly<NamespaceMembershipList>> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -485,7 +441,7 @@ export class ExtensionRegistryService {
         });
     }
 
-    getStaticContent(abortController: AbortController, url: string): Promise<string> {
+    async getStaticContent(abortController: AbortController, url: string): Promise<string> {
         return sendRequest({
             abortController,
             endpoint: url,
@@ -623,6 +579,9 @@ export interface AdminService {
     createCustomer(abortController: AbortController, customer: Customer): Promise<Readonly<Customer>>;
     updateCustomer(abortController: AbortController, name: string, customer: Customer): Promise<Readonly<Customer>>;
     deleteCustomer(abortController: AbortController, name: string): Promise<Readonly<SuccessResult | ErrorResult>>;
+    getCustomerMembers(abortController: AbortController, name: string): Promise<Readonly<CustomerMembershipList>>;
+    addCustomerMember(abortController: AbortController, name: string, user: UserData): Promise<Readonly<SuccessResult | ErrorResult>>;
+    removeCustomerMember(abortController: AbortController, name: string, user: UserData): Promise<Readonly<SuccessResult | ErrorResult>>;
     getUsageStats(abortController: AbortController, customerName: string, date: Date): Promise<Readonly<UsageStatsList>>;
     getLogs(abortController: AbortController, page?: number, size?: number, period?: string): Promise<Readonly<LogPageableList>>;
 }
@@ -635,7 +594,7 @@ export class AdminServiceImpl implements AdminService {
 
     constructor(readonly registry: ExtensionRegistryService) {}
 
-    getExtension(abortController: AbortController, namespace: string, extension: string): Promise<Readonly<Extension>> {
+    async getExtension(abortController: AbortController, namespace: string, extension: string): Promise<Readonly<Extension>> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -663,7 +622,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getNamespace(abortController: AbortController, name: string): Promise<Readonly<Namespace>> {
+    async getNamespace(abortController: AbortController, name: string): Promise<Readonly<Namespace>> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -749,7 +708,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getAllScans(abortController: AbortController, params?: { size?: number; offset?: number; status?: string | string[]; publisher?: string; namespace?: string; name?: string; validationType?: string[]; threatScannerName?: string[]; dateStartedFrom?: string; dateStartedTo?: string; enforcement?: 'enforced' | 'notEnforced' | 'all'; adminDecision?: string[] }): Promise<Readonly<ScanResultsResponse>> {
+    async getAllScans(abortController: AbortController, params?: { size?: number; offset?: number; status?: string | string[]; publisher?: string; namespace?: string; name?: string; validationType?: string[]; threatScannerName?: string[]; dateStartedFrom?: string; dateStartedTo?: string; enforcement?: 'enforced' | 'notEnforced' | 'all'; adminDecision?: string[] }): Promise<Readonly<ScanResultsResponse>> {
         const query: { key: string, value: string | number }[] = [];
         if (params) {
             if (params.size !== undefined)
@@ -787,7 +746,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getScan(abortController: AbortController, scanId: string): Promise<Readonly<ScanResultJson>> {
+    async getScan(abortController: AbortController, scanId: string): Promise<Readonly<ScanResultJson>> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -795,7 +754,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getScanCounts(abortController: AbortController, params?: { dateStartedFrom?: string; dateStartedTo?: string; enforcement?: 'enforced' | 'notEnforced' | 'all'; threatScannerName?: string[]; validationType?: string[] }): Promise<Readonly<ScanCounts>> {
+    async getScanCounts(abortController: AbortController, params?: { dateStartedFrom?: string; dateStartedTo?: string; enforcement?: 'enforced' | 'notEnforced' | 'all'; threatScannerName?: string[]; validationType?: string[] }): Promise<Readonly<ScanCounts>> {
         const query: { key: string, value: string | number }[] = [];
         if (params) {
             if (params.dateStartedFrom)
@@ -819,7 +778,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getScanFilterOptions(abortController: AbortController): Promise<Readonly<ScanFilterOptions>> {
+    async getScanFilterOptions(abortController: AbortController): Promise<Readonly<ScanFilterOptions>> {
         return sendRequest({
             abortController,
             credentials: true,
@@ -827,7 +786,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getFiles(abortController: AbortController, params?: { size?: number; offset?: number; decision?: string; publisher?: string; namespace?: string; name?: string; dateDecidedFrom?: string; dateDecidedTo?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }): Promise<Readonly<FilesResponse>> {
+    async getFiles(abortController: AbortController, params?: { size?: number; offset?: number; decision?: string; publisher?: string; namespace?: string; name?: string; dateDecidedFrom?: string; dateDecidedTo?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }): Promise<Readonly<FilesResponse>> {
         const query: { key: string, value: string | number }[] = [];
         if (params) {
             if (params.size !== undefined)
@@ -859,7 +818,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    getFileCounts(abortController: AbortController, params?: { dateDecidedFrom?: string; dateDecidedTo?: string }): Promise<Readonly<FileDecisionCountsJson>> {
+    async getFileCounts(abortController: AbortController, params?: { dateDecidedFrom?: string; dateDecidedTo?: string }): Promise<Readonly<FileDecisionCountsJson>> {
         const query: { key: string, value: string | number }[] = [];
         if (params) {
             if (params.dateDecidedFrom)
@@ -1000,21 +959,19 @@ export class AdminServiceImpl implements AdminService {
     }
 
     async getCustomers(abortController: AbortController): Promise<Readonly<CustomerList>> {
-        const data: CustomerList = await sendRequest({
+        return await sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers']),
             credentials: true
         }, false);
-        return { customers: data.customers.map(injectMockUsers) };
     }
 
     async getCustomer(abortController: AbortController, name: string): Promise<Readonly<Customer>> {
-        const data: Customer = await sendRequest({
+        return await sendRequest({
             abortController,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
             credentials: true
         }, false);
-        return injectMockUsers(data);
     }
 
     async createCustomer(abortController: AbortController, customer: Customer): Promise<Readonly<Customer>> {
@@ -1070,6 +1027,54 @@ export class AdminServiceImpl implements AdminService {
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
             headers
+        }, false);
+    }
+
+    async getCustomerMembers(abortController: AbortController, name: string): Promise<Readonly<CustomerMembershipList>> {
+        return sendRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name, "members"]),
+        }, false);
+    }
+
+    async addCustomerMember(abortController: AbortController, name: string, user: UserData): Promise<Readonly<SuccessResult | ErrorResult>> {
+        const csrfResponse = await this.registry.getCsrfToken(abortController);
+        const headers: Record<string, string> = {};
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        const query = [
+            { key: 'user', value: user.loginName },
+            { key: 'provider', value: user.provider },
+        ];
+        return sendRequest({
+            abortController,
+            headers,
+            method: 'POST',
+            credentials: true,
+            endpoint: addQuery(createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name, "add-member"]), query),
+        }, false);
+    }
+
+    async removeCustomerMember(abortController: AbortController, name: string, user: UserData): Promise<Readonly<SuccessResult | ErrorResult>> {
+        const csrfResponse = await this.registry.getCsrfToken(abortController);
+        const headers: Record<string, string> = {};
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        const query = [
+            { key: 'user', value: user.loginName },
+            { key: 'provider', value: user.provider },
+        ];
+        return sendRequest({
+            abortController,
+            headers,
+            method: 'POST',
+            credentials: true,
+            endpoint: addQuery(createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name, "remove-member"]), query),
         }, false);
     }
 

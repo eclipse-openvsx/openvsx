@@ -18,4 +18,6 @@ import org.springframework.data.util.Streamable;
 
 public interface CustomerMembershipRepository extends Repository<CustomerMembership, Long> {
     Streamable<CustomerMembership> findByCustomer(Customer customer);
+
+    CustomerMembership findByUserAndCustomer(UserData user, Customer customer);
 }

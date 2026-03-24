@@ -14,8 +14,5 @@
 export { GeneralDetails } from './general-details';
 export type { GeneralDetailsProps } from './general-details';
 
-export { Members } from './members';
-export type { MembersProps } from './members';
-
 export { UsageStats } from './usage-stats';
 export type { UsageStatsProps } from './usage-stats';
