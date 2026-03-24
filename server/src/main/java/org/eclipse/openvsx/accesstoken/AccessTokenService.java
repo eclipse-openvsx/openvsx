@@ -60,8 +60,8 @@ public class AccessTokenService {
         var createdAt = TimeUtil.getCurrentUTC();
         token.setCreatedTimestamp(createdAt);
 
-        if (config.expiration != null && config.expiration.isPositive()) {
-            token.setExpiresTimestamp(createdAt.plus(config.expiration));
+        if (config.isTokenExpiryEnabled()) {
+            token.setExpiresTimestamp(createdAt.plus(config.getExpiration()));
         }
 
         token.setDescription(description);
@@ -78,7 +78,7 @@ public class AccessTokenService {
     public String generateTokenValue() {
         String value;
         do {
-            value = config.prefix + UUID.randomUUID();
+            value = config.getPrefix() + UUID.randomUUID();
         } while (repositories.hasAccessToken(value));
         return value;
     }
@@ -111,7 +111,7 @@ public class AccessTokenService {
 
     public int expireAccessTokens() {
         var expiredAccessTokens = repositories.expireAccessTokens(TimeUtil.getCurrentUTC());
-        if (config.sendExpiredMail) {
+        if (config.isSendExpiredMailEnabled()) {
             for (var token : expiredAccessTokens) {
                 mail.scheduleAccessTokenExpiredMail(token);
             }
