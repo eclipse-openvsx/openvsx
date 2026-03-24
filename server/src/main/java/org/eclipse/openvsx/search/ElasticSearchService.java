@@ -85,8 +85,12 @@ public class ElasticSearchService implements ISearchService {
 
     @PostConstruct
     public void initialize() {
-        var settings = searchOperations.indexOps(ExtensionSearch.class).getSettings(true);
-        maxResultWindow = Long.parseLong(settings.getOrDefault("index.max_result_window", "10000").toString());
+        var indexOps = searchOperations.indexOps(ExtensionSearch.class);
+        // need to do an explicit null check as searchOperations is mocked in unit tests right now
+        if (indexOps != null) {
+            var settings = indexOps.getSettings(true);
+            maxResultWindow = Long.parseLong(settings.getOrDefault("index.max_result_window", "10000").toString());
+        }
     }
 
     public boolean isEnabled() {
