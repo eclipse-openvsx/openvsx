@@ -12,10 +12,10 @@
     "homepage": "https://open-vsx.org",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/eclipse/openvsx.git",
+        "url": "git+https://github.com/eclipse-openvsx/openvsx.git",
         "directory": "cli"
     },
-    "bugs": "https://github.com/eclipse/openvsx/issues",
+    "bugs": "https://github.com/eclipse-openvsx/openvsx/issues",
     "contributors": [
         {
             "name": "Miro Spönemann",
