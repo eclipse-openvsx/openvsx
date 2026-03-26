@@ -7,6 +7,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Dependencies
 
 - Bump picomatch from `4.0.3` to `4.0.4` ([#1720](https://github.com/eclipse/openvsx/pull/1720))
+- Bump yaml from `1.20.2` to `1.20.3` ([#1717](https://github.com/eclipse/openvsx/pull/1717))
 
 ## [v0.19.0] (Mar. 2026)
 
