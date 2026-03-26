@@ -145,8 +145,8 @@ commands:
       component: tool
       workingDir: ${PROJECTS_ROOT}/openvsx/deploy/openshift
       commandLine: |
-          read -p "Please enter the value for OPENVSX_VERSION (default: v0.32.3): " OPENVSX_VERSION
-          OPENVSX_VERSION=${OPENVSX_VERSION:-v0.32.3}
+          read -p "Please enter the value for OPENVSX_VERSION (default: v0.33.0): " OPENVSX_VERSION
+          OPENVSX_VERSION=${OPENVSX_VERSION:-v0.33.0}
           export OPENVSX_VERSION
           echo "OPENVSX_VERSION is set to $OPENVSX_VERSION"
           podman build -t "openvsx:$OPENVSX_VERSION" --build-arg "OPENVSX_VERSION=$OPENVSX_VERSION" -f openvsx.Dockerfile .&&
@@ -236,7 +236,7 @@ commands:
           kubectl exec -n "$OPENVSX_NAMESPACE" "$POSTGRESQL_POD_NAME" -- bash -c \
             "psql -d openvsx -c \"INSERT INTO user_data (id, login_name, role) VALUES (1001, '$OPENVSX_USER_NAME', 'privileged');\""
           kubectl exec -n "$OPENVSX_NAMESPACE" "$POSTGRESQL_POD_NAME" -- bash -c \
-            "psql -d openvsx -c \"INSERT INTO personal_access_token (id, user_data, value, active, created_timestamp, accessed_timestamp, description) VALUES (1001, 1001, '$OPENVSX_USER_PAT', true, current_timestamp, current_timestamp, 'extensions publisher');\""
+            "psql -d openvsx -c \"INSERT INTO personal_access_token (id, user_data, value, active, created_timestamp, accessed_timestamp, description, notified) VALUES (1001, 1001, '$OPENVSX_USER_PAT', true, current_timestamp, current_timestamp, 'extensions publisher', false);\""
           echo "✅ OpenVSX user and token inserted successfully."
 
   - id: enable-internal-openvsx
