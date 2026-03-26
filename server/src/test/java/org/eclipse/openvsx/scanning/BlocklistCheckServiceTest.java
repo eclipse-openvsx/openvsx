@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.scanning;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.FileDecision;
 import org.eclipse.openvsx.entities.UserData;
@@ -293,7 +294,7 @@ class BlocklistCheckServiceTest {
         UserData user = new UserData();
         user.setLoginName("testuser");
         
-        return new PublishCheck.Context(scan, extensionFile, user);
+        return new PublishCheck.Context(scan, new ExtensionProcessor(extensionFile), extensionFile, user);
     }
 
     private FileDecision createBlockedDecision(String fileHash, String fileName) {

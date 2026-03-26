@@ -12,6 +12,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.search;
 
+import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.PublishCheck;
@@ -48,6 +49,9 @@ class SimilarityCheckServiceTest {
     SimilarityCheckService similarityCheckService;
 
     @Mock
+    ExtensionProcessor processor;
+
+    @Mock
     TempFile extensionFile;
 
     UserData user;
@@ -64,7 +68,7 @@ class SimilarityCheckServiceTest {
         scan.setNamespaceName(namespaceName);
         scan.setExtensionName(extensionName);
         scan.setExtensionDisplayName(displayName);
-        return new PublishCheck.Context(scan, extensionFile, user);
+        return new PublishCheck.Context(scan, processor, extensionFile, user);
     }
 
     @Test

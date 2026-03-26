@@ -2627,8 +2627,7 @@ class RegistryAPITest {
                 UserService users,
                 ExtensionValidator validator,
                 ExtensionControlService extensionControl,
-                ExtensionScanService extensionScanService,
-                ExtensionScanPersistenceService scanPersistenceService
+                ExtensionScanService extensionScanService
         ) {
             return new PublishExtensionVersionHandler(
                     service,
@@ -2639,8 +2638,7 @@ class RegistryAPITest {
                     users,
                     validator,
                     extensionControl,
-                    extensionScanService,
-                    scanPersistenceService
+                    extensionScanService
             );
         }
 

@@ -12,6 +12,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
+import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.UserData;
@@ -36,6 +37,8 @@ import org.mockito.quality.Strictness;
 class PublishCheckRunnerTest {
 
     @Mock ExtensionScan scan;
+    @Mock
+    ExtensionProcessor processor;
     @Mock TempFile extensionFile;
     @Mock UserData user;
 
@@ -45,7 +48,7 @@ class PublishCheckRunnerTest {
         var check2 = mockCheck("CHECK2", true, true, PublishCheck.Result.pass());
         var runner = new PublishCheckRunner(List.of(check1, check2));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         assertTrue(result.passed());
         assertFalse(result.hasEnforcedFailure());
@@ -61,7 +64,7 @@ class PublishCheckRunnerTest {
         var failingCheck = mockCheck("FAIL", true, true, PublishCheck.Result.fail(List.of(failure)));
         var runner = new PublishCheckRunner(List.of(passingCheck, failingCheck));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         assertFalse(result.passed());
         assertTrue(result.hasEnforcedFailure());
@@ -75,7 +78,7 @@ class PublishCheckRunnerTest {
         var failingCheck = mockCheck("CHECK", true, false, PublishCheck.Result.fail(List.of(failure)));
         var runner = new PublishCheckRunner(List.of(failingCheck));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         assertTrue(result.passed());
         assertFalse(result.hasEnforcedFailure());
@@ -89,7 +92,7 @@ class PublishCheckRunnerTest {
         var enabledCheck = mockCheck("ENABLED", true, true, PublishCheck.Result.pass());
         var runner = new PublishCheckRunner(List.of(disabledCheck, enabledCheck));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         assertTrue(result.passed());
         // Only enabled check should have an execution record
@@ -106,11 +109,11 @@ class PublishCheckRunnerTest {
         when(errorCheck.check(any())).thenThrow(new RuntimeException("Check failed"));
         var runner = new PublishCheckRunner(List.of(errorCheck));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         assertFalse(result.passed());
         assertTrue(result.hasError());
-        assertEquals("ERROR_CHECK", result.getRequiredErrors().get(0).checkType());
+        assertEquals("ERROR_CHECK", result.getRequiredErrors().getFirst().checkType());
         assertNotNull(result.getErrorMessage());
     }
 
@@ -128,7 +131,7 @@ class PublishCheckRunnerTest {
         
         var runner = new PublishCheckRunner(List.of(errorCheck, afterErrorCheck));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         // Should have only one execution (the erroring check)
         assertEquals(1, result.checkExecutions().size());
@@ -182,7 +185,7 @@ class PublishCheckRunnerTest {
         var failingCheck = mockCheck("TEST", true, true, PublishCheck.Result.fail(List.of(failure)));
         var runner = new PublishCheckRunner(List.of(failingCheck));
 
-        var result = runner.runChecks(scan, extensionFile, user);
+        var result = runner.runChecks(scan, processor, extensionFile, user);
 
         var execution = result.checkExecutions().getFirst();
         assertEquals("TEST", execution.checkType());

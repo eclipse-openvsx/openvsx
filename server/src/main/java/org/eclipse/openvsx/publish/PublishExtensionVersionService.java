@@ -67,6 +67,12 @@ public class PublishExtensionVersionService {
     }
 
     @Transactional
+    public void markExtensionAsPotentiallyMalicious(ExtensionVersion extVersion) {
+        extVersion = entityManager.merge(extVersion);
+        extVersion.setPotentiallyMalicious(true);
+    }
+
+    @Transactional
     @CacheEvict(value = CACHE_SITEMAP, allEntries = true)
     public void activateExtension(ExtensionVersion extVersion, ExtensionService extensions) {
         extVersion.setActive(true);
