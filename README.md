@@ -19,6 +19,14 @@
 
 # Eclipse Open VSX
 
+> [!IMPORTANT]
+> This repository has been moved from its previous location at [eclipse/openvsx](https://github.com/eclipse/openvsx).
+> During the repository transfer, already released packages have not been transferred and are still accessible at their previous location to ease migration.
+>
+> Releases upto `v0.32.3` are accessible at [ghcr.io/eclipse/openvsx-server](https://ghcr.io/eclipse/openvsx-server) and [ghcr.io/eclipse/openvsx-webui](https://ghcr.io/eclipse/openvsx-webui).
+>
+> Releases starting from `v0.33.0` are accessible at [ghcr.io/eclipse-openvsx/openvsx-server](https://ghcr.io/eclipse-openvsx/openvsx-server) and [ghcr.io/eclipse-openvsx/openvsx-webui](https://ghcr.io/eclipse-openvsx/openvsx-webui).
+
 Open VSX is a [vendor-neutral](https://projects.eclipse.org/projects/ecd.openvsx) open-source alternative to the [Visual Studio Marketplace](https://marketplace.visualstudio.com/vscode). It provides a server application that manages [VS Code extensions](https://code.visualstudio.com/api) in a database, a web application similar to the VS Code Marketplace, and a command-line tool for publishing extensions similar to [vsce](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#vsce).
 
 A public instance of Open VSX is running at [open-vsx.org](https://open-vsx.org/). Please report issues related to that instance at [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org).
