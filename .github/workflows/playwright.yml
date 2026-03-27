@@ -4,9 +4,9 @@ on:
   schedule:
     - cron: "0 18 * * *" # run every day at 6pm
   # push:
-  #   branches: [main, master]
+  #   branches: [main]
   # pull_request:
-  #   branches: [main, master]
+  #   branches: [main]
 jobs:
   test:
     permissions:

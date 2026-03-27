@@ -6,20 +6,20 @@ name: CI
 #  - not triggered by dependabot
 #  - pushes to the master branch or pull_requests to the master branch not from forks
 
-# The package can be accessed via `ghcr.io/eclipse/openvsx-server-snapshot:<sha or branch>`
+# The package can be accessed via `ghcr.io/eclipse-openvsx/openvsx-server-snapshot:<sha or branch>`
 
 # Tagging rules:
-#  - <sha> for pushes to master where <sha> corresponds to the commit hash
+#  - <sha> for pushes to main where <sha> corresponds to the commit hash
 #  - <branch_name> for pushes to pull request branches, will be overwritten with any subsequent push
 
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - master
+      - main
 
 env:
   REGISTRY: ghcr.io
