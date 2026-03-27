@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -457,8 +458,8 @@ public class ExtensionScanCompletionService {
         if (!failedJobs.isEmpty()) {
             // Check if any REQUIRED scanners failed
             // Optional scanners (typically external) can fail without blocking activation
-            List<ScannerJob> requiredFailedJobs = new java.util.ArrayList<>();
-            List<ScannerJob> optionalFailedJobs = new java.util.ArrayList<>();
+            List<ScannerJob> requiredFailedJobs = new ArrayList<>();
+            List<ScannerJob> optionalFailedJobs = new ArrayList<>();
             
             for (ScannerJob failedJob : failedJobs) {
                 // Record ERROR result for audit trail (if not already recorded)

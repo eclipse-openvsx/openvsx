@@ -47,6 +47,6 @@ class ScannerInvocationTest {
 
         assertFalse(invocation.result().isClean());
         assertEquals(1, invocation.result().getThreats().size());
-        assertEquals("virus", invocation.result().getThreats().get(0).getName());
+        assertEquals("virus", invocation.result().getThreats().getFirst().getName());
     }
 }

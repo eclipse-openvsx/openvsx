@@ -22,10 +22,8 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.util.ErrorResultException;
-import org.eclipse.openvsx.util.TempFile;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,9 +72,6 @@ class PublishExtensionVersionHandlerTest {
     @Mock
     ExtensionScanService scanService;
 
-    @Mock
-    ExtensionScanPersistenceService scanPersistenceService;
-
     private PublishExtensionVersionHandler handler;
 
     @BeforeEach
@@ -90,8 +85,7 @@ class PublishExtensionVersionHandlerTest {
                 users,
                 validator,
                 extensionControl,
-                scanService,
-                scanPersistenceService
+                scanService
         );
         
         // Lenient: not all tests need this mock
