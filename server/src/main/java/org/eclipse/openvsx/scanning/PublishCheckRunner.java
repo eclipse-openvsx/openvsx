@@ -12,7 +12,6 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
-import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.UserData;
@@ -71,11 +70,10 @@ public class PublishCheckRunner{
     @Nonnull
     public Result runChecks(
             @Nonnull ExtensionScan scan,
-            @Nonnull ExtensionProcessor processor,
             @Nonnull TempFile extensionFile,
             @Nonnull UserData user
     ) {
-        var context = new PublishCheck.Context(scan, processor, extensionFile, user);
+        var context = new PublishCheck.Context(scan, extensionFile, user);
         var allFindings = new ArrayList<Finding>();
         var checkExecutions = new ArrayList<CheckExecution>();
         var allErrors = new ArrayList<CheckError>();

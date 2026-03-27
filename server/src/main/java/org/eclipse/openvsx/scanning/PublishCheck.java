@@ -12,7 +12,6 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
-import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.util.TempFile;
@@ -98,7 +97,6 @@ public interface PublishCheck {
      */
     record Context(
         @Nonnull ExtensionScan scan,
-        @Nonnull ExtensionProcessor processor,
         @Nonnull TempFile extensionFile,
         @Nonnull UserData user
     ) {}

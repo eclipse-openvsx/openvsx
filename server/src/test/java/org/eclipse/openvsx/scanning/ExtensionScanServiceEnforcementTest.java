@@ -12,7 +12,6 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
-import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -50,8 +49,6 @@ class ExtensionScanServiceEnforcementTest {
     @Mock ScannerRegistry scannerRegistry;
     @Mock JobRequestScheduler jobScheduler;
     @Mock ScannerJobRepository scanJobRepository;
-    @Mock
-    ExtensionProcessor extensionProcessor;
     @Mock TempFile extensionFile;
 
     private ExtensionScanService svc;
@@ -123,7 +120,7 @@ class ExtensionScanServiceEnforcementTest {
     @Test
     void runValidation_passes_whenAllChecksPass() {
         // Scanner returns no findings
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 List.of(),
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.PASSED)),
@@ -133,7 +130,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act - should not throw
-        svc.runValidation(scan, extensionProcessor, extensionFile, user);
+        svc.runValidation(scan, extensionFile, user);
 
         // Assert: no failures recorded, validation lifecycle methods called
         verify(persistenceService).updateStatus(scan, ScanStatus.VALIDATING);
@@ -143,7 +140,7 @@ class ExtensionScanServiceEnforcementTest {
     @Test
     void runValidation_delegatesToCheckRunner() {
         // Scanner returns pass
-        when(checkRunner.runChecks(eq(scan), eq(extensionProcessor), eq(extensionFile), eq(user)))
+        when(checkRunner.runChecks(eq(scan), eq(extensionFile), eq(user)))
             .thenReturn(new PublishCheckRunner.Result(
                 List.of(),
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.PASSED)),
@@ -153,10 +150,10 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act
-        svc.runValidation(scan, extensionProcessor, extensionFile, user);
+        svc.runValidation(scan, extensionFile, user);
 
         // Assert: scanner was called with correct arguments
-        verify(checkRunner).runChecks(scan, extensionProcessor, extensionFile, user);
+        verify(checkRunner).runChecks(scan, extensionFile, user);
     }
 
     // ========== ENFORCEMENT TESTS ==========
@@ -168,7 +165,7 @@ class ExtensionScanServiceEnforcementTest {
             new PublishCheckRunner.Finding("CHECK_1", "rule1", "reason1", false, null),
             new PublishCheckRunner.Finding("CHECK_2", "rule2", "reason2", false, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.PASSED)),
@@ -178,7 +175,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act: should NOT throw because nothing is enforced
-        svc.runValidation(scan, extensionProcessor, extensionFile, user);
+        svc.runValidation(scan, extensionFile, user);
 
         // Assert: failures persisted even in monitor-only mode
         verify(persistenceService).recordValidationFailure(eq(scan), eq("CHECK_1"), eq("rule1"), eq("reason1"), eq(false));
@@ -191,7 +188,7 @@ class ExtensionScanServiceEnforcementTest {
         var findings = List.of(
             new PublishCheckRunner.Finding("CHECK_1", "rule1", "reason1", true, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.REJECT)),
@@ -201,7 +198,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act & Assert: should throw ErrorResultException
-        assertThatThrownBy(() -> svc.runValidation(scan, extensionProcessor, extensionFile, user))
+        assertThatThrownBy(() -> svc.runValidation(scan, extensionFile, user))
             .isInstanceOf(ErrorResultException.class);
 
         verify(persistenceService).recordValidationFailure(eq(scan), eq("CHECK_1"), any(), any(), eq(true));
@@ -214,7 +211,7 @@ class ExtensionScanServiceEnforcementTest {
             new PublishCheckRunner.Finding("CHECK_1", "rule1", "reason1", true, null),
             new PublishCheckRunner.Finding("CHECK_2", "rule2", "reason2", true, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.REJECT)),
@@ -224,7 +221,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act & Assert
-        assertThatThrownBy(() -> svc.runValidation(scan, extensionProcessor, extensionFile, user))
+        assertThatThrownBy(() -> svc.runValidation(scan, extensionFile, user))
             .isInstanceOf(ErrorResultException.class);
 
         verify(persistenceService).recordValidationFailure(eq(scan), eq("CHECK_1"), any(), any(), eq(true));
@@ -238,7 +235,7 @@ class ExtensionScanServiceEnforcementTest {
             new PublishCheckRunner.Finding("CHECK_1", "rule1", "reason1", true, null),
             new PublishCheckRunner.Finding("CHECK_2", "rule2", "reason2", false, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.REJECT)),
@@ -248,7 +245,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act & Assert: blocked because at least one enforced check failed
-        assertThatThrownBy(() -> svc.runValidation(scan, extensionProcessor, extensionFile, user))
+        assertThatThrownBy(() -> svc.runValidation(scan, extensionFile, user))
             .isInstanceOf(ErrorResultException.class);
 
         verify(persistenceService).recordValidationFailure(eq(scan), eq("CHECK_1"), any(), any(), eq(true));
@@ -260,7 +257,7 @@ class ExtensionScanServiceEnforcementTest {
     @Test
     void runValidation_marksErrorAndRethrows_whenScannerReturnsError() {
         var exception = new RuntimeException("Check failed unexpectedly");
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 List.of(),
                 List.of(new PublishCheckRunner.CheckExecution(
@@ -279,7 +276,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act & Assert
-        assertThatThrownBy(() -> svc.runValidation(scan, extensionProcessor, extensionFile, user))
+        assertThatThrownBy(() -> svc.runValidation(scan, extensionFile, user))
             .isInstanceOf(ErrorResultException.class)
             .hasMessageContaining("Check failed unexpectedly");
 
@@ -290,7 +287,7 @@ class ExtensionScanServiceEnforcementTest {
 
     @Test
     void runValidation_transitionsToValidating() {
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 List.of(),
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.PASSED)),
@@ -300,7 +297,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act
-        svc.runValidation(scan, extensionProcessor, extensionFile, user);
+        svc.runValidation(scan, extensionFile, user);
 
         // Assert: transitions to VALIDATING
         verify(persistenceService).updateStatus(scan, ScanStatus.VALIDATING);
@@ -313,7 +310,7 @@ class ExtensionScanServiceEnforcementTest {
             new PublishCheckRunner.Finding("CHECK_1", "rule1", "reason1", false, null),
             new PublishCheckRunner.Finding("CHECK_2", "rule2", "reason2", false, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.PASSED)),
@@ -323,7 +320,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act - should not throw
-        svc.runValidation(scan, extensionProcessor, extensionFile, user);
+        svc.runValidation(scan, extensionFile, user);
 
         // Assert: completes normally (no exception)
         verify(persistenceService).updateStatus(scan, ScanStatus.VALIDATING);
@@ -334,7 +331,7 @@ class ExtensionScanServiceEnforcementTest {
         var findings = List.of(
             new PublishCheckRunner.Finding("CHECK_1", "rule1", "reason1", true, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.REJECT)),
@@ -344,7 +341,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act & Assert: throws and transitions to REJECTED
-        assertThatThrownBy(() -> svc.runValidation(scan, extensionProcessor, extensionFile, user))
+        assertThatThrownBy(() -> svc.runValidation(scan, extensionFile, user))
             .isInstanceOf(ErrorResultException.class);
 
         verify(persistenceService).completeWithStatus(scan, ScanStatus.REJECTED);
@@ -360,7 +357,7 @@ class ExtensionScanServiceEnforcementTest {
             new PublishCheckRunner.Finding("CHECK_1", "rule2", "reason2", false, null),
             new PublishCheckRunner.Finding("CHECK_1", "rule3", "reason3", false, null)
         );
-        when(checkRunner.runChecks(any(), any(), any(), any()))
+        when(checkRunner.runChecks(any(), any(), any()))
             .thenReturn(new PublishCheckRunner.Result(
                 findings,
                 List.of(checkExecution("CHECK_1", ScanCheckResult.CheckResult.PASSED)),
@@ -370,7 +367,7 @@ class ExtensionScanServiceEnforcementTest {
             ));
 
         // Act
-        svc.runValidation(scan, extensionProcessor, extensionFile, user);
+        svc.runValidation(scan, extensionFile, user);
 
         // Assert: all 3 findings recorded
         verify(persistenceService, times(3)).recordValidationFailure(eq(scan), eq("CHECK_1"), any(), any(), eq(false));

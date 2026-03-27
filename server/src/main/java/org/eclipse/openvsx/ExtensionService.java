@@ -126,7 +126,7 @@ public class ExtensionService {
         try (var processor = new ExtensionProcessor(extensionFile)) {
             scan = scanService.initializeScan(processor, token.getUser());
 
-            scanService.runValidation(scan, processor, extensionFile, token.getUser());
+            scanService.runValidation(scan, extensionFile, token.getUser());
 
             doPublish(extensionFile, null, token, TimeUtil.getCurrentUTC(), true);
 

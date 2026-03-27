@@ -115,13 +115,12 @@ public class ExtensionScanService {
      */
     public void runValidation(
             @Nonnull ExtensionScan scan,
-            @Nonnull ExtensionProcessor processor,
             @Nonnull TempFile extensionFile,
             @Nonnull UserData user
     ) {
         transitionTo(scan, ScanStatus.VALIDATING);
 
-        var checkResult = checkRunner.runChecks(scan, processor, extensionFile, user);
+        var checkResult = checkRunner.runChecks(scan, extensionFile, user);
 
         // Record ALL check executions for audit trail (pass, fail, skip, error).
         // This gives admins visibility into what checks were run.

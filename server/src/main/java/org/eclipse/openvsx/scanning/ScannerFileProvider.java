@@ -83,9 +83,7 @@ public class ScannerFileProvider {
             TempFile extensionFile = storageUtil.downloadFile(download);
 
             if (extensionFile == null) {
-                throw new ScannerException(
-                    "Failed to download file for extension version: " + extensionVersionId
-                );
+                throw new ScannerException("Failed to download file for extension version: " + extensionVersionId);
             }
 
             logger.debug("Extension file ready for scanning: {} (extension version: {})",
@@ -96,15 +94,9 @@ public class ScannerFileProvider {
         } catch (ScannerException e) {
             throw e;
         } catch (IOException e) {
-            throw new ScannerException(
-                "Failed to download file for extension version " + extensionVersionId,
-                e
-            );
+            throw new ScannerException("Failed to download file for extension version " + extensionVersionId, e);
         } catch (Exception e) {
-            throw new ScannerException(
-                "Failed to retrieve file for extension version " + extensionVersionId,
-                e
-            );
+            throw new ScannerException("Failed to retrieve file for extension version " + extensionVersionId, e);
         }
     }
 }

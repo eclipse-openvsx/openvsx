@@ -36,10 +36,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Executes HTTP requests based on configuration.
- * 
+ * <p>
  * Handles different HTTP methods, body types (JSON, multipart, form-urlencoded),
  * headers, query parameters, file uploads, and authentication.
- * 
+ * <p>
  * Use static factory methods to create instances with scanner-specific configs.
  */
 public class HttpClientExecutor {

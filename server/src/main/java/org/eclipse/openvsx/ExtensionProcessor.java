@@ -80,6 +80,7 @@ public class ExtensionProcessor implements AutoCloseable {
         try {
             zipFile = new ZipFile(extensionFile.getPath().toFile());
         } catch (ZipException exc) {
+            exc.printStackTrace();
             throw new ErrorResultException("Could not read zip file: " + exc.getMessage());
         } catch (IOException exc) {
             throw new ErrorResultException("Could not read from input stream: " + exc.getMessage());

@@ -23,7 +23,6 @@ import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.stereotype.Service;
 import jakarta.validation.constraints.NotNull;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -104,10 +103,6 @@ public class SecretCheckService implements PublishCheck {
 
     @Override
     public PublishCheck.Result check(PublishCheck.Context context) {
-        if (context.extensionFile() == null) {
-            return PublishCheck.Result.pass();
-        }
-
         var scanResult = scanForSecrets(context.extensionFile());
         if (!scanResult.isSecretsFound()) {
             return PublishCheck.Result.pass();
@@ -232,9 +227,6 @@ public class SecretCheckService implements PublishCheck {
         } catch (ZipException e) {
             logger.error("Failed to open extension file as zip: {}", e.getMessage());
             throw new SecretScanningException("Failed to scan extension file: invalid zip format", e);
-        } catch (IOException e) {
-            logger.error("Failed to scan extension file: {}", e.getMessage());
-            throw new SecretScanningException("Failed to scan extension file: " + e.getMessage(), e);
         } catch (SecretScanningException e) {
             throw e;
         } catch (Exception e) {

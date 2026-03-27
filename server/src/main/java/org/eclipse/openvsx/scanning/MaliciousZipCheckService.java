@@ -12,6 +12,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
+import org.eclipse.openvsx.ExtensionProcessor;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
@@ -24,12 +25,13 @@ import java.util.List;
  * Always enabled and enforced.
  */
 @Service
-@Order(4)
+@Order(0)
 public class MaliciousZipCheckService implements PublishCheck {
 
     public static final String CHECK_TYPE = "MALICIOUS_ZIP_CHECK";
     private static final String RULE_NAME = "EXTRA_FIELDS_DETECTED";
-    private static final String MESSAGE = "VSIX extension file contains zip entries with potentially harmful extra fields";
+    private static final String MESSAGE = "extension file contains zip entries with potentially harmful extra fields";
+    private static final String USER_MESSAGE = "Extension contains zip entries with unsupported extra fields";
 
     @Override
     public String getCheckType() {
@@ -48,16 +50,18 @@ public class MaliciousZipCheckService implements PublishCheck {
 
     @Override
     public String getUserFacingMessage(List<Failure> failures) {
-        return MESSAGE;
+        return USER_MESSAGE;
     }
 
     @Override
     public PublishCheck.Result check(Context context) {
-        var potentiallyMalicious = context.processor().isPotentiallyMalicious();
-        if (potentiallyMalicious) {
-            return PublishCheck.Result.fail(RULE_NAME, MESSAGE);
-        } else {
-            return PublishCheck.Result.pass();
+        try (var processor = new ExtensionProcessor(context.extensionFile())) {
+            var potentiallyMalicious = processor.isPotentiallyMalicious();
+            if (potentiallyMalicious) {
+                return PublishCheck.Result.fail(RULE_NAME, MESSAGE);
+            }
         }
+
+        return PublishCheck.Result.pass();
     }
 }
