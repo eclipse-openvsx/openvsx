@@ -8,7 +8,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 - Bump picomatch from `2.3.1` to `2.3.2` ([#1719](https://github.com/eclipse/openvsx/pull/1719))
 - Bump picomatch from `4.0.3` to `4.0.4`
-
+- Bump brace-expansion from `1.1.12` to `1.1.13` ([#1725](https://github.com/eclipse/openvsx/pull/1725))
 
 ### [v0.10.10] (Mar. 2026)
 
