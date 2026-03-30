@@ -54,7 +54,7 @@ test.describe('OpenVSX', () => {
   });
 
   test('allows to search by search terms with changing number of results', async ({ page, searchTerms }) => {
-    const initialResultCount = await getResultCount(page)
+    const initialResultCount = await getResultCount(page);
     for (const extensionToCheck of searchTerms) {
       // reset search term
       await page.getByPlaceholder('Search').clear();
@@ -71,19 +71,19 @@ test.describe('OpenVSX', () => {
   });
 
   test('allows to search by category with changing number of results', async ({ page, categories }) => {
-    const initialResultCount = await getResultCount(page)
+    const initialResultCount = await getResultCount(page);
     for (const category of categories) {
       // search extension and wait for result count to change
-      await page.getByRole('button', { name: 'All Categories' }).click();
+      await page.getByRole('combobox').filter({ hasText: 'All Categories' }).click();
       await page.getByRole('option', { name: category }).click();
       await waitForResultCount(page, count => count < initialResultCount);
 
-      // check we found at least 1 extension with the search tearm
+      // check we found at least 1 extension with the search term
       const resultCount = await getResultCount(page);
       expect(resultCount).toBeGreaterThan(0);
 
       // switch back to main category
-      await page.getByRole('button', { name: category }).click();
+      await page.getByRole('combobox').filter({ hasText: category }).click();
       await page.getByRole('option', { name: 'All Categories' }).click();
       await waitForResultCount(page, count => count === initialResultCount);
     }
