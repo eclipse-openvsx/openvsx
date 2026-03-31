@@ -467,6 +467,13 @@ export interface CustomerMembershipList {
     customerMemberships: CustomerMembership[];
 }
 
+export interface CustomerAccessToken {
+    id: number;
+    value?: string;
+    description: string;
+    createdTimestamp: TimestampString;
+}
+
 export interface UsageStats {
     windowStart: number; // epoch seconds in UTC
     duration: number; // in seconds

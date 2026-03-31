@@ -28,6 +28,7 @@ import { useAdminUsageStats } from '../usage-stats/use-usage-stats';
 import { GeneralDetails, UsageStats } from '../../../components/rate-limiting/customer';
 import { CustomerFormDialog } from './customer-form-dialog';
 import { CustomerMemberList } from './customer-member-list';
+import { CustomerTokenList } from './customer-token-list';
 
 const CustomerDetailsLoading: FC = () => (
     <Box sx={{ p: 3 }}>
@@ -113,6 +114,9 @@ export const CustomerDetails: FC = () => {
                 }
             />
             <CustomerMemberList
+                customer={customer}
+            />
+            <CustomerTokenList
                 customer={customer}
             />
             <UsageStats usageStats={usageStats} customer={customer} startDate={startDate} onStartDateChange={setStartDate} />
