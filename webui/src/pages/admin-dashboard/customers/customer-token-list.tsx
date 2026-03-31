@@ -93,7 +93,7 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
         <Divider sx={{ mb: 1 }} />
         {tokens.length === 0 ? (
             <Typography variant='body2' color='text.secondary' sx={{ py: 1 }}>
-                No access tokens for this customer.
+                No rate limiting tokens for this customer.
             </Typography>
         ) : (
             <List dense disablePadding>
@@ -120,7 +120,7 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
             onClose={() => setDialogOpen(false)}
             onGenerate={handleGenerate}
             onError={handleError}
-            title='Generate access token'
+            title='Generate token'
         />
     </Paper>;
 };
