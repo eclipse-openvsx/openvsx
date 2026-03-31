@@ -1,0 +1,93 @@
+name: Generate Yarn SBOM
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DT_PARENT_PROJECT_ID_CLI: "e4ead4c5-b141-4d4e-ab28-0d502b0be024"
+  DT_PARENT_PROJECT_ID_WEBUI: "6db35d0e-dce5-4737-a4d1-4f4f2998edda"
+  CYCLONEDX_YARN_PLUGIN_VERSION: "3.2.1"
+
+jobs:
+  generate-sbom:
+    runs-on: ubuntu-latest
+    if: >
+      startsWith(github.event.release.tag_name || inputs.tag, 'cli-') ||
+      startsWith(github.event.release.tag_name || inputs.tag, 'webui-')
+    outputs:
+      project-version: ${{ steps.metadata.outputs.PROJECT_VERSION }}
+      product-name: ${{ steps.metadata.outputs.PRODUCT_NAME }}
+      product-path: ${{ steps.metadata.outputs.PRODUCT_PATH }}
+      parent-project-id: ${{ steps.metadata.outputs.PARENT_PROJECT_ID }}
+    steps:
+      - name: Resolve product metadata from tag
+        id: metadata
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if [[ "$TAG" == cli-* ]]; then
+            echo "PRODUCT_NAME=openvsx-cli" >> $GITHUB_OUTPUT
+            echo "PRODUCT_PATH=cli" >> $GITHUB_OUTPUT
+            echo "PARENT_PROJECT_ID=${{ env.DT_PARENT_PROJECT_ID_CLI }}" >> $GITHUB_OUTPUT
+            echo "PROJECT_VERSION=${TAG#cli-}" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == webui-* ]]; then
+            echo "PRODUCT_NAME=openvsx-webui" >> $GITHUB_OUTPUT
+            echo "PRODUCT_PATH=webui" >> $GITHUB_OUTPUT
+            echo "PARENT_PROJECT_ID=${{ env.DT_PARENT_PROJECT_ID_WEBUI }}" >> $GITHUB_OUTPUT
+            echo "PROJECT_VERSION=${TAG#webui-}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository at release tag
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24.x'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Enable Corepack (Yarn Berry)
+        working-directory: ${{ steps.metadata.outputs.PRODUCT_PATH }}
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: ${{ steps.metadata.outputs.PRODUCT_PATH }}
+        run: yarn install --immutable
+
+      - name: Generate SBOM
+        working-directory: ${{ steps.metadata.outputs.PRODUCT_PATH }}
+        run: |
+          yarn dlx -q @cyclonedx/yarn-plugin-cyclonedx@${{ env.CYCLONEDX_YARN_PLUGIN_VERSION }} \
+            --output-format JSON \
+            --output-file bom.json \
+            --production
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom
+          path: ${{ steps.metadata.outputs.PRODUCT_PATH }}/bom.json
+
+  store-sbom-data:
+    needs: ["generate-sbom"]
+    uses: eclipse-csi/workflows/.github/workflows/store-sbom-data.yml@main
+    with:
+      projectName: ${{ needs.generate-sbom.outputs.product-name }}
+      projectVersion: ${{ needs.generate-sbom.outputs.project-version }}
+      bomArtifact: sbom
+      bomFilename: bom.json
+      parentProject: ${{ needs.generate-sbom.outputs.parent-project-id }}
