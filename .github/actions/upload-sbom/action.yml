@@ -1,0 +1,42 @@
+# TODO: Move to eclipse-csi/workflows
+name: Upload SBOM
+description: Upload SBOM to DependencyTrack via PIA
+
+inputs:
+  sbom-file:
+    description: Path to the SBOM JSON file
+    required: true
+  product-name:
+    description: Product name to report to DependencyTrack
+    required: true
+  product-version:
+    description: Product version to report to DependencyTrack
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Upload SBOM to sbom-staging.eclipse.org using pia-staging.eclipse.org
+    - name: Upload SBOM
+      shell: bash
+      env:
+        PIA_DOMAIN: pia-staging.eclipse.org
+      run: |
+        echo "Upload SBOM for ${{ inputs.product-name }} ${{ inputs.product-version }}"
+
+        # Get OIDC token from GitHub Identity Provider
+        ID_TOKEN=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${{ env.PIA_DOMAIN }}" | jq -r '.value')
+
+        # Build JSON payload and upload to PIA
+        # Use jq --arg for proper JSON escaping of untrusted inputs,
+        # and --rawfile to read the large base64 bom from a file
+        # (passing it as --arg would exceed the argument list limit).
+        base64 -w0 "${{ inputs.sbom-file }}" > bom.b64
+        jq -n --arg name "${{ inputs.product-name }}" \
+              --arg version "${{ inputs.product-version }}" \
+              --rawfile bom bom.b64 \
+              '{product_name: $name, product_version: $version, bom: $bom}' | \
+        curl -sS --fail-with-body https://${{ env.PIA_DOMAIN }}/v1/upload/sbom \
+          -H "Authorization: Bearer ${ID_TOKEN}" \
+          --json @-

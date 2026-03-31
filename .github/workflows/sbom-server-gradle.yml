@@ -1,0 +1,80 @@
+# As temporary workaround this name is used to assign the SBOM to the correct
+# product slot within the OpenVSX project on DependencyTrack.
+name: Generate SBOM (server gradle) # PLEASE DO NOT CHANGE!
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v1.2.3)"
+        required: true
+
+permissions:
+  id-token: write
+
+env:
+  VERSION: "${{ inputs.version || github.ref_name }}"
+
+jobs:
+  sbom-server-gradle:
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout .github/actions to make sure the upload-sbom action is available,
+    # even if the workflow was triggered manually on an older tag.
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        sparse-checkout: .github/actions
+        persist-credentials: false
+
+    # Checkout project into subdirectory to avoid collision with above checkout.
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        ref: ${{ env.VERSION }}
+        fetch-depth: 0
+        path: source
+        persist-credentials: false
+
+    - name: Set up JDK
+      uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+      with:
+        distribution: 'temurin'
+        java-version: 25
+
+    - name: Generate SBOM
+      run: |
+        # Enable CycloneDX plugin on the fly via init script. This leaves
+        # project gradle config untouched, and allows backfilling sboms for
+        # older project checkouts using workflow_dispatch.
+
+        # Generate init script
+        # see https://github.com/CycloneDX/cyclonedx-gradle-plugin?tab=readme-ov-file#usage-with-initialization-script
+
+        cat > /tmp/cyclonedx-init.gradle.kts << 'EOF'
+          import org.cyclonedx.gradle.CyclonedxPlugin
+
+          initscript {
+              repositories { gradlePluginPortal() }
+              dependencies {
+                  classpath("org.cyclonedx:cyclonedx-gradle-plugin:3.2.0")
+              }
+          }
+          rootProject {
+              apply<CyclonedxPlugin>()
+          }
+        EOF
+
+        # Generate aggregate SBOM
+        source/server/gradlew --no-daemon --init-script /tmp/cyclonedx-init.gradle.kts -p source/server cyclonedxBom
+
+      env:
+        DEVELOCITY_ACCESS_KEY: ${{ secrets.DEVELOCITY_API_TOKEN }}
+
+    - name: Upload SBOM
+      uses: ./.github/actions/upload-sbom
+      with:
+        sbom-file: source/server/build/reports/cyclonedx/bom.json
+        product-name: "openvsx-server"
+        product-version: ${{ env.VERSION }}

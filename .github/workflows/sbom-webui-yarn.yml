@@ -1,0 +1,71 @@
+# As temporary workaround this name is used to assign the SBOM to the correct
+# product slot within the OpenVSX project on DependencyTrack.
+name: Generate SBOM (webui yarn) # PLEASE DO NOT CHANGE!
+
+on:
+  push:
+    tags:
+      - 'webui-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. webui-1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+
+env:
+  NAME: openvsx-webui
+  TAG: "${{ inputs.tag || github.ref_name }}"
+  CYCLONEDX_YARN_PLUGIN_VERSION: "3.2.1"
+
+jobs:
+  sbom-webui-yarn:
+    if: startsWith(inputs.tag || github.ref_name, 'webui-')
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout .github/actions to make sure the upload-sbom action is available,
+    # even if the workflow was triggered manually on an older tag.
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        sparse-checkout: .github/actions
+        persist-credentials: false
+
+    # Checkout project into subdirectory to avoid collision with above checkout.
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        ref: ${{ env.TAG }}
+        path: source
+        persist-credentials: false
+
+    - name: Setup Node.js
+      uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      with:
+        node-version: '24.x'
+        package-manager-cache: false
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Enable Corepack (Yarn Berry)
+      working-directory: source/webui
+      run: corepack enable
+
+    - name: Install dependencies
+      working-directory: source/webui
+      run: yarn install --immutable
+
+    - name: Generate SBOM
+      working-directory: source/webui
+      run: |
+        yarn dlx -q @cyclonedx/yarn-plugin-cyclonedx@${{ env.CYCLONEDX_YARN_PLUGIN_VERSION }} \
+          --output-format JSON \
+          --output-file bom.json \
+          --production
+
+    - name: Upload SBOM
+      uses: ./.github/actions/upload-sbom
+      with:
+        sbom-file: source/webui/bom.json
+        product-name: ${{ env.NAME }}
+        product-version: ${{ env.TAG }}
