@@ -75,18 +75,26 @@ public class DocumentationConfig {
 
     @Bean
     public OpenApiCustomizer addRateLimitResponse() {
-        var retryAfterHeader = new Header()
-                .description("Number of seconds to wait after receiving a 429 response")
+        var limitLimitHeader = new Header()
+                .description("Number of requests that can be made in a given amount of time")
                 .schema(new Schema<>().type("integer").format("int32"));
         var limitRemainingHeader = new Header()
-                .description("Remaining number of requests left")
+                .description("Remaining number of requests left in the current time window")
+                .schema(new Schema<>().type("integer").format("int32"));
+        var limitResetHeader = new Header()
+                .description("Number of seconds until the rate limit tokens will be fully filled to its maximum")
+                .schema(new Schema<>().type("integer").format("int32"));
+        var retryAfterHeader = new Header()
+                .description("Number of seconds to wait after receiving a 429 response")
                 .schema(new Schema<>().type("integer").format("int32"));
 
         var response = new ApiResponse()
                 .description("A client has sent too many requests in a given amount of time")
                 .headers(Map.of(
-                        "X-Rate-Limit-Retry-After-Seconds", retryAfterHeader,
-                        "X-Rate-Limit-Remaining", limitRemainingHeader
+                        "X-RateLimit-Limit", limitLimitHeader,
+                        "X-RateLimit-Remaining", limitRemainingHeader,
+                        "X-RateLimit-Reset", limitResetHeader,
+                        "Retry-After", retryAfterHeader
                 ));
 
         return openApi -> openApi.getPaths()
@@ -97,6 +105,14 @@ public class DocumentationConfig {
                                 responses = new ApiResponses();
                             }
 
+                            var okResponse = responses.get("200");
+                            if (okResponse == null) {
+                                okResponse = responses.get("201");
+                            }
+                            if (okResponse != null) {
+                                okResponse.addHeaderObject("X-RateLimit-Limit", limitLimitHeader);
+                                okResponse.addHeaderObject("X-RateLimit-Remaining", limitRemainingHeader);
+                            }
                             responses.addApiResponse("429", response);
                             operation.setResponses(responses);
                         })
