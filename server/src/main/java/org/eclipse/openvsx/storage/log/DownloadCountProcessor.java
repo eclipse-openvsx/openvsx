@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -82,6 +83,18 @@ public class DownloadCountProcessor {
                         e -> e.getKey().getExtension().getExtension().getId(),
                         Collectors.summingInt(Map.Entry::getValue)
                 )));
+    }
+
+    public Map<String, Long> resolveDownloadFileToExtensionId(String storageType, List<String> fileNames) {
+        return Observation.createNotStarted("DownloadCountProcessor#resolveDownloadFileToExtensionId", observations).observe(() -> {
+            var fileToExtension = new HashMap<String, Long>();
+            repositories.findDownloadsByStorageTypeAndName(storageType, fileNames).forEach(fileResource -> {
+                String normalizedFileName = fileResource.getName().toUpperCase();
+                Long extensionId = fileResource.getExtension().getExtension().getId();
+                fileToExtension.put(normalizedFileName, extensionId);
+            });
+            return fileToExtension;
+        });
     }
 
     @Transactional

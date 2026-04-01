@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -39,6 +40,10 @@ public class CloudFrontLogFileParserTest {
                 assertEquals("OPTIONS", record.method());
                 assertEquals(200, record.status());
                 assertEquals("/vscjava/vscode-java-pack/0.30.4/package.json", record.url());
+                assertEquals("1.1.1.1", record.clientIp());
+                assertEquals("Mozilla/5.0", record.userAgent());
+                // Date "2025-12-03" + time "13:17:20" UTC → verify event-time is parsed correctly
+                assertEquals(Instant.parse("2025-12-03T13:17:20Z"), record.eventTime());
             }
         }
     }

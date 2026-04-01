@@ -1630,7 +1630,8 @@ class AdminAPITest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig
+                    cdnServiceConfig,
+                    Optional.empty()
             );
         }
 

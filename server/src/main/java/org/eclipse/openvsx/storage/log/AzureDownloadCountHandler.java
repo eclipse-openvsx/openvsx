@@ -21,10 +21,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.metrics.DownloadCountValidator;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.util.TempFile;
 import org.jobrunr.jobs.annotations.Job;
-import org.jobrunr.jobs.annotations.Recurring;
 import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,10 +40,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 import static org.eclipse.openvsx.storage.AzureBlobStorageService.AZURE_USER_AGENT;
@@ -58,6 +61,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
     protected final Logger logger = LoggerFactory.getLogger(AzureDownloadCountHandler.class);
 
     private final DownloadCountProcessor processor;
+    private final Optional<DownloadCountValidator> downloadCountValidator;
     private BlobContainerClient containerClient;
     private ObjectMapper objectMapper;
     private Pattern blobItemNamePattern;
@@ -80,8 +84,12 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
     @Value("${ovsx.logs.azure.cron:0 5 * * * *}")
     String cronSchedule;
 
-    public AzureDownloadCountHandler(DownloadCountProcessor processor) {
+    public AzureDownloadCountHandler(
+            DownloadCountProcessor processor,
+            Optional<DownloadCountValidator> downloadCountValidator
+    ) {
         this.processor = processor;
+        this.downloadCountValidator = downloadCountValidator;
     }
 
     public String getRecurringJobId() {
@@ -194,7 +202,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
                 var downloadsTempFile = downloadBlobItem(blobName);
                 var reader = Files.newBufferedReader(downloadsTempFile.getPath())
         ) {
-            var fileCounts = new HashMap<String, Integer>();
+            var events = new ArrayList<DownloadEvent>();
             var lines = reader.lines().iterator();
             while(lines.hasNext()) {
                 var line = lines.next();
@@ -206,11 +214,43 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
                 }
                 if(pathParams != null && storageBlobContainer.equals(pathParams[1])) {
                     var fileName = UriUtils.decode(pathParams[pathParams.length - 1], StandardCharsets.UTF_8).toUpperCase();
-                    fileCounts.merge(fileName, 1, Integer::sum);
+                    String clientIp = node.path("callerIpAddress").asText(null);
+                    String userAgent = node.path("properties").path("userAgentHeader").asText(null);
+                    // Azure blob log lines have a root "time" field in ISO-8601 UTC format.
+                    Instant eventTime = parseEventTime(node.path("time").asText(null));
+                    events.add(new DownloadEvent(fileName, clientIp, userAgent, eventTime));
                 }
             }
+            return countValidatedEvents(events);
+        }
+    }
+
+    Map<String, Integer> countValidatedEvents(List<DownloadEvent> events) {
+        var fileCounts = new HashMap<String, Integer>();
+        if (events.isEmpty()) {
             return fileCounts;
         }
+
+        var fileNames = events.stream()
+                .map(DownloadEvent::fileName)
+                .distinct()
+                .toList();
+        var fileToExtensionId = processor.resolveDownloadFileToExtensionId(FileResource.STORAGE_AZURE, fileNames);
+
+        for (var event : events) {
+            Long extensionId = fileToExtensionId.get(event.fileName());
+            if (extensionId == null) {
+                continue;
+            }
+
+            boolean shouldCount = downloadCountValidator
+                    .map(validator -> validator.shouldCountDownload(extensionId, event.clientIp(), event.userAgent(), event.eventTime()))
+                    .orElse(true);
+            if (shouldCount) {
+                fileCounts.merge(event.fileName(), 1, Integer::sum);
+            }
+        }
+        return fileCounts;
     }
 
     private boolean isGetBlobOperation(JsonNode node) {
@@ -297,5 +337,24 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
         }
 
         return blobItemNamePattern;
+    }
+
+    /**
+     * Parses Azure blob log ISO-8601 UTC timestamp (e.g. "2026-02-09T04:20:50Z") to Instant.
+     * Returns null on parse failure so callers can fall back gracefully.
+     */
+    private Instant parseEventTime(String timestamp) {
+        if (timestamp == null || timestamp.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(timestamp);
+        } catch (DateTimeParseException e) {
+            logger.debug("Failed to parse Azure event timestamp: {}", timestamp);
+            return null;
+        }
+    }
+
+    record DownloadEvent(String fileName, String clientIp, String userAgent, Instant eventTime) {
     }
 }
