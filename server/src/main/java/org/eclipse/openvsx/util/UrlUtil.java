@@ -101,7 +101,12 @@ public final class UrlUtil {
 
         var path = Arrays.stream(segments)
                 .filter(StringUtils::isNotEmpty)
-                .map(segment -> UriUtils.encodePathSegment(segment, StandardCharsets.UTF_8))
+                .map(segment ->
+                    UriUtils.encodePathSegment(segment, StandardCharsets.UTF_8)
+                        .replace("+", "%2B")
+)
+
+
                 .collect(Collectors.joining("/"));
 
         if (baseUrl.isEmpty() || baseUrl.charAt(baseUrl.length() - 1) != '/') {
