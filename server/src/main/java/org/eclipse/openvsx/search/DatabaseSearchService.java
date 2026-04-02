@@ -63,6 +63,7 @@ public class DatabaseSearchService implements ISearchService {
         matchingExtensions = excludeByTargetPlatform(options, matchingExtensions);
         matchingExtensions = excludeByCategory(options, matchingExtensions);
         matchingExtensions = excludeByQueryString(options, matchingExtensions);
+        matchingExtensions = filterByWebOnly(options, matchingExtensions);
 
         var sortedExtensions = sortExtensions(options, matchingExtensions);
         var totalHits = sortedExtensions.size();
@@ -157,6 +158,17 @@ public class DatabaseSearchService implements ISearchService {
 
         var namespacesToExclude = List.of(options.namespacesToExclude());
         return matchingExtensions.filter(extension -> !namespacesToExclude.contains(extension.getNamespace().getName()));
+    }
+
+    private Streamable<Extension> filterByWebOnly(Options options, Streamable<Extension> matchingExtensions) {
+        if(options.webOnly() == null || !options.webOnly()) {
+            return matchingExtensions;
+        }
+
+        return matchingExtensions.filter(extension -> {
+            var latest = repositories.findLatestVersion(extension, null, false, true);
+            return latest.getExtensionKind() != null && latest.getExtensionKind().contains("web");
+        });
     }
 
     @Override

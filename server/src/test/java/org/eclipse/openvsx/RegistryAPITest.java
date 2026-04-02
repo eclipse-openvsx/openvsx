@@ -717,6 +717,62 @@ class RegistryAPITest {
     }
 
     @Test
+    void testSearchWebOnly() throws Exception {
+        var extVersions = mockSearch();
+        extVersions.forEach(extVersion -> Mockito.when(repositories.findLatestVersion(extVersion.getExtension(), null, false, true)).thenReturn(extVersion));
+        Mockito.when(repositories.findLatestVersions(extVersions.stream().map(ExtensionVersion::getExtension).map(Extension::getId).toList()))
+                .thenReturn(extVersions);
+
+        var searchOptions = new ISearchService.Options("foo", null, null, 10, 0, "desc", SortBy.RELEVANCE, false, null, null, true);
+        var searchResult = new SearchResult(1, List.of(new ExtensionSearch()));
+        searchResult.getHits().get(0).setId(1);
+        Mockito.when(search.search(searchOptions))
+                .thenReturn(searchResult);
+
+        mockMvc.perform(get("/api/-/search?query={query}&size={size}&offset={offset}&webOnly={webOnly}", "foo", "10", "0", "true"))
+                .andExpect(status().isOk())
+                .andExpect(content().json(searchJson(s -> {
+                    s.setOffset(0);
+                    s.setTotalSize(1);
+                    var e1 = new SearchEntryJson();
+                    e1.setNamespace("foo");
+                    e1.setName("bar");
+                    e1.setVersion("1.0.0");
+                    e1.setTimestamp("2000-01-01T10:00Z");
+                    e1.setDisplayName("Foo Bar");
+                    s.getExtensions().add(e1);
+                })));
+    }
+
+    @Test
+    void testSearchWebOnlyFalse() throws Exception {
+        var extVersions = mockSearch();
+        extVersions.forEach(extVersion -> Mockito.when(repositories.findLatestVersion(extVersion.getExtension(), null, false, true)).thenReturn(extVersion));
+        Mockito.when(repositories.findLatestVersions(extVersions.stream().map(ExtensionVersion::getExtension).map(Extension::getId).toList()))
+                .thenReturn(extVersions);
+
+        var searchOptions = new ISearchService.Options("foo", null, null, 10, 0, "desc", SortBy.RELEVANCE, false, null, null, false);
+        var searchResult = new SearchResult(1, List.of(new ExtensionSearch()));
+        searchResult.getHits().get(0).setId(1);
+        Mockito.when(search.search(searchOptions))
+                .thenReturn(searchResult);
+
+        mockMvc.perform(get("/api/-/search?query={query}&size={size}&offset={offset}&webOnly={webOnly}", "foo", "10", "0", "false"))
+                .andExpect(status().isOk())
+                .andExpect(content().json(searchJson(s -> {
+                    s.setOffset(0);
+                    s.setTotalSize(1);
+                    var e1 = new SearchEntryJson();
+                    e1.setNamespace("foo");
+                    e1.setName("bar");
+                    e1.setVersion("1.0.0");
+                    e1.setTimestamp("2000-01-01T10:00Z");
+                    e1.setDisplayName("Foo Bar");
+                    s.getExtensions().add(e1);
+                })));
+    }
+
+    @Test
     void testGetQueryExtensionName() throws Exception {
         mockExtensionVersion();
         mockMvc.perform(get("/api/-/query?extensionName={extensionName}", "bar"))

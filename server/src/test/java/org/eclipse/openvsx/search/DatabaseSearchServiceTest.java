@@ -327,6 +327,51 @@ class DatabaseSearchServiceTest {
         assertThat(getIdFromExtensionHits(hits, 3)).isEqualTo(getIdFromExtensionName("java"));
     }
 
+    @Test
+    void testWebOnlyFilter() {
+        var ext1 = mockExtension("web-ext", 4.0, 1, 0, "test", List.of("Other"), List.of("web"));
+        var ext2 = mockExtension("desktop-ext", 4.0, 1, 0, "test", List.of("Other"), List.of("ui", "workspace"));
+        var ext3 = mockExtension("hybrid-ext", 4.0, 1, 0, "test", List.of("Other"), List.of("web", "ui"));
+        var ext4 = mockExtension("no-kind-ext", 4.0, 1, 0, "test", List.of("Other"), null);
+        Mockito.when(repositories.findAllActiveExtensions()).thenReturn(Streamable.of(List.of(ext1, ext2, ext3, ext4)));
+
+        var searchOptionsAll = searchOptions(null, null, 50, 0, null, null, null);
+        var resultAll = search.search(searchOptionsAll);
+        assertThat(resultAll.getTotalHits()).isEqualTo(4);
+
+        var searchOptionsWebOnly = searchOptions(null, null, 50, 0, null, null, true);
+        var resultWebOnly = search.search(searchOptionsWebOnly);
+        assertThat(resultWebOnly.getTotalHits()).isEqualTo(2);
+        
+        var hits = resultWebOnly.getHits();
+        assertThat(getIdFromExtensionHits(hits, 0)).isEqualTo(getIdFromExtensionName("web-ext"));
+        assertThat(getIdFromExtensionHits(hits, 1)).isEqualTo(getIdFromExtensionName("hybrid-ext"));
+    }
+
+    @Test
+    void testWebOnlyFilterWithQuery() {
+        var ext1 = mockExtension("web-javascript", 4.0, 1, 0, "test", List.of("Other"), List.of("web"));
+        var ext2 = mockExtension("desktop-javascript", 4.0, 1, 0, "test", List.of("Other"), List.of("ui"));
+        var ext3 = mockExtension("web-typescript", 4.0, 1, 0, "test", List.of("Other"), List.of("web"));
+        Mockito.when(repositories.findAllActiveExtensions()).thenReturn(Streamable.of(List.of(ext1, ext2, ext3)));
+
+        var searchOptions = searchOptions("javascript", null, 50, 0, null, null, true);
+        var result = search.search(searchOptions);
+        assertThat(result.getTotalHits()).isEqualTo(1);
+        assertThat(getIdFromExtensionHits(result.getHits(), 0)).isEqualTo(getIdFromExtensionName("web-javascript"));
+    }
+
+    @Test
+    void testWebOnlyFilterFalse() {
+        var ext1 = mockExtension("web-ext", 4.0, 1, 0, "test", List.of("Other"), List.of("web"));
+        var ext2 = mockExtension("desktop-ext", 4.0, 1, 0, "test", List.of("Other"), List.of("ui"));
+        Mockito.when(repositories.findAllActiveExtensions()).thenReturn(Streamable.of(List.of(ext1, ext2)));
+
+        var searchOptions = searchOptions(null, null, 50, 0, null, null, false);
+        var result = search.search(searchOptions);
+        assertThat(result.getTotalHits()).isEqualTo(2);
+    }
+
     // ---------- UTILITY ----------//
 
     private ISearchService.Options searchOptions(
@@ -336,6 +381,18 @@ class DatabaseSearchServiceTest {
             Integer requestedOffset,
             String sortOrder,
             String sortBy
+    ) {
+        return searchOptions(queryString, category, requestedSize, requestedOffset, sortOrder, sortBy, null);
+    }
+
+    private ISearchService.Options searchOptions(
+            String queryString,
+            String category,
+            Integer requestedSize,
+            Integer requestedOffset,
+            String sortOrder,
+            String sortBy,
+            Boolean webOnly
     ) {
         if(requestedSize == null) {
             requestedSize = 18;
@@ -356,7 +413,9 @@ class DatabaseSearchServiceTest {
                 sortOrder,
                 sortBy,
                 false,
-                null
+                null,
+                null,
+                webOnly
         );
     }
 
@@ -370,6 +429,11 @@ class DatabaseSearchServiceTest {
 
     private Extension mockExtension(String name, double averageRating, long ratingCount, int downloadCount,
             String namespaceName, List<String> categories) {
+        return mockExtension(name, averageRating, ratingCount, downloadCount, namespaceName, categories, null);
+    }
+
+    private Extension mockExtension(String name, double averageRating, long ratingCount, int downloadCount,
+            String namespaceName, List<String> categories, List<String> extensionKind) {
         var extension = new Extension();
         extension.setName(name);
         extension.setId(name.hashCode());
@@ -384,6 +448,7 @@ class DatabaseSearchServiceTest {
         var extVer = new ExtensionVersion();
         extVer.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
         extVer.setCategories(categories);
+        extVer.setExtensionKind(extensionKind);
         extVer.setTimestamp(LocalDateTime.parse("2021-10-01T00:00"));
         extVer.setActive(true);
         extVer.setExtension(extension);

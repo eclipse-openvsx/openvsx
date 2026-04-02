@@ -79,6 +79,7 @@ public class Extension implements Serializable {
         search.setTimestamp(latest.getTimestamp().toEpochSecond(ZoneOffset.UTC));
         search.setCategories(latest.getCategories());
         search.setTags(latest.getTags());
+        search.setExtensionKind(latest.getExtensionKind());
 
         return search;
     }

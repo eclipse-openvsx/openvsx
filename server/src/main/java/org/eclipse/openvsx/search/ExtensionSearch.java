@@ -54,6 +54,8 @@ public class ExtensionSearch {
 
     private List<String> tags;
 
+    private List<String> extensionKind;
+
     public long getId() {
         return id;
     }
@@ -159,6 +161,14 @@ public class ExtensionSearch {
         this.tags = tags;
     }
 
+    public List<String> getExtensionKind() {
+        return extensionKind;
+    }
+
+    public void setExtensionKind(List<String> extensionKind) {
+        this.extensionKind = extensionKind;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -176,14 +186,15 @@ public class ExtensionSearch {
                 && Objects.equals(description, that.description)
                 && Objects.equals(rating, that.rating)
                 && Objects.equals(categories, that.categories)
-                && Objects.equals(tags, that.tags);
+                && Objects.equals(tags, that.tags)
+                && Objects.equals(extensionKind, that.extensionKind);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
                 id, relevance, name, namespace, extensionId, targetPlatforms, displayName, description, timestamp,
-                rating, downloadCount, categories, tags
+                rating, downloadCount, categories, tags, extensionKind
         );
     }
 }
