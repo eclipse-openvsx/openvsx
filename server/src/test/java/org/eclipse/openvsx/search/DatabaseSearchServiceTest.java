@@ -61,6 +61,8 @@ class DatabaseSearchServiceTest {
         var ext2 = mockExtension("java", 4.0, 100, 10000, "redhat", List.of("Snippets", "Programming Languages"));
         var ext3 = mockExtension("openshift", 1.0, 100, 10, "redhat", List.of("Snippets", "Other"));
         Mockito.when(repositories.findAllActiveExtensions()).thenReturn(Streamable.of(List.of(ext1, ext2, ext3)));
+        Mockito.when(repositories.getMaxExtensionDownloadCount()).thenReturn(10000);
+        Mockito.when(repositories.getAverageReviewRating()).thenReturn(3.96735905);
 
         var searchOptions = searchOptions(null, null, 50, 0, null, SortBy.RELEVANCE);
         var result = search.search(searchOptions);
@@ -79,6 +81,8 @@ class DatabaseSearchServiceTest {
         var ext1 = mockExtension("yaml", 3.0, 100, 0, "redhat", List.of("Snippets", "Programming Languages"));
         var ext2 = mockExtension("java", 4.0, 100, 0, "redhat", List.of("Snippets", "Programming Languages"));
         Mockito.when(repositories.findAllActiveExtensions()).thenReturn(Streamable.of(List.of(ext1, ext2)));
+        Mockito.when(repositories.getMaxExtensionDownloadCount()).thenReturn(0);
+        Mockito.when(repositories.getAverageReviewRating()).thenReturn(3.5);
 
         var searchOptions = searchOptions(null, "Programming Languages", 50, 0, "desc", null);
         var result = search.search(searchOptions);

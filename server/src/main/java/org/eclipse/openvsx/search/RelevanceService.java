@@ -73,15 +73,7 @@ public class RelevanceService {
     private double calculateRelevance(Extension extension, ExtensionVersion latest, SearchStats stats, ExtensionSearch entry) {
         var extensionId = NamingUtil.toExtensionId(extension);
         logger.debug(">> [{}] CALCULATE RELEVANCE", extensionId);
-        var ratingValue = 0.0;
-        if (extension.getAverageRating() != null) {
-            logger.debug("[{}] INCLUDE AVG RATING", extensionId);
-            var reviewCount = extension.getReviewCount();
-            // Reduce the rating relevance if there are only few reviews
-            var countRelevance = saturate(reviewCount, 0.25);
-            ratingValue = (extension.getAverageRating() / 5.0) * countRelevance;
-            logger.debug("[{}] {} = {} * {} | {}", extensionId, ratingValue, extension.getAverageRating() / 5.0, countRelevance, reviewCount);
-        }
+        var ratingValue = calculateRating(extension, stats) / 5.0;
         var downloadsValue = entry.getDownloadCount() / stats.downloadRef;
         var timestamp = latest.getTimestamp();
         var timestampValue = Duration.between(stats.oldest, timestamp).toSeconds() / stats.timestampRef;
@@ -127,10 +119,6 @@ public class RelevanceService {
             return value;
     }
 
-    private double saturate(double value, double factor) {
-        return 1 - 1.0 / (value * factor + 1);
-    }
-
     private boolean isVerified(ExtensionVersion extVersion) {
         if (extVersion.getPublishedWith() == null)
             return false;
@@ -147,9 +135,8 @@ public class RelevanceService {
 
         public SearchStats(RepositoryService repositories) {
             var now = TimeUtil.getCurrentUTC();
-            var maxDownloads = repositories.getMaxExtensionDownloadCount();
             var oldestTimestamp = repositories.getOldestExtensionTimestamp();
-            this.downloadRef = maxDownloads * 1.5 + 100;
+            this.downloadRef = Math.max(repositories.getMaxExtensionDownloadCount(), 1);
             this.oldest = oldestTimestamp == null ? now : oldestTimestamp;
             this.timestampRef = Duration.between(this.oldest, now).toSeconds() + 60;
             this.averageReviewRating = repositories.getAverageReviewRating();
