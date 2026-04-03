@@ -101,18 +101,16 @@ public class DocumentationConfig {
                 .forEach((path, item) -> item.readOperations()
                         .forEach(operation -> {
                             var responses = operation.getResponses();
-                            if(responses == null) {
+                            if (responses == null) {
                                 responses = new ApiResponses();
                             }
 
-                            var okResponse = responses.get("200");
-                            if (okResponse == null) {
-                                okResponse = responses.get("201");
-                            }
-                            if (okResponse != null) {
-                                okResponse.addHeaderObject("X-RateLimit-Limit", limitLimitHeader);
-                                okResponse.addHeaderObject("X-RateLimit-Remaining", limitRemainingHeader);
-                            }
+                            // add default rate limit headers present in all responses
+                            responses.forEach((status, r) -> {
+                                r.addHeaderObject("X-RateLimit-Limit", limitLimitHeader);
+                                r.addHeaderObject("X-RateLimit-Remaining", limitRemainingHeader);
+                            });
+
                             responses.addApiResponse("429", response);
                             operation.setResponses(responses);
                         })
