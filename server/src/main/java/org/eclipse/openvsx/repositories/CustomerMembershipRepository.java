@@ -20,4 +20,6 @@ public interface CustomerMembershipRepository extends Repository<CustomerMembers
     Streamable<CustomerMembership> findByCustomer(Customer customer);
 
     CustomerMembership findByUserAndCustomer(UserData user, Customer customer);
+
+    Streamable<CustomerMembership> findByUserOrderByCustomerName(UserData user);
 }

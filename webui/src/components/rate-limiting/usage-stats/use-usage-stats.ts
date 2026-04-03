@@ -40,7 +40,7 @@ export const useUsageStats = (customerName: string | undefined) => {
         try {
             setLoading(true);
             setError(null);
-            const data = await service.getUsageStatsForUser(
+            const data = await service.getUsageStats(
                 abortController.current,
                 customerName,
                 date.toJSDate()
