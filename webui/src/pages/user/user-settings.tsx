@@ -71,7 +71,7 @@ return (<Link color='secondary' href={href} onClick={onClick}>log in</Link>);
             </Container> : null;
         }
 
-        return <Container>
+        return <Container maxWidth={'xl'}>
             <Box mt={6}>
                 <Grid container sx={{ flexDirection: { xs: 'column', sm: 'column', md: 'column', lg: 'row', xl: 'row' } }}>
                     <Grid item sx={{ mb: { xs: '3rem', sm: '3rem', md: '3rem', lg: '3rem', xl: 0 } }}>

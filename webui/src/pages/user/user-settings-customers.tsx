@@ -68,8 +68,7 @@ export const UserSettingsCustomers: FunctionComponent = () => {
 
     const loadCustomers = async (): Promise<void> => {
         try {
-            // TODO: Replace with user-scoped endpoint when backend is ready
-            const data = await service.getCustomersForUser(abortController.current);
+            const data = await service.getCustomers(abortController.current);
             const chosen = data.length ? data[0] : undefined;
             setCustomers(data);
             setChosenCustomer(chosen);
