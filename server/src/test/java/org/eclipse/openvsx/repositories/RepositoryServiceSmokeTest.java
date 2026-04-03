@@ -381,6 +381,7 @@ class RepositoryServiceSmokeTest {
                 () -> repositories.countCustomersByTier(tier),
                 () -> repositories.findAllCustomers(),
                 () -> repositories.findCustomerMemberships(customer),
+                () -> repositories.findCustomerMemberships(userData),
                 () -> repositories.findCustomerMembership(userData, customer),
                 () -> repositories.saveUsageStats(usageStats),
                 () -> repositories.findUsageStatsByCustomerAndDate(customer, NOW),
