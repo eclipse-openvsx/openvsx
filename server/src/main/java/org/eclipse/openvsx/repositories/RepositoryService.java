@@ -1287,6 +1287,10 @@ public class RepositoryService {
         return customerMembershipRepo.findByUserAndCustomer(user, customer);
     }
 
+    public Streamable<CustomerMembership> findCustomerMemberships(UserData user) {
+        return customerMembershipRepo.findByUserOrderByCustomerName(user);
+    }
+
     public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {
         var startTime = date.truncatedTo(ChronoUnit.DAYS).minusMinutes(5);
         var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1);
