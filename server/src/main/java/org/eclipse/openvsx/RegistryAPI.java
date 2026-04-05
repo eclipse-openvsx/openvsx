@@ -505,6 +505,9 @@ public class RegistryAPI {
             String namespace,
             @PathVariable @Parameter(description = "Extension name", example = "svelte-vscode")
             String extension,
+            @RequestParam(required = false)
+            @Parameter(description = "If true, only preRelease versions are returned, if false only regular releases are returned, if omitted all versions are returned", schema = @Schema(type = "boolean", nullable = true))
+            Boolean preReleases,
             @RequestParam(defaultValue = "18")
             @Parameter(description = "Maximal number of entries to return", schema = @Schema(type = "integer", minimum = "0", defaultValue = "18"))
             int size,
@@ -512,7 +515,7 @@ public class RegistryAPI {
             @Parameter(description = "Number of entries to skip (usually a multiple of the page size)", schema = @Schema(type = "integer", minimum = "0", defaultValue = "0"))
             int offset
     ) {
-        return handleGetVersionReferences(namespace, extension, null, size, offset);
+        return handleGetVersionReferences(namespace, extension, null, BooleanTernary.ofBoolean(preReleases), size, offset);
     }
 
     @GetMapping(
@@ -548,6 +551,9 @@ public class RegistryAPI {
                     })
             )
             String targetPlatform,
+            @RequestParam(required = false)
+            @Parameter(description = "If true, only preRelease versions are returned, if false only regular releases are returned, if omitted all versions are returned", schema = @Schema(type = "boolean", nullable = true))
+            Boolean preReleases,
             @RequestParam(defaultValue = "18")
             @Parameter(description = "Maximal number of entries to return", schema = @Schema(type = "integer", minimum = "0", defaultValue = "18"))
             int size,
@@ -555,10 +561,10 @@ public class RegistryAPI {
             @Parameter(description = "Number of entries to skip (usually a multiple of the page size)", schema = @Schema(type = "integer", minimum = "0", defaultValue = "0"))
             int offset
     ) {
-        return handleGetVersionReferences(namespace, extension, targetPlatform, size, offset);
+        return handleGetVersionReferences(namespace, extension, targetPlatform, BooleanTernary.ofBoolean(preReleases), size, offset);
     }
 
-    private ResponseEntity<VersionReferencesJson> handleGetVersionReferences(String namespace, String extension, String targetPlatform, int size, int offset) {
+    private ResponseEntity<VersionReferencesJson> handleGetVersionReferences(String namespace, String extension, String targetPlatform, BooleanTernary preReleases, int size, int offset) {
         if (size < 0) {
             var json = VersionReferencesJson.error(negativeSizeMessage());
             return new ResponseEntity<>(json, HttpStatus.BAD_REQUEST);
@@ -571,7 +577,7 @@ public class RegistryAPI {
             try {
                 return ResponseEntity.ok()
                         .cacheControl(CacheControl.maxAge(10, TimeUnit.MINUTES).cachePublic())
-                        .body(registry.getVersionReferences(namespace, extension, targetPlatform, size, offset));
+                        .body(registry.getVersionReferences(namespace, extension, targetPlatform, preReleases, size, offset));
             } catch (NotFoundException exc) {
                 // Try the next registry
             }

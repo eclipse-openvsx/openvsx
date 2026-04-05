@@ -161,7 +161,7 @@ public class LocalRegistryService implements IExtensionRegistry {
     }
 
     @Override
-    public VersionReferencesJson getVersionReferences(String namespace, String extension, String targetPlatform, int size, int offset) {
+    public VersionReferencesJson getVersionReferences(String namespace, String extension, String targetPlatform, BooleanTernary preReleases, int size, int offset) {
         var pageRequest = PageRequest.of((offset/size), size);
         var page = targetPlatform == null
                 ? repositories.findActiveVersionsSorted(namespace, extension, pageRequest)
@@ -173,6 +173,11 @@ public class LocalRegistryService implements IExtensionRegistry {
         json.setOffset((int) page.getPageable().getOffset());
         json.setTotalSize((int) page.getTotalElements());
         json.setVersions(page.get()
+                .filter(extVersion -> switch (preReleases) {
+                    case BooleanTernary.UNKNOWN -> true;
+                    case BooleanTernary.TRUE -> extVersion.isPreRelease();
+                    case BooleanTernary.FALSE -> !extVersion.isPreRelease();
+                })
                 .map(extVersion -> {
                     var versionRef = new VersionReferenceJson();
                     versionRef.setVersion(extVersion.getVersion());
