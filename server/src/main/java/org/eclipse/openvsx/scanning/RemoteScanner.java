@@ -113,13 +113,14 @@ public class RemoteScanner implements Scanner {
         
         try (var extensionFile = scanFileService.getExtensionFile(command.extensionVersionId())) {
             File file = extensionFile.getPath().toFile();
+            String fileName = extensionFile.getResource() != null ? extensionFile.getResource().getName() : file.getName();
             
             // Copy operation to avoid mutating shared config (thread safety)
             RemoteScannerProperties.HttpOperation startOp = configOp.copy();
             
             // Process URL and headers with placeholders
             Map<String, String> placeholders = new HashMap<>();
-            placeholders.put("fileName", file.getName());
+            placeholders.put("fileName", fileName);
             
             processOperation(startOp, placeholders);
             

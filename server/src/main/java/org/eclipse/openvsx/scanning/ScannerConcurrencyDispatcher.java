@@ -66,7 +66,6 @@ public class ScannerConcurrencyDispatcher {
      */
     @Job(name = "Scanner concurrency dispatcher", retries = 0)
     @Recurring(id = "scanner-concurrency-dispatcher", interval = "PT15S")
-    @Transactional
     public void dispatch() {
         boolean anyLimited = scannerRegistry.getAllScanners().stream()
             .anyMatch(s -> s.getMaxConcurrency() > 0);
