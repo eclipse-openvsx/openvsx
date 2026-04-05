@@ -19,7 +19,8 @@ ext['junit-jupiter.version'] = libs.versions.junit.get()
 
 // override spring boot managed versions
 // see https://docs.spring.io/spring-boot/gradle-plugin/managing-dependencies.html
-ext['netty.version'] = '4.1.132.Final'
+// example:
+// ext['netty.version'] = '4.1.132.Final'
 
 java {
     sourceCompatibility = libs.versions.java.get()
