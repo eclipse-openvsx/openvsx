@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { FC, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     Box,
     Button,
@@ -27,14 +27,14 @@ import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
-import BarChartIcon from "@mui/icons-material/BarChart";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { MainContext } from "../../../context";
 import type { Customer } from "../../../extension-registry-types";
 import { CustomerFormDialog } from "./customer-form-dialog";
 import { DeleteCustomerDialog } from "./delete-customer-dialog";
-import { handleError } from "../../../utils";
+import { createRoute, handleError } from "../../../utils";
 import { createMultiSelectFilterOperators, createArrayContainsFilterOperators } from "../components";
-import { AdminDashboardRoutes } from "../admin-dashboard";
+import { AdminDashboardRoutes } from "../admin-routes";
 import { Link } from "react-router-dom";
 
 export const Customers: FC = () => {
@@ -181,10 +181,10 @@ export const Customers: FC = () => {
           <IconButton
             size='small'
             component={Link}
-            to={`${AdminDashboardRoutes.USAGE_STATS}/${params.row.name}`}
-            title='View Usage Stats'
+            to={createRoute([AdminDashboardRoutes.CUSTOMERS, params.row.name])}
+            title='View Details'
           >
-            <BarChartIcon />
+            <VisibilityIcon />
           </IconButton>
           <IconButton
             size='small'
@@ -207,7 +207,7 @@ export const Customers: FC = () => {
   ];
 
   return (
-    <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
         <Typography variant='h4' component='h1'>
           Customer Management

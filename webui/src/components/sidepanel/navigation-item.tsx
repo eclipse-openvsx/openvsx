@@ -11,6 +11,7 @@
 import { FunctionComponent, PropsWithChildren, ReactNode, useState } from 'react';
 import { ListItemButton, ListItemText, Collapse, List, ListItemIcon } from '@mui/material';
 import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate } from 'react-router';
 
 export const NavigationItem: FunctionComponent<PropsWithChildren<NavigationProps>> = props => {
@@ -21,7 +22,7 @@ export const NavigationItem: FunctionComponent<PropsWithChildren<NavigationProps
         if (props.children) {
             setOpen(!open);
         } else if (props.route) {
-            props.onOpenRoute?.call(props.route);
+            props.onOpenRoute?.call(this, props.route);
             navigate(props.route);
         }
     };
@@ -32,7 +33,7 @@ export const NavigationItem: FunctionComponent<PropsWithChildren<NavigationProps
                 props.icon && <ListItemIcon>{props.icon}</ListItemIcon>
             }
             <ListItemText primary={props.label} />
-            {props.children && open && <ExpandLess />}
+            {props.children && (open ? <ExpandLess /> : <ExpandMore />)}
         </ListItemButton>
         {
             props.children &&

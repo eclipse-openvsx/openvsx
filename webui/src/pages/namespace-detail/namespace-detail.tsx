@@ -16,18 +16,8 @@ import TwitterIcon from '@mui/icons-material/Twitter';
 import { useParams } from 'react-router-dom';
 import { ExtensionListItem } from '../extension-list/extension-list-item';
 import { MainContext } from '../../context';
-import { createRoute } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { NamespaceDetails, isError, UrlString } from '../../extension-registry-types';
-
-export namespace NamespaceDetailRoutes {
-    export namespace Parameters {
-        export const NAME = ':name';
-    }
-
-    export const ROOT = 'namespace';
-    export const MAIN = createRoute([ROOT, Parameters.NAME]);
-}
 
 export const NamespaceDetail: FunctionComponent = () => {
     const [loading, setLoading] = useState(true);

@@ -458,6 +458,15 @@ export interface CustomerList {
     customers: Customer[];
 }
 
+export interface CustomerMembership {
+    customer: string;
+    user: UserData;
+}
+
+export interface CustomerMembershipList {
+    customerMemberships: CustomerMembership[];
+}
+
 export interface UsageStats {
     windowStart: number; // epoch seconds in UTC
     duration: number; // in seconds

@@ -18,38 +18,18 @@ import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import WarningIcon from '@mui/icons-material/Warning';
 import { MainContext } from '../../context';
-import { createRoute, getTargetPlatforms } from '../../utils';
+import { createRoute } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { HoverPopover } from '../../components/hover-popover';
 import { Extension, UserData, isError } from '../../extension-registry-types';
 import { TextDivider } from '../../components/text-divider';
 import { ExtensionRatingStars } from './extension-rating-stars';
-import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail';
+import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-routes';
 import { ExtensionDetailOverview } from './extension-detail-overview';
 import { ExtensionDetailChanges } from './extension-detail-changes';
 import { ExtensionDetailReviews } from './extension-detail-reviews';
+import { ExtensionDetailRoutes } from './extension-detail-routes';
 import styled from '@mui/material/styles/styled';
-
-export namespace ExtensionDetailRoutes {
-    export namespace Parameters {
-        export const NAMESPACE = ':namespace';
-        export const NAME = ':name';
-        export const TARGET = `:target(${getTargetPlatforms().join('|')})`;
-        export const VERSION = ':version?';
-    }
-
-    export const ROOT = 'extension';
-    export const MAIN = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.VERSION]);
-    export const MAIN_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, Parameters.VERSION]);
-    export const LATEST = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME]);
-    export const LATEST_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET]);
-    export const PRE_RELEASE = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'pre-release']);
-    export const PRE_RELEASE_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, 'pre-release']);
-    export const REVIEWS = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'reviews']);
-    export const REVIEWS_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, 'reviews']);
-    export const CHANGES = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'changes']);
-    export const CHANGES_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, 'changes']);
-}
 
 const alignVertically = {
     display: 'flex',

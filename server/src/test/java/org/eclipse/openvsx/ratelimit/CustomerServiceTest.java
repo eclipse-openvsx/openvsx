@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.ratelimit;
 
+import jakarta.persistence.EntityManager;
 import org.eclipse.openvsx.entities.Customer;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 @ExtendWith(SpringExtension.class)
 public class CustomerServiceTest {
+    @MockitoBean
+    EntityManager entityManager;
+
     @MockitoBean
     RepositoryService repositories;
 
@@ -59,8 +63,8 @@ public class CustomerServiceTest {
     @TestConfiguration
     static class TestConfig {
         @Bean
-        public CustomerService customerService(RepositoryService repositoryService) {
-            return new CustomerService(repositoryService);
+        public CustomerService customerService(EntityManager entityManager, RepositoryService repositoryService) {
+            return new CustomerService(entityManager, repositoryService);
         }
     }
 }

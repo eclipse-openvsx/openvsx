@@ -48,7 +48,7 @@ async function getServerVersion(): Promise<string> {
    }
 }
 
-const App = () => {
+export const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
     const theme = useMemo(
         () => createDefaultTheme(prefersDarkMode ? 'dark' : 'light'),
