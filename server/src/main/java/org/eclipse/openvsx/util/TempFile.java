@@ -23,19 +23,13 @@ public class TempFile implements Closeable {
     private FileResource resource;
     private Namespace namespace;
     
-    /** Original name of the file (e.g., path within archive) */
-    private String originalName;
-    
-    /** SHA256 hash of the file content */
-    private String sha256Hash;
-
     public TempFile(String prefix, String suffix) throws IOException {
         path = Files.createTempFile(prefix, suffix);
     }
 
     /**
      * Create a TempFile from an existing path.
-     * 
+     * <p>
      * Used when extracting files to a pre-created temp location.
      * The file will be deleted when close() is called.
      * 
@@ -63,22 +57,6 @@ public class TempFile implements Closeable {
 
     public void setNamespace(Namespace namespace) {
         this.namespace = namespace;
-    }
-
-    public String getOriginalName() {
-        return originalName;
-    }
-
-    public void setOriginalName(String originalName) {
-        this.originalName = originalName;
-    }
-
-    public String getSha256Hash() {
-        return sha256Hash;
-    }
-
-    public void setSha256Hash(String sha256Hash) {
-        this.sha256Hash = sha256Hash;
     }
 
     @Override
