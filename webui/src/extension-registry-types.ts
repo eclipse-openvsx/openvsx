@@ -467,7 +467,7 @@ export interface CustomerMembershipList {
     customerMemberships: CustomerMembership[];
 }
 
-export interface CustomerAccessToken {
+export interface RateLimitToken {
     id: number;
     value?: string;
     description: string;
