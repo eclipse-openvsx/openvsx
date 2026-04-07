@@ -68,7 +68,6 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
 
             for (const stat of usageStats) {
                 const idx = (stat.windowStart - dayStart) / step;
-                arr[idx].count = stat.count;
                 if (idx >= 0 && idx < arr.length) {
                     arr[idx].count = stat.count;
                 }
