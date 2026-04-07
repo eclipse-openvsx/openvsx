@@ -102,6 +102,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                         label='Start Date'
                         value={startDate}
                         onChange={onStartDateChange}
+                        timezone='UTC'
                         slotProps={{ textField: { size: 'small' } }}
                     />
                 </Stack>
