@@ -15,7 +15,7 @@ import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { Timestamp } from '../../components/timestamp';
 import { PersonalAccessToken } from '../../extension-registry-types';
 import { MainContext } from '../../context';
-import { GenerateTokenDialog } from './generate-token-dialog';
+import { GenerateAccessTokenDialog } from './generate-access-token-dialog';
 import { UserSettingsRoutes } from './user-settings-routes';
 import styled from '@mui/material/styles/styled';
 
@@ -159,7 +159,7 @@ export const UserSettingsTokens: FunctionComponent = () => {
                 }}
             >
                 <Box mr={1} mb={1}>
-                    <GenerateTokenDialog
+                    <GenerateAccessTokenDialog
                         handleTokenGenerated={handleTokenGenerated}
                     />
                 </Box>

@@ -60,8 +60,8 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
 
     const handleClose = () => {
         if (!loading) {
-            resetState();
             onClose();
+            resetState();
         }
     };
 
@@ -89,17 +89,18 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
 
     const handleCopy = () => {
         if (tokenValue) {
-            copy(tokenValue);
-            setCopied(true);
+            copy(tokenValue)
+                .then(() => setCopied(true));
             setTimeout(() => setCopied(false), 2000);
         }
     };
 
     const canGenerate = !descriptionError && !loading;
 
-    return <StyledDialog open={open} onClose={handleClose}>
+    return <>
+      {open && <StyledDialog open={open} onClose={handleClose}>
             <DialogTitle>{title}</DialogTitle>
-            {loading && <LinearProgress color='secondary' />}
+            {loading && <LinearProgress color='secondary'/>}
             <DialogContent>
                 {tokenValue ? <>
                     <DialogContentText sx={{ mb: 2 }}>
@@ -111,7 +112,7 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
                         </Typography>
                         <Tooltip title={copied ? 'Copied!' : 'Copy'} placement='top'>
                             <IconButton size='small' onClick={handleCopy}>
-                                <ContentCopyIcon fontSize='small' />
+                                <ContentCopyIcon fontSize='small'/>
                             </IconButton>
                         </Tooltip>
                     </TokenDisplay>
@@ -152,7 +153,9 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
                     </Button>
                 }
             </DialogActions>
-        </StyledDialog>;
+        </StyledDialog>
+    }
+    </>;
 };
 
 export interface GenerateTokenDialogProps {

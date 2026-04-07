@@ -10,11 +10,11 @@
 
 import { FunctionComponent, useContext, useRef, useState } from 'react';
 import { Button } from '@mui/material';
-import { GenerateTokenDialog as BaseGenerateTokenDialog } from '../../components/generate-token-dialog';
+import { GenerateTokenDialog } from '../../components/generate-token-dialog';
 import { isError } from '../../extension-registry-types';
 import { MainContext } from '../../context';
 
-export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = props => {
+export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogProps> = props => {
     const context = useContext(MainContext);
     const abortController = useRef<AbortController>(new AbortController());
     const [open, setOpen] = useState(false);
@@ -35,7 +35,7 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
 
     return <>
         <Button variant='outlined' onClick={() => setOpen(true)}>Generate new token</Button>
-        <BaseGenerateTokenDialog
+        <GenerateTokenDialog
             open={open}
             onClose={() => setOpen(false)}
             onGenerate={handleGenerate}
