@@ -43,3 +43,12 @@ CREATE TABLE IF NOT EXISTS public.rate_limit_token
 
 CREATE INDEX IF NOT EXISTS rate_limit_token_customer_idx ON public.rate_limit_token(customer);
 CREATE INDEX IF NOT EXISTS rate_limit_token_value_idx ON public.rate_limit_token(value);
+
+-- alter usage_stats table
+
+ALTER TABLE ONLY public.usage_stats
+    DROP CONSTRAINT usage_stats_customer_id_fk;
+
+ALTER TABLE ONLY public.usage_stats
+    ADD CONSTRAINT usage_stats_customer_id_fk FOREIGN KEY (customer_id)
+        REFERENCES public.customer(id) ON DELETE CASCADE;
