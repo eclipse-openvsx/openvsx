@@ -243,29 +243,29 @@ public class GitleaksRulesService extends JedisPubSub {
 
     private void subscribeLoop() {
         AtomicInteger backoffMs = new AtomicInteger(1000);
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            new NamedThreadFactory("gitleaks-rules-reconnect"));
 
-        while (running && !Thread.currentThread().isInterrupted()) {
-            ScheduledFuture<?> resetTask = null;
-            try {
-                resetTask = executor.schedule(() -> backoffMs.set(1000), 10, TimeUnit.SECONDS);
-                logger.debug("Subscribing to gitleaks rules update channel");
-                jedisCluster.subscribe(this, RULES_UPDATE_CHANNEL);
-            } catch (Exception e) {
-                if (!running) break;
-                logger.warn("Gitleaks rules subscriber disconnected, reconnecting in {}s: {}",
-                    backoffMs.get() / 1000, e.getMessage());
-                if (resetTask != null) resetTask.cancel(true);
+        try (var executor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("gitleaks-rules-reconnect"))) {
+            while (running && !Thread.currentThread().isInterrupted()) {
+                ScheduledFuture<?> resetTask = null;
                 try {
-                    Thread.sleep(backoffMs.get());
-                    backoffMs.set(Math.min(backoffMs.get() * 2, 30000));
-                } catch (InterruptedException ignored) {
-                    break;
+                    resetTask = executor.schedule(() -> backoffMs.set(1000), 10, TimeUnit.SECONDS);
+                    logger.debug("Subscribing to gitleaks rules update channel");
+                    jedisCluster.subscribe(this, RULES_UPDATE_CHANNEL);
+                } catch (Exception e) {
+                    if (!running) break;
+                    logger.warn("Gitleaks rules subscriber disconnected, reconnecting in {}s: {}",
+                            backoffMs.get() / 1000, e.getMessage());
+                    if (resetTask != null) resetTask.cancel(true);
+                    try {
+                        Thread.sleep(backoffMs.get());
+                        backoffMs.set(Math.min(backoffMs.get() * 2, 30000));
+                    } catch (InterruptedException ignored) {
+                        break;
+                    }
                 }
             }
+            executor.shutdownNow();
         }
-        executor.shutdownNow();
     }
 
     @Override

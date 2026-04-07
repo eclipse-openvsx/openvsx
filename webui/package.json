@@ -1,6 +1,6 @@
 {
     "name": "openvsx-webui",
-    "version": "0.19.0-dev.0",
+    "version": "0.19.1-dev.0",
     "description": "User interface for Eclipse Open VSX",
     "keywords": [
         "react",
@@ -13,10 +13,10 @@
     "homepage": "https://open-vsx.org",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/eclipse/openvsx.git",
+        "url": "git+https://github.com/eclipse-openvsx/openvsx.git",
         "directory": "webui"
     },
-    "bugs": "https://github.com/eclipse/openvsx/issues",
+    "bugs": "https://github.com/eclipse-openvsx/openvsx/issues",
     "contributors": [
         {
             "name": "Jan Bicker",

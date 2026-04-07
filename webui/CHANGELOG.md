@@ -2,7 +2,16 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
-## [v0.19.0] (unreleased)
+## [next] (unreleased)
+
+### Dependencies
+
+- Bump picomatch from `4.0.3` to `4.0.4` ([#1720](https://github.com/eclipse/openvsx/pull/1720))
+- Bump yaml from `1.20.2` to `1.20.3` ([#1717](https://github.com/eclipse/openvsx/pull/1717))
+- Bump lodash from `4.17.23` to `4.18.1` ([#1742](https://github.com/eclipse/openvsx/pull/1742))
+- Bump vite from `7.3.1` to `7.3.2` ([#1744](https://github.com/eclipse/openvsx/pull/1744))
+
+## [v0.19.0] (Mar. 2026)
 
 ### Added
 
@@ -18,6 +27,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Check `Retry-After` http header when receiving `429` responses from the server ([#1637](https://github.com/eclipse/openvsx/pull/1637))
 - Menu items link clicks now capture the whole menu item area ([#1598](https://github.com/eclipse/openvsx/pull/1598))
+- Fix color of error links in `ErrorDialog` to make them visible ([#1712](https://github.com/eclipse/openvsx/pull/1712))
 
 ### Dependencies
 
@@ -25,6 +35,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump minimatch from to `3.1.5`, `9.0.9` and `10.2.4` respectively
 - Bump tar from `7.5.9` to `7.5.11` ([#1678](https://github.com/eclipse/openvsx/pull/1678))
 - Bump dompurify from `3.2.4` to `3.3.2` ([#1671](https://github.com/eclipse/openvsx/pull/1671))
+- Bump flatten from `3.3.1` to `3.4.2` ([#1702](https://github.com/eclipse/openvsx/pull/1702))
 
 ## [v0.18.0] (Feb. 2026)
 

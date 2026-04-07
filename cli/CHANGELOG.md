@@ -2,15 +2,24 @@
 
 This change log covers only the command line interface (CLI) of Open VSX.
 
-### [v0.10.10] (unreleased)
+### [next] (unreleased)
 
 #### Dependencies
 
-- Bump ajv from 6.12.6 to 6.14.0 ([#1632](https://github.com/eclipse/openvsx/pull/1632))
-- Bump ajv from 8.17.1 to 8.18.0
-- Bump tar from 7.5.7 to 7.5.11 ([#1681](https://github.com/eclipse/openvsx/pull/1681))
+- Bump picomatch from `2.3.1` to `2.3.2` ([#1719](https://github.com/eclipse/openvsx/pull/1719))
+- Bump picomatch from `4.0.3` to `4.0.4`
+- Bump brace-expansion from `1.1.12` to `1.1.13` ([#1725](https://github.com/eclipse/openvsx/pull/1725))
+
+### [v0.10.10] (Mar. 2026)
+
+#### Dependencies
+
+- Bump ajv from `6.12.6` to `6.14.0` ([#1632](https://github.com/eclipse/openvsx/pull/1632))
+- Bump ajv from `8.17.1` to `8.18.0`
+- Bump tar from `7.5.7` to `7.5.11` ([#1681](https://github.com/eclipse/openvsx/pull/1681))
 - Bump minimatch to `3.1.5`, `9.0.9` and `10.2.4`
-- Bump underscore from 1.13.6 to 1.13.8 ([#1656](https://github.com/eclipse/openvsx/pull/1656))
+- Bump underscore from `1.13.6` to `1.13.8` ([#1656](https://github.com/eclipse/openvsx/pull/1656))
+- Bump flatted from `3.3.1` to `3.4.2` ([#1703](https://github.com/eclipse/openvsx/pull/1703))
 
 ### [v0.10.9] (Feb. 2026)
 

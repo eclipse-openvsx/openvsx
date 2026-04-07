@@ -22,12 +22,10 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -111,7 +109,7 @@ public class ExtensionScanService {
 
     /**
      * Run validation checks and record results.
-     * 
+     * <p>
      * Delegates the actual check execution to ExtensionScanner,
      * then records findings and manages state transitions.
      */

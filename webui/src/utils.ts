@@ -52,22 +52,26 @@ export function toLocalTime(timestamp?: string): string | undefined {
     return new Intl.DateTimeFormat(undefined, options).format(date);
 }
 
-const msPerMinute = 60 * 1000;
+const msPerSecond = 1000;
+const msPerMinute = msPerSecond * 60;
 const msPerHour = msPerMinute * 60;
 const msPerDay = msPerHour * 24;
 const msPerMonth = msPerDay * 30.4;
 const msPerYear = msPerDay * 365;
-export function toRelativeTime(timestamp?: string): string | undefined {
+export function toRelativeTime(timestamp?: string, isFutureTime: boolean = false): string | undefined {
     if (!timestamp) {
         return undefined;
     }
     const date = new Date(timestamp);
     const elapsed = Date.now() - date.getTime();
 
-    if (elapsed < 0) {
+    if (isFutureTime) {
         const remaining = -elapsed;
-        if (remaining < msPerMinute) {
-            return 'now';
+        if (remaining < 0) {
+            return "now";
+        } else if (remaining < msPerMinute) {
+            const value = Math.round(remaining / msPerSecond);
+            return `in ${value} second${value !== 1 ? 's' : ''}`;
         } else if (remaining < msPerHour) {
             const value = Math.round(remaining / msPerMinute);
             return `in ${value} minute${value !== 1 ? 's' : ''}`;

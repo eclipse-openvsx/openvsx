@@ -44,6 +44,28 @@ if ! [[ "${COMPONENTS[*]}" =~ ${COMPONENT} ]]; then
     exit 1
 fi
 
+case "${COMPONENT}" in
+    "cli")
+        PROJECT_VERSION=$(jq -r .version cli/package.json)
+        if [[ "${VERSION}" != "${PROJECT_VERSION}" ]]; then
+          echo "cli version '${PROJECT_VERSION}' does not match version from tag '${VERSION}'."
+          exit 1
+        fi
+        ;;
+
+    "webui")
+        PROJECT_VERSION=$(jq -r .version webui/package.json)
+        if [[ "${VERSION}" != "${PROJECT_VERSION}" ]]; then
+          echo "webui version '${PROJECT_VERSION}' does not match version from tag '${VERSION}'."
+          exit 1
+        fi
+        ;;
+
+    "openvsx")
+        # TODO: the server component currently does not have a version indicator in the build.gradle
+        ;;
+esac
+
 echo "Releasing component ${COMPONENT}@${VERSION}..."
 
 echo "Checking for uncommitted changes..."

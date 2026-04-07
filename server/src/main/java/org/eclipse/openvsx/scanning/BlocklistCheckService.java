@@ -97,10 +97,6 @@ public class BlocklistCheckService implements PublishCheck {
 
     @Override
     public Result check(Context context) {
-        if (context.extensionFile() == null) {
-            return Result.pass();
-        }
-
         var blockedFiles = checkForBlockedFiles(context.extensionFile());
         if (blockedFiles.isEmpty()) {
             return Result.pass();

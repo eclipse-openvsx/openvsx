@@ -43,6 +43,10 @@ spring:
     # explicitly disable thymeleaf view resolution
     enabled: false
 
+#  mail:
+#    host: "localhost"
+#    port: 25
+
   security:
       oauth2:
         client:
@@ -170,18 +174,16 @@ ovsx:
   integrity:
     key-pair: create # create, renew, delete, 'undefined'
   registry:
-    version: 'v0.32.0-dev'
+    version: 'v0.33.0-dev'
   storage:
     local:
       directory: /tmp
+  access-token:
+    prefix: dev_ovsxat_ # use a token prefix that clearly indicates that it's for development
+    expiration: 0       # do not expire tokens in a dev environment
+    notification: 0
   mail:
     from: no-reply@example.com
-    revoked-access-tokens:
-      subject: 'Open VSX Access Tokens Revoked'
-      template: 'revoked-access-tokens.html'
-    access-token-expiry:
-      subject: 'Open VSX Access Token Expiry Notification'
-      template: 'access-token-expiry-notification.html'
   # dynamic tier-based rate limiting configuration
   rate-limit:
     enabled: false

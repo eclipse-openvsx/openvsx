@@ -1,6 +1,6 @@
 {
     "name": "ovsx",
-    "version": "0.10.9",
+    "version": "0.10.11-dev.0",
     "description": "Command line interface for Eclipse Open VSX",
     "keywords": [
         "cli",
@@ -12,10 +12,10 @@
     "homepage": "https://open-vsx.org",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/eclipse/openvsx.git",
+        "url": "git+https://github.com/eclipse-openvsx/openvsx.git",
         "directory": "cli"
     },
-    "bugs": "https://github.com/eclipse/openvsx/issues",
+    "bugs": "https://github.com/eclipse-openvsx/openvsx/issues",
     "contributors": [
         {
             "name": "Miro Spönemann",

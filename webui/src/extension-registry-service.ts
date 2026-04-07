@@ -15,8 +15,7 @@ import {
     LoginProviders, ScanResultJson, ScanCounts, ScanResultsResponse, ScanFilterOptions,
     FilesResponse, FileDecisionCountsJson, ScanDecisionRequest, ScanDecisionResponse,
     FileDecisionRequest, FileDecisionResponse, FileDecisionDeleteRequest, FileDecisionDeleteResponse,
-    Tier, TierList, Customer, CustomerList, UsageStats, UsageStatsList, LogPageableList,
-    EnforcementState, TierType, RefillStrategy, CustomerMembershipList, CustomerAccessToken,
+    Tier, TierList, Customer, CustomerList, UsageStatsList, LogPageableList, CustomerMembershipList,
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse } from './server-request';
@@ -327,73 +326,23 @@ export class ExtensionRegistryService {
         });
     }
 
-    // TODO: Replace with real user-scoped endpoint when backend is ready
-    async getCustomersForUser(_abortController: AbortController): Promise<Readonly<Customer>[]> {
-        return [
-            {
-                name: 'eclipse',
-                state: EnforcementState.ENFORCEMENT,
-                tier: {
-                    name: 'Enterprise',
-                    description: 'Enterprise tier with higher rate limits',
-                    tierType: TierType.NON_FREE,
-                    capacity: 800,
-                    duration: 300,
-                    refillStrategy: RefillStrategy.GREEDY,
-                },
-                cidrBlocks: ['192.168.1.0/24', '10.0.0.0/8'],
-            },
-            {
-                name: 'test',
-                state: EnforcementState.EVALUATION,
-                tier: {
-                    name: 'Free',
-                    tierType: TierType.FREE,
-                    capacity: 500,
-                    duration: 300,
-                    refillStrategy: RefillStrategy.INTERVAL,
-                },
-                cidrBlocks: [],
-            },
-        ];
+    async getCustomers(abortController: AbortController): Promise<Readonly<Customer>[]> {
+        return sendRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.serverUrl, 'user', 'customers'])
+        });
     }
 
-    // TODO: Replace with real user-scoped endpoint when backend is ready
-    async getUsageStatsForUser(_abortController: AbortController, _customerName: string, date: Date): Promise<Readonly<UsageStatsList>> {
-        /** Generated using Gemini */
-        const STEP = 5 * 60; // 5-minute windows in seconds
-        const dayStart = new Date(date);
-        dayStart.setUTCHours(0, 0, 0, 0);
-        const startEpoch = Math.floor(dayStart.getTime() / 1000);
+    async getUsageStats(abortController: AbortController, customerName: string, date: Date): Promise<Readonly<UsageStatsList>> {
+        const query: { key: string, value: string | number }[] = [];
+        query.push({ key: 'date', value: date.toISOString() });
 
-        // Generate mock usage with a smooth traffic pattern (two overlapping peaks)
-        const stats: UsageStats[] = [];
-        // Simple seeded pseudo-random for deterministic but smooth noise
-        let seed = 42;
-        const rand = () => {
-          seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647;
-        };
-
-        for (let i = 0; i < 288; i++) { // 288 five-minute windows per day
-            const hour = i / 12;
-            // Two overlapping gaussian peaks for a more natural shape
-            const morning = Math.exp(-0.5 * Math.pow((hour - 10) / 2.5, 2));
-            const afternoon = Math.exp(-0.5 * Math.pow((hour - 15) / 2, 2));
-            const base = (morning * 500 + afternoon * 700);
-            // Smooth jitter: ±15% of base
-            const jitter = base * (rand() * 0.3 - 0.15);
-            const count = Math.round(Math.max(0, base + jitter));
-
-            if (count > 0) {
-                stats.push({
-                    windowStart: startEpoch + i * STEP,
-                    duration: STEP,
-                    count,
-                });
-            }
-        }
-
-        return { stats };
+        return sendRequest({
+            abortController,
+            endpoint: createAbsoluteURL([this.serverUrl, 'user', 'customers', customerName, 'usage'], query),
+            credentials: true
+        }, false);
     }
 
     async getNamespaceMembers(abortController: AbortController, namespace: Namespace): Promise<Readonly<NamespaceMembershipList>> {

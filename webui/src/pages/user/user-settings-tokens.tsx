@@ -105,7 +105,7 @@ export const UserSettingsTokens: FunctionComponent = () => {
             <Box alignItems='center' overflow='auto'>
                 <Typography sx={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>{token.description}</Typography>
                 <Typography variant='body2'>Created: <Timestamp value={token.createdTimestamp}/></Typography>
-                <Typography variant='body2'>Expires: {token.expiresTimestamp ? <Timestamp value={token.expiresTimestamp}/> : 'never'}</Typography>
+                <Typography variant='body2'>Expires: {token.expiresTimestamp ? <Timestamp value={token.expiresTimestamp} isFutureTime={true} /> : 'never'}</Typography>
                 <Typography variant='body2'>Accessed: {token.accessedTimestamp ? <Timestamp value={token.accessedTimestamp}/> : 'never'}</Typography>
             </Box>
             <Box display='flex' alignItems='center'>

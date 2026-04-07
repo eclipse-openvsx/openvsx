@@ -96,6 +96,14 @@ public class Customer implements Serializable {
         return json;
     }
 
+    public CustomerJson toUserJson() {
+        var json = new CustomerJson();
+        json.setName(name);
+        json.setTier(tier.toJson());
+        json.setState("");
+        return json;
+    }
+
     public Customer updateFromJson(CustomerJson json) {
         setName(json.getName());
         setTier(Tier.fromJson(json.getTier()));

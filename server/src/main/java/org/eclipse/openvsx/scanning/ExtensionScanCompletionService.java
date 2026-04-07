@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -91,11 +92,12 @@ public class ExtensionScanCompletionService {
     
     /**
      * Check completion for a single scan, catching and logging any errors.
-     * 
+     * <p>
      * Called inline after scanner jobs finish (within existing transaction).
      * Errors are logged but don't fail the caller - the recovery service
      * will catch any missed completions on next restart.
      */
+    @Transactional
     public void checkCompletionSafely(String scanId) {
         try {
             checkSingleScanCompletion(scanId);
@@ -106,10 +108,10 @@ public class ExtensionScanCompletionService {
 
     /**
      * Check completion for a single scan (event-driven).
-     * 
+     * <p>
      * Called by checkCompletionSafely after scanner jobs finish.
      * Also called directly by the recovery service.
-     * 
+     * <p>
      * Note: @Transactional needed for direct calls from recovery service.
      * When called via checkCompletionSafely, participates in existing transaction.
      */
@@ -149,19 +151,19 @@ public class ExtensionScanCompletionService {
     
     /**
      * Process completed scans and activate extensions when all scans pass.
-     * 
+     * <p>
      * FALLBACK: Runs every 5 minutes using JobRunr distributed scheduling.
      * Only one pod executes this at a time (distributed lock).
-     * 
+     * <p>
      * IMPORTANT: Primary completion checking is EVENT-DRIVEN via checkSingleScanCompletion()
      * which is called immediately when each scanner job finishes. This polling job is only
      * a safety net for edge cases (missed events, server crashes, etc.).
-     * 
+     * <p>
      * To avoid blocking workers during high load:
      * - Runs less frequently (every 5 minutes instead of 1)
      * - Processes at most MAX_SCANS_PER_CYCLE scans per run
      * - Prioritizes oldest scans first (FIFO)
-     * 
+     * <p>
      * Strategy:
      * 1. Find all ExtensionScanResult records in SCANNING status (oldest first)
      * 2. For each one (up to limit), check if all associated ScanJobs are complete
@@ -265,18 +267,18 @@ public class ExtensionScanCompletionService {
     
     /**
      * Determine if we should proceed with scan completion or wait for more jobs.
-     * 
+     * <p>
      * This method dynamically checks which scanners are CURRENTLY active and ensures
      * all active scanners have jobs (terminal or not).
-     * 
+     * <p>
      * Strategy:
      * 1. Get list of currently active scanners from ScannerRegistry
      * 2. Check which scanners have jobs for this extension
      * 3. If missing scanners AND > 5 minutes since scan started → create jobs for new scanners
      * 4. If all active scanners have terminal jobs → proceed with completion
-     * 
+     * <p>
      * Edge cases handled:
-     * 
+     * <p>
      * 1. Scanner Removed: Jobs for removed scanners are ignored (not in active list)
      * 2. Scanner Added: After 5 minutes, create jobs for new scanners
      * 3. Jobs Still Being Created: Wait < 5 minutes for initial job creation
@@ -365,7 +367,7 @@ public class ExtensionScanCompletionService {
     
     /**
      * Create scan jobs for scanners that were added after publishing started.
-     * 
+     * <p>
      * This allows new scanners to retroactively scan extensions that are still
      * in the scanning phase.
      */
@@ -420,7 +422,7 @@ public class ExtensionScanCompletionService {
     
     /**
      * Process a completed scan group and activate extension if scans passed.
-     * 
+     * <p>
      * Logic:
      * 1. Check if any jobs FAILED
      * 2. Load all threats from all jobs
@@ -457,8 +459,8 @@ public class ExtensionScanCompletionService {
         if (!failedJobs.isEmpty()) {
             // Check if any REQUIRED scanners failed
             // Optional scanners (typically external) can fail without blocking activation
-            List<ScannerJob> requiredFailedJobs = new java.util.ArrayList<>();
-            List<ScannerJob> optionalFailedJobs = new java.util.ArrayList<>();
+            List<ScannerJob> requiredFailedJobs = new ArrayList<>();
+            List<ScannerJob> optionalFailedJobs = new ArrayList<>();
             
             for (ScannerJob failedJob : failedJobs) {
                 // Record ERROR result for audit trail (if not already recorded)
@@ -625,7 +627,7 @@ public class ExtensionScanCompletionService {
     
     /**
      * Find the ExtensionVersion associated with an ExtensionScan.
-     * 
+     * <p>
      * Uses the namespace/extension/version/platform from the scan record
      * to look up the actual ExtensionVersion entity.
      */

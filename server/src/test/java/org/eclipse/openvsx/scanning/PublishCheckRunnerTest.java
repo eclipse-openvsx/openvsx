@@ -110,7 +110,7 @@ class PublishCheckRunnerTest {
 
         assertFalse(result.passed());
         assertTrue(result.hasError());
-        assertEquals("ERROR_CHECK", result.getRequiredErrors().get(0).checkType());
+        assertEquals("ERROR_CHECK", result.getRequiredErrors().getFirst().checkType());
         assertNotNull(result.getErrorMessage());
     }
 

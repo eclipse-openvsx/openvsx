@@ -9,6 +9,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import jakarta.transaction.Transactional;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.UserData;
 import org.springframework.data.domain.Pageable;
@@ -47,6 +48,6 @@ public interface PersonalAccessTokenRepository extends Repository<PersonalAccess
     List<PersonalAccessToken> findByExpiresTimestampLessThanEqualAndActiveTrueAndNotifiedFalseOrderById(LocalDateTime timestamp, Pageable pageable);
 
     @Modifying
-    @Query("update PersonalAccessToken t set t.active = false where t.expiresTimestamp <= ?1 and t.active = true")
-    int expireAccessTokens(LocalDateTime timestamp);
+    @Query(value = "update personal_access_token set active = false where expires_timestamp <= ?1 and active = true returning *", nativeQuery = true)
+    List<PersonalAccessToken> expireAccessTokens(LocalDateTime timestamp);
 }

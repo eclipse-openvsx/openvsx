@@ -37,26 +37,29 @@ public class ScheduleTokenExpirationJobs {
 
     @EventListener
     public void scheduleJobs(ApplicationStartedEvent event) {
-        if (config.expiration != null && config.expiration.isPositive()) {
+        var expirationEnabled = config.isTokenExpiryEnabled();
+        var notificationEnabled = config.isTokenExpiryNotificationEnabled();
+
+        if (expirationEnabled) {
             scheduler.enqueue(new HandlerJobRequest<>(LegacyPersonalAccessTokenExpirationHandler.class));
         }
 
-        if (StringUtils.hasText(config.expirationSchedule)) {
-            logger.info("Scheduling access token expiration job with schedule '{}'", config.expirationSchedule);
+        if (expirationEnabled && config.hasExpirationSchedule()) {
+            logger.info("Scheduling access token expiration job with schedule '{}'", config.getExpirationSchedule());
             scheduler.scheduleRecurrently(
                     "access-token-expiration",
-                    config.expirationSchedule,
+                    config.getExpirationSchedule(),
                     new HandlerJobRequest<>(ExpirePersonalAccessTokensHandler.class)
             );
         } else {
             scheduler.deleteRecurringJob("access-token-expiration");
         }
 
-        if (StringUtils.hasText(config.notificationSchedule) && config.notification.isPositive()) {
-            logger.info("Scheduling access token notification job with schedule '{}'", config.notificationSchedule);
+        if (expirationEnabled && notificationEnabled && config.hasNotificationSchedule()) {
+            logger.info("Scheduling access token notification job with schedule '{}'", config.getNotificationSchedule());
             scheduler.scheduleRecurrently(
                     "access-token-notification",
-                    config.notificationSchedule,
+                    config.getNotificationSchedule(),
                     new HandlerJobRequest<>(NotifyPersonalAccessTokenExpirationHandler.class));
         } else {
             scheduler.deleteRecurringJob("access-token-notification");

@@ -16,6 +16,7 @@ import java.util.Map;
 
 public class SendMailJobRequest implements JobRequest {
 
+    private String from;
     private String to;
     private String subject;
     private String template;
@@ -24,15 +25,21 @@ public class SendMailJobRequest implements JobRequest {
     public SendMailJobRequest() {}
 
     public SendMailJobRequest(
+            String from,
             String to,
             String subject,
             String template,
             Map<String,Object> variables
     ) {
+        this.from = from;
         this.to = to;
         this.subject = subject;
         this.template = template;
         this.variables = variables;
+    }
+
+    public String getFrom() {
+        return from;
     }
 
     public String getTo() {

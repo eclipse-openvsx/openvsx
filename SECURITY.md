@@ -1,20 +1,35 @@
-# How To Report a Vulnerability
+# Security Policy
 
-If you think you have found a vulnerability in Eclipse Open VSX you can report it using one of the following ways:
+This Eclipse Foundation Project adheres to the [Eclipse Foundation Vulnerability Reporting Policy](https://www.eclipse.org/security/policy/).
 
-* Contact the [Eclipse Foundation Security Team](mailto:security@eclipse-foundation.org)
-* Create a [confidential issue](https://gitlab.eclipse.org/security/vulnerability-reports/-/issues/new?issuable_template=new_vulnerability)
+## How To Report a Vulnerability
+
+If you think you have found a vulnerability in Eclipse Open VSX, please report it to us through coordinated disclosure.
+
+**Please do not report security vulnerabilities through public issues, discussions, or change requests.**
+
+Instead, you can report it using one of the following ways:
+
+* Contact the [Eclipse Foundation Security Team](mailto:security@eclipse-foundation.org) via email
+* Create a [confidential issue](https://gitlab.eclipse.org/security/vulnerability-reports/-/issues/new?issuable_template=new_vulnerability) in the Eclipse Foundation Vulnerability Reporting Tracker
+* Report a [vulnerability](https://github.com/eclipse-openvsx/openvsx/security/advisories/new) directly via private vulnerability reporting on GitHub
 
 You can find more information about reporting and disclosure at the [Eclipse Foundation Security page](https://www.eclipse.org/security/).
 
+Please include as much of the information listed below as you can to help us better understand and resolve the issue:
+
+* The type of issue (e.g., buffer overflow, SQL injection, or cross-site scripting)
+* Affected version(s)
+* Impact of the issue, including how an attacker might exploit the issue
+* Step-by-step instructions to reproduce the issue
+* The location of the affected source code (tag/branch/commit or direct URL)
+* Full paths of source file(s) related to the manifestation of the issue
+* Any special configuration required to reproduce the issue
+* Any log files that are related to this issue (if possible)
+* Proof-of-concept or exploit code (if possible)
+
+This information will help us triage your report more quickly.
+
 # Supported Versions
 
-<!--
-    Which releases of the project's software are actively maintaned and receive security updates?
--->
-Supported versions are: v0.x.x
-Check [Open VSX releases](https://github.com/eclipse/openvsx/releases) for latest versions.
-
-# Security Policy
-
-This project follows [Eclipse Foundation Vulnerability Reporting Policy](https://www.eclipse.org/security/policy/).
+This project supports and provides security fixes only for the latest released version (see [Open VSX releases](https://github.com/eclipse-openvsx/openvsx/releases)).

@@ -252,7 +252,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         list.setPostUrl(createApiUrl(serverUrl, "api", extension.getNamespace().getName(), extension.getName(), "review"));
         list.setDeleteUrl(createApiUrl(serverUrl, "api", extension.getNamespace().getName(), extension.getName(), "review", "delete"));
         list.setReviews(repositories.findActiveReviews(extension)
-                .map(extReview -> extReview.toReviewJson())
+                .map(ExtensionReview::toReviewJson)
                 .toList());
         return list;
     }
@@ -342,6 +342,10 @@ public class LocalRegistryService implements IExtensionRegistry {
                     var latestPreRelease = latestPreReleases.get(getLatestVersionKey(ev));
                     var reviewCount = reviewCounts.getOrDefault(ev.getExtension().getId(), 0L);
                     var preview = previewsByExtensionId.get(ev.getExtension().getId());
+                    if (preview == null) {
+                        logger.warn("Unable to determine if extension {} is a preview version", NamingUtil.toLogFormat(ev));
+                        preview = Boolean.FALSE;
+                    }
                     var extensionVersionStrings = versionStrings.get(ev.getExtension().getId());
                     var fileResources = fileResourcesByExtensionVersionId.getOrDefault(ev.getId(), Collections.emptyList());
                     return toExtensionVersionJson(ev, latest, latestPreRelease, reviewCount, preview, extensionVersionStrings, targetPlatform, fileResources, membershipsByNamespaceId);
@@ -383,6 +387,10 @@ public class LocalRegistryService implements IExtensionRegistry {
                     var latestPreRelease = latestPreReleases.get(getLatestVersionKey(ev));
                     var reviewCount = reviewCounts.getOrDefault(ev.getExtension().getId(), 0L);
                     var preview = previewsByExtensionId.get(ev.getExtension().getId());
+                    if (preview == null) {
+                        logger.warn("Unable to determine if extension {} is a preview version", NamingUtil.toLogFormat(ev));
+                        preview = Boolean.FALSE;
+                    }
                     var fileResources = fileResourcesByExtensionVersionId.getOrDefault(ev.getId(), Collections.emptyList());
                     var globalLatest = addAllVersions ? latestGlobalVersions.get(ev.getExtension().getId()) : null;
                     var globalLatestPreRelease = addAllVersions ? latestGlobalPreReleases.get(ev.getExtension().getId()) : null;
@@ -1121,7 +1129,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         }
 
         var namespace = extVersion.getExtension().getNamespace().getId();
-        var memberships = membershipsByNamespaceId.get(namespace);
+        var memberships = membershipsByNamespaceId.getOrDefault(namespace, Collections.emptyList());
         return memberships.stream().anyMatch(m -> m.getRole().equalsIgnoreCase(NamespaceMembership.ROLE_OWNER))
                 && memberships.stream().anyMatch(m -> m.getUser().getId() == user.getId());
     }

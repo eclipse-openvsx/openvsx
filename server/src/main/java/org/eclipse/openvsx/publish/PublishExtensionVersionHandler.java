@@ -20,11 +20,8 @@ import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.adapter.VSCodeIdNewExtensionJobRequest;
 import org.eclipse.openvsx.entities.*;
-import org.eclipse.openvsx.entities.ScanCheckResult.CheckCategory;
-import org.eclipse.openvsx.entities.ScanCheckResult.CheckResult;
 import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.util.*;
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -58,7 +55,6 @@ public class PublishExtensionVersionHandler {
     private final ExtensionValidator validator;
     private final ExtensionControlService extensionControl;
     private final ExtensionScanService scanService;
-    private final ExtensionScanPersistenceService scanPersistenceService;
 
     public PublishExtensionVersionHandler(
             PublishExtensionVersionService service,
@@ -69,8 +65,7 @@ public class PublishExtensionVersionHandler {
             UserService users,
             ExtensionValidator validator,
             ExtensionControlService extensionControl,
-            ExtensionScanService scanService,
-            ExtensionScanPersistenceService scanPersistenceService
+            ExtensionScanService scanService
     ) {
         this.service = service;
         this.integrityService = integrityService;
@@ -81,7 +76,6 @@ public class PublishExtensionVersionHandler {
         this.validator = validator;
         this.extensionControl = extensionControl;
         this.scanService = scanService;
-        this.scanPersistenceService = scanPersistenceService;
     }
 
     public boolean isLicenseRequired() {
@@ -276,48 +270,15 @@ public class PublishExtensionVersionHandler {
 
         service.storeResource(extensionFile);
         service.persistResource(download);
-        try(var processor = new ExtensionProcessor(extensionFile)) {
-            extVersion.setPotentiallyMalicious(processor.isPotentiallyMalicious());
-            if (extVersion.isPotentiallyMalicious()) {
+        try (var processor = new ExtensionProcessor(extensionFile)) {
+            // to keep backwards compatibility, mark extension versions as potentially malicious
+            // if no scan service is enabled and the vsix file contains entries with extra fields.
+            if (!scanService.isEnabled() && processor.isPotentiallyMalicious()) {
+                service.markExtensionAsPotentiallyMalicious(extVersion);
                 logger.atWarn()
                         .setMessage("Extension version is potentially malicious: {}")
                         .addArgument(() -> NamingUtil.toLogFormat(extVersion))
                         .log();
-                
-                // Record as a publish check failure and reject the extension
-                 if (scan != null) {
-                    var now = TimeUtil.getCurrentUTC();
-                    var checkType = "MALICIOUS_ZIP_CHECK";
-                    var reason = "VSIX contains zip entries with potentially harmful extra fields";
-                    
-                    // Record the check result for audit trail
-                    scanPersistenceService.recordCheckResult(
-                            scan,
-                            checkType,
-                            CheckCategory.PUBLISH_CHECK,
-                            CheckResult.REJECT,
-                            now,                     // startedAt
-                            now,                     // completedAt
-                            1,                       // filesScanned - the vsix file
-                            1,                       // findingsCount
-                            reason,
-                            null,                    // errorMessage
-                            null,                    // scannerJobId - not a scanner job
-                            true
-                    );
-                    
-                    // Also record as validation failure for the failures list
-                    scanPersistenceService.recordValidationFailure(
-                            scan,
-                            checkType,
-                            "EXTRA_FIELDS_DETECTED",  // ruleName
-                            reason,
-                            true                      // enforced
-                    );
-                    
-                    scanService.rejectScan(scan);
-                    logger.info("Scan {} rejected due to potentially malicious extension", scan.getId());
-                }
                 return;
             }
 
@@ -326,7 +287,7 @@ public class PublishExtensionVersionHandler {
                 service.persistResource(tempFile.getResource());
             };
 
-            if(integrityService.isEnabled()) {
+            if (integrityService.isEnabled()) {
                 var keyPair = extVersion.getSignatureKeyPair();
                 if(keyPair != null) {
                     try(var signature = integrityService.generateSignature(extensionFile, keyPair)) {

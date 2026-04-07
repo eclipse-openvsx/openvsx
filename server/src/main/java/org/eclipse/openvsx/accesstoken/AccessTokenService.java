@@ -26,6 +26,7 @@ import org.eclipse.openvsx.util.UrlUtil;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.eclipse.openvsx.util.UrlUtil.createApiUrl;
@@ -59,8 +60,8 @@ public class AccessTokenService {
         var createdAt = TimeUtil.getCurrentUTC();
         token.setCreatedTimestamp(createdAt);
 
-        if (config.expiration != null && config.expiration.isPositive()) {
-            token.setExpiresTimestamp(createdAt.plus(config.expiration));
+        if (config.isTokenExpiryEnabled()) {
+            token.setExpiresTimestamp(createdAt.plus(config.getExpiration()));
         }
 
         token.setDescription(description);
@@ -77,7 +78,7 @@ public class AccessTokenService {
     public String generateTokenValue() {
         String value;
         do {
-            value = config.prefix + UUID.randomUUID();
+            value = config.getPrefix() + UUID.randomUUID();
         } while (repositories.hasAccessToken(value));
         return value;
     }
@@ -108,9 +109,14 @@ public class AccessTokenService {
         return token;
     }
 
-    @Transactional
     public int expireAccessTokens() {
-        return repositories.expireAccessTokens(TimeUtil.getCurrentUTC());
+        var expiredAccessTokens = repositories.expireAccessTokens(TimeUtil.getCurrentUTC());
+        if (config.isSendExpiredMailEnabled()) {
+            for (var token : expiredAccessTokens) {
+                mail.scheduleAccessTokenExpiredMail(token);
+            }
+        }
+        return expiredAccessTokens.size();
     }
 
     @Transactional
@@ -121,6 +127,10 @@ public class AccessTokenService {
         } finally {
             token.setNotified(true);
         }
+    }
+
+    public void scheduleTokenExpiredMail(PersonalAccessToken token) {
+        mail.scheduleAccessTokenExpiredMail(token);
     }
 
     @Transactional

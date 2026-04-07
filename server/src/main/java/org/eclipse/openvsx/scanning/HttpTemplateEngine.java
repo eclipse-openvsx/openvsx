@@ -48,7 +48,7 @@ public class HttpTemplateEngine {
         }
         
         Matcher matcher = PLACEHOLDER_PATTERN.matcher(template);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         
         while (matcher.find()) {
             String placeholderName = matcher.group(1);

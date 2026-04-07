@@ -47,8 +47,7 @@ class ScannerRegistryTest {
 
         registry.registerScanner(scanner1);
 
-        assertThrows(IllegalArgumentException.class, () ->
-                registry.registerScanner(scanner2));
+        assertThrows(IllegalArgumentException.class, () -> registry.registerScanner(scanner2));
     }
 
     @Test
@@ -120,8 +119,7 @@ class ScannerRegistryTest {
 
         var types = registry.getRegisteredTypes();
 
-        assertThrows(UnsupportedOperationException.class, () ->
-                types.add("TYPE_B"));
+        assertThrows(UnsupportedOperationException.class, () -> types.add("TYPE_B"));
     }
 
     @Test

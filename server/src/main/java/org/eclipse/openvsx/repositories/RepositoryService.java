@@ -654,7 +654,7 @@ public class RepositoryService {
         return tokenRepo.updateActiveSetFalse(user);
     }
 
-    public int expireAccessTokens(LocalDateTime timestamp) {
+    public List<PersonalAccessToken> expireAccessTokens(LocalDateTime timestamp) {
         return tokenRepo.expireAccessTokens(timestamp);
     }
 
@@ -1285,6 +1285,10 @@ public class RepositoryService {
 
     public CustomerMembership findCustomerMembership(UserData user, Customer customer) {
         return customerMembershipRepo.findByUserAndCustomer(user, customer);
+    }
+
+    public Streamable<CustomerMembership> findCustomerMemberships(UserData user) {
+        return customerMembershipRepo.findByUserOrderByCustomerName(user);
     }
 
     public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {

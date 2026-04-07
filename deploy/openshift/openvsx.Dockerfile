@@ -28,14 +28,13 @@ RUN git clone --branch ${VERSION} --depth 1 https://github.com/eclipse/openvsx.g
 RUN yarn --version \
   && yarn --cwd webui \
   && yarn --cwd webui install \
-  && yarn --cwd webui build \
   && yarn --cwd webui build:default
 
 # Main image derived from openvsx-server
-FROM ghcr.io/eclipse/openvsx-server:${OPENVSX_VERSION}
+FROM ghcr.io/eclipse-openvsx/openvsx-server:${OPENVSX_VERSION}
 ARG OPENVSX_VERSION
 
-COPY --from=builder --chown=openvsx:openvsx /workdir/webui/static/ BOOT-INF/classes/static/
+COPY --from=builder --chown=openvsx:openvsx /workdir/webui/dist/ BOOT-INF/classes/static/
 COPY /application.yml config/
 
 USER root

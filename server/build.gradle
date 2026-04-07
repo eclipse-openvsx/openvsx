@@ -17,6 +17,11 @@ def jooqSrcDir = 'src/main/jooq-gen'
 
 ext['junit-jupiter.version'] = libs.versions.junit.get()
 
+// override spring boot managed versions
+// see https://docs.spring.io/spring-boot/gradle-plugin/managing-dependencies.html
+// example:
+// ext['netty.version'] = '4.1.132.Final'
+
 java {
     sourceCompatibility = libs.versions.java.get()
 }
@@ -53,7 +58,7 @@ configurations {
 dependencyManagement {
     gatling {
         dependencies {
-            dependencySet(group: 'io.netty', version: '4.2.7.Final') {
+            dependencySet(group: 'io.netty', version: '4.2.12.Final') {
                 entry 'netty-codec-http'
                 entry 'netty-codec'
                 entry 'netty-handler'

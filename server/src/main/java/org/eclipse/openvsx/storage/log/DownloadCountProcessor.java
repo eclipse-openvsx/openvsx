@@ -69,6 +69,15 @@ public class DownloadCountProcessor {
     public Map<Long, Integer> processDownloadCounts(String storageType, Map<String, Integer> files) {
         return Observation.createNotStarted("DownloadCountProcessor#processDownloadCounts", observations).observe(() -> repositories.findDownloadsByStorageTypeAndName(storageType, files.keySet()).stream()
                 .map(fileResource -> Map.entry(fileResource, files.get(fileResource.getName().toUpperCase())))
+                .filter(fileResource -> {
+                    var ev = fileResource.getKey().getExtension();
+                    if (ev == null) {
+                        logger.warn("no extension version found for download {}, skipping", fileResource.getKey().getName());
+                        return false;
+                    } else {
+                        return true;
+                    }
+                })
                 .collect(Collectors.groupingBy(
                         e -> e.getKey().getExtension().getExtension().getId(),
                         Collectors.summingInt(Map.Entry::getValue)

@@ -31,8 +31,8 @@ public class LegacyPersonalAccessTokenExpirationHandler implements JobRequestHan
 
     @Override
     public void run(HandlerJobRequest<?> handlerJobRequest) throws Exception {
-        if (config.expiration != null && config.expiration.isPositive()) {
-            var expirationTime = TimeUtil.getCurrentUTC().plus(config.expiration);
+        if (config.isTokenExpiryEnabled()) {
+            var expirationTime = TimeUtil.getCurrentUTC().plus(config.getExpiration());
             var count = tokens.setExpirationTimeForLegacyAccessTokens(expirationTime);
             if (count > 0) {
                 logger.info("Set expiration time for {} legacy personal access token(s)", count);
