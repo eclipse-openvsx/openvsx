@@ -19,13 +19,17 @@ import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
+import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 
 
@@ -33,6 +37,8 @@ import java.util.Optional;
 @RequestMapping("/admin/ratelimit")
 public class RateLimitAPI {
     private final Logger logger = LoggerFactory.getLogger(RateLimitAPI.class);
+
+    private static final int TOKEN_DESCRIPTION_SIZE = 255;
 
     private final RepositoryService repositories;
     private final AdminService admins;
@@ -59,9 +65,9 @@ public class RateLimitAPI {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<TierListJson> getTiers() {
-        try {
-            admins.checkAdminUser();
+        admins.checkAdminUser();
 
+        try {
             var tiers = repositories.findAllTiers();
             var result = new TierListJson(tiers.stream().map(Tier::toJson).toList());
             return ResponseEntity.ok(result);
@@ -104,6 +110,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(TierJson.class);
         } catch (Exception exc) {
             logger.error("failed creating tier {}", tier.getName(), exc);
             return ResponseEntity.internalServerError().build();
@@ -144,6 +152,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(TierJson.class);
         } catch (Exception exc) {
             logger.error("failed updating tier {}", name, exc);
             return ResponseEntity.internalServerError().build();
@@ -178,6 +188,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
         } catch (Exception exc) {
             logger.error("failed deleting tier {}", name, exc);
             return ResponseEntity.internalServerError().build();
@@ -189,9 +201,9 @@ public class RateLimitAPI {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<CustomerListJson> getCustomersForTier(@PathVariable String name) {
-        try {
-            admins.checkAdminUser();
+        admins.checkAdminUser();
 
+        try {
             var tier = repositories.findTier(name);
             if (tier == null) {
                 return ResponseEntity.notFound().build();
@@ -211,9 +223,9 @@ public class RateLimitAPI {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<CustomerListJson> getCustomers() {
-        try {
-            admins.checkAdminUser();
+        admins.checkAdminUser();
 
+        try {
             var customers = repositories.findAllCustomers();
             var result = new CustomerListJson(customers.stream().map(Customer::toJson).toList());
             return ResponseEntity.ok(result);
@@ -237,6 +249,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(customer.toJson());
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(CustomerJson.class);
         } catch (Exception exc) {
             logger.error("failed retrieving customer {}", name, exc);
             return ResponseEntity.internalServerError().build();
@@ -280,6 +294,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(CustomerJson.class);
         } catch (Exception exc) {
             logger.error("failed creating customer {}", customerJson.getName(), exc);
             return ResponseEntity.internalServerError().build();
@@ -321,6 +337,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(CustomerJson.class);
         } catch (Exception exc) {
             logger.error("failed updating tier {}", name, exc);
             return ResponseEntity.internalServerError().build();
@@ -344,6 +362,8 @@ public class RateLimitAPI {
             var membershipList = new CustomerMembershipListJson();
             membershipList.setCustomerMemberships(memberships.stream().map(CustomerMembership::toJson).toList());
             return ResponseEntity.ok(membershipList);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(CustomerMembershipListJson.class);
         } catch (Exception exc) {
             logger.error("failed retrieving customer members {}", name, exc);
             return ResponseEntity.internalServerError().build();
@@ -419,6 +439,8 @@ public class RateLimitAPI {
             }
 
             return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
         } catch (Exception exc) {
             logger.error("failed deleting customer {}", name, exc);
             return ResponseEntity.internalServerError().build();
@@ -430,9 +452,9 @@ public class RateLimitAPI {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<UsageStatsListJson> getUsageStats(@PathVariable String name, @RequestParam(required = false) String date) {
-        try {
-            admins.checkAdminUser();
+        admins.checkAdminUser();
 
+        try {
             var customer = repositories.findCustomer(name);
             if (customer == null) {
                 return ResponseEntity.notFound().build();
@@ -444,6 +466,85 @@ public class RateLimitAPI {
             return ResponseEntity.ok(result);
         } catch (Exception exc) {
             logger.error("failed retrieving usage stats", exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping(
+            path = "/customers/{name}/tokens",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<List<RateLimitTokenJson>> getRateLimitTokens(@PathVariable String name) {
+        admins.checkAdminUser();
+
+        try {
+            var customer = repositories.findCustomer(name);
+            if (customer == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            repositories.findActiveRateLimitTokens(customer);
+            var tokens = repositories.findActiveRateLimitTokens(customer)
+                    .map(RateLimitToken::toJson)
+                    .toList();
+
+            return ResponseEntity.ok(tokens);
+        } catch (Exception exc) {
+            logger.error("failed retrieving rate limit tokens", exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping(
+            path = "/customers/{name}/tokens",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<RateLimitTokenJson> createRateLimitToken(
+            @PathVariable String name,
+            @RequestParam(required = false) String description
+    ) {
+        try {
+            admins.checkAdminUser();
+
+            if (description != null && description.length() > TOKEN_DESCRIPTION_SIZE) {
+                var json = RateLimitTokenJson.error("The description must not be longer than " + TOKEN_DESCRIPTION_SIZE + " characters.");
+                return new ResponseEntity<>(json, HttpStatus.BAD_REQUEST);
+            }
+
+            var customer = repositories.findCustomer(name);
+            if (customer == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return new ResponseEntity<>(customerService.createRateLimitToken(customer, description), HttpStatus.CREATED);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(RateLimitTokenJson.class);
+        } catch (Exception exc) {
+            logger.error("failed creating rate limit token", exc);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @DeleteMapping(
+            path = "/customers/{name}/tokens/{id}",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ResultJson> deactivateRateLimitToken(@PathVariable String name, @PathVariable long id) {
+        try {
+            admins.checkAdminUser();
+
+            var customer = repositories.findCustomer(name);
+            if (customer == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(customerService.deactivateRateLimitToken(customer, id));
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        } catch (NotFoundException exc) {
+            return new ResponseEntity<>(ResultJson.error("Rate limit token does not exist."), HttpStatus.NOT_FOUND);
+        } catch (Exception exc) {
+            logger.error("failed deactivating rate limit token", exc);
             return ResponseEntity.internalServerError().build();
         }
     }

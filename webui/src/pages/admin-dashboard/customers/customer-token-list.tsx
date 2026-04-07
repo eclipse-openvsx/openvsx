@@ -109,7 +109,7 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
                     >
                         <ListItemText
                             primary={
-                                <Typography sx={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>{token.description}</Typography>
+                                <Typography sx={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>{token.description || 'N/A'}</Typography>
                             }
                             secondary={
                                 <Typography variant='body2'>Created: <Timestamp value={token.createdTimestamp}/></Typography>

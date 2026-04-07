@@ -78,6 +78,7 @@ public class RepositoryService {
     private final CustomerRepository customerRepo;
     private final CustomerMembershipRepository customerMembershipRepo;
     private final UsageStatsRepository usageStatsRepository;
+    private final RateLimitTokenRepository rateLimitTokenRepository;
 
     public RepositoryService(
             NamespaceRepository namespaceRepo,
@@ -112,7 +113,8 @@ public class RepositoryService {
             TierRepository tierRepo,
             CustomerRepository customerRepo,
             CustomerMembershipRepository customerMembershipRepo,
-            UsageStatsRepository usageStatsRepository
+            UsageStatsRepository usageStatsRepository,
+            RateLimitTokenRepository rateLimitTokenRepository
     ) {
         this.namespaceRepo = namespaceRepo;
         this.namespaceJooqRepo = namespaceJooqRepo;
@@ -147,6 +149,7 @@ public class RepositoryService {
         this.customerRepo = customerRepo;
         this.customerMembershipRepo = customerMembershipRepo;
         this.usageStatsRepository = usageStatsRepository;
+        this.rateLimitTokenRepository = rateLimitTokenRepository;
     }
 
     public Namespace findNamespace(String name) {
@@ -1300,5 +1303,17 @@ public class RepositoryService {
 
     public UsageStats saveUsageStats(UsageStats usageStats) {
         return usageStatsRepository.save(usageStats);
+    }
+
+    public Streamable<RateLimitToken> findActiveRateLimitTokens(Customer customer) {
+        return rateLimitTokenRepository.findByCustomerAndActiveTrue(customer);
+    }
+
+    public RateLimitToken findRateLimitToken(long id) {
+        return rateLimitTokenRepository.findById(id);
+    }
+
+    public boolean hasRateLimitToken(String value) {
+        return rateLimitTokenRepository.existsByValue(value);
     }
 }

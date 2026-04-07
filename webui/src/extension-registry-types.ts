@@ -470,7 +470,7 @@ export interface CustomerMembershipList {
 export interface RateLimitToken {
     id: number;
     value?: string;
-    description: string;
+    description?: string;
     createdTimestamp: TimestampString;
 }
 

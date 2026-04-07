@@ -21,3 +21,25 @@ CREATE TABLE IF NOT EXISTS public.customer_membership
 
 CREATE INDEX IF NOT EXISTS customer_membership_namespace_idx ON public.customer_membership(customer);
 CREATE INDEX IF NOT EXISTS customer_membership_user_data_idx ON public.customer_membership(user_data);
+
+-- rate_limit_token table
+
+CREATE SEQUENCE IF NOT EXISTS rate_limit_token_seq START WITH 1 INCREMENT BY 1;
+
+CREATE TABLE IF NOT EXISTS public.rate_limit_token
+(
+    id BIGINT NOT NULL PRIMARY KEY DEFAULT nextval('rate_limit_token_seq'),
+    customer BIGINT,
+    active BOOLEAN NOT NULL,
+    created_timestamp TIMESTAMP without time zone,
+    description CHARACTER VARYING(2048),
+    value CHARACTER VARYING(64),
+
+    -- foreign keys
+
+    CONSTRAINT rate_limit_token_customer_fk FOREIGN KEY (customer)
+        REFERENCES public.customer(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS rate_limit_token_customer_idx ON public.rate_limit_token(customer);
+CREATE INDEX IF NOT EXISTS rate_limit_token_value_idx ON public.rate_limit_token(value);

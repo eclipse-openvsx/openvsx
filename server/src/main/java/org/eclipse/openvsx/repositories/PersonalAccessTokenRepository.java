@@ -9,7 +9,6 @@
  ********************************************************************************/
 package org.eclipse.openvsx.repositories;
 
-import jakarta.transaction.Transactional;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.UserData;
 import org.springframework.data.domain.Pageable;

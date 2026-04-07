@@ -1077,7 +1077,7 @@ export class AdminServiceImpl implements AdminService {
         }, false);
     }
 
-    async createCustomerRateLimitToken(abortController: AbortController, customerName: string, description: string): Promise<Readonly<RateLimitToken>> {
+    async createCustomerRateLimitToken(abortController: AbortController, customerName: string, description?: string): Promise<Readonly<RateLimitToken>> {
         const csrfResponse = await this.registry.getCsrfToken(abortController);
         const headers: Record<string, string> = {};
         if (!isError(csrfResponse)) {
@@ -1086,7 +1086,7 @@ export class AdminServiceImpl implements AdminService {
         }
 
         const url = createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', customerName, 'tokens']);
-        const endpoint = addQuery(url, [{ key: 'description', value: description }]);
+        const endpoint = description !== undefined ? addQuery(url, [{ key: 'description', value: description }]) : url;
         return sendRequest({
             abortController,
             method: 'POST',

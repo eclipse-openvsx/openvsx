@@ -17,16 +17,19 @@ import inet.ipaddr.ipv4.IPv4AddressAssociativeTrie;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
-import org.eclipse.openvsx.entities.Customer;
-import org.eclipse.openvsx.entities.CustomerMembership;
-import org.eclipse.openvsx.entities.NamespaceMembership;
-import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.entities.*;
+import org.eclipse.openvsx.json.AccessTokenJson;
+import org.eclipse.openvsx.json.ErrorJson;
+import org.eclipse.openvsx.json.RateLimitTokenJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.ratelimit.cache.ConfigurationChanged;
 import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
 import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.NotFoundException;
+import org.eclipse.openvsx.util.TimeUtil;
+import org.eclipse.openvsx.util.UrlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -35,6 +38,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
+
+import static org.eclipse.openvsx.util.UrlUtil.createApiUrl;
 
 @Service
 public class CustomerService {
@@ -134,5 +140,48 @@ public class CustomerService {
 
         entityManager.remove(membership);
         return ResultJson.success("Removed " + user.getLoginName() + " as member of customer " + customer.getName() + ".");
+    }
+
+    @Transactional
+    public RateLimitTokenJson createRateLimitToken(Customer customer, String description) {
+        var token = new RateLimitToken();
+        token.setCustomer(customer);
+        token.setValue(generateTokenValue());
+        token.setActive(true);
+
+        var createdAt = TimeUtil.getCurrentUTC();
+        token.setCreatedTimestamp(createdAt);
+
+        token.setDescription(description);
+        entityManager.persist(token);
+
+        var json = token.toJson();
+        // Include the token value after creation so the user can copy it
+        json.setValue(token.getValue());
+
+        return json;
+    }
+
+    private String generateTokenValue() {
+        String value;
+        do {
+            value = "ovsxrl_" + UUID.randomUUID();
+        } while (repositories.hasRateLimitToken(value));
+        return value;
+    }
+
+    @Transactional
+    public ResultJson deactivateRateLimitToken(Customer customer, long id) {
+        var token = repositories.findRateLimitToken(id);
+        if (token == null || !token.isActive()) {
+            throw new NotFoundException();
+        }
+
+        if(token.getCustomer().getId() != customer.getId()) {
+            throw new NotFoundException();
+        }
+
+        token.setActive(false);
+        return ResultJson.success("Deactivated rate limit token for customer " + customer.getName() + ".");
     }
 }
