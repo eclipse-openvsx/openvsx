@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es6",
-    "module": "es6",
+    "target": "es2020",
+    "module": "es2020",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "lib": [
-      "es6", "es2020.string", "dom"
+      "es2020", "dom"
     ],
     "typeRoots": [
       "node_modules/@types", "typings"
