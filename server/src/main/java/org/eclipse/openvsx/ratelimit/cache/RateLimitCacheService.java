@@ -19,8 +19,10 @@ import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.cache.CacheProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import redis.clients.jedis.JedisCluster;
@@ -38,6 +40,7 @@ public class RateLimitCacheService extends JedisPubSub {
     public static final String CACHE_MANAGER = "rateLimitCacheManager";
     public static final String CACHE_CUSTOMER = "ratelimit.customer";
     public static final String CACHE_TIER = "ratelimit.tier";
+    public static final String CACHE_TOKEN = "ratelimit.token";
 
     private static final String CONFIG_UPDATE_CHANNEL = "ratelimit.config";
 
@@ -87,6 +90,14 @@ public class RateLimitCacheService extends JedisPubSub {
     public void evictTierCache() {
         logger.debug("Evict tier cache");
         var cache = cacheManager.getCache(CACHE_TIER);
+        if (cache != null) {
+            cache.clear();
+        }
+    }
+
+    public void evictTokenCache() {
+        logger.debug("Evict token cache");
+        var cache = cacheManager.getCache(CACHE_TOKEN);
         if (cache != null) {
             cache.clear();
         }

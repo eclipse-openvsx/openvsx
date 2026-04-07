@@ -81,6 +81,11 @@ public class CustomerService {
         }
     }
 
+    public Optional<Customer> getCustomerByRateLimitToken(String token) {
+        // TODO: implement
+        return Optional.empty();
+    }
+
     @EventListener
     public void refreshCache(ConfigurationChanged event) {
         logger.debug("Rebuilding IP Address cache");
