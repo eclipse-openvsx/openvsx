@@ -38,15 +38,13 @@ interface UsageStatsChartProps {
     customer: Customer | null;
     startDate: DateTime;
     onStartDateChange: (date: DateTime) => void;
-    compact?: boolean;
 }
 
 export const UsageStatsChart: FC<UsageStatsChartProps> = ({
     usageStats,
     customer,
     startDate,
-    onStartDateChange,
-    compact = false
+    onStartDateChange
 }) => {
     const dayStart = startDate.startOf('day').toMillis() / 1000;
     const dayEnd = startDate.endOf('day').toMillis() / 1000;
@@ -60,7 +58,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
         () => {
             const arr: UsageStats[] = [];
 
-            for (let idx = dayStart; idx < dayEnd; idx += step) {
+            for (let idx = dayStart; idx <= dayEnd; idx += step) {
                 arr.push({
                     windowStart: idx,
                     duration: step,
@@ -163,11 +161,11 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             axisId='date'
                             tickInterval={(value) => {
                                 const d = new Date(value);
-                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
+                                return d.getMinutes() === 0;
                             }}
                             tickLabelInterval={(value) => {
                                 const d = new Date(value);
-                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
+                                return d.getMinutes() === 0;
                             }}
                             tickLabelStyle={{
                                 fontSize: 10,
