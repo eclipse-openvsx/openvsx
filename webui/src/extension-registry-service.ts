@@ -15,7 +15,7 @@ import {
     LoginProviders, ScanResultJson, ScanCounts, ScanResultsResponse, ScanFilterOptions,
     FilesResponse, FileDecisionCountsJson, ScanDecisionRequest, ScanDecisionResponse,
     FileDecisionRequest, FileDecisionResponse, FileDecisionDeleteRequest, FileDecisionDeleteResponse,
-    Tier, TierList, Customer, CustomerList, UsageStatsList, LogPageableList, CustomerMembershipList,
+    Tier, TierList, Customer, CustomerList, UsageStatsList, LogPageableList, CustomerMembershipList, RateLimitToken,
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse } from './server-request';
@@ -533,9 +533,9 @@ export interface AdminService {
     removeCustomerMember(abortController: AbortController, name: string, user: UserData): Promise<Readonly<SuccessResult | ErrorResult>>;
     getUsageStats(abortController: AbortController, customerName: string, date: Date): Promise<Readonly<UsageStatsList>>;
     getLogs(abortController: AbortController, page?: number, size?: number, period?: string): Promise<Readonly<LogPageableList>>;
-    getCustomerTokens(abortController: AbortController, customerName: string): Promise<Readonly<CustomerAccessToken[]>>;
-    createCustomerToken(abortController: AbortController, customerName: string, description: string): Promise<Readonly<CustomerAccessToken>>;
-    deleteCustomerToken(abortController: AbortController, customerName: string, tokenId: number): Promise<Readonly<SuccessResult | ErrorResult>>;
+    getCustomerRateLimitTokens(abortController: AbortController, customerName: string): Promise<Readonly<RateLimitToken[]>>;
+    createCustomerRateLimitToken(abortController: AbortController, customerName: string, description: string): Promise<Readonly<RateLimitToken>>;
+    deleteCustomerRateLimitToken(abortController: AbortController, customerName: string, tokenId: number): Promise<Readonly<SuccessResult | ErrorResult>>;
 }
 
 export interface AdminServiceConstructor {
@@ -1069,34 +1069,49 @@ export class AdminServiceImpl implements AdminService {
         }, false);
     }
 
-    // TODO: Replace with real endpoints when backend is ready
-    private static fakeTokens: CustomerAccessToken[] = [
-        { id: 1, description: 'token 1', createdTimestamp: '2026-01-15T10:30:00Z' },
-        { id: 2, description: 'token 2', createdTimestamp: '2026-02-20T14:00:00Z' },
-    ];
-    private static nextTokenId = 3;
-
-    async getCustomerTokens(_abortController: AbortController, _customerName: string): Promise<Readonly<CustomerAccessToken[]>> {
-        await new Promise(r => setTimeout(r, 300));
-        return AdminServiceImpl.fakeTokens;
+    async getCustomerRateLimitTokens(abortController: AbortController, customerName: string): Promise<Readonly<RateLimitToken[]>> {
+        return sendRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', customerName, 'tokens']),
+        }, false);
     }
 
-    async createCustomerToken(_abortController: AbortController, _customerName: string, description: string): Promise<Readonly<CustomerAccessToken>> {
-        await new Promise(r => setTimeout(r, 500));
-        const token: CustomerAccessToken = {
-            id: AdminServiceImpl.nextTokenId++,
-            value: 'cust_' + crypto.randomUUID().replace(/-/g, ''),
-            description: description || 'Unnamed token',
-            createdTimestamp: new Date().toISOString(),
+    async createCustomerRateLimitToken(abortController: AbortController, customerName: string, description: string): Promise<Readonly<RateLimitToken>> {
+        const csrfResponse = await this.registry.getCsrfToken(abortController);
+        const headers: Record<string, string> = {};
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+
+        const url = createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', customerName, 'tokens']);
+        const endpoint = addQuery(url, [{ key: 'description', value: description }]);
+        return sendRequest({
+            abortController,
+            method: 'POST',
+            credentials: true,
+            endpoint,
+            headers
+        }, false);
+    }
+
+    async deleteCustomerRateLimitToken(abortController: AbortController, customerName: string, tokenId: number): Promise<Readonly<SuccessResult | ErrorResult>> {
+        const csrfResponse = await this.registry.getCsrfToken(abortController);
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
         };
-        AdminServiceImpl.fakeTokens = [...AdminServiceImpl.fakeTokens, token];
-        return token;
-    }
-
-    async deleteCustomerToken(_abortController: AbortController, _customerName: string, tokenId: number): Promise<Readonly<SuccessResult | ErrorResult>> {
-        await new Promise(r => setTimeout(r, 300));
-        AdminServiceImpl.fakeTokens = AdminServiceImpl.fakeTokens.filter(t => t.id !== tokenId);
-        return { success: 'Token deleted' };
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        return sendRequest({
+            abortController,
+            method: 'DELETE',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', customerName, 'tokens', `${tokenId}`]),
+            headers
+        }, false);
     }
 }
 

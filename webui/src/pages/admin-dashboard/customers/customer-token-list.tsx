@@ -27,7 +27,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { MainContext } from '../../../context';
-import { Customer, CustomerAccessToken, isError } from '../../../extension-registry-types';
+import { Customer, isError, RateLimitToken } from '../../../extension-registry-types';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { Timestamp } from "../../../components/timestamp";
 
@@ -35,7 +35,7 @@ const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
 export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = props => {
     const { service, handleError } = useContext(MainContext);
-    const [tokens, setTokens] = useState<CustomerAccessToken[]>([]);
+    const [tokens, setTokens] = useState<RateLimitToken[]>([]);
     const [dialogOpen, setDialogOpen] = useState(false);
     const abortController = useRef<AbortController>(new AbortController());
 
@@ -51,7 +51,7 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
 
     const fetchTokens = async () => {
         try {
-            const result = await service.admin.getCustomerTokens(abortController.current, props.customer.name);
+            const result = await service.admin.getCustomerRateLimitTokens(abortController.current, props.customer.name);
             setTokens([...result]);
         } catch (err) {
             handleError(err);
@@ -59,14 +59,14 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
     };
 
     const handleGenerate = async (description: string): Promise<string> => {
-        const token = await service.admin.createCustomerToken(abortController.current, props.customer.name, description);
+        const token = await service.admin.createCustomerRateLimitToken(abortController.current, props.customer.name, description);
         await fetchTokens();
         return token.value ?? '';
     };
 
     const handleDelete = async (tokenId: number) => {
         try {
-            const result = await service.admin.deleteCustomerToken(abortController.current, props.customer.name, tokenId);
+            const result = await service.admin.deleteCustomerRateLimitToken(abortController.current, props.customer.name, tokenId);
             if (isError(result)) {
                 throw result;
             }
