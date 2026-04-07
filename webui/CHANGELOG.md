@@ -9,6 +9,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump picomatch from `4.0.3` to `4.0.4` ([#1720](https://github.com/eclipse/openvsx/pull/1720))
 - Bump yaml from `1.20.2` to `1.20.3` ([#1717](https://github.com/eclipse/openvsx/pull/1717))
 - Bump lodash from `4.17.23` to `4.18.1` ([#1742](https://github.com/eclipse/openvsx/pull/1742))
+- Bump vite from `7.3.1` to `7.3.2` ([#1744](https://github.com/eclipse/openvsx/pull/1744))
 
 ## [v0.19.0] (Mar. 2026)
 
