@@ -29,6 +29,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { MainContext } from '../../../context';
 import { Customer, CustomerAccessToken, isError } from '../../../extension-registry-types';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
+import { Timestamp } from "../../../components/timestamp";
 
 const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
@@ -107,8 +108,12 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
                         }
                     >
                         <ListItemText
-                            primary={token.description}
-                            secondary={`Created ${new Date(token.createdTimestamp).toLocaleDateString()}`}
+                            primary={
+                                <Typography sx={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>{token.description}</Typography>
+                            }
+                            secondary={
+                                <Typography variant='body2'>Created: <Timestamp value={token.createdTimestamp}/></Typography>
+                            }
                         />
                     </ListItem>
                 ))}
