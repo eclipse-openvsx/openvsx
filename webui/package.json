@@ -1,6 +1,6 @@
 {
     "name": "openvsx-webui",
-    "version": "0.19.1-dev.0",
+    "version": "0.19.1",
     "description": "User interface for Eclipse Open VSX",
     "keywords": [
         "react",

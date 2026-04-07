@@ -2,7 +2,11 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
-## [next] (unreleased)
+## [v0.19.1] (Apr. 2026)
+
+### Fixed
+
+- Display usage stats tick labels in UTC timezone ([#1747](https://github.com/eclipse/openvsx/pull/1747))
 
 ### Dependencies
 
