@@ -22,6 +22,7 @@ import { SearchListContainer } from "../search-list-container";
 import { CustomerSearch } from "./usage-stats-search";
 import { UsageStatsChart } from "./usage-stats-chart";
 import { getDefaultStartDate } from "./usage-stats-utils";
+import { DateTime } from "luxon";
 
 export const UsageStatsView: FC = () => {
     const { customer } = useParams<{ customer: string }>();
@@ -34,7 +35,7 @@ export const UsageStatsView: FC = () => {
     const [usageStats, setUsageStats] = useState<readonly UsageStats[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [startDate, setStartDate] = useState<Date>(getDefaultStartDate);
+    const [startDate, setStartDate] = useState<DateTime>(getDefaultStartDate);
 
     // Load customers for autocomplete
     useEffect(() => {
@@ -79,7 +80,7 @@ export const UsageStatsView: FC = () => {
             const data = await service.admin.getUsageStats(
                 abortController.current,
                 customer,
-                startDate
+                startDate.toJSDate()
             );
             setUsageStats(data.stats);
         } catch (err) {

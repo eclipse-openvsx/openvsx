@@ -22,9 +22,8 @@ import {
 import { BarPlot } from "@mui/x-charts/BarChart";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
 import type { Customer, UsageStats } from "../../../extension-registry-types";
-import { addDays, format, startOfDay } from "date-fns";
 import {
     ChartsReferenceLine,
     ChartsTooltip,
@@ -32,22 +31,25 @@ import {
     ChartsYAxis,
     ResponsiveChartContainer
 } from "@mui/x-charts";
+import { DateTime } from "luxon";
 
 interface UsageStatsChartProps {
     usageStats: readonly UsageStats[];
     customer: Customer | null;
-    startDate: Date;
-    onStartDateChange: (date: Date) => void;
+    startDate: DateTime;
+    onStartDateChange: (date: DateTime) => void;
+    compact?: boolean;
 }
 
 export const UsageStatsChart: FC<UsageStatsChartProps> = ({
     usageStats,
     customer,
     startDate,
-    onStartDateChange
+    onStartDateChange,
+    compact = false
 }) => {
-    const dayStart = startOfDay(startDate).getTime() / 1000;
-    const dayEnd = startOfDay(addDays(startDate, 1)).getTime() / 1000;
+    const dayStart = startDate.startOf('day').toMillis() / 1000;
+    const dayEnd = startDate.endOf('day').toMillis() / 1000;
 
     // we have 5min steps
     const step = 5 * 60;
@@ -69,6 +71,9 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
             for (const stat of usageStats) {
                 const idx = (stat.windowStart - dayStart) / step;
                 arr[idx].count = stat.count;
+                if (idx >= 0 && idx < arr.length) {
+                    arr[idx].count = stat.count;
+                }
             }
             return arr;
         }, [usageStats]
@@ -90,7 +95,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
     );
 
     return (
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <LocalizationProvider dateAdapter={AdapterLuxon}>
             <Paper sx={{ p: 2, mb: 3 }}>
                 <Typography variant='subtitle2' gutterBottom color='text.secondary'>
                     Filters
@@ -123,9 +128,9 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                         xAxis={[
                             {
                                 id: 'date',
-                                data: data.map((value) => new Date(value.windowStart * 1000)),
+                                data: data.map((value) => value.windowStart * 1000),
+                                valueFormatter: (value) => DateTime.fromMillis(value, { zone: 'UTC' }).toLocaleString(DateTime.TIME_24_SIMPLE),
                                 scaleType: 'band',
-                                valueFormatter: (value) => format(new Date(value), 'HH:mm'),
                             },
                         ]}
                         yAxis={[
@@ -133,7 +138,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                                 id: 'requests',
                                 scaleType: 'linear',
                                 min: 0,
-                                max: Math.max(tierCapacity, maxDataValue) + 10
+                                max: Math.max(tierCapacity, maxDataValue) + 30
                             },
                         ]}
                     >
@@ -153,14 +158,16 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                         }
 
                         <ChartsXAxis
-                            label='Time'
+                            label='Time (UTC)'
                             position='bottom'
                             axisId='date'
-                            tickInterval={(value, index) => {
-                                return new Date(value).getMinutes() === 0;
+                            tickInterval={(value) => {
+                                const d = new Date(value);
+                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
                             }}
-                            tickLabelInterval={(value, index) => {
-                                return new Date(value).getMinutes() === 0;
+                            tickLabelInterval={(value) => {
+                                const d = new Date(value);
+                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
                             }}
                             tickLabelStyle={{
                                 fontSize: 10,

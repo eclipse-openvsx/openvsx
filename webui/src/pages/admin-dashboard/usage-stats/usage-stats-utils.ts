@@ -11,6 +11,8 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
+import { DateTime } from "luxon";
+
 export const getDefaultStartDate = () => {
-    return new Date();
+    return DateTime.now().setZone("UTC");
 };
