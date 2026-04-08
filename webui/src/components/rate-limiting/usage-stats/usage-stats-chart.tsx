@@ -32,7 +32,7 @@ import {
     ChartsTooltip,
     ChartsXAxis,
     ChartsYAxis,
-    ResponsiveChartContainer
+    ChartsContainer,
 } from "@mui/x-charts";
 import { DateTime } from "luxon";
 
@@ -56,10 +56,15 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
     const dayStart = startDate.startOf('day').toMillis() / 1000;
     const dayEnd = startDate.endOf('day').toMillis() / 1000;
 
+    const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+
     // we have 5min steps
     const step = 5 * 60;
     const tierCapacity =
         customer?.tier !== undefined ? customer.tier.capacity * step / customer.tier.duration : 0;
+    const tierRps =
+        customer?.tier !== undefined ? customer.tier.capacity / customer.tier.duration : 0;
+    const tierRpsRounded = Math.round(tierRps * 100) / 100;
 
     const data: UsageStats[] = useMemo(
         () => {
@@ -128,7 +133,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
              :
                 <>
                 <Wrapper sx={{ p: 2 }}>
-                    <ResponsiveChartContainer
+                    <ChartsContainer
                         series={[{
                             type: 'bar',
                             data: data.map(d => d.count),
@@ -144,6 +149,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                                 data: data.map((value) => value.windowStart * 1000),
                                 valueFormatter: (value) => DateTime.fromMillis(value, { zone: 'UTC' }).toLocaleString(DateTime.TIME_24_SIMPLE),
                                 scaleType: 'band',
+                                height: 50,
                             },
                         ]}
                         yAxis={[
@@ -151,7 +157,9 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                                 id: 'requests',
                                 scaleType: 'linear',
                                 min: 0,
-                                max: Math.max(tierCapacity, maxDataValue) + 30
+                                max: Math.max(tierCapacity, maxDataValue) * 1.2,
+                                valueFormatter: (value) => formatter.format(value),
+                                width: 50
                             },
                         ]}
                     >
@@ -160,7 +168,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                         {tierCapacity > 0 &&
                             <ChartsReferenceLine
                                 y={tierCapacity}
-                                label='Tier Limit'
+                                label={`Tier Limit (${tierRpsRounded} rps)`}
                                 labelAlign='end'
                                 lineStyle={{
                                     strokeDasharray: '10 5',
@@ -174,14 +182,12 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             label='Time (UTC)'
                             position='bottom'
                             axisId='date'
-                            tickInterval={(value) => {
+                            tickInterval='auto'
+                            tickLabelInterval={(value, index) => {
                                 const d = new Date(value);
                                 return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
                             }}
-                            tickLabelInterval={(value) => {
-                                const d = new Date(value);
-                                return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
-                            }}
+                            tickLabelPlacement='middle'
                             tickLabelStyle={{
                                 fontSize: 10,
                             }}
@@ -193,7 +199,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             tickLabelStyle={{ fontSize: 10 }}
                         />
                         <ChartsTooltip />
-                    </ResponsiveChartContainer>
+                    </ChartsContainer>
                 </Wrapper>
 
                 <Box mt={2}>
