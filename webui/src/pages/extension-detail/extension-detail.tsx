@@ -13,6 +13,7 @@ import {
     Typography, Box, Theme, Container, Link, Avatar, Paper, Badge, SxProps, Tabs, Tab, Stack, useTheme, PaletteMode,
     decomposeColor
 } from '@mui/material';
+import { styled } from '@mui/material/styles';
 import { Link as RouteLink, useNavigate, useParams } from 'react-router-dom';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
@@ -29,7 +30,6 @@ import { ExtensionDetailOverview } from './extension-detail-overview';
 import { ExtensionDetailChanges } from './extension-detail-changes';
 import { ExtensionDetailReviews } from './extension-detail-reviews';
 import { ExtensionDetailRoutes } from './extension-detail-routes';
-import styled from '@mui/material/styles/styled';
 
 const alignVertically = {
     display: 'flex',

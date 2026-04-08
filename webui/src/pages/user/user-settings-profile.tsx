@@ -10,10 +10,10 @@
 
 import { FunctionComponent, ReactNode, useContext } from 'react';
 import { Theme, Grid, Typography, Avatar } from '@mui/material';
+import { styled } from '@mui/material/styles';
 import { toLocalTime } from '../../utils';
 import { UserData } from '../../extension-registry-types';
 import { UserPublisherAgreement } from './user-publisher-agreement';
-import styled from '@mui/material/styles/styled';
 import { MainContext } from "../../context";
 
 const ProfileGrid = styled(Grid)(({ theme }: {theme: Theme}) => ({
