@@ -13,6 +13,7 @@ import jakarta.persistence.*;
 import org.eclipse.openvsx.search.ExtensionSearch;
 import org.eclipse.openvsx.util.NamingUtil;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -66,7 +67,7 @@ public class Extension implements Serializable {
     /**
      * Convert to a search entity for Elasticsearch.
      */
-    public ExtensionSearch toSearch(ExtensionVersion latest, List<String> targetPlatforms) {
+    public ExtensionSearch toSearch(@Nonnull ExtensionVersion latest, List<String> targetPlatforms) {
         var search = new ExtensionSearch();
         search.setId(this.getId());
         search.setName(this.getName());

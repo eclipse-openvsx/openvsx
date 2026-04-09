@@ -12,6 +12,7 @@ package org.eclipse.openvsx.search;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Nullable;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -51,8 +52,12 @@ public class RelevanceService {
         this.repositories = repositories;
     }
 
-    public ExtensionSearch toSearchEntry(Extension extension, SearchStats stats) {
-        var latest = repositories.findLatestVersion(extension,  null, false, true);
+    public @Nullable ExtensionSearch toSearchEntry(Extension extension, SearchStats stats) {
+        var latest = repositories.findLatestVersion(extension, null, false, true);
+        if (latest == null) {
+            return null;
+        }
+
         var targetPlatforms = repositories.findExtensionTargetPlatforms(extension);
         var entry = extension.toSearch(latest, targetPlatforms);
         entry.setRating(calculateRating(extension, stats));

@@ -23,10 +23,7 @@ import org.springframework.data.util.Streamable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static org.eclipse.openvsx.cache.CacheService.CACHE_AVERAGE_REVIEW_RATING;
@@ -41,12 +38,21 @@ public class DatabaseSearchService implements ISearchService {
     private final RelevanceService relevanceService;
     private final RepositoryService repositories;
 
+    private final Map<String, Comparator<ExtensionSearch>> comparators;
+
     @Value("${ovsx.databasesearch.enabled:false}")
     boolean enableSearch;
 
     public DatabaseSearchService(RelevanceService relevanceService, RepositoryService repositories) {
         this.relevanceService = relevanceService;
         this.repositories = repositories;
+
+        comparators = Map.of(
+                SortBy.RELEVANCE, new RelevanceComparator(),
+                SortBy.TIMESTAMP, new TimestampComparator(),
+                SortBy.RATING, new RatingComparator(),
+                SortBy.DOWNLOADS, new DownloadedCountComparator()
+        );
     }
 
     public boolean isEnabled() {
@@ -78,26 +84,21 @@ public class DatabaseSearchService implements ISearchService {
 
     private List<ExtensionSearch> sortExtensions(Options options, Streamable<Extension> matchingExtensions) {
         Stream<ExtensionSearch> searchEntries;
-        if(SortBy.RELEVANCE.equals(options.sortBy()) || SortBy.RATING.equals(options.sortBy())) {
+        if (SortBy.RELEVANCE.equals(options.sortBy()) || SortBy.RATING.equals(options.sortBy())) {
             var searchStats = new SearchStats(repositories);
-            searchEntries = matchingExtensions.stream().map(extension -> relevanceService.toSearchEntry(extension, searchStats));
+            searchEntries = matchingExtensions.stream()
+                    .map(extension -> relevanceService.toSearchEntry(extension, searchStats))
+                    .filter(Objects::nonNull);
         } else {
             searchEntries = matchingExtensions.stream().map(extension -> {
                 var latest = repositories.findLatestVersion(extension, null, false, true);
                 var targetPlatforms = repositories.findExtensionTargetPlatforms(extension);
-                return extension.toSearch(latest, targetPlatforms);
-            });
+                return latest != null ? extension.toSearch(latest, targetPlatforms) : null;
+            }).filter(Objects::nonNull);
         }
 
-        var comparators = Map.of(
-                SortBy.RELEVANCE, new RelevanceComparator(),
-                SortBy.TIMESTAMP, new TimestampComparator(),
-                SortBy.RATING, new RatingComparator(),
-                SortBy.DOWNLOADS, new DownloadedCountComparator()
-        );
-
         var comparator = comparators.get(options.sortBy());
-        if(comparator == null) {
+        if (comparator == null) {
             throw new ErrorResultException("sortBy parameter must be " + SortBy.OPTIONS + ".");
         }
         if ("desc".equals(options.sortOrder())) {
@@ -108,7 +109,7 @@ public class DatabaseSearchService implements ISearchService {
     }
 
     private Streamable<Extension> excludeByQueryString(Options options, Streamable<Extension> matchingExtensions) {
-        if(options.queryString() == null) {
+        if (options.queryString() == null) {
             return matchingExtensions;
         }
 
@@ -124,7 +125,7 @@ public class DatabaseSearchService implements ISearchService {
     }
 
     private Streamable<Extension> excludeByCategory(Options options, Streamable<Extension> matchingExtensions) {
-        if(options.category() == null) {
+        if (options.category() == null) {
             return matchingExtensions;
         }
 
@@ -135,7 +136,7 @@ public class DatabaseSearchService implements ISearchService {
     }
 
     private Streamable<Extension> excludeByTargetPlatform(Options options, Streamable<Extension> matchingExtensions) {
-        if(!TargetPlatform.isValid(options.targetPlatform())) {
+        if (!TargetPlatform.isValid(options.targetPlatform())) {
             return matchingExtensions;
         }
 
@@ -143,7 +144,7 @@ public class DatabaseSearchService implements ISearchService {
     }
 
     private Streamable<Extension> includeByNamespace(Options options, Streamable<Extension> matchingExtensions) {
-        if(options.namespace() == null) {
+        if (options.namespace() == null) {
             return matchingExtensions;
         }
 
@@ -151,7 +152,7 @@ public class DatabaseSearchService implements ISearchService {
     }
 
     private Streamable<Extension> excludeByNamespace(Options options, Streamable<Extension> matchingExtensions) {
-        if(options.namespacesToExclude() == null) {
+        if (options.namespacesToExclude() == null) {
             return matchingExtensions;
         }
 
@@ -199,7 +200,7 @@ public class DatabaseSearchService implements ISearchService {
     /**
      * Sort by download count
      */
-    class DownloadedCountComparator implements Comparator<ExtensionSearch> {
+    static class DownloadedCountComparator implements Comparator<ExtensionSearch> {
 
         @Override
         public int compare(ExtensionSearch ext1, ExtensionSearch ext2) {
@@ -211,7 +212,7 @@ public class DatabaseSearchService implements ISearchService {
     /**
      * Sort by averageRating
      */
-    class RatingComparator implements Comparator<ExtensionSearch> {
+    static class RatingComparator implements Comparator<ExtensionSearch> {
 
         @Override
         public int compare(ExtensionSearch ext1, ExtensionSearch ext2) {
@@ -228,7 +229,7 @@ public class DatabaseSearchService implements ISearchService {
     /**
      * Sort by timestamp
      */
-    class TimestampComparator implements Comparator<ExtensionSearch> {
+    static class TimestampComparator implements Comparator<ExtensionSearch> {
 
         @Override
         public int compare(ExtensionSearch ext1, ExtensionSearch ext2) {
@@ -240,7 +241,7 @@ public class DatabaseSearchService implements ISearchService {
     /**
      * Sort by relevance
      */
-    class RelevanceComparator implements Comparator<ExtensionSearch> {
+    static class RelevanceComparator implements Comparator<ExtensionSearch> {
 
         @Override
         public int compare(ExtensionSearch ext1, ExtensionSearch ext2) {

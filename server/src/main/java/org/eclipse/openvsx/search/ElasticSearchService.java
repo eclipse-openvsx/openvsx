@@ -15,12 +15,14 @@ import co.elastic.clients.elasticsearch._types.mapping.FieldType;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders;
 import co.elastic.clients.util.ObjectBuilder;
+import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.RelevanceService.SearchStats;
 import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jobrunr.scheduling.cron.Cron;
@@ -38,6 +40,7 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.DeleteQuery;
+import org.springframework.data.elasticsearch.core.query.IndexQuery;
 import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
@@ -174,11 +177,10 @@ public class ElasticSearchService implements ISearchService {
                 return;
             }
             var stats = new SearchStats(repositories);
-            var indexQueries = allExtensions.map(extension ->
-                new IndexQueryBuilder()
-                    .withObject(relevanceService.toSearchEntry(extension, stats))
-                    .build()
-            ).toList();
+            var indexQueries = allExtensions
+                    .map(extension -> buildIndexQuery(extension, stats))
+                    .filter(Objects::nonNull)
+                    .toList();
 
             if (!locked) {
                 // The write lock has not been acquired upfront, so do it just before submitting the index queries
@@ -208,11 +210,10 @@ public class ElasticSearchService implements ISearchService {
             rwLock.writeLock().lock();
             var indexOps = searchOperations.indexOps(ExtensionSearch.class);
             var stats = new SearchStats(repositories);
-            var indexQueries = extensions.stream().map(extension ->
-                    new IndexQueryBuilder()
-                            .withObject(relevanceService.toSearchEntry(extension, stats))
-                            .build()
-            ).collect(Collectors.toList());
+            var indexQueries = extensions.stream()
+                    .map(extension -> buildIndexQuery(extension, stats))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
             searchOperations.bulkIndex(indexQueries, indexOps.getIndexCoordinates());
         } finally {
             rwLock.writeLock().unlock();
@@ -224,16 +225,29 @@ public class ElasticSearchService implements ISearchService {
         if (!isEnabled()) {
             return;
         }
+
         try {
             rwLock.writeLock().lock();
             var stats = new SearchStats(repositories);
-            var indexQuery = new IndexQueryBuilder()
-                    .withObject(relevanceService.toSearchEntry(extension, stats))
-                    .build();
-            var indexOps = searchOperations.indexOps(ExtensionSearch.class);
-            searchOperations.index(indexQuery, indexOps.getIndexCoordinates());
+            var indexQuery = buildIndexQuery(extension, stats);
+            if (indexQuery != null) {
+                var indexOps = searchOperations.indexOps(ExtensionSearch.class);
+                searchOperations.index(indexQuery, indexOps.getIndexCoordinates());
+            }
         } finally {
             rwLock.writeLock().unlock();
+        }
+    }
+
+    private @Nullable IndexQuery buildIndexQuery(Extension extension, SearchStats stats) {
+        var searchEntry = relevanceService.toSearchEntry(extension, stats);
+        if (searchEntry != null) {
+            return new IndexQueryBuilder()
+                    .withObject(searchEntry)
+                    .build();
+        } else {
+            logger.warn("Trying to update search entry for inactive extension '{}'",NamingUtil.toExtensionId(extension));
+            return null;
         }
     }
 
