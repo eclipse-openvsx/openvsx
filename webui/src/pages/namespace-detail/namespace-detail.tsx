@@ -19,6 +19,8 @@ import { MainContext } from '../../context';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { NamespaceDetails, isError, UrlString } from '../../extension-registry-types';
 
+export { NamespaceDetailRoutes } from './namespace-detail-routes';
+
 export const NamespaceDetail: FunctionComponent = () => {
     const [loading, setLoading] = useState(true);
     const [truncateReadMore, setTruncateReadMore] = useState(true);

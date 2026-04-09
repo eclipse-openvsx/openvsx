@@ -24,6 +24,8 @@ import { UserData } from '../../extension-registry-types';
 import { LoginComponent } from '../../default/login';
 import { UserSettingsDeleteExtension } from './user-settings-delete-extension';
 
+export { UserSettingsRoutes } from './user-settings-routes';
+
 export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
 
     const { pageSettings, user, loginProviders } = useContext(MainContext);

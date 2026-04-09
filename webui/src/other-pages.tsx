@@ -11,24 +11,25 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext, useEffect, useState } from 'react';
+import { FunctionComponent, useContext, useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AppBar, Box, Toolbar } from '@mui/material';
 import { styled, Theme } from '@mui/material/styles';
 import { Banner } from './components/banner';
 import { MainContext } from './context';
 import { HeaderMenu } from './header-menu';
-import { ExtensionListContainer } from './pages/extension-list/extension-list-container';
-import { ExtensionListRoutes } from "./pages/extension-list/extension-list-routes";
-import { UserSettings } from './pages/user/user-settings';
+import { ExtensionListRoutes } from './pages/extension-list/extension-list-routes';
 import { UserSettingsRoutes } from './pages/user/user-settings-routes';
-import { NamespaceDetail } from './pages/namespace-detail/namespace-detail';
 import { NamespaceDetailRoutes } from './pages/namespace-detail/namespace-detail-routes';
-import { ExtensionDetail } from './pages/extension-detail/extension-detail';
 import { ExtensionDetailRoutes } from './pages/extension-detail/extension-detail-routes';
 import { getCookieValueByKey, setCookie } from './utils';
 import { UserData } from './extension-registry-types';
-import { NotFound } from './not-found';
+
+const ExtensionListContainer = lazy(() => import('./pages/extension-list/extension-list-container').then(m => ({ default: m.ExtensionListContainer })));
+const UserSettings = lazy(() => import('./pages/user/user-settings').then(m => ({ default: m.UserSettings })));
+const NamespaceDetail = lazy(() => import('./pages/namespace-detail/namespace-detail').then(m => ({ default: m.NamespaceDetail })));
+const ExtensionDetail = lazy(() => import('./pages/extension-detail/extension-detail').then(m => ({ default: m.ExtensionDetail })));
+const NotFound = lazy(() => import('./not-found').then(m => ({ default: m.NotFound })));
 
 const ToolbarItem = styled(Box)({
     display: 'flex',
@@ -122,16 +123,18 @@ export const OtherPages: FunctionComponent<OtherPagesProps> = (props) => {
                 : null
         }
         <Box pb={`${getContentPadding()}px`}>
-            <Routes>
-                <Route path={ExtensionListRoutes.MAIN} element={ <ExtensionListContainer /> } />
-                <Route path={UserSettingsRoutes.MAIN} element={<UserSettings userLoading={props.userLoading} />} />
-                <Route path={UserSettingsRoutes.DELETE_EXTENSION} element={<UserSettings userLoading={props.userLoading} />} />
-                <Route path={NamespaceDetailRoutes.MAIN} element={ <NamespaceDetail /> } />
-                <Route path={ExtensionDetailRoutes.MAIN} element={<ExtensionDetail />} />
-                <Route path={ExtensionDetailRoutes.MAIN_TARGET} element={<ExtensionDetail />} />
-                {AdditionalRoutes ?? null}
-                <Route path='*' element={<NotFound />} />
-            </Routes>
+            <Suspense fallback={null}>
+                <Routes>
+                    <Route path={ExtensionListRoutes.MAIN} element={ <ExtensionListContainer /> } />
+                    <Route path={UserSettingsRoutes.MAIN} element={<UserSettings userLoading={props.userLoading} />} />
+                    <Route path={UserSettingsRoutes.DELETE_EXTENSION} element={<UserSettings userLoading={props.userLoading} />} />
+                    <Route path={NamespaceDetailRoutes.MAIN} element={ <NamespaceDetail /> } />
+                    <Route path={ExtensionDetailRoutes.MAIN} element={<ExtensionDetail />} />
+                    <Route path={ExtensionDetailRoutes.MAIN_TARGET} element={<ExtensionDetail />} />
+                    {AdditionalRoutes ?? null}
+                    <Route path='*' element={<NotFound />} />
+                </Routes>
+            </Suspense>
         </Box>
         {
             FooterComponent ?
