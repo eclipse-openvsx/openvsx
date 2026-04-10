@@ -14,6 +14,7 @@ package org.eclipse.openvsx.ratelimit;
 
 import inet.ipaddr.IPAddressString;
 import inet.ipaddr.ipv4.IPv4AddressAssociativeTrie;
+import jakarta.annotation.Nullable;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -43,11 +44,15 @@ public class CustomerService {
 
     private final EntityManager entityManager;
     private final RepositoryService repositories;
-    private final RateLimitProperties rateLimitProperties;
+    private final @Nullable RateLimitProperties rateLimitProperties;
 
     private IPv4AddressAssociativeTrie<Customer> customersByIPAddress;
 
-    public CustomerService(EntityManager entityManager, RepositoryService repositories, RateLimitProperties rateLimitProperties) {
+    public CustomerService(
+            EntityManager entityManager,
+            RepositoryService repositories,
+            @Nullable RateLimitProperties rateLimitProperties
+    ) {
         this.entityManager = entityManager;
         this.repositories = repositories;
         this.rateLimitProperties = rateLimitProperties;
@@ -167,7 +172,7 @@ public class CustomerService {
     private String generateTokenValue() {
         String value;
         do {
-            value = rateLimitProperties.getTokenPrefix() + UUID.randomUUID();
+            value = rateLimitProperties != null ? rateLimitProperties.getTokenPrefix() : "" + UUID.randomUUID();
         } while (repositories.hasRateLimitToken(value));
         return value;
     }
