@@ -18,21 +18,17 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.eclipse.openvsx.entities.*;
-import org.eclipse.openvsx.json.AccessTokenJson;
-import org.eclipse.openvsx.json.ErrorJson;
 import org.eclipse.openvsx.json.RateLimitTokenJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.ratelimit.cache.ConfigurationChanged;
 import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
-import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
+import org.eclipse.openvsx.ratelimit.config.RateLimitProperties;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TimeUtil;
-import org.eclipse.openvsx.util.UrlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -40,20 +36,21 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.eclipse.openvsx.util.UrlUtil.createApiUrl;
 
 @Service
 public class CustomerService {
-
     private final Logger logger = LoggerFactory.getLogger(CustomerService.class);
 
     private final EntityManager entityManager;
     private final RepositoryService repositories;
+    private final RateLimitProperties rateLimitProperties;
+
     private IPv4AddressAssociativeTrie<Customer> customersByIPAddress;
 
-    public CustomerService(EntityManager entityManager, RepositoryService repositories) {
+    public CustomerService(EntityManager entityManager, RepositoryService repositories, RateLimitProperties rateLimitProperties) {
         this.entityManager = entityManager;
         this.repositories = repositories;
+        this.rateLimitProperties = rateLimitProperties;
     }
 
     @PostConstruct
@@ -170,7 +167,7 @@ public class CustomerService {
     private String generateTokenValue() {
         String value;
         do {
-            value = "ovsxrl_" + UUID.randomUUID();
+            value = rateLimitProperties.getTokenPrefix() + UUID.randomUUID();
         } while (repositories.hasRateLimitToken(value));
         return value;
     }

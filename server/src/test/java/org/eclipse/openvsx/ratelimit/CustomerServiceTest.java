@@ -14,6 +14,7 @@ package org.eclipse.openvsx.ratelimit;
 
 import jakarta.persistence.EntityManager;
 import org.eclipse.openvsx.entities.Customer;
+import org.eclipse.openvsx.ratelimit.config.RateLimitProperties;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +37,9 @@ public class CustomerServiceTest {
 
     @MockitoBean
     RepositoryService repositories;
+
+    @MockitoBean
+    RateLimitProperties rateLimitProperties;
 
     @Autowired
     CustomerService service;
@@ -63,8 +67,12 @@ public class CustomerServiceTest {
     @TestConfiguration
     static class TestConfig {
         @Bean
-        public CustomerService customerService(EntityManager entityManager, RepositoryService repositoryService) {
-            return new CustomerService(entityManager, repositoryService);
+        public CustomerService customerService(
+                EntityManager entityManager,
+                RepositoryService repositoryService,
+                RateLimitProperties rateLimitProperties
+        ) {
+            return new CustomerService(entityManager, repositoryService, rateLimitProperties);
         }
     }
 }

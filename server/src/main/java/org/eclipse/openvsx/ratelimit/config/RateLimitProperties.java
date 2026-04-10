@@ -33,6 +33,12 @@ public class RateLimitProperties {
     @NotNull
     private Boolean enabled = false;
 
+    /**
+     * The token prefix to use when generating a new rate limit token.
+     */
+    @NotNull
+    private String tokenPrefix = "";
+
     @NotBlank
     private String ipAddressFunction = "getRemoteAddr()";
 
@@ -59,6 +65,14 @@ public class RateLimitProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getTokenPrefix() {
+        return tokenPrefix;
+    }
+
+    public void setTokenPrefix(String tokenPrefix) {
+        this.tokenPrefix = tokenPrefix;
     }
 
     public String getIpAddressFunction() {
