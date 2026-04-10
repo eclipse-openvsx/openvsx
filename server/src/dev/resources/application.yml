@@ -121,41 +121,6 @@ org:
 
 bucket4j:
   enabled: false
-#  cache-to-use: jcache # use redis-jedis for redis standalone or redis-cluster-jedis for redis cluster
-#  filters:
-#    - cache-name: buckets
-#      url: '/api/-/(namespace/create|publish)'
-#      http-response-headers:
-#        Access-Control-Allow-Origin: '*'
-#        Access-Control-Expose-Headers: X-Rate-Limit-Retry-After-Seconds, X-Rate-Limit-Remaining
-#      rate-limits:
-#        - cache-key: getParameter("token")
-#          bandwidths:
-#            - capacity: 15
-#              time: 1
-#              unit: seconds
-#    - cache-name: buckets
-#      url: '/vscode/asset/.*/.*/.*/Microsoft.VisualStudio.Services.Icons.Default'
-#      http-response-headers:
-#        Access-Control-Allow-Origin: '*'
-#        Access-Control-Expose-Headers: X-Rate-Limit-Retry-After-Seconds, X-Rate-Limit-Remaining
-#      rate-limits:
-#        - cache-key: getRemoteAddr()
-#          bandwidths:
-#            - capacity: 75
-#              time: 1
-#              unit: seconds
-#    - cache-name: buckets
-#      url: '/vscode/(?!asset/.*/.*/.*/Microsoft.VisualStudio.Services.Icons.Default).*|/api/(?!(.*/.*/review(/delete)?)|(-/(namespace/create|publish))).*'
-#      http-response-headers:
-#        Access-Control-Allow-Origin: '*'
-#        Access-Control-Expose-Headers: X-Rate-Limit-Retry-After-Seconds, X-Rate-Limit-Remaining
-#      rate-limits:
-#        - cache-key: getRemoteAddr()
-#          bandwidths:
-#            - capacity: 15
-#              time: 1
-#              unit: seconds
 
 ovsx:
   databasesearch:
@@ -174,7 +139,7 @@ ovsx:
   integrity:
     key-pair: create # create, renew, delete, 'undefined'
   registry:
-    version: 'v0.33.0-dev'
+    version: 'v0.34.0-dev'
   storage:
     local:
       directory: /tmp
@@ -187,9 +152,11 @@ ovsx:
   # dynamic tier-based rate limiting configuration
   rate-limit:
     enabled: false
+    token-prefix: dev_ovsxrl_ # use a token prefix that clearly indicates that it's for development
     ip-address-function: '(getHeader("X-Forwarded-For")?: getRemoteAddr()).split(",")[0].trim()'
     usage-stats:
       job-schedule: '*/30 * * * *'
+      daily-job-schedule: '*/30 * * * * *'
     filters:
       - url: '/(api|vscode)/.*'
         http-response-headers:
