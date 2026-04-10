@@ -514,7 +514,9 @@ public class UserAPI {
 
             var localDateTime = date != null ? TimeUtil.fromUTCString(date) : TimeUtil.getCurrentUTC();
             var stats = repositories.findUsageStatsByCustomerAndDate(customer, localDateTime);
-            var result = new UsageStatsListJson(stats.stream().map(UsageStats::toJson).toList());
+            var dailyStats = repositories.findDailyUsageStats(customer, localDateTime.toLocalDate());
+            var dailyP95 = dailyStats != null ? dailyStats.getP95Requests() : null;
+            var result = new UsageStatsListJson(stats.stream().map(UsageStats::toJson).toList(), dailyP95);
             return ResponseEntity.ok(result);
         } catch (Exception exc) {
             logger.error("failed retrieving usage stats", exc);

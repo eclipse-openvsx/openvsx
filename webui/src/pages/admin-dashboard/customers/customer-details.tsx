@@ -52,7 +52,7 @@ export const CustomerDetails: FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [formDialogOpen, setFormDialogOpen] = useState(false);
 
-    const { usageStats, error: statsError, startDate, setStartDate } = useAdminUsageStats(customerName);
+    const { usageStats, dailyP95, error: statsError, startDate, setStartDate } = useAdminUsageStats(customerName);
 
     const loadCustomer = useCallback(async () => {
         if (!customerName) return;
@@ -119,7 +119,7 @@ export const CustomerDetails: FC = () => {
             <CustomerTokenList
                 customer={customer}
             />
-            <UsageStats usageStats={usageStats} customer={customer} startDate={startDate} onStartDateChange={setStartDate} />
+            <UsageStats usageStats={usageStats} dailyP95={dailyP95} customer={customer} startDate={startDate} onStartDateChange={setStartDate} />
         </Box>
 
         <CustomerFormDialog

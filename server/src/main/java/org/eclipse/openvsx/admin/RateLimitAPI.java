@@ -27,7 +27,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -462,7 +461,9 @@ public class RateLimitAPI {
 
             var localDateTime = date != null ? TimeUtil.fromUTCString(date) : TimeUtil.getCurrentUTC();
             var stats = repositories.findUsageStatsByCustomerAndDate(customer, localDateTime);
-            var result = new UsageStatsListJson(stats.stream().map(UsageStats::toJson).toList());
+            var dailyStats = repositories.findDailyUsageStats(customer, localDateTime.toLocalDate());
+            var dailyP95 = dailyStats != null ? dailyStats.getP95Requests() : null;
+            var result = new UsageStatsListJson(stats.stream().map(UsageStats::toJson).toList(), dailyP95);
             return ResponseEntity.ok(result);
         } catch (Exception exc) {
             logger.error("failed retrieving usage stats", exc);

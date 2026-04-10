@@ -33,7 +33,7 @@ export const UsageStatsView: FC = () => {
     const [customersLoading, setCustomersLoading] = useState(true);
     const [customersError, setCustomersError] = useState<string | null>(null);
 
-    const { usageStats, loading, error: statsError, startDate, setStartDate } = useAdminUsageStats(customer);
+    const { usageStats, dailyP95, loading, error: statsError, startDate, setStartDate } = useAdminUsageStats(customer);
 
     // Load customers for autocomplete
     useEffect(() => {
@@ -89,6 +89,7 @@ export const UsageStatsView: FC = () => {
             {customer && (
               <UsageStatsChart
                 usageStats={usageStats}
+                dailyP95={dailyP95}
                 customer={selectedCustomer}
                 startDate={startDate}
                 onStartDateChange={setStartDate}

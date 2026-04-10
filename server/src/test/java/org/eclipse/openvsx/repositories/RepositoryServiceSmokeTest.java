@@ -119,6 +119,11 @@ class RepositoryServiceSmokeTest {
         usageStats.setCustomer(customer);
         usageStats.setWindowStart(NOW);
         usageStats.setDuration(Duration.ofMinutes(1));
+        var dailyUsageStats = new DailyUsageStats();
+        dailyUsageStats.setCustomer(customer);
+        dailyUsageStats.setDate(NOW.toLocalDate());
+        dailyUsageStats.setTotalRequests(1L);
+        dailyUsageStats.setP95Requests(1L);
 
         // Persist all entities consistently using EntityManager
         Stream.of(namespace, extension, userData, extVersion, personalAccessToken, keyPair,
@@ -388,6 +393,9 @@ class RepositoryServiceSmokeTest {
                 () -> repositories.hasRateLimitToken("value"),
                 () -> repositories.saveUsageStats(usageStats),
                 () -> repositories.findUsageStatsByCustomerAndDate(customer, NOW),
+                () -> repositories.findDailyUsageStats(customer, NOW.toLocalDate()),
+                () -> repositories.findUnprocessedDaysForDailyUsage(customer),
+                () -> repositories.saveDailyUsageStats(dailyUsageStats),
                 () -> repositories.deleteTier(tier),
                 () -> repositories.deleteCustomer(customer),
                 // Extension scan delete method - add last, still not clear why but otherwise the test fails

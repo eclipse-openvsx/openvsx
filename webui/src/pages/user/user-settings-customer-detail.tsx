@@ -22,13 +22,14 @@ export interface UserSettingsCustomerDetailProps {
 }
 
 export const UserSettingsCustomerDetail: FC<UserSettingsCustomerDetailProps> = ({ customer }) => {
-    const { usageStats, startDate, setStartDate } = useUsageStats(customer.name);
+    const { usageStats, dailyP95, startDate, setStartDate } = useUsageStats(customer.name);
 
     return (
         <Box sx={{ flex: 5, pl: { xs: 0, lg: 2 } }}>
             <Typography variant='h4' sx={{ mb: 2 }}>{customer.name}</Typography>
             <UsageStats
                 usageStats={usageStats}
+                dailyP95={dailyP95}
                 customer={customer}
                 startDate={startDate}
                 onStartDateChange={setStartDate}

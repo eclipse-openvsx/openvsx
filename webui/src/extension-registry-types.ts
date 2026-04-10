@@ -482,6 +482,7 @@ export interface UsageStats {
 
 export interface UsageStatsList {
     stats: UsageStats[];
+    dailyP95?: number;
 }
 
 export interface Log {

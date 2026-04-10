@@ -23,6 +23,7 @@ export const useUsageStats = (customerName: string | undefined) => {
     const { service } = useContext(MainContext);
 
     const [usageStats, setUsageStats] = useState<readonly UsageStats[]>([]);
+    const [dailyP95, setDailyP95] = useState<number | undefined>(undefined);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [internalStartDate, setInternalStartDate] = useState<DateTime>(getDefaultStartDate);
@@ -33,6 +34,7 @@ export const useUsageStats = (customerName: string | undefined) => {
     const fetchUsageStats = useCallback(async (date: DateTime) => {
         if (!customerName) {
             setUsageStats([]);
+            setDailyP95(undefined);
             setLoading(false);
             return;
         }
@@ -46,6 +48,7 @@ export const useUsageStats = (customerName: string | undefined) => {
                 date.toJSDate()
             );
             setUsageStats(data.stats);
+            setDailyP95(data.dailyP95);
         } catch (err) {
             setError(handleError(err as Error));
         } finally {
@@ -66,5 +69,5 @@ export const useUsageStats = (customerName: string | undefined) => {
         };
     }, [fetchUsageStats]);
 
-    return { usageStats, loading, error, startDate: internalStartDate, setStartDate };
+    return { usageStats, dailyP95, loading, error, startDate: internalStartDate, setStartDate };
 };

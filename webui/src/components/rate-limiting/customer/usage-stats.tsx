@@ -26,13 +26,14 @@ const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
 export interface UsageStatsProps {
     usageStats: readonly UsageStatsType[];
+    dailyP95?: number;
     customer: Customer;
     startDate: DateTime;
     onStartDateChange: (date: DateTime) => void;
     compact?: boolean;
 }
 
-export const UsageStats: FC<UsageStatsProps> = ({ usageStats, customer, startDate, onStartDateChange, compact }) => (
+export const UsageStats: FC<UsageStatsProps> = ({ usageStats, dailyP95, customer, startDate, onStartDateChange, compact }) => (
     <Paper {...sectionPaperProps}>
         <Typography variant='h6' gutterBottom>
             Usage Statistics
@@ -40,6 +41,7 @@ export const UsageStats: FC<UsageStatsProps> = ({ usageStats, customer, startDat
         <Divider sx={{ mb: 2 }} />
         <UsageStatsChart
             usageStats={usageStats}
+            dailyP95={dailyP95}
             customer={customer}
             startDate={startDate}
             onStartDateChange={onStartDateChange}

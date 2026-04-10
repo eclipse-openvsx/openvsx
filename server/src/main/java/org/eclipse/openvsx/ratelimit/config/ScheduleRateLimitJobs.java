@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.ratelimit.config;
 
 import org.eclipse.openvsx.migration.HandlerJobRequest;
+import org.eclipse.openvsx.ratelimit.jobs.CalculateDailyUsageStatsHandler;
 import org.eclipse.openvsx.ratelimit.jobs.CollectUsageStatsHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
@@ -42,8 +43,17 @@ public class ScheduleRateLimitJobs {
             var schedule = rateLimitProperties.getUsageStats().getJobSchedule();
             logger.info("Scheduling collect usage stats job with schedule '{}'", schedule);
             scheduler.scheduleRecurrently("collect-usage-stats", schedule, new HandlerJobRequest<>(CollectUsageStatsHandler.class));
+
+            var dailyUsageStatsSchedule = rateLimitProperties.getUsageStats().getDailyJobSchedule();
+            logger.info("Scheduling calculate daily usage stats job with schedule '{}'", dailyUsageStatsSchedule);
+            scheduler.scheduleRecurrently(
+                    "calculate-daily-usage-stats",
+                    dailyUsageStatsSchedule,
+                    new HandlerJobRequest<>(CalculateDailyUsageStatsHandler.class)
+            );
         } else {
             scheduler.deleteRecurringJob("collect-usage-stats");
+            scheduler.deleteRecurringJob("calculate-daily-usage-stats");
         }
     }
 }

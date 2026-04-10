@@ -52,3 +52,23 @@ ALTER TABLE ONLY public.usage_stats
 ALTER TABLE ONLY public.usage_stats
     ADD CONSTRAINT usage_stats_customer_id_fk FOREIGN KEY (customer_id)
         REFERENCES public.customer(id) ON DELETE CASCADE;
+
+-- create daily_usage_stats
+
+CREATE SEQUENCE IF NOT EXISTS daily_usage_stats_seq START WITH 1 INCREMENT BY 1;
+
+CREATE TABLE IF NOT EXISTS public.daily_usage_stats
+(
+    id BIGINT NOT NULL PRIMARY KEY DEFAULT nextval('daily_usage_stats_seq'),
+    customer_id BIGINT,
+    date DATE NOT NULL,
+    total_requests BIGINT NOT NULL,
+    p95_requests BIGINT NOT NULL,
+
+    -- foreign keys
+
+    CONSTRAINT daily_usage_stats_customer_fk FOREIGN KEY (customer_id)
+        REFERENCES public.customer(id) ON DELETE CASCADE,
+
+    CONSTRAINT daily_usage_stats_unique_customer_date UNIQUE (customer_id, date)
+);

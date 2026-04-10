@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Nullable;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -79,6 +80,7 @@ public class RepositoryService {
     private final CustomerMembershipRepository customerMembershipRepo;
     private final UsageStatsRepository usageStatsRepository;
     private final RateLimitTokenRepository rateLimitTokenRepository;
+    private final DailyUsageStatsRepository dailyUsageStatsRepository;
 
     public RepositoryService(
             NamespaceRepository namespaceRepo,
@@ -114,7 +116,8 @@ public class RepositoryService {
             CustomerRepository customerRepo,
             CustomerMembershipRepository customerMembershipRepo,
             UsageStatsRepository usageStatsRepository,
-            RateLimitTokenRepository rateLimitTokenRepository
+            RateLimitTokenRepository rateLimitTokenRepository,
+            DailyUsageStatsRepository dailyUsageStatsRepository
     ) {
         this.namespaceRepo = namespaceRepo;
         this.namespaceJooqRepo = namespaceJooqRepo;
@@ -150,6 +153,7 @@ public class RepositoryService {
         this.customerMembershipRepo = customerMembershipRepo;
         this.usageStatsRepository = usageStatsRepository;
         this.rateLimitTokenRepository = rateLimitTokenRepository;
+        this.dailyUsageStatsRepository = dailyUsageStatsRepository;
     }
 
     public Namespace findNamespace(String name) {
@@ -1315,5 +1319,17 @@ public class RepositoryService {
 
     public boolean hasRateLimitToken(String value) {
         return rateLimitTokenRepository.existsByValue(value);
+    }
+
+    public DailyUsageStats findDailyUsageStats(Customer customer, LocalDate date) {
+        return dailyUsageStatsRepository.findDailyUsageStatsByCustomerAndDate(customer, date);
+    }
+
+    public List<LocalDateTime> findUnprocessedDaysForDailyUsage(Customer customer) {
+        return dailyUsageStatsRepository.findUnprocessedDays(customer);
+    }
+
+    public DailyUsageStats saveDailyUsageStats(DailyUsageStats dailyUsageStats) {
+        return dailyUsageStatsRepository.save(dailyUsageStats);
     }
 }

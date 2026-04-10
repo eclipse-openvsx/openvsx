@@ -38,6 +38,7 @@ import { DateTime } from "luxon";
 
 interface UsageStatsChartProps {
     usageStats: readonly UsageStats[];
+    dailyP95?: number;
     customer: Customer | null;
     startDate: DateTime;
     onStartDateChange: (date: DateTime) => void;
@@ -47,6 +48,7 @@ interface UsageStatsChartProps {
 
 export const UsageStatsChart: FC<UsageStatsChartProps> = ({
     usageStats,
+    dailyP95,
     customer,
     startDate,
     onStartDateChange,
@@ -138,7 +140,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             type: 'bar',
                             data: data.map(d => d.count),
                             label: 'Request Count',
-                            color: 'lightgray',
+                            color: 'black',
                         }]}
 
                         height={compact ? 300 : 400}
@@ -178,12 +180,25 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             />
                         }
 
+                        {dailyP95 !== undefined &&
+                            <ChartsReferenceLine
+                                y={dailyP95}
+                                label={`Daily P95 (${dailyP95})`}
+                                labelAlign='end'
+                                lineStyle={{
+                                    strokeDasharray: '10 5',
+                                    strokeWidth: 2,
+                                    stroke: '#A88132FF',
+                                }}
+                            />
+                        }
+
                         <ChartsXAxis
                             label='Time (UTC)'
                             position='bottom'
                             axisId='date'
                             tickInterval='auto'
-                            tickLabelInterval={(value, index) => {
+                            tickLabelInterval={(value) => {
                                 const d = new Date(value);
                                 return d.getMinutes() === 0 && (!compact || d.getHours() % 3 === 0);
                             }}
