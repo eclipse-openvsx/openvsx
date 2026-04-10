@@ -140,7 +140,7 @@ export const UsageStatsChart: FC<UsageStatsChartProps> = ({
                             type: 'bar',
                             data: data.map(d => d.count),
                             label: 'Request Count',
-                            color: 'black',
+                            color: 'lightgray',
                         }]}
 
                         height={compact ? 300 : 400}

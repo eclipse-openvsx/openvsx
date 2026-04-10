@@ -34,7 +34,7 @@ public class CalculateDailyUsageStatsHandler implements JobRequestHandler<Handle
     }
 
     @Override
-    @Job(name = "Calculate daily usage stats")
+    @Job(name = "Calculate daily usage stats", retries = 0)
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
         if (usageStatsService != null) {
             logger.info(">> Start calculating daily usage data");

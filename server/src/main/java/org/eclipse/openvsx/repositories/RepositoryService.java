@@ -1299,8 +1299,8 @@ public class RepositoryService {
     }
 
     public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {
-        var startTime = date.truncatedTo(ChronoUnit.DAYS).minusMinutes(5);
-        var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1);
+        var startTime = date.truncatedTo(ChronoUnit.DAYS);
+        var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1).minusMinutes(1);
 
         return usageStatsRepository.findUsageStatsByCustomerAndWindowStartBetween(customer, startTime, endTime);
     }

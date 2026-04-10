@@ -34,7 +34,7 @@ public class CollectUsageStatsHandler implements JobRequestHandler<HandlerJobReq
     }
 
     @Override
-    @Job(name = "Collect usage stats")
+    @Job(name = "Collect usage stats", retries = 0)
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
         if (usageStatsService != null) {
             logger.debug(">> Start collecting usage data");

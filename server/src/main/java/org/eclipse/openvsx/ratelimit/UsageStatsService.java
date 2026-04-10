@@ -31,6 +31,7 @@ import redis.clients.jedis.resps.ScanResult;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -147,7 +148,7 @@ public class UsageStatsService {
         }
 
         long[] sortedCounts = new long[WINDOWS_PER_DAY];
-        for (int i = 0; i < input.size(); i++) {
+        for (int i = 0; i < Math.min(input.size(), WINDOWS_PER_DAY); i++) {
             sortedCounts[i] = input.get(i).getCount();
         }
 
