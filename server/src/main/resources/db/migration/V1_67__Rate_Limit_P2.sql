@@ -53,6 +53,9 @@ ALTER TABLE ONLY public.usage_stats
     ADD CONSTRAINT usage_stats_customer_id_fk FOREIGN KEY (customer_id)
         REFERENCES public.customer(id) ON DELETE CASCADE;
 
+CREATE INDEX IF NOT EXISTS usage_stats_window_start_day_idx
+    ON public.usage_stats (date_trunc('day', window_start));
+
 -- create daily_usage_stats
 
 CREATE SEQUENCE IF NOT EXISTS daily_usage_stats_seq START WITH 1 INCREMENT BY 1;
