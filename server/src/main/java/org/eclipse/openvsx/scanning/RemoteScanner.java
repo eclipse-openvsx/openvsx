@@ -125,7 +125,7 @@ public class RemoteScanner implements Scanner {
             processOperation(startOp, placeholders);
             
             // Execute HTTP request
-            String response = httpExecutor.execute(startOp, file);
+            String response = httpExecutor.execute(startOp, extensionFile);
             
             logger.debug("Start operation response: {}", response);
             

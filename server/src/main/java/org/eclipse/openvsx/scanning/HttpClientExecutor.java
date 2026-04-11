@@ -12,11 +12,13 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
+import jakarta.annotation.Nonnull;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.util.Timeout;
+import org.eclipse.openvsx.util.TempFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -30,7 +32,6 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.annotation.Nullable;
-import java.io.File;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -136,7 +137,7 @@ public class HttpClientExecutor {
      */
     public String execute(
         RemoteScannerProperties.HttpOperation operation,
-        File file
+        TempFile file
     ) throws ScannerException {
         try {
             // Build request entity (includes auth headers)
@@ -211,7 +212,7 @@ public class HttpClientExecutor {
      */
     private HttpEntity<?> buildRequestEntity(
         RemoteScannerProperties.HttpOperation operation,
-        File file
+        TempFile file
     ) {
         // Build headers
         HttpHeaders headers = new HttpHeaders();
@@ -249,7 +250,7 @@ public class HttpClientExecutor {
      */
     private HttpEntity<MultiValueMap<String, Object>> buildMultipartEntity(
         RemoteScannerProperties.BodyConfig bodyConfig,
-        File file,
+        TempFile file,
         HttpHeaders headers
     ) {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -259,7 +260,7 @@ public class HttpClientExecutor {
         // Add file if present
         if (file != null) {
             String fileField = bodyConfig.getFileField();
-            body.add(fileField, new FileSystemResource(file));
+            body.add(fileField, new TempFileResource(file));
         }
         
         // Add additional fields
@@ -317,6 +318,20 @@ public class HttpClientExecutor {
         }
         
         return new HttpEntity<>(rawBody, headers);
+    }
+
+    private static class TempFileResource extends FileSystemResource {
+        private final TempFile tempFile;
+
+        public TempFileResource(TempFile tempFile) {
+            super(tempFile.getPath().toFile());
+            this.tempFile = tempFile;
+        }
+
+        @Override
+        public @Nonnull String getFilename() {
+            return tempFile.getResource() != null ? tempFile.getResource().getName() : tempFile.getPath().toFile().getName();
+        }
     }
 }
 

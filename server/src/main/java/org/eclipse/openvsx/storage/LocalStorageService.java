@@ -155,7 +155,7 @@ public class LocalStorageService implements IStorageService {
 
     @Override
     public TempFile downloadFile(FileResource resource) throws IOException {
-        var file = new TempFile("download", resource.getName());
+        var file = new TempFile("download_", "_" + resource.getName());
         Files.copy(getPath(resource), file.getPath(), StandardCopyOption.REPLACE_EXISTING);
         file.setResource(resource);
         return file;
