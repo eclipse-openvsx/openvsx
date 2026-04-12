@@ -15,6 +15,7 @@ package org.eclipse.openvsx.ratelimit;
 import com.giffing.bucket4j.spring.boot.starter.context.ExpressionParams;
 import jakarta.servlet.http.HttpServletRequest;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
+import org.eclipse.openvsx.entities.Customer;
 import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
 import org.eclipse.openvsx.ratelimit.config.RateLimitProperties;
 import org.slf4j.Logger;
@@ -27,12 +28,13 @@ import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @ConditionalOnBean(RateLimitConfig.class)
 public class IdentityService {
-
     private final Logger logger = LoggerFactory.getLogger(IdentityService.class);
+    private final static String HEADER_RATE_LIMIT_TOKEN = "X-RateLimit-Token";
 
     private final ExpressionParser expressionParser;
     private final ConfigurableBeanFactory beanFactory;
@@ -62,21 +64,38 @@ public class IdentityService {
         String ipAddress = getIPAddress(request);
         String cacheKey = null;
 
-        var token = request.getParameter("token");
-        if (token != null) {
-            // This will update the database with the time the token is last accessed,
-            // but we need to ensure that we only take valid tokens into account for rate limiting.
-            // If this turns out to be a bottleneck, we need to cache the token hashcode.
-            var tokenEntity = tokenService.useAccessToken(token);
-            if (tokenEntity != null) {
-                // if a valid token is present we use it as a cache key
-                cacheKey = "token_" + token.hashCode();
+        Optional<Customer> customer = Optional.empty();
+
+        var rateLimitToken = request.getHeader(HEADER_RATE_LIMIT_TOKEN);
+        if (rateLimitToken != null) {
+            var customerId = customerService.getCustomerIdByRateLimitToken(rateLimitToken);
+            if (customerId.isPresent()) {
+                customer = customerService.getCustomerById(customerId.get());
+                if (customer.isPresent()) {
+                    cacheKey = "customer_" + customer.get().getName();
+                }
             }
         }
 
-        var customer = customerService.getCustomerByIpAddress(ipAddress);
-        if (customer.isPresent() && cacheKey == null) {
-            cacheKey = "customer_" + customer.get().getName();
+        if (cacheKey == null) {
+            var token = request.getParameter("token");
+            if (token != null) {
+                // This will update the database with the time the token is last accessed,
+                // but we need to ensure that we only take valid tokens into account for rate limiting.
+                // If this turns out to be a bottleneck, we need to cache the token hashcode.
+                var tokenEntity = tokenService.useAccessToken(token);
+                if (tokenEntity != null) {
+                    // if a valid token is present we use it as a cache key
+                    cacheKey = "token_" + tokenEntity.getUser().getId();
+                }
+            }
+        }
+
+        if (customer.isEmpty()) {
+            customer = customerService.getCustomerByIpAddress(ipAddress);
+            if (customer.isPresent() && cacheKey == null) {
+                cacheKey = "customer_" + customer.get().getName();
+            }
         }
 
         if (cacheKey == null) {

@@ -11,7 +11,8 @@
 import { FunctionComponent, ReactNode, useEffect, useState, useRef } from 'react';
 import { CssBaseline } from '@mui/material';
 import { Route, Routes } from 'react-router-dom';
-import { AdminDashboard, AdminDashboardRoutes } from './pages/admin-dashboard/admin-dashboard';
+import { AdminDashboard } from './pages/admin-dashboard/admin-dashboard';
+import { AdminDashboardRoutes } from './pages/admin-dashboard/admin-routes';
 import { ErrorDialog } from './components/error-dialog';
 import { handleError } from './utils';
 import { ExtensionRegistryService } from './extension-registry-service';

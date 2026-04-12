@@ -16,7 +16,7 @@ import { Link as RouteLink, Route, useParams } from 'react-router-dom';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import { Extension, NamespaceDetails } from '../extension-registry-types';
 import { PageSettings } from '../page-settings';
-import { ExtensionListRoutes } from '../pages/extension-list/extension-list-container';
+import { ExtensionListRoutes } from '../pages/extension-list/extension-list-routes';
 import { DefaultMenuContent, MobileMenuContent } from './menu-content';
 import OpenVSXLogo from './openvsx-registry-logo';
 import About from './about';

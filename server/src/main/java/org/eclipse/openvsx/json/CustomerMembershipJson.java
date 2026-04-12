@@ -10,9 +10,13 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
+package org.eclipse.openvsx.json;
 
-import { DateTime } from "luxon";
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
-export const getDefaultStartDate = () => {
-    return DateTime.now().setZone("UTC");
-};
+@JsonInclude(Include.NON_NULL)
+public record CustomerMembershipJson(
+        String customer,
+        UserJson user
+) {}

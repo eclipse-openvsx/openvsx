@@ -16,9 +16,9 @@ import { Link as RouteLink, useNavigate } from 'react-router-dom';
 import { MainContext } from '../../context';
 import { createRoute } from '../../utils';
 import { Timestamp } from '../../components/timestamp';
-import { ExtensionDetailRoutes } from '../extension-detail/extension-detail';
+import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { UserSettingsRoutes } from './user-settings';
+import { UserSettingsRoutes } from './user-settings-routes';
 
 const getOpacity = (extension: Extension) => {
     if (extension.deprecated) {

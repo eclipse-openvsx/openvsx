@@ -11,8 +11,8 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
+export { MultiSelectFilterInput } from './data-grid-filter';
 export {
-  MultiSelectFilterInput,
   createMultiSelectFilterOperators,
   createArrayContainsFilterOperators
 } from './data-grid-filter-operators';

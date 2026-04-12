@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.Nullable;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -76,7 +77,10 @@ public class RepositoryService {
     private final ScanCheckResultRepository scanCheckResultRepo;
     private final TierRepository tierRepo;
     private final CustomerRepository customerRepo;
+    private final CustomerMembershipRepository customerMembershipRepo;
     private final UsageStatsRepository usageStatsRepository;
+    private final RateLimitTokenRepository rateLimitTokenRepository;
+    private final DailyUsageStatsRepository dailyUsageStatsRepository;
 
     public RepositoryService(
             NamespaceRepository namespaceRepo,
@@ -110,7 +114,10 @@ public class RepositoryService {
             ScanCheckResultRepository scanCheckResultRepo,
             TierRepository tierRepo,
             CustomerRepository customerRepo,
-            UsageStatsRepository usageStatsRepository
+            CustomerMembershipRepository customerMembershipRepo,
+            UsageStatsRepository usageStatsRepository,
+            RateLimitTokenRepository rateLimitTokenRepository,
+            DailyUsageStatsRepository dailyUsageStatsRepository
     ) {
         this.namespaceRepo = namespaceRepo;
         this.namespaceJooqRepo = namespaceJooqRepo;
@@ -143,7 +150,10 @@ public class RepositoryService {
         this.scanCheckResultRepo = scanCheckResultRepo;
         this.tierRepo = tierRepo;
         this.customerRepo = customerRepo;
+        this.customerMembershipRepo = customerMembershipRepo;
         this.usageStatsRepository = usageStatsRepository;
+        this.rateLimitTokenRepository = rateLimitTokenRepository;
+        this.dailyUsageStatsRepository = dailyUsageStatsRepository;
     }
 
     public Namespace findNamespace(String name) {
@@ -1276,14 +1286,54 @@ public class RepositoryService {
         customerRepo.delete(customer);
     }
 
+    public Streamable<CustomerMembership> findCustomerMemberships(Customer customer) {
+        return customerMembershipRepo.findByCustomer(customer);
+    }
+
+    public CustomerMembership findCustomerMembership(UserData user, Customer customer) {
+        return customerMembershipRepo.findByUserAndCustomer(user, customer);
+    }
+
+    public Streamable<CustomerMembership> findCustomerMemberships(UserData user) {
+        return customerMembershipRepo.findByUserOrderByCustomerName(user);
+    }
+
     public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {
-        var startTime = date.truncatedTo(ChronoUnit.DAYS).minusMinutes(5);
-        var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1);
+        var startTime = date.truncatedTo(ChronoUnit.DAYS);
+        var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1).minusMinutes(1);
 
         return usageStatsRepository.findUsageStatsByCustomerAndWindowStartBetween(customer, startTime, endTime);
     }
 
     public UsageStats saveUsageStats(UsageStats usageStats) {
         return usageStatsRepository.save(usageStats);
+    }
+
+    public Streamable<RateLimitToken> findActiveRateLimitTokens(Customer customer) {
+        return rateLimitTokenRepository.findByCustomerAndActiveTrue(customer);
+    }
+
+    public RateLimitToken findRateLimitToken(long id) {
+        return rateLimitTokenRepository.findById(id);
+    }
+
+    public RateLimitToken findRateLimitToken(String value) {
+        return rateLimitTokenRepository.findByValue(value);
+    }
+
+    public boolean hasRateLimitToken(String value) {
+        return rateLimitTokenRepository.existsByValue(value);
+    }
+
+    public DailyUsageStats findDailyUsageStats(Customer customer, LocalDate date) {
+        return dailyUsageStatsRepository.findDailyUsageStatsByCustomerAndDate(customer, date);
+    }
+
+    public List<LocalDateTime> findUnprocessedDaysForDailyUsage(Customer customer) {
+        return dailyUsageStatsRepository.findUnprocessedDays(customer);
+    }
+
+    public DailyUsageStats saveDailyUsageStats(DailyUsageStats dailyUsageStats) {
+        return dailyUsageStatsRepository.save(dailyUsageStats);
     }
 }

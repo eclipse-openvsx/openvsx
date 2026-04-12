@@ -51,6 +51,7 @@ public class WebConfig implements WebMvcConfigurer {
             for (var endpoint : authorizedEndpoints) {
                 registry.addMapping(endpoint)
                         .allowedOrigins(webuiUrl)
+                        .allowedMethods("GET", "HEAD", "POST", "DELETE", "PUT")
                         .allowCredentials(true);
             }
             registry.addMapping("/login-providers")

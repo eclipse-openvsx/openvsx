@@ -12,27 +12,17 @@ import { FunctionComponent, ReactNode, useContext } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Grid, Container, Box, Typography, Link } from '@mui/material';
 import { useParams } from 'react-router-dom';
-import { createRoute } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { UserSettingTabs } from './user-setting-tabs';
 import { UserSettingsTokens } from './user-settings-tokens';
 import { UserSettingsProfile } from './user-settings-profile';
 import { UserSettingsNamespaces } from './user-settings-namespaces';
 import { UserSettingsExtensions } from './user-settings-extensions';
+import { UserSettingsCustomers } from './user-settings-customers';
 import { MainContext } from '../../context';
 import { UserData } from '../../extension-registry-types';
 import { LoginComponent } from '../../default/login';
 import { UserSettingsDeleteExtension } from './user-settings-delete-extension';
-
-export namespace UserSettingsRoutes {
-    export const ROOT = createRoute(['user-settings']);
-    export const MAIN = createRoute([ROOT, ':tab']);
-    export const PROFILE = createRoute([ROOT, 'profile']);
-    export const TOKENS = createRoute([ROOT, 'tokens']);
-    export const NAMESPACES = createRoute([ROOT, 'namespaces']);
-    export const EXTENSIONS = createRoute([ROOT, 'extensions']);
-    export const DELETE_EXTENSION = createRoute([ROOT, 'extensions', ':namespace', ':extension', 'delete']);
-}
 
 export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
 
@@ -53,6 +43,8 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
                 return <UserSettingsNamespaces />;
             case 'extensions':
                 return <UserSettingsExtensions />;
+            case 'customers':
+                return <UserSettingsCustomers />;
             default:
                 return null;
         }
@@ -79,7 +71,7 @@ return (<Link color='secondary' href={href} onClick={onClick}>log in</Link>);
             </Container> : null;
         }
 
-        return <Container>
+        return <Container maxWidth={'xl'}>
             <Box mt={6}>
                 <Grid container sx={{ flexDirection: { xs: 'column', sm: 'column', md: 'column', lg: 'row', xl: 'row' } }}>
                     <Grid item sx={{ mb: { xs: '3rem', sm: '3rem', md: '3rem', lg: '3rem', xl: 0 } }}>

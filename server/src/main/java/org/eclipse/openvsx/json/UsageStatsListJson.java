@@ -18,5 +18,6 @@ import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record UsageStatsListJson(
-        List<UsageStatsJson> stats
+        List<UsageStatsJson> stats,
+        Long dailyP95
 ) {}

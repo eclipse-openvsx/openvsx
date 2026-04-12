@@ -25,11 +25,22 @@ public class UsageStatsProperties implements Serializable {
     @NotBlank
     private String jobSchedule = "0 */10 * * * *";
 
+    @NotBlank
+    private String dailyJobSchedule = "0 10 2 * * *";
+
     public String getJobSchedule() {
         return jobSchedule;
     }
 
     public void setJobSchedule(String jobSchedule) {
         this.jobSchedule = jobSchedule;
+    }
+
+    public String getDailyJobSchedule() {
+        return dailyJobSchedule;
+    }
+
+    public void setDailyJobSchedule(String dailyJobSchedule) {
+        this.dailyJobSchedule = dailyJobSchedule;
     }
 }

@@ -32,8 +32,8 @@ import {
     getStatusColorSx,
 } from './utils';
 import { createRoute } from '../../../utils';
-import { AdminDashboardRoutes } from '../../../pages/admin-dashboard/admin-dashboard';
-import { ExtensionDetailRoutes } from '../../../pages/extension-detail/extension-detail';
+import { AdminDashboardRoutes } from '../../../pages/admin-dashboard/admin-routes';
+import { ExtensionDetailRoutes } from '../../../pages/extension-detail/extension-detail-routes';
 
 interface ScanCardHeaderProps {
     scan: ScanResult;

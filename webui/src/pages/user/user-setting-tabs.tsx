@@ -12,7 +12,7 @@ import { ChangeEvent, ReactElement } from 'react';
 import { Tabs, Tab, useTheme, useMediaQuery } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createRoute } from '../../utils';
-import { UserSettingsRoutes } from './user-settings';
+import { UserSettingsRoutes } from './user-settings-routes';
 
 export const UserSettingTabs = (): ReactElement => {
 
@@ -42,6 +42,7 @@ export const UserSettingTabs = (): ReactElement => {
             <Tab value='tokens' label='Access Tokens' />
             <Tab value='namespaces' label='Namespaces' />
             <Tab value='extensions' label='Extensions' />
+            <Tab value='customers' label='Rate Limiting' />
         </Tabs>
     );
 };

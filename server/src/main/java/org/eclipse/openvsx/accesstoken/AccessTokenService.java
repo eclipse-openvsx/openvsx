@@ -26,7 +26,6 @@ import org.eclipse.openvsx.util.UrlUtil;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import static org.eclipse.openvsx.util.UrlUtil.createApiUrl;

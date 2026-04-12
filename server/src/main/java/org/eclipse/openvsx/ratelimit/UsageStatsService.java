@@ -12,10 +12,13 @@
  *****************************************************************************/
 package org.eclipse.openvsx.ratelimit;
 
+import jakarta.annotation.Nonnull;
 import org.eclipse.openvsx.entities.Customer;
+import org.eclipse.openvsx.entities.DailyUsageStats;
 import org.eclipse.openvsx.entities.UsageStats;
 import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -25,18 +28,21 @@ import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.params.ScanParams;
 import redis.clients.jedis.resps.ScanResult;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 @Service
 @ConditionalOnBean(RateLimitConfig.class)
 public class UsageStatsService {
 
-    private final static String USAGE_DATA_KEY = "usage.customer";
-    private final static int    WINDOW_MINUTES = 5;
+    private final static String USAGE_DATA_KEY  = "usage.customer";
+    private final static int    WINDOW_MINUTES  = 5;
+    private final static int    WINDOWS_PER_DAY = 288;
+    private final static int    PERCENTILE      = 95;
 
     private final Logger logger = LoggerFactory.getLogger(UsageStatsService.class);
 
@@ -103,5 +109,52 @@ public class UsageStatsService {
         var instant = Instant.now();
         var epochMinute = instant.getEpochSecond() / 60;
         return epochMinute / WINDOW_MINUTES * WINDOW_MINUTES;
+    }
+
+    public void calculateDailyUsageStats() {
+        var today = TimeUtil.getCurrentUTC().truncatedTo(ChronoUnit.DAYS);
+
+        for (var customer : repositories.findAllCustomers()) {
+            List<LocalDateTime> unprocessedDays = repositories.findUnprocessedDaysForDailyUsage(customer);
+
+            for (var day : unprocessedDays) {
+                // skip processing the current day
+                if (!day.isBefore(today)) {
+                    continue;
+                }
+
+                logger.info("found unprocessed day for customer {}: {}", customer.getName(), day);
+
+                var dailyStats = repositories.findDailyUsageStats(customer, day.toLocalDate());
+                if (dailyStats != null) {
+                    continue;
+                }
+
+                var usageStats = repositories.findUsageStatsByCustomerAndDate(customer, day);
+
+                dailyStats = new DailyUsageStats();
+                dailyStats.setCustomer(customer);
+                dailyStats.setDate(day.toLocalDate());
+                dailyStats.setTotalRequests(usageStats.stream().mapToLong(UsageStats::getCount).sum());
+                dailyStats.setP95Requests(getDailyPercentile(usageStats, PERCENTILE));
+                repositories.saveDailyUsageStats(dailyStats);
+            }
+        }
+    }
+
+    long getDailyPercentile(@Nonnull List<UsageStats> input, double percentile) {
+        if (percentile < 0 || percentile > 100) {
+            throw new IllegalArgumentException("Percentile must be between 0 and 100 inclusive.");
+        }
+
+        long[] sortedCounts = new long[WINDOWS_PER_DAY];
+        for (int i = 0; i < Math.min(input.size(), WINDOWS_PER_DAY); i++) {
+            sortedCounts[i] = input.get(i).getCount();
+        }
+
+        Arrays.sort(sortedCounts);
+
+        int rank = percentile == 0 ? 1 : (int) Math.ceil(percentile / 100.0 * sortedCounts.length);
+        return sortedCounts[rank - 1];
     }
 }

@@ -19,17 +19,18 @@ import InfoIcon from '@mui/icons-material/Info';
 import PublishIcon from '@mui/icons-material/Publish';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import { UserAvatar } from '../pages/user/avatar';
-import { UserSettingsRoutes } from '../pages/user/user-settings';
+import { UserSettingsRoutes } from '../pages/user/user-settings-routes';
 import { styled, Theme } from '@mui/material/styles';
 import { MainContext } from '../context';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { AdminDashboardRoutes } from '../pages/admin-dashboard/admin-dashboard';
+import { AdminDashboardRoutes } from '../pages/admin-dashboard/admin-routes';
 import { LogoutForm } from '../pages/user/logout';
 import { LoginComponent } from './login';
 
 //-------------------- Mobile View --------------------//
+// eslint-disable-next-line react-refresh/only-export-components
 export const itemIcon = {
     mr: 1,
     width: '16px',
@@ -161,6 +162,7 @@ export const MobileMenuContent: FunctionComponent = () => {
 
 //-------------------- Default View --------------------//
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const headerItem = ({ theme }: { theme: Theme }) => ({
     margin: theme.spacing(2.5),
     color: theme.palette.text.primary,
@@ -175,7 +177,9 @@ export const headerItem = ({ theme }: { theme: Theme }) => ({
     }
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const MenuLink = styled(Link)(headerItem);
+// eslint-disable-next-line react-refresh/only-export-components
 export const MenuRouteLink = styled(RouteLink)(headerItem);
 
 export const DefaultMenuContent: FunctionComponent = () => {

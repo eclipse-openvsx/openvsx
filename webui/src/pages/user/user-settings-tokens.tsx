@@ -10,14 +10,14 @@
 
 import { FunctionComponent, ReactNode, useContext, useEffect, useState, useRef } from 'react';
 import { Theme, Typography, Box, Paper, Button, Link, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
+import { styled } from '@mui/material/styles';
 import { Link as RouteLink } from 'react-router-dom';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { Timestamp } from '../../components/timestamp';
 import { PersonalAccessToken } from '../../extension-registry-types';
 import { MainContext } from '../../context';
-import { GenerateTokenDialog } from './generate-token-dialog';
-import { UserSettingsRoutes } from './user-settings';
-import styled from '@mui/material/styles/styled';
+import { GenerateAccessTokenDialog } from './generate-access-token-dialog';
+import { UserSettingsRoutes } from './user-settings-routes';
 
 const link = ({ theme }: { theme: Theme }) => ({
     color: theme.palette.secondary.main,
@@ -159,7 +159,7 @@ export const UserSettingsTokens: FunctionComponent = () => {
                 }}
             >
                 <Box mr={1} mb={1}>
-                    <GenerateTokenDialog
+                    <GenerateAccessTokenDialog
                         handleTokenGenerated={handleTokenGenerated}
                     />
                 </Box>
@@ -216,10 +216,3 @@ export const UserSettingsTokens: FunctionComponent = () => {
         </Dialog>
     </>;
 };
-
-export namespace UserSettingsTokens {
-    export interface State {
-        tokens: PersonalAccessToken[];
-        loading: boolean;
-    }
-}

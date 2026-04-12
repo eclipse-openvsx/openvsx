@@ -9,30 +9,42 @@
  ********************************************************************************/
 
 import { FunctionComponent, PropsWithChildren } from 'react';
-import { Drawer, List } from '@mui/material';
-import { Theme } from '@mui/material/styles';
+import { Divider, Drawer, IconButton, List } from '@mui/material';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import { DrawerHeader } from './drawer-header';
 
-export const Sidepanel: FunctionComponent<PropsWithChildren> = props => {
+export const Sidepanel: FunctionComponent<PropsWithChildren<SidepanelProps>> = props => {
+    const width = props.width;
+
     return (
         <Drawer
-            variant='permanent'
-            PaperProps={{ elevation: 3 }}
-            sx={(theme: Theme) => ({
+            sx={{
+                width: width,
+                flexShrink: 0,
                 '& .MuiDrawer-paper': {
-                    position: 'relative',
-                    justifyContent: 'space-between',
-                    transition: theme.transitions.create('width', {
-                        easing: theme.transitions.easing.sharp,
-                        duration: theme.transitions.duration.enteringScreen
-                    }),
-                    overflowX: { xs: 'hidden', sm: 'hidden', md: 'none', lg: 'none', xl: 'none' },
-                    width: { xs: theme.spacing(7) + 1, sm: theme.spacing(9) + 1, md: 240 },
-                }
-            })}
+                    width: width,
+                    boxSizing: 'border-box',
+                },
+            }}
+            variant='persistent'
+            anchor='left'
+            open={props.open}
         >
+            <DrawerHeader>
+                <IconButton onClick={props.handleDrawerClose}>
+                    <ChevronLeftIcon />
+                </IconButton>
+            </DrawerHeader>
+            <Divider />
             <List>
                 {props.children}
             </List>
         </Drawer>
     );
 };
+
+interface SidepanelProps {
+    width: number;
+    open: boolean;
+    handleDrawerClose: () => void;
+}

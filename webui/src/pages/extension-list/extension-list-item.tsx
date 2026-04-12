@@ -13,7 +13,7 @@ import { Link as RouteLink } from 'react-router-dom';
 import { Paper, Typography, Box, Grid, Fade } from '@mui/material';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { MainContext } from '../../context';
-import { ExtensionDetailRoutes } from '../extension-detail/extension-detail';
+import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
 import { SearchEntry } from '../../extension-registry-types';
 import { ExtensionRatingStars } from '../extension-detail/extension-rating-stars';
 import { createRoute } from '../../utils';

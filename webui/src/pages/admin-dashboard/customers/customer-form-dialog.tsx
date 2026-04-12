@@ -31,9 +31,9 @@ import {
     styled
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { type Customer, EnforcementState, type Tier } from "../../../extension-registry-types";
-import { MainContext } from "../../../context";
-import { handleError } from "../../../utils";
+import { type Customer, EnforcementState, type Tier } from '../../../extension-registry-types';
+import { MainContext } from '../../../context';
+import { handleError } from '../../../utils';
 
 interface CustomerFormDialogProps {
     open: boolean;
@@ -41,7 +41,6 @@ interface CustomerFormDialogProps {
     onClose: () => void;
     onSubmit: (formData: Customer) => Promise<void>;
 }
-
 
 const Code = styled('code')(({ theme }) => ({
   fontFamily: 'source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace',
