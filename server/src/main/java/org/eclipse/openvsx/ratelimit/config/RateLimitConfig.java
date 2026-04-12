@@ -109,11 +109,11 @@ public class RateLimitConfig {
 
     @Bean
     public Cache<Object, Object> tokenCache(
-            @Value("${ovsx.caching.token.tti:P1D}") Duration timeToIdle,
-            @Value("${ovsx.caching.token.max-size:100}") long maxSize
+            @Value("${ovsx.caching.rate-limit-token.ttl:PT1H}") Duration timeToLive,
+            @Value("${ovsx.caching.rate-limit-token.max-size:1000}") long maxSize
     ) {
         return Caffeine.newBuilder()
-                .expireAfterAccess(timeToIdle)
+                .expireAfterWrite(timeToLive)
                 .maximumSize(maxSize)
                 .scheduler(Scheduler.systemScheduler())
                 .recordStats()
