@@ -28,7 +28,7 @@ jobs:
         distribution: 'temurin'
         java-version: 25
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+      uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
     - name: Generate JaCoCo test report
       run: server/gradlew --no-daemon -p server jacocoTestReport
     - name: Make server libraries directory
@@ -36,6 +36,6 @@ jobs:
     - name: Copy server libraries
       run: find ~/.gradle/caches -type f -name '*.jar' -exec cp {} server/libraries \;
     - name: SonarCloud Scan
-      uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9  # v7.0.0
+      uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4  # v7.1.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
