@@ -2,6 +2,15 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
+## [v0.20.0] (unreleased)
+
+### Added
+
+- Support rate-limit token management in admin dashboard ([#1698](https://github.com/eclipse/openvsx/pull/1698))
+- Support customer membership management in admin dashboard ([#1698](https://github.com/eclipse/openvsx/pull/1698))
+- Support displaying usage stats for customer members ([#1698](https://github.com/eclipse/openvsx/pull/1698))
+- Calculate and display daily p95 usage stats ([#1698](https://github.com/eclipse/openvsx/pull/1698))
+
 ## [v0.19.1] (Apr. 2026)
 
 ### Fixed
