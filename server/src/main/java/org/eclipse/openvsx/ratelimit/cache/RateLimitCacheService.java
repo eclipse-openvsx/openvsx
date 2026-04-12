@@ -19,10 +19,8 @@ import org.eclipse.openvsx.ratelimit.config.RateLimitConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.cache.CacheProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import redis.clients.jedis.JedisCluster;
@@ -72,9 +70,9 @@ public class RateLimitCacheService extends JedisPubSub {
         configCacheListener.shutdown();
     }
 
-    public void publishConfigUpdate(String cacheName) {
-        logger.debug("Publish update rate-limit config {}", cacheName);
-        jedisCluster.publish(CONFIG_UPDATE_CHANNEL, cacheName);
+    public void publishConfigUpdate(String cacheName, String key) {
+        logger.debug("Publish update rate-limit config {}: {}", cacheName, key);
+        jedisCluster.publish(CONFIG_UPDATE_CHANNEL, cacheName + ":" + key);
     }
 
     public void evictCustomerCache() {
@@ -82,6 +80,18 @@ public class RateLimitCacheService extends JedisPubSub {
         var cache = cacheManager.getCache(CACHE_CUSTOMER);
         if (cache != null) {
             cache.clear();
+        }
+
+        eventPublisher.publishEvent(new ConfigurationChanged());
+    }
+
+    public void evictCustomer(String[] customerIds) {
+        logger.debug("Evict {} customer(s)", customerIds.length);
+        var cache = cacheManager.getCache(CACHE_CUSTOMER);
+        if (cache != null) {
+            for (var id : customerIds) {
+                cache.evict(Long.valueOf(id));
+            }
         }
 
         eventPublisher.publishEvent(new ConfigurationChanged());
@@ -100,6 +110,16 @@ public class RateLimitCacheService extends JedisPubSub {
         var cache = cacheManager.getCache(CACHE_TOKEN);
         if (cache != null) {
             cache.clear();
+        }
+    }
+
+    public void evictTokens(String[] tokens) {
+        logger.debug("Evict {} token(s)", tokens.length);
+        var cache = cacheManager.getCache(CACHE_TOKEN);
+        if (cache != null) {
+            for (var token : tokens) {
+                cache.evict(token);
+            }
         }
     }
 
@@ -163,14 +183,35 @@ public class RateLimitCacheService extends JedisPubSub {
             if (CONFIG_UPDATE_CHANNEL.equals(channel)) {
                 logger.debug("Received rate-limit config update notification from another pod");
 
-                switch (message) {
+                String[] arr = message.split(":");
+                if (arr.length == 0) {
+                    logger.error("could not process config update: {}", message);
+                    return;
+                }
+
+                var cacheType = arr[0];
+                var cacheKeys = arr.length > 1 ? arr[1] : "";
+
+                switch (cacheType) {
                     case CACHE_CUSTOMER:
-                        evictCustomerCache();
+                        if (cacheKeys.isBlank()) {
+                            evictCustomerCache();
+                        } else {
+                            evictCustomer(cacheKeys.split(","));
+                        }
                         break;
 
                     case CACHE_TIER:
                         evictTierCache();
                         evictCustomerCache();
+                        break;
+
+                    case CACHE_TOKEN:
+                        if (cacheKeys.isBlank()) {
+                            evictTokenCache();
+                        } else {
+                            evictTokens(cacheKeys.split(","));
+                        }
                         break;
 
                     default:

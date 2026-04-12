@@ -105,7 +105,7 @@ public class RateLimitAPI {
             logs.logAction(adminUser, result);
 
             if (rateLimitCacheService != null) {
-                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TIER);
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TIER, Long.toString(savedTier.getId()));
             }
 
             return ResponseEntity.ok(result);
@@ -147,7 +147,7 @@ public class RateLimitAPI {
             logs.logAction(adminUser, result);
 
             if (rateLimitCacheService != null) {
-                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TIER);
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TIER, Long.toString(savedTier.getId()));
             }
 
             return ResponseEntity.ok(result);
@@ -183,7 +183,7 @@ public class RateLimitAPI {
             logs.logAction(adminUser, result);
 
             if (rateLimitCacheService != null) {
-                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TIER);
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TIER, Long.toString(tier.getId()));
             }
 
             return ResponseEntity.ok(result);
@@ -289,7 +289,7 @@ public class RateLimitAPI {
             logs.logAction(adminUser, result);
 
             if (rateLimitCacheService != null) {
-                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_CUSTOMER);
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_CUSTOMER, Long.toString(savedCustomer.getId()));
             }
 
             return ResponseEntity.ok(result);
@@ -332,7 +332,7 @@ public class RateLimitAPI {
             logs.logAction(adminUser, result);
 
             if (rateLimitCacheService != null) {
-                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_CUSTOMER);
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_CUSTOMER, Long.toString(savedCustomer.getId()));
             }
 
             return ResponseEntity.ok(result);
@@ -428,13 +428,24 @@ public class RateLimitAPI {
                 return ResponseEntity.notFound().build();
             }
 
+            // get the list of active rate limit tokens for this customer
+            var activeRateLimitTokenIds = repositories
+                    .findActiveRateLimitTokens(customer)
+                    .stream()
+                    .map(token -> Long.toString(token.getId()))
+                    .toList();
+
             repositories.deleteCustomer(customer);
 
             var result = ResultJson.success("Deleted customer '" + name + "'");
             logs.logAction(adminUser, result);
 
             if (rateLimitCacheService != null) {
-                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_CUSTOMER);
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_CUSTOMER, Long.toString(customer.getId()));
+
+                if (!activeRateLimitTokenIds.isEmpty()) {
+                    rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TOKEN, String.join(",", activeRateLimitTokenIds));
+                }
             }
 
             return ResponseEntity.ok(result);
@@ -539,7 +550,22 @@ public class RateLimitAPI {
                 return ResponseEntity.notFound().build();
             }
 
-            return ResponseEntity.ok(customerService.deactivateRateLimitToken(customer, id));
+            var token = repositories.findRateLimitToken(id);
+            if (token == null || !token.isActive()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            if (token.getCustomer().getId() != customer.getId()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            var response = ResponseEntity.ok(customerService.deactivateRateLimitToken(token));
+
+            if (rateLimitCacheService != null) {
+                rateLimitCacheService.publishConfigUpdate(RateLimitCacheService.CACHE_TOKEN, token.getValue());
+            }
+
+            return response;
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity();
         } catch (NotFoundException exc) {

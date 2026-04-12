@@ -68,9 +68,12 @@ public class IdentityService {
 
         var rateLimitToken = request.getHeader(HEADER_RATE_LIMIT_TOKEN);
         if (rateLimitToken != null) {
-            customer = customerService.getCustomerByRateLimitToken(rateLimitToken);
-            if (customer.isPresent()) {
-                cacheKey = "customer_" + customer.get().getName();
+            var customerId = customerService.getCustomerIdByRateLimitToken(rateLimitToken);
+            if (customerId.isPresent()) {
+                customer = customerService.getCustomerById(customerId.get());
+                if (customer.isPresent()) {
+                    cacheKey = "customer_" + customer.get().getName();
+                }
             }
         }
 

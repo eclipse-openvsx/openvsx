@@ -1317,6 +1317,10 @@ public class RepositoryService {
         return rateLimitTokenRepository.findById(id);
     }
 
+    public RateLimitToken findRateLimitToken(String value) {
+        return rateLimitTokenRepository.findByValue(value);
+    }
+
     public boolean hasRateLimitToken(String value) {
         return rateLimitTokenRepository.existsByValue(value);
     }

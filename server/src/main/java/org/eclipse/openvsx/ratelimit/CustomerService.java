@@ -26,7 +26,6 @@ import org.eclipse.openvsx.ratelimit.cache.RateLimitCacheService;
 import org.eclipse.openvsx.ratelimit.config.RateLimitProperties;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
-import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +62,7 @@ public class CustomerService {
         customersByIPAddress = rebuildIPAddressCache();
     }
 
-    @Cacheable(value = RateLimitCacheService.CACHE_CUSTOMER, key = "'id_' + #id", cacheManager = RateLimitCacheService.CACHE_MANAGER)
+    @Cacheable(value = RateLimitCacheService.CACHE_CUSTOMER, cacheManager = RateLimitCacheService.CACHE_MANAGER)
     public Optional<Customer> getCustomerById(long id) {
         return repositories.findCustomerById(id);
     }
@@ -83,9 +82,14 @@ public class CustomerService {
         }
     }
 
-    public Optional<Customer> getCustomerByRateLimitToken(String token) {
-        // TODO: implement
-        return Optional.empty();
+    @Cacheable(value = RateLimitCacheService.CACHE_TOKEN, cacheManager = RateLimitCacheService.CACHE_MANAGER)
+    public Optional<Long> getCustomerIdByRateLimitToken(String tokenValue) {
+        var token = repositories.findRateLimitToken(tokenValue);
+        if (token != null && token.isActive()) {
+            return Optional.of(token.getCustomer().getId());
+        } else {
+            return Optional.empty();
+        }
     }
 
     @EventListener
@@ -172,23 +176,15 @@ public class CustomerService {
     private String generateTokenValue() {
         String value;
         do {
-            value = rateLimitProperties != null ? rateLimitProperties.getTokenPrefix() : "" + UUID.randomUUID();
+            value = (rateLimitProperties != null ? rateLimitProperties.getTokenPrefix() : "") + UUID.randomUUID();
         } while (repositories.hasRateLimitToken(value));
         return value;
     }
 
     @Transactional
-    public ResultJson deactivateRateLimitToken(Customer customer, long id) {
-        var token = repositories.findRateLimitToken(id);
-        if (token == null || !token.isActive()) {
-            throw new NotFoundException();
-        }
-
-        if(token.getCustomer().getId() != customer.getId()) {
-            throw new NotFoundException();
-        }
-
+    public ResultJson deactivateRateLimitToken(RateLimitToken token) {
+        token = entityManager.merge(token);
         token.setActive(false);
-        return ResultJson.success("Deactivated rate limit token for customer " + customer.getName() + ".");
+        return ResultJson.success("Deactivated rate limit token for customer " + token.getCustomer().getName() + ".");
     }
 }

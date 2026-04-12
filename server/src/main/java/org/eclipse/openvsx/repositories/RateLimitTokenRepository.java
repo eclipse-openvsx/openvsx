@@ -26,5 +26,7 @@ public interface RateLimitTokenRepository extends Repository<RateLimitToken, Lon
 
     RateLimitToken findById(long id);
 
+    RateLimitToken findByValue(String value);
+
     boolean existsByValue(String value);
 }

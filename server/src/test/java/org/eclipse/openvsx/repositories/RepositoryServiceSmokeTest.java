@@ -390,6 +390,7 @@ class RepositoryServiceSmokeTest {
                 () -> repositories.findCustomerMembership(userData, customer),
                 () -> repositories.findActiveRateLimitTokens(customer),
                 () -> repositories.findRateLimitToken(1L),
+                () -> repositories.findRateLimitToken("value"),
                 () -> repositories.hasRateLimitToken("value"),
                 () -> repositories.saveUsageStats(usageStats),
                 () -> repositories.findUsageStatsByCustomerAndDate(customer, NOW),
