@@ -61,8 +61,11 @@ export const ExtensionDetail: FunctionComponent = () => {
     const { handleError, pageSettings, service } = useContext(MainContext);
 
     const abortController = useRef<AbortController>(new AbortController());
+
     useEffect(() => {
-        updateExtension();
+        if (extension === undefined) {
+            updateExtension();
+        }
         return () => {
             abortController.current.abort();
             if (icon) {
@@ -91,14 +94,13 @@ export const ExtensionDetail: FunctionComponent = () => {
             const icon = await updateIcon(extension);
             setExtension(extension);
             setIcon(icon);
-            setLoading(false);
         } catch (err) {
             if (err && err.status === 404) {
                 setNotFoundError(`Extension Not Found: ${namespace}.${name}`);
-                setLoading(false);
             } else {
                 handleError(err);
             }
+        } finally {
             setLoading(false);
         }
     };

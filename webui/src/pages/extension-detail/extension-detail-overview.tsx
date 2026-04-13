@@ -79,15 +79,9 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
     }, [props.extension.downloads]);
 
     useEffect(() => {
-        updateReadme();
-        return () => {
-            abortController.current.abort();
-        };
-    }, []);
-
-    useEffect(() => {
         setLoading(true);
         updateReadme();
+        return () => abortController.current.abort();
     }, [props.extension.namespace, props.extension.name, props.extension.version]);
 
     const updateReadme = async (): Promise<void> => {

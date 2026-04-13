@@ -22,13 +22,9 @@ export const ExtensionDetailChanges: FunctionComponent<ExtensionDetailChangesPro
     const abortController = useRef<AbortController>(new AbortController());
 
     useEffect(() => {
-        updateChanges();
-        return () => abortController.current.abort();
-    }, []);
-
-    useEffect(() => {
         setLoading(true);
         updateChanges();
+        return () => abortController.current.abort();
     }, [props.extension.namespace, props.extension.name, props.extension.version]);
 
     const updateChanges = async (): Promise<void> => {
