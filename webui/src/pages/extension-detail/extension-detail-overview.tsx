@@ -79,10 +79,7 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
     }, [props.extension.downloads]);
 
     useEffect(() => {
-        updateReadme();
-        return () => {
-            abortController.current.abort();
-        };
+        return () => abortController.current.abort();
     }, []);
 
     useEffect(() => {

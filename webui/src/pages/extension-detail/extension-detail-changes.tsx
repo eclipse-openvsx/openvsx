@@ -22,7 +22,6 @@ export const ExtensionDetailChanges: FunctionComponent<ExtensionDetailChangesPro
     const abortController = useRef<AbortController>(new AbortController());
 
     useEffect(() => {
-        updateChanges();
         return () => abortController.current.abort();
     }, []);
 
