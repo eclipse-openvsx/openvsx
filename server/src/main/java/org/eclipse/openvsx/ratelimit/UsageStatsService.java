@@ -23,6 +23,7 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import redis.clients.jedis.JedisCluster;
@@ -108,20 +109,27 @@ public class UsageStatsService {
                 var window = Long.parseLong(component[1]);
 
                 if (window < currentWindow) {
-                    var customer = customerService.getCustomerById(customerId);
-                    if (customer.isEmpty()) {
-                        logger.warn("Failed to find customer with id {}", customerId);
-                    } else {
-                        UsageStats stats = new UsageStats();
+                    try {
+                        var customer = customerService.getCustomerById(customerId);
+                        if (customer.isEmpty()) {
+                            logger.warn("Failed to find customer with id {}", customerId);
+                        } else {
+                            UsageStats stats = new UsageStats();
 
-                        stats.setCustomer(customer.get());
-                        stats.setWindowStart(LocalDateTime.ofInstant(Instant.ofEpochSecond(window * 60), ZoneOffset.UTC));
-                        stats.setCount(Long.parseLong(value));
-                        stats.setDuration(Duration.ofMinutes(WINDOW_MINUTES));
-                        repositories.saveUsageStats(stats);
+                            stats.setCustomer(customer.get());
+                            stats.setWindowStart(LocalDateTime.ofInstant(Instant.ofEpochSecond(window * 60), ZoneOffset.UTC));
+                            stats.setCount(Long.parseLong(value));
+                            stats.setDuration(Duration.ofMinutes(WINDOW_MINUTES));
+
+                            try {
+                                repositories.saveUsageStats(stats);
+                            } catch (DataAccessException exc) {
+                                logger.warn("failed to save usage stats for customer {}: {}", customer.get().getName(), exc.getMessage());
+                            }
+                        }
+                    } finally {
+                        jedisCluster.hdel(USAGE_DATA_KEY, key);
                     }
-
-                    jedisCluster.hdel(USAGE_DATA_KEY, key);
                 }
             }
 
