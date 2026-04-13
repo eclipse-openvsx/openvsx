@@ -11,6 +11,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Support displaying usage stats for customer members ([#1698](https://github.com/eclipse/openvsx/pull/1698))
 - Calculate and display daily p95 usage stats ([#1698](https://github.com/eclipse/openvsx/pull/1698))
 
+### Fixed
+
+- Avoid loading extension data multiple times on the extension detail page ([#1756](https://github.com/eclipse/openvsx/pull/1756))
+
 ## [v0.19.1] (Apr. 2026)
 
 ### Fixed
