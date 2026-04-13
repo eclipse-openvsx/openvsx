@@ -121,17 +121,30 @@ public class RateLimitConfig {
     }
 
     @Bean
+    public Cache<Object, Object> usageCache(
+            @Value("${ovsx.caching.usage.ttl:PT1H}") Duration timeToLive
+    ) {
+        return Caffeine.newBuilder()
+                .expireAfterWrite(timeToLive)
+                .scheduler(Scheduler.systemScheduler())
+                .recordStats()
+                .build();
+    }
+
+    @Bean
     @Qualifier(CACHE_MANAGER)
     public CacheManager rateLimitCacheManager(
             Cache<Object, Object> customerCache,
             Cache<Object, Object> tierCache,
-            Cache<Object, Object> tokenCache
+            Cache<Object, Object> tokenCache,
+            Cache<Object, Object> usageCache
     ) {
         logger.info("Configure rate limit cache manager");
         CaffeineCacheManager caffeineCacheManager = new CaffeineCacheManager();
         caffeineCacheManager.registerCustomCache(CACHE_CUSTOMER, customerCache);
         caffeineCacheManager.registerCustomCache(CACHE_TIER, tierCache);
         caffeineCacheManager.registerCustomCache(CACHE_TOKEN, tokenCache);
+        caffeineCacheManager.registerCustomCache(CACHE_USAGE, usageCache);
 
         return caffeineCacheManager;
     }

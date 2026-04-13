@@ -39,6 +39,7 @@ public class RateLimitCacheService extends JedisPubSub {
     public static final String CACHE_CUSTOMER = "ratelimit.customer";
     public static final String CACHE_TIER = "ratelimit.tier";
     public static final String CACHE_TOKEN = "ratelimit.token";
+    public static final String CACHE_USAGE = "ratelimit.usage";
 
     private static final String CONFIG_UPDATE_CHANNEL = "ratelimit.config";
 

@@ -68,6 +68,12 @@ public class RateLimitServletFilter extends OncePerRequestFilter implements Orde
         var identity = identityService.resolveIdentity(request);
         logger.debug("Rate limit filter: {}: {}", request.getRequestURI(), identity.ipAddress());
 
+        if (identity.isCustomer()) {
+            var customer = identity.getCustomer();
+            logger.debug("Increasing usage stats for customer {}", customer.getName());
+            usageStatsService.incrementUsage(customer);
+        }
+
         var bucketPair = rateLimitService.getBucket(identity);
         var bucket = bucketPair.bucket();
         if (bucket == null) {
@@ -84,12 +90,6 @@ public class RateLimitServletFilter extends OncePerRequestFilter implements Orde
             chain.doFilter(request, response);
         } else {
             handleHttpResponseOnRateLimiting(response, probe);
-        }
-
-        if (identity.isCustomer()) {
-            var customer = identity.getCustomer();
-            logger.debug("Increasing usage stats for customer {}", customer.getName());
-            usageStatsService.incrementUsage(customer);
         }
     }
 
