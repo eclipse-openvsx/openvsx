@@ -80,11 +80,11 @@ public class UsageStatsService {
             cacheMap.compute(key, (_, v) -> {
                 if (v != null) {
                     var value = (Long) v;
-                    jedisCluster.hincrBy(USAGE_DATA_KEY, key.toString(), value.intValue());
-                    return 0L;
-                } else {
-                    return null;
+                    if (value > 0) {
+                        jedisCluster.hincrBy(USAGE_DATA_KEY, key.toString(), value.intValue());
+                    }
                 }
+                return null;
             });
         }
     }
