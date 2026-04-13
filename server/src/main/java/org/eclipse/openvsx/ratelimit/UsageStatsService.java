@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.ratelimit;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import jakarta.annotation.Nonnull;
 import org.eclipse.openvsx.entities.Customer;
 import org.eclipse.openvsx.entities.DailyUsageStats;
@@ -22,7 +23,7 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.params.ScanParams;
@@ -31,7 +32,6 @@ import redis.clients.jedis.resps.ScanResult;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -48,20 +48,44 @@ public class UsageStatsService {
 
     private final RepositoryService repositories;
     private final CustomerService customerService;
+    private final Cache<Object, Object> usageCache;
     private final JedisCluster jedisCluster;
 
-    public UsageStatsService(RepositoryService repositories, CustomerService customerService, JedisCluster jedisCluster) {
+    public UsageStatsService(
+            RepositoryService repositories,
+            CustomerService customerService,
+            Cache<Object, Object> usageCache,
+            JedisCluster jedisCluster
+    ) {
         this.repositories = repositories;
         this.customerService = customerService;
+        this.usageCache = usageCache;
         this.jedisCluster = jedisCluster;
     }
 
-    @Async
     public void incrementUsage(Customer customer) {
         var key = customer.getId();
         var window = getCurrentUsageWindow();
-        var old = jedisCluster.hincrBy(USAGE_DATA_KEY, key + ":" + window, 1);
-        logger.debug("Usage count for {}: {}", customer.getName(), old + 1);
+
+        var count = usageCache.asMap().compute(key + ":" + window, (_, v) -> v == null ? 1 : ((Long) v) + 1);
+        logger.debug("Local usage count for {}: {}", customer.getName(), count);
+    }
+
+    @Scheduled(cron = "*/30 * * * * *")
+    public void syncDistributedUsageData() {
+        logger.debug("Updating distributed usage data from local cache");
+        var cacheMap = usageCache.asMap();
+        for (var key : cacheMap.keySet()) {
+            cacheMap.compute(key, (_, v) -> {
+                if (v != null) {
+                    var value = (Long) v;
+                    jedisCluster.hincrBy(USAGE_DATA_KEY, key.toString(), value.intValue());
+                    return 0L;
+                } else {
+                    return null;
+                }
+            });
+        }
     }
 
     public void persistUsageStats() {
