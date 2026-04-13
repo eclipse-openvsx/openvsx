@@ -1,9 +1,11 @@
 /bin/
 /build/
+
 .gradle/
 .idea/
 .settings/
 .classpath
 .project
+
 DEPENDENCIES
 /src/dev/resources/application-ovsx.properties
