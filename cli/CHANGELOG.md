@@ -2,6 +2,12 @@
 
 This change log covers only the command line interface (CLI) of Open VSX.
 
+### [next] (unreleased)
+
+#### Dependencies
+
+- Bump follow-redirects from `1.15.6` to `1.16.0` ([#1759](https://github.com/eclipse/openvsx/pull/1759))
+
 ### [v0.10.11] (13/04/2026)
 
 #### Dependencies
