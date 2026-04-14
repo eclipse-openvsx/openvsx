@@ -1709,7 +1709,7 @@ class RegistryAPITest {
                     return extensionVersion.getVersion().equals(extVersion.getVersion());
                 });
 
-        var bytes = createExtensionPackage("bar", "1.0.0", null, true, TargetPlatform.NAME_LINUX_X64);
+        var bytes = createExtensionPackage("bar", "1.0.0", null, true, TargetPlatform.NAME_LINUX_X64, "/tmp/known-good-icon.jpg");
         mockMvc.perform(post("/api/-/publish?token={token}", "my_token")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .content(bytes))
@@ -1731,7 +1731,7 @@ class RegistryAPITest {
                     return extensionVersion.getVersion().equals(extVersion.getVersion());
                 });
 
-        var bytes = createExtensionPackage("bar", "1.5.0", null, false, TargetPlatform.NAME_ALPINE_ARM64);
+        var bytes = createExtensionPackage("bar", "1.5.0", null, false, TargetPlatform.NAME_ALPINE_ARM64,"/tmp/known-good-icon.png");
         mockMvc.perform(post("/api/-/publish?token={token}", "my_token")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .content(bytes))
@@ -2483,10 +2483,10 @@ class RegistryAPITest {
     }
 
     private byte[] createExtensionPackage(String name, String version, String license) throws IOException {
-        return createExtensionPackage(name, version, license, false, null);
+        return createExtensionPackage(name, version, license, false, null, "/tmp/known-good-icon.png");
     }
 
-    private byte[] createExtensionPackage(String name, String version, String license, boolean preRelease, String targetPlatform) throws IOException {
+    private byte[] createExtensionPackage(String name, String version, String license, boolean preRelease, String targetPlatform, String iconPath) throws IOException {
         var bytes = new ByteArrayOutputStream();
         var archive = new ZipOutputStream(bytes);
         archive.putNextEntry(new ZipEntry("extension.vsixmanifest"));
@@ -2516,6 +2516,7 @@ class RegistryAPITest {
             "<Dependencies/>" +
             "<Assets>" +
             "<Asset Type=\"Microsoft.VisualStudio.Code.Manifest\" Path=\"extension/package.json\" Addressable=\"true\" />" +
+            "<Asset Type=\"Microsoft.VisualStudio.Services.Icons.Default\" Path=\"" + iconPath + "\" Addressable=\"true\" />" +
             "</Assets>" +
             "</PackageManifest>";
         archive.write(vsixmanifest.getBytes());
@@ -2528,6 +2529,9 @@ class RegistryAPITest {
                 (license == null ? "" : ",\"license\": \"" + license + "\"" ) +
             "}";
         archive.write(packageJson.getBytes());
+        archive.closeEntry();
+        archive.putNextEntry(new ZipEntry(iconPath));
+        archive.write("placeholder".getBytes());
         archive.closeEntry();
         archive.finish();
         return bytes.toByteArray();

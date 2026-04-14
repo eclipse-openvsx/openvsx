@@ -472,7 +472,7 @@ public class ExtensionProcessor implements AutoCloseable {
         return null;
     }
 
-    protected TempFile getIcon(ExtensionVersion extVersion) throws IOException {
+    public TempFile getIcon(ExtensionVersion extVersion) throws IOException {
         var iconPath = tryGetAssetPath(ExtensionQueryResult.ExtensionFile.FILE_ICON);
         if (StringUtils.isEmpty(iconPath)) {
             loadPackageJson();

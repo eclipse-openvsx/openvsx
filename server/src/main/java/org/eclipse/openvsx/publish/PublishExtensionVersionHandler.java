@@ -9,9 +9,12 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.publish;
 
-import com.google.common.base.Joiner;
-import jakarta.persistence.EntityManager;
-import jakarta.transaction.Transactional;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.function.Consumer;
+
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.ExtensionProcessor;
@@ -19,11 +22,19 @@ import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.adapter.VSCodeIdNewExtensionJobRequest;
-import org.eclipse.openvsx.entities.*;
+import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionScan;
+import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.entities.PersonalAccessToken;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
-import org.eclipse.openvsx.util.*;
+import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.ExtensionId;
+import org.eclipse.openvsx.util.NamingUtil;
+import org.eclipse.openvsx.util.TempFile;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,10 +44,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerErrorException;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.function.Consumer;
+import com.google.common.base.Joiner;
+
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 
 @Component
 public class PublishExtensionVersionHandler {
@@ -134,6 +145,8 @@ public class PublishExtensionVersionHandler {
         extVersion.setPublishedWith(token);
         extVersion.setActive(false);
 
+        validateIcon(processor, extVersion);
+
         var extension = repositories.findExtension(extensionName, namespace);
         if (extension == null) {
             extension = new Extension();
@@ -200,6 +213,17 @@ public class PublishExtensionVersionHandler {
                 (licenseFile == null || !licenseFile.getResource().getType().equals(FileResource.LICENSE))) {
             throw new ErrorResultException("This extension cannot be accepted because it has no license.");
         }
+    }
+
+    private void validateIcon(ExtensionProcessor processor, ExtensionVersion extVersion) {
+      try (var iconTmpFile = processor.getIcon(extVersion)) {
+        var ext = FilenameUtils.getExtension(iconTmpFile.getPath().toString());
+        if ("svg".equalsIgnoreCase(ext)) {
+            throw new ErrorResultException("This extension cannot be accepted as it contains a denied icon image format.");
+        }
+      } catch (IOException e) {
+        logger.warn("Failed to check whether icon is a denied format or not", e);
+      }
     }
 
     private void validateMetadata(ExtensionVersion extVersion) {
