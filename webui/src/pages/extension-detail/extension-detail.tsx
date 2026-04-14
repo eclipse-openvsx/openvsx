@@ -8,13 +8,13 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { ChangeEvent, FunctionComponent, ReactElement, ReactNode, useContext, useEffect, useState, useRef } from 'react';
+import { FunctionComponent, useCallback, useContext } from 'react';
 import {
-    Typography, Box, Theme, Container, Link, Avatar, Paper, Badge, SxProps, Tabs, Tab, Stack, useTheme, PaletteMode,
+    Typography, Box, Container, Link, Avatar, Paper, Badge, Tabs, Tab, Stack, useTheme, PaletteMode,
     decomposeColor
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { Link as RouteLink, useNavigate, useParams } from 'react-router-dom';
+import { Link as RouteLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -22,7 +22,7 @@ import { MainContext } from '../../context';
 import { createRoute } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { HoverPopover } from '../../components/hover-popover';
-import { Extension, UserData, isError } from '../../extension-registry-types';
+import { Extension, UserData } from '../../extension-registry-types';
 import { TextDivider } from '../../components/text-divider';
 import { ExtensionRatingStars } from './extension-rating-stars';
 import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-routes';
@@ -30,448 +30,324 @@ import { ExtensionDetailOverview } from './extension-detail-overview';
 import { ExtensionDetailChanges } from './extension-detail-changes';
 import { ExtensionDetailReviews } from './extension-detail-reviews';
 import { ExtensionDetailRoutes } from './extension-detail-routes';
+import { useExtensionDetail } from './use-extension-details';
 
-const alignVertically = {
-    display: 'flex',
-    alignItems: 'center'
-};
-
-const link = {
+const inlineLinkStyle = {
     display: 'contents',
     cursor: 'pointer',
     textDecoration: 'none',
-    '&:hover': {
-        textDecoration: 'underline'
-    }
+    '&:hover': { textDecoration: 'underline' }
+} as const;
+
+const StyledRouteLink = styled(RouteLink)(inlineLinkStyle);
+const StyledLink = styled(Link)(inlineLinkStyle);
+const StyledHoverPopover = styled(HoverPopover)({ display: 'flex', alignItems: 'center' });
+const PreviewBadge = styled(Badge)(({ theme }) => ({
+    '& .MuiBadge-badge': { top: theme.spacing(1), right: theme.spacing(-5) }
+}));
+
+const { Tab: ExtensionTab } = ExtensionDetailRoutes;
+
+const TAB_VALUES = new Set<string>(Object.values(ExtensionTab));
+
+const isTabSegment = (segment?: string): segment is ExtensionDetailRoutes.Tab =>
+    TAB_VALUES.has(segment ?? '');
+
+const parseTab = (segment?: string): ExtensionDetailRoutes.Tab =>
+    isTabSegment(segment) ? segment : ExtensionTab.OVERVIEW;
+
+const buildExtensionPath = (namespace: string, name: string, target?: string, ...extra: string[]) => {
+    const arr = [ExtensionDetailRoutes.ROOT, namespace, name];
+    if (target) arr.push(target);
+    arr.push(...extra);
+    return createRoute(arr);
 };
 
-const StyledRouteLink = styled(RouteLink)(link);
-const StyledLink = styled(Link)(link);
-const StyledHoverPopover = styled(HoverPopover)(alignVertically);
+const UnverifiedBanner: FunctionComponent<{
+    extension: Extension;
+    headerTextColor: string;
+    themeType: PaletteMode;
+}> = ({ extension, headerTextColor, themeType }) => {
+    const { pageSettings } = useContext(MainContext);
 
-export const ExtensionDetail: FunctionComponent = () => {
-    const theme = useTheme();
-    const [loading, setLoading] = useState<boolean>(true);
-    const [notFoundError, setNotFoundError] = useState<string>();
-    const [extension, setExtension] = useState<Extension>();
-    const [icon, setIcon] = useState<string>();
+    if (extension.verified) return null;
 
-    const navigate = useNavigate();
-    const { namespace, name, target, version } = useParams();
-    const { handleError, pageSettings, service } = useContext(MainContext);
-
-    const abortController = useRef<AbortController>(new AbortController());
-
-    useEffect(() => {
-        if (extension === undefined) {
-            updateExtension();
-        }
-        return () => {
-            abortController.current.abort();
-            if (icon) {
-                URL.revokeObjectURL(icon);
-            }
-        };
-    }, []);
-
-    useEffect(() => {
-        if (versionPointsToTab(version)) {
-            return;
-        }
-
-        setLoading(true);
-        updateExtension();
-    }, [namespace, name, target, version]);
-
-    const updateExtension = async (): Promise<void> => {
-        const extensionUrl = getExtensionApiUrl();
-        try {
-            const response = await service.getExtensionDetail(abortController.current, extensionUrl);
-            if (isError(response)) {
-                throw response;
-            }
-            const extension = response as Extension;
-            const icon = await updateIcon(extension);
-            setExtension(extension);
-            setIcon(icon);
-        } catch (err) {
-            if (err && err.status === 404) {
-                setNotFoundError(`Extension Not Found: ${namespace}.${name}`);
-            } else {
-                handleError(err);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getExtensionApiUrl = (): string => {
-        return versionPointsToTab(version)
-            ? service.getExtensionApiUrl({ namespace: namespace as string, name: name as string })
-            : service.getExtensionApiUrl({ namespace: namespace as string, name: name as string, target: target, version: version });
-    };
-
-    const updateIcon = async (extension: Extension): Promise<string | undefined> => {
-        if (icon) {
-            URL.revokeObjectURL(icon);
-        }
-
-        return await service.getExtensionIcon(abortController.current, extension);
-    };
-
-    const onVersionSelect = (version: string): void => {
-        const arr = [ExtensionDetailRoutes.ROOT, namespace as string, name as string];
-        if (target) {
-            arr.push(target);
-        }
-        if (version !== 'latest') {
-            arr.push(version);
-        }
-
-        navigate(createRoute(arr));
-    };
-
-    const onReviewUpdate = (): void => {
-        updateExtension();
-    };
-
-    const handleTabChange = (event: ChangeEvent, newTab: string): void => {
-        const previousTab = versionPointsToTab(version) ? version : 'overview';
-        if (newTab !== previousTab) {
-            const arr = [ExtensionDetailRoutes.ROOT, namespace as string, name as string];
-            if (target) {
-                arr.push(target);
-            }
-
-            if (newTab === 'reviews' || newTab === 'changes') {
-                arr.push(newTab);
-            } else if (version && !versionPointsToTab(version)) {
-                arr.push(version);
-            } else if (extension && !isLatestVersion(extension)) {
-                arr.push(extension.version);
-            }
-
-            navigate(createRoute(arr));
-        }
-    };
-
-    const isLatestVersion = (extension: Extension): boolean => {
-        return extension.versionAlias.indexOf('latest') >= 0;
-    };
-
-    const versionPointsToTab = (version?: string): boolean => {
-        return version === 'reviews' || version === 'changes';
-    };
-
-    const renderHeaderTags = (extension?: Extension): ReactNode => {
-        const { extensionHeadTags: ExtensionHeadTagsComponent } = pageSettings.elements;
-        return <>
-            { ExtensionHeadTagsComponent
-                ? <ExtensionHeadTagsComponent extension={extension} pageSettings={pageSettings}/>
-                : null
-            }
-        </>;
-    };
-
-    const renderNotFound = (): ReactNode => {
-        return <>
-            {
-                notFoundError ?
-                <Box p={4}>
-                    <Typography variant='h5'>
-                        {notFoundError}
-                    </Typography>
-                </Box>
-                : null
-            }
-        </>;
-    };
-
-    const renderTab = (tab: string, extension: Extension): ReactNode => {
-        switch (tab) {
-            case 'changes':
-                return <ExtensionDetailChanges extension={extension} />;
-            case 'reviews':
-                return <ExtensionDetailReviews extension={extension} reviewsDidUpdate={onReviewUpdate} />;
-            default:
-                return <ExtensionDetailOverview extension={extension} selectVersion={onVersionSelect} />;
-        }
-    };
-
-    const renderExtension = (extension: Extension): ReactNode => {
-        const tab = versionPointsToTab(version) ? version as string : 'overview';
-        const themeType = (extension.galleryTheme || pageSettings.themeType) ?? 'light';
-        const fallbackColor = theme.palette.neutral[themeType] as string;
-        let headerColor = extension.galleryColor || fallbackColor;
-
-        try {
-            // check if the color string can be decomposed, i.e. if mui understands it, otherwise
-            // fall back to the neutral color of the used palette.
-            decomposeColor(headerColor);
-        } catch (error) {
-            headerColor = fallbackColor;
-        }
-
-        const headerTextColor = theme.palette.getContrastText(headerColor);
-
-        return <>
-            <Box
-                sx={{
-                    bgcolor: headerColor,
-                    color: headerTextColor,
-                    filter: extension.deprecated ? 'grayscale(100%)' : undefined
-                }}
-            >
-                <Container maxWidth='xl'>
-                    <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column', py: 4, px: 0 }}>
-                        {renderBanner(extension, headerTextColor, themeType)}
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                width: '100%',
-                                flexDirection: { xs: 'column', sm: 'column', md: 'row', lg: 'row', xl: 'row' },
-                                textAlign: { xs: 'center', sm: 'center', md: 'start', lg: 'start', xl: 'start' },
-                                alignItems: { xs: 'center', sm: 'center', md: 'normal', lg: 'normal', xl: 'normal' }
-                            }}
-                        >
-                            <Box
-                                component='img'
-                                src={icon ?? pageSettings.urls.extensionDefaultIcon }
-                                alt={extension.displayName ?? extension.name}
-                                sx={{
-                                    height: '7.5rem',
-                                    maxWidth: '9rem',
-                                    mr: { xs: 0, sm: 0, md: '2rem', lg: '2rem', xl: '2rem' },
-                                    pt: 1
-                                }}
-                            />
-                            {renderHeaderInfo(extension, headerTextColor)}
-                        </Box>
-                    </Box>
-                </Container>
+    return (
+        <Paper
+            sx={{
+                display: 'flex',
+                maxWidth: '800px',
+                p: 2,
+                mt: 0,
+                mx: { xs: 0, md: 6 },
+                mb: { xs: 2, md: 4 },
+                bgcolor: `warning.${themeType}`,
+                color: headerTextColor,
+                '& a': { color: headerTextColor, textDecoration: 'underline' }
+            }}
+        >
+            <WarningIcon fontSize='large' />
+            <Box ml={1}>
+                This version of the &ldquo;{extension.displayName ?? extension.name}&rdquo; extension was published
+                by <Link href={extension.publishedBy.homepage}>
+                    {extension.publishedBy.loginName}
+                </Link>. That user account is not a verified publisher of
+                the namespace &ldquo;{extension.namespace}&rdquo; of
+                this extension. <Link href={pageSettings.urls.namespaceAccessInfo} target='_blank'>
+                    See the documentation
+                </Link> to learn how we handle namespaces and what you can do to eliminate this warning.
             </Box>
-            <Container maxWidth='xl'>
-                <Box>
-                    <Box>
-                        <Tabs value={tab} onChange={handleTabChange} indicatorColor='secondary'>
-                            <Tab value='overview' label='Overview' />
-                            <Tab value='changes' label='Changes' />
-                            <Tab value='reviews' label='Ratings &amp; Reviews' />
-                        </Tabs>
-                        {renderTab(tab, extension)}
-                    </Box>
-                </Box>
-            </Container>
-        </>;
-    };
+        </Paper>
+    );
+};
 
-    const renderBanner = (extension: Extension, headerTextColor: string, themeType: PaletteMode): ReactNode => {
-        if (!extension.verified) {
-            return <Paper
-                sx={{
-                    display: 'flex',
-                    maxWidth: '800px',
-                    p: 2,
-                    mt: 0,
-                    mr: { xs: 0, sm: 0, md: 6, lg: 6, xl: 6 },
-                    mb: { xs: 2, sm: 2, md: 4, lg: 4, xl: 4 },
-                    ml: { xs: 0, sm: 0, md: 6, lg: 6, xl: 6 },
-                    bgcolor: `warning.${themeType}`,
-                    color: headerTextColor,
-                    '& a': {
-                        color: headerTextColor,
-                        textDecoration: 'underline'
-                    }
-                }}
-            >
-                <WarningIcon fontSize='large' />
-                <Box ml={1}>
-                    This version of the &ldquo;{extension.displayName ?? extension.name}&rdquo; extension was published
-                    by <Link href={extension.publishedBy.homepage}>
-                        {extension.publishedBy.loginName}
-                    </Link>. That user account is not a verified publisher of
-                    the namespace &ldquo;{extension.namespace}&rdquo; of
-                    this extension. <Link
-                        href={pageSettings.urls.namespaceAccessInfo}
-                        target='_blank' >
-                        See the documentation
-                    </Link> to learn how we handle namespaces and what you can do to eliminate this warning.
-                </Box>
-            </Paper>;
-        }
-        return null;
-    };
+const VerificationIcon: FunctionComponent<{
+    verified: boolean;
+    color: string;
+}> = ({ verified, color }) => {
+    const { pageSettings } = useContext(MainContext);
+    const icon = verified ? <VerifiedUserIcon fontSize='small' /> : <WarningIcon fontSize='small' />;
+    const title = verified ? 'Verified publisher' : 'Unverified publisher';
 
-    const renderHeaderInfo = (extension: Extension, headerTextColor: string): ReactNode => {
-        const numberFormat = new Intl.NumberFormat(undefined, { notation: 'compact', compactDisplay: 'short' } as any);
-        const downloadCountFormatted = numberFormat.format(extension.downloadCount || 0);
-        const reviewCountFormatted = numberFormat.format(extension.reviewCount || 0);
-        const previewBadgeStyle = (theme: Theme) => ({
-            "& .MuiBadge-badge": {
-                top: theme.spacing(1),
-                right: theme.spacing(-5)
-            }
-        });
+    return (
+        <StyledLink href={pageSettings.urls.namespaceAccessInfo} target='_blank' title={title} sx={{ color }}>
+            {icon}
+        </StyledLink>
+    );
+};
 
+const UserPopover: FunctionComponent<{
+    user: UserData;
+    color: string;
+}> = ({ user, color }) => {
+    const popupContent = (
+        <Box display='flex' flexDirection='row'>
+            {user.avatarUrl && (
+                <Avatar
+                    src={user.avatarUrl}
+                    alt={user.fullName ?? user.loginName}
+                    variant='rounded'
+                    sx={{ width: '60px', height: '60px' }}
+                />
+            )}
+            <Box ml={2}>
+                {user.fullName && <Typography variant='h6'>{user.fullName}</Typography>}
+                <Typography variant='body1'>{user.loginName}</Typography>
+            </Box>
+        </Box>
+    );
+
+    return (
+        <StyledHoverPopover id={`user_${user.loginName}_popover`} popupContent={popupContent}>
+            <StyledLink href={user.homepage} sx={{ color }}>
+                {user.avatarUrl
+                    ? <>{user.loginName}&nbsp;<Avatar src={user.avatarUrl} alt={user.loginName} sx={{ width: '20px', height: '20px' }} /></>
+                    : user.loginName}
+            </StyledLink>
+        </StyledHoverPopover>
+    );
+};
+
+const LicenseLink: FunctionComponent<{
+    extension: Extension;
+    color: string;
+}> = ({ extension, color }) => {
+    if (extension.files.license) {
         return (
+            <StyledLink href={extension.files.license} sx={{ color }} title={extension.license ? 'License type' : undefined}>
+                {extension.license || 'Provided license'}
+            </StyledLink>
+        );
+    }
+    return <>{extension.license || 'Unlicensed'}</>;
+};
+
+const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', compactDisplay: 'short' } as Intl.NumberFormatOptions);
+
+const ExtensionHeaderInfo: FunctionComponent<{
+    extension: Extension;
+    headerTextColor: string;
+}> = ({ extension, headerTextColor }) => {
+    const downloadCountFormatted = compactNumber.format(extension.downloadCount || 0);
+    const reviewCountFormatted = compactNumber.format(extension.reviewCount || 0);
+
+    return (
         <Box overflow='auto' sx={{ pt: 1, overflow: 'visible' }}>
-            <Badge color='secondary' badgeContent='Preview' invisible={!extension.preview} sx={previewBadgeStyle}>
+            <PreviewBadge color='secondary' badgeContent='Preview' invisible={!extension.preview}>
                 <Typography variant='h5' sx={{ fontWeight: 'bold', mb: 1 }}>
-                    { extension.displayName ?? extension.name}
+                    {extension.displayName ?? extension.name}
                 </Typography>
-            </Badge>
-            { extension.deprecated &&
+            </PreviewBadge>
+
+            {extension.deprecated && (
                 <Stack direction='row' alignItems='center'>
                     <WarningIcon fontSize='small' />
                     <Typography>
-                        This extension has been deprecated.{extension.replacement && <>&nbsp;Use <StyledLink sx={{ color: headerTextColor }} href={extension.replacement.url}>
-                            {extension.replacement.displayName}
-                        </StyledLink> instead.</>}
+                        This extension has been deprecated.
+                        {extension.replacement && (
+                            <>&nbsp;Use <StyledLink sx={{ color: headerTextColor }} href={extension.replacement.url}>
+                                {extension.replacement.displayName}
+                            </StyledLink> instead.</>
+                        )}
                     </Typography>
                 </Stack>
-            }
-            <Box
-                sx={{
-                    ...alignVertically,
-                    color: headerTextColor,
-                    flexDirection: { xs: 'column', sm: 'column', md: 'row', lg: 'row', xl: 'row' }
-                }}
-            >
-                <Box sx={alignVertically}>
-                    {renderAccessInfo(extension, headerTextColor)}&nbsp;
-                    <StyledRouteLink
-                        to={createRoute([NamespaceDetailRoutes.ROOT, extension.namespace])}
-                        style={{ color: headerTextColor }}>
+            )}
+
+            <Box sx={{ display: 'flex', alignItems: 'center', color: headerTextColor, flexDirection: { xs: 'column', md: 'row' } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <VerificationIcon verified={extension.verified} color={headerTextColor} />&nbsp;
+                    <StyledRouteLink to={createRoute([NamespaceDetailRoutes.ROOT, extension.namespace])} style={{ color: headerTextColor }}>
                         {extension.namespaceDisplayName}
                     </StyledRouteLink>
                 </Box>
-                <TextDivider backgroundColor={headerTextColor} collapseSmall={true} />
-                <Box sx={alignVertically}>
-                    Published by&nbsp;{renderUser(extension.publishedBy, headerTextColor, alignVertically)}
+                <TextDivider backgroundColor={headerTextColor} collapseSmall />
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    Published by&nbsp;<UserPopover user={extension.publishedBy} color={headerTextColor} />
                 </Box>
-                <TextDivider backgroundColor={headerTextColor} collapseSmall={true} />
-                <Box sx={alignVertically}>
-                    {renderLicense(extension, headerTextColor)}
+                <TextDivider backgroundColor={headerTextColor} collapseSmall />
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <LicenseLink extension={extension} color={headerTextColor} />
                 </Box>
             </Box>
+
             <Box mt={2} mb={2} overflow='auto'>
                 <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{extension.description}</Typography>
             </Box>
-            <Box
-                sx={{
-                    ...alignVertically,
-                    color: headerTextColor,
-                    justifyContent: { xs: 'center', sm: 'center', md: 'flex-start', lg: 'flex-start', xl: 'flex-start' }
-                }}
-            >
-                <Box component='span' sx={alignVertically}
-                    title={extension.downloadCount && extension.downloadCount >= 1000 ? `${extension.downloadCount} downloads` : undefined}>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', color: headerTextColor, justifyContent: { xs: 'center', md: 'flex-start' } }}>
+                <Box component='span' sx={{ display: 'flex', alignItems: 'center' }}
+                    title={extension.downloadCount && extension.downloadCount >= 1000 ? `${extension.downloadCount} downloads` : undefined}
+                >
                     <SaveAltIcon fontSize='small' />&nbsp;{downloadCountFormatted}&nbsp;{extension.downloadCount === 1 ? 'download' : 'downloads'}
                 </Box>
                 <TextDivider backgroundColor={headerTextColor} />
                 <StyledLink
                     href={createRoute([ExtensionDetailRoutes.ROOT, extension.namespace, extension.name, 'reviews'])}
-                    sx={{
-                        ...alignVertically,
-                        color: headerTextColor
-                    }}
+                    sx={{ display: 'flex', alignItems: 'center', color: headerTextColor }}
                     title={
-                        extension.averageRating !== undefined ?
-                            `Average rating: ${getRoundedRating(extension.averageRating)} out of 5 (${extension.reviewCount} reviews)`
-                            : 'Not rated yet'
-                    }>
+                        extension.averageRating === undefined
+                            ? 'Not rated yet'
+                            : `Average rating: ${Math.round(extension.averageRating * 10) / 10} out of 5 (${extension.reviewCount} reviews)`
+                    }
+                >
                     <ExtensionRatingStars number={extension.averageRating ?? 0} fontSize='small' />
                     ({reviewCountFormatted})
                 </StyledLink>
-                </Box>
             </Box>
-        );
-    };
+        </Box>
+    );
+};
 
-    const getRoundedRating = (rating: number): number => {
-        return Math.round(rating * 10) / 10;
-    };
+const ExtensionHeader: FunctionComponent<{
+    extension: Extension;
+    icon: string | undefined;
+}> = ({ extension, icon }) => {
+    const theme = useTheme();
+    const { pageSettings } = useContext(MainContext);
 
-    const renderAccessInfo = (extension: Extension, themeColor: string): ReactNode => {
-        let icon: ReactElement;
-        let title: string;
-        if (extension.verified) {
-            icon = <VerifiedUserIcon fontSize='small' />;
-            title = 'Verified publisher';
-        } else {
-            icon = <WarningIcon fontSize='small' />;
-            title = 'Unverified publisher';
-        }
-        return <StyledLink
-            href={pageSettings.urls.namespaceAccessInfo}
-            target='_blank'
-            title={title}
-            sx={{ color: themeColor }}>
-            {icon}
-        </StyledLink>;
-    };
+    const themeType = (extension.galleryTheme || pageSettings.themeType) ?? 'light';
+    const fallbackColor = theme.palette.neutral[themeType] as string;
+    let headerColor = extension.galleryColor || fallbackColor;
 
-    const renderUser = (user: UserData, themeColor: string, alignVertically: SxProps<Theme>): ReactNode => {
-        const popupContent = <Box display='flex' flexDirection='row'>
-            {
-                user.avatarUrl ?
-                <Avatar
-                    src={user.avatarUrl}
-                    alt={user.fullName ?? user.loginName}
-                    variant='rounded'
-                    sx={{ width: '60px', height: '60px' }} />
-                : null
-            }
-            <Box ml={2}>
-                {
-                    user.fullName ?
-                    <Typography variant='h6'>{user.fullName}</Typography>
-                    : null
-                }
-                <Typography variant='body1'>{user.loginName}</Typography>
-            </Box>
-        </Box>;
-        return <StyledHoverPopover
-            id={`user_${user.loginName}_popover`}
-            popupContent={popupContent}
+    try {
+        decomposeColor(headerColor);
+    } catch {
+        headerColor = fallbackColor;
+    }
+
+    const headerTextColor = theme.palette.getContrastText(headerColor);
+
+    return (
+        <Box
+            sx={{
+                bgcolor: headerColor,
+                color: headerTextColor,
+                filter: extension.deprecated ? 'grayscale(100%)' : undefined
+            }}
         >
-            <StyledLink href={user.homepage} sx={{ color: themeColor }}>
-                {
-                    user.avatarUrl ?
-                    <>
-                        {user.loginName}&nbsp;<Avatar
-                            src={user.avatarUrl}
-                            alt={user.loginName}
-                            sx={{ width: '20px', height: '20px' }} />
-                    </>
-                    : user.loginName
-                }
-            </StyledLink>
-        </StyledHoverPopover>;
-    };
+            <Container maxWidth='xl'>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column', py: 4, px: 0 }}>
+                    <UnverifiedBanner extension={extension} headerTextColor={headerTextColor} themeType={themeType} />
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            width: '100%',
+                            flexDirection: { xs: 'column', md: 'row' },
+                            textAlign: { xs: 'center', md: 'start' },
+                            alignItems: { xs: 'center', md: 'normal' }
+                        }}
+                    >
+                        <Box
+                            component='img'
+                            src={icon ?? pageSettings.urls.extensionDefaultIcon}
+                            alt={extension.displayName ?? extension.name}
+                            sx={{ height: '7.5rem', maxWidth: '9rem', mr: { xs: 0, md: '2rem' }, pt: 1 }}
+                        />
+                        <ExtensionHeaderInfo extension={extension} headerTextColor={headerTextColor} />
+                    </Box>
+                </Box>
+            </Container>
+        </Box>
+    );
+};
 
-    const renderLicense = (extension: Extension, themeColor: string): ReactNode => {
-        if (extension.files.license) {
-            return <StyledLink
-                href={extension.files.license}
-                sx={{ color: themeColor }}
-                title={extension.license ? 'License type' : undefined} >
-                {extension.license || 'Provided license'}
-            </StyledLink>;
-        } else if (extension.license) {
-            return extension.license;
-        } else {
-            return 'Unlicensed';
-        }
-    };
+export const ExtensionDetail: FunctionComponent = () => {
+    const { namespace, name, target, '*': splat } = useParams();
 
-    return <>
-        { renderHeaderTags(extension) }
-        <DelayedLoadIndicator loading={loading} />
-        {
-            extension
-                ? renderExtension(extension)
-                : renderNotFound()
-        }
-    </>;
+    const navigate = useNavigate();
+    const { pageSettings } = useContext(MainContext);
+
+    const version = splat || undefined;
+    const effectiveVersion = isTabSegment(version) ? undefined : version;
+    const activeTab = parseTab(version);
+
+    // React Router v6 returns a possibly undefined type for params, but our route configuration guarantees these will be defined.
+    const { loading, error, extension, icon, reload } = useExtensionDetail(namespace!, name!, target!, effectiveVersion!);
+
+    const navigateToVersion = useCallback((selectedVersion: string) => {
+        if (!namespace || !name) return;
+        navigate(selectedVersion === 'latest'
+            ? buildExtensionPath(namespace, name, target)
+            : buildExtensionPath(namespace, name, target, selectedVersion));
+    }, [navigate, namespace, name, target]);
+
+    if (!namespace || !name) return null;
+
+    const basePath = buildExtensionPath(namespace, name, target);
+    const reviewsPath = buildExtensionPath(namespace, name, target, ExtensionTab.REVIEWS);
+    const changesPath = buildExtensionPath(namespace, name, target, ExtensionTab.CHANGES);
+
+    let overviewPath = basePath;
+    if (version && !isTabSegment(version)) {
+        overviewPath = buildExtensionPath(namespace, name, target, version);
+    } else if (extension && !extension.versionAlias.includes('latest')) {
+        overviewPath = buildExtensionPath(namespace, name, target, extension.version);
+    }
+
+    const HeadTags = pageSettings.elements.extensionHeadTags;
+
+    return (
+        <>
+            {HeadTags && <HeadTags extension={extension} pageSettings={pageSettings} />}
+            <DelayedLoadIndicator loading={loading} />
+            {extension && (
+                <>
+                    <ExtensionHeader extension={extension} icon={icon} />
+                    <Container maxWidth='xl'>
+                        <Tabs value={activeTab} indicatorColor='secondary'>
+                            <Tab value={ExtensionTab.OVERVIEW} label='Overview' component={RouteLink} to={overviewPath} />
+                            <Tab value={ExtensionTab.CHANGES} label='Changes' component={RouteLink} to={changesPath} />
+                            <Tab value={ExtensionTab.REVIEWS} label='Ratings &amp; Reviews' component={RouteLink} to={reviewsPath} />
+                        </Tabs>
+                        <Routes>
+                            <Route path={ExtensionTab.REVIEWS} element={<ExtensionDetailReviews extension={extension} reviewsDidUpdate={reload} />} />
+                            <Route path={ExtensionTab.CHANGES} element={<ExtensionDetailChanges extension={extension} />} />
+                            <Route path='*' element={<ExtensionDetailOverview extension={extension} selectVersion={navigateToVersion} />} />
+                        </Routes>
+                    </Container>
+                </>
+            )}
+            {error && <Box p={4}><Typography variant='h5'>{error.message}</Typography></Box>}
+        </>
+    );
 };
