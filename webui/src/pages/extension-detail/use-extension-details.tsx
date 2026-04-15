@@ -40,6 +40,15 @@ export const useExtensionDetail = (
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    return () => {
+      abortController.current.abort();
+      if (icon) {
+        URL.revokeObjectURL(icon);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!namespace || !name) return;
 
     const fetchExtension = async () => {
@@ -65,9 +74,14 @@ export const useExtensionDetail = (
 
     setLoading(true);
     fetchExtension()
-      .then(() => setLoading(false))
+      .then(() => {
+        setLoading(false);
+      })
       .catch(err => {
-          if (abortController.current.signal.aborted) return;
+          if (abortController.current.signal.aborted) {
+            setLoading(false);
+            return;
+          }
 
           const errorResponse = err as Partial<ErrorResponse>;
           if (errorResponse?.status === 404) {
@@ -78,13 +92,6 @@ export const useExtensionDetail = (
           }
           setLoading(false);
       });
-
-    return () => {
-      abortController.current.abort();
-      if (icon) {
-        URL.revokeObjectURL(icon);
-      }
-    };
   }, [namespace, name, target, version, reloadKey]);
 
   // This function updates the reloadKey state to trigger a refetch of the extension details.
