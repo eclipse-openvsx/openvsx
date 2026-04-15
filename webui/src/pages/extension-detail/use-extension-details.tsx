@@ -77,7 +77,7 @@ export const useExtensionDetail = (
             handleError(err as Error | Partial<ErrorResponse>);
           }
           setLoading(false);
-        });
+      });
 
     return () => {
       abortController.current.abort();
