@@ -2,6 +2,13 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
+## [next] (unreleased)
+
+### Fixed
+
+- Refactor extension detail page to avoid unnecessary data reloads ([#1760](https://github.com/eclipse/openvsx/pull/1760))
+- Fix refreshing of extension readme when switching versions ([#1760](https://github.com/eclipse/openvsx/pull/1760))
+
 ## [v0.20.0] (13/04/2026)
 
 ### Added

@@ -18,12 +18,11 @@ export namespace ExtensionDetailRoutes {
         export const NAMESPACE = ':namespace';
         export const NAME = ':name';
         export const TARGET = `:target(${getTargetPlatforms().join('|')})`;
-        export const VERSION = ':version?';
     }
 
     export const ROOT = 'extension';
-    export const MAIN = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.VERSION]);
-    export const MAIN_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, Parameters.VERSION]);
+    export const MAIN = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, '*']);
+    export const MAIN_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, '*']);
     export const LATEST = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME]);
     export const LATEST_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET]);
     export const PRE_RELEASE = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'pre-release']);
