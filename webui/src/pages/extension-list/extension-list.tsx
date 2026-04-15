@@ -8,134 +8,38 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useEffect, useRef, useState } from 'react';
+import { FunctionComponent, useContext, useEffect, useMemo } from 'react';
 import InfiniteScroll from 'react-infinite-scroller';
 import { Box, Grid, CircularProgress, Container } from '@mui/material';
 import { ExtensionListItem } from './extension-list-item';
-import { isError, SearchEntry, SearchResult } from '../../extension-registry-types';
 import { ExtensionFilter } from '../../extension-registry-service';
-import { debounce } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { MainContext } from '../../context';
+import { useSearch } from '../../hooks/extension-list/use-search';
 
 export const ExtensionList: FunctionComponent<ExtensionListProps> = props => {
-    const abortController = useRef<AbortController>(new AbortController());
-    const cancellationToken = useRef<{ timeout?: number }>({});
-    const enableLoadMore = useRef(false);
-    const lastRequestedPage = useRef(0);
-    const pageOffset = useRef(0);
-    const filterSize = useRef(props.filter.size ?? 10);
-    const context = useContext(MainContext);
-    const [extensions, setExtensions] = useState<SearchEntry[]>([]);
-    const [extensionKeys, setExtensionKeys] = useState<Set<string>>(new Set<string>());
-    const [appliedFilter, setAppliedFilter] = useState<ExtensionFilter>();
-    const [hasMore, setHasMore] = useState<boolean>(false);
-    const [loading, setLoading] = useState<boolean>(true);
+    const { handleError } = useContext(MainContext);
+
+    const { data, isFetching, fetchNextPage, hasNextPage, error } = useSearch(props.filter);
+
+    const extensions = useMemo(() => data?.pages.flatMap(p => p.extensions) ?? [], [data]);
+    const totalSize = useMemo(() => data?.pages[0]?.totalSize ?? 0, [data]);
 
     useEffect(() => {
-        enableLoadMore.current = true;
-        return () => {
-            abortController.current.abort();
-            clearTimeout(cancellationToken.current.timeout);
-            enableLoadMore.current = false;
-        };
-    }, []);
+        props.onUpdate(totalSize);
+    }, [totalSize]);
 
     useEffect(() => {
-        filterSize.current = props.filter.size ?? filterSize.current;
-        debounce(
-            async () => {
-                try {
-                    const result = await context.service.search(abortController.current, props.filter);
-                    if (isError(result)) {
-                        throw result;
-                    }
+        if (error) handleError(error);
+    }, [error]);
 
-                    const searchResult = result as SearchResult;
-                    props.onUpdate(searchResult.totalSize);
-                    const actualSize = searchResult.extensions.length;
-                    pageOffset.current = lastRequestedPage.current;
-                    const extensionKeys = new Set<string>();
-                    for (const ext of searchResult.extensions) {
-                        extensionKeys.add(`${ext.namespace}.${ext.name}`);
-                    }
-
-                    setExtensions(searchResult.extensions);
-                    setExtensionKeys(extensionKeys);
-                    setAppliedFilter(props.filter);
-                    setHasMore(actualSize < searchResult.totalSize && actualSize > 0);
-                } catch (err) {
-                    context.handleError(err);
-                } finally {
-                    setLoading(false);
-                }
-            },
-            cancellationToken.current,
-            props.debounceTime
-        );
-    }, [props.filter.category, props.filter.query, props.filter.sortBy, props.filter.sortOrder, props.debounceTime]);
-
-    const loadMore = async (p: number): Promise<void> => {
-        setLoading(true);
-        setHasMore(false);
-        lastRequestedPage.current = p;
-        const filter = copyFilter(appliedFilter as ExtensionFilter);
-        if (!isSameFilter(props.filter, filter)) {
-            return;
-        }
-        try {
-            filter.offset = (p - pageOffset.current) * filterSize.current;
-            const result = await context.service.search(abortController.current, filter);
-            if (isError(result)) {
-                throw result;
-            }
-
-            const newExtensions: SearchEntry[] = [];
-            const newExtensionKeys = new Set<string>();
-            newExtensions.push(...extensions);
-            extensionKeys.forEach((key) => newExtensionKeys.add(key));
-            const searchResult = result as SearchResult;
-            if (enableLoadMore.current && isSameFilter(props.filter, filter)) {
-                // Check for duplicate keys to avoid problems due to asynchronous user edit / loadMore call
-                for (const ext of searchResult.extensions) {
-                    const key = `${ext.namespace}.${ext.name}`;
-                    if (!extensionKeys.has(key)) {
-                        newExtensions.push(ext);
-                        newExtensionKeys.add(key);
-                    }
-                }
-
-                setExtensions(newExtensions);
-                setExtensionKeys(newExtensionKeys);
-                setHasMore(extensions.length < searchResult.totalSize && searchResult.extensions.length > 0);
-            }
-        } catch (err) {
-            context.handleError(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const isSameFilter = (f1: ExtensionFilter, f2: ExtensionFilter): boolean => {
-        return f1.category === f2.category && f1.query === f2.query && f1.sortBy === f2.sortBy && f1.sortOrder === f2.sortOrder;
-    };
-
-    const copyFilter = (f: ExtensionFilter): ExtensionFilter => {
-        return {
-            query: f.query,
-            category: f.category || '',
-            size: f.size,
-            offset: f.offset,
-            sortBy: f.sortBy,
-            sortOrder: f.sortOrder
-        };
-    };
+    const loadMore = (): Promise<void> => fetchNextPage().then(() => undefined);
 
     const extensionList = extensions.map((ext, idx) => (
         <ExtensionListItem
             idx={idx}
             extension={ext}
-            filterSize={filterSize.current}
+            filterSize={props.filter.size ?? 10}
             key={`${ext.namespace}.${ext.name}`} />
     ));
 
@@ -144,10 +48,10 @@ export const ExtensionList: FunctionComponent<ExtensionListProps> = props => {
     </Box>;
 
     return <>
-        <DelayedLoadIndicator loading={loading}/>
+        <DelayedLoadIndicator loading={isFetching}/>
         <InfiniteScroll
             loadMore={loadMore}
-            hasMore={hasMore}
+            hasMore={!!hasNextPage}
             loader={loader}
             threshold={200} >
             <Container maxWidth='xl'>
