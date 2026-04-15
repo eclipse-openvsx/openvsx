@@ -206,7 +206,7 @@ const ExtensionHeaderInfo: FunctionComponent<{
                     </StyledRouteLink>
                 </Box>
                 <TextDivider backgroundColor={headerTextColor} collapseSmall />
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
                     Published by&nbsp;<UserPopover user={extension.publishedBy} color={headerTextColor} />
                 </Box>
                 <TextDivider backgroundColor={headerTextColor} collapseSmall />
