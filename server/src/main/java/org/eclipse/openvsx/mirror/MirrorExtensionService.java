@@ -152,8 +152,8 @@ public class MirrorExtensionService {
                 mirrorExtensionVersion(json);
                 data.getMirroredVersions().increment();
             } catch (Exception e) {
+                jobContext.logger().info("failure to mirror " + NamingUtil.toLogFormat(json) + ". Reason: " + t.getMessage());
                 data.getFailedVersions().increment();
-                throw e;
             }
         }
     }
