@@ -14,12 +14,6 @@
 import { createRoute, getTargetPlatforms } from '../../utils';
 
 export namespace ExtensionDetailRoutes {
-    export enum Tab {
-        OVERVIEW = 'overview',
-        CHANGES = 'changes',
-        REVIEWS = 'reviews',
-    }
-
     export namespace Parameters {
         export const NAMESPACE = ':namespace';
         export const NAME = ':name';

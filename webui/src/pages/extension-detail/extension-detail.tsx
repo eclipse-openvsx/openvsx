@@ -46,14 +46,18 @@ const PreviewBadge = styled(Badge)(({ theme }) => ({
     '& .MuiBadge-badge': { top: theme.spacing(1), right: theme.spacing(-5) }
 }));
 
-const { Tab: ExtensionTab } = ExtensionDetailRoutes;
+enum ExtensionTab {
+    OVERVIEW = 'overview',
+    CHANGES = 'changes',
+    REVIEWS = 'reviews',
+}
 
 const TAB_VALUES = new Set<string>(Object.values(ExtensionTab));
 
-const isTabSegment = (segment?: string): segment is ExtensionDetailRoutes.Tab =>
+const isTabSegment = (segment?: string): segment is ExtensionTab =>
     TAB_VALUES.has(segment ?? '');
 
-const parseTab = (segment?: string): ExtensionDetailRoutes.Tab =>
+const parseTab = (segment?: string): ExtensionTab =>
     isTabSegment(segment) ? segment : ExtensionTab.OVERVIEW;
 
 const buildExtensionPath = (namespace: string, name: string, target?: string, ...extra: string[]) => {
