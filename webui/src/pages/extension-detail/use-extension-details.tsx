@@ -39,33 +39,34 @@ export const useExtensionDetail = (
   const [icon, setIcon] = useState<string>();
   const [reloadKey, setReloadKey] = useState(0);
 
-  const fetchExtension = async () => {
-    setExtension(undefined);
-    setError(undefined);
-    setIcon(undefined);
+  useEffect(() => {
+    if (!namespace || !name) return;
 
-    const extensionUrl = service.getExtensionApiUrl({ namespace, name, target, version });
-    const response = await service.getExtensionDetail(abortController.current, extensionUrl);
-    if (isError(response)) throw response;
+    const fetchExtension = async () => {
+      setExtension(undefined);
+      setError(undefined);
+      setIcon(undefined);
 
-    const ext = response as Extension;
-    const iconUrl = await service.getExtensionIcon(abortController.current, ext);
-    if (abortController.current.signal.aborted) {
-      if (iconUrl) {
-        URL.revokeObjectURL(iconUrl);
+      const extensionUrl = service.getExtensionApiUrl({ namespace, name, target, version });
+      const response = await service.getExtensionDetail(abortController.current, extensionUrl);
+      if (isError(response)) throw response;
+
+      const ext = response as Extension;
+      const iconUrl = await service.getExtensionIcon(abortController.current, ext);
+      if (abortController.current.signal.aborted) {
+        if (iconUrl) {
+          URL.revokeObjectURL(iconUrl);
+        }
+      } else {
+        setExtension(ext);
+        setIcon(iconUrl);
       }
-    } else {
-      setExtension(ext);
-      setIcon(iconUrl);
-    }
-  };
+    };
 
-  function loadExtension() {
     setLoading(true);
-
     fetchExtension()
-        .then(() => setLoading(false))
-        .catch(err => {
+      .then(() => setLoading(false))
+      .catch(err => {
           if (abortController.current.signal.aborted) return;
 
           const errorResponse = err as Partial<ErrorResponse>;
@@ -77,12 +78,6 @@ export const useExtensionDetail = (
           }
           setLoading(false);
         });
-  }
-
-  useEffect(() => {
-    if (!namespace || !name) return;
-
-    loadExtension();
 
     return () => {
       abortController.current.abort();
