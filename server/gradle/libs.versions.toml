@@ -1,7 +1,7 @@
 [versions]
 aws             = "2.29.29"
 azure           = "12.23.0"
-bouncycastle    = "1.80"
+bouncycastle    = "1.84"
 bucket4j-spring = "0.12.10"
 bucket4j        = "8.10.1"
 commons-lang3   = "3.20.0"
