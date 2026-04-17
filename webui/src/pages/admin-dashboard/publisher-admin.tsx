@@ -16,7 +16,7 @@ import { MainContext } from '../../context';
 import { StyledInput } from './namespace-input';
 import { SearchListContainer } from './search-list-container';
 import { PublisherDetails } from './publisher-details';
-import { AdminDashboardRoutes } from './admin-routes';
+import { AdminDashboardRoutes } from './admin-dashboard-routes';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const UpdateContext = createContext({ handleUpdate: () => { } });

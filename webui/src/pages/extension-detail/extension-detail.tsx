@@ -30,7 +30,6 @@ import { ExtensionDetailOverview } from './extension-detail-overview';
 import { ExtensionDetailChanges } from './extension-detail-changes';
 import { ExtensionDetailReviews } from './extension-detail-reviews';
 
-export { ExtensionDetailRoutes } from './extension-detail-routes';
 import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { useExtensionDetail } from './use-extension-details';
 

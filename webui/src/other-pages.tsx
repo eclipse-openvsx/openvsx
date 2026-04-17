@@ -25,11 +25,12 @@ import { ExtensionDetailRoutes } from './pages/extension-detail/extension-detail
 import { getCookieValueByKey, setCookie } from './utils';
 import { UserData } from './extension-registry-types';
 
-const ExtensionListContainer = lazy(() => import('./pages/extension-list/extension-list-container').then(m => ({ default: m.ExtensionListContainer })));
+import { ExtensionDetail } from './pages/extension-detail/extension-detail';
+import { ExtensionListContainer } from './pages/extension-list/extension-list-container';
+import { NamespaceDetail } from './pages/namespace-detail/namespace-detail';
+import { NotFound } from './not-found';
+
 const UserSettings = lazy(() => import('./pages/user/user-settings').then(m => ({ default: m.UserSettings })));
-const NamespaceDetail = lazy(() => import('./pages/namespace-detail/namespace-detail').then(m => ({ default: m.NamespaceDetail })));
-const ExtensionDetail = lazy(() => import('./pages/extension-detail/extension-detail').then(m => ({ default: m.ExtensionDetail })));
-const NotFound = lazy(() => import('./not-found').then(m => ({ default: m.NotFound })));
 
 const ToolbarItem = styled(Box)({
     display: 'flex',

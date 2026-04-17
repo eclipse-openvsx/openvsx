@@ -16,8 +16,6 @@ import { ExtensionCategory, SortOrder, SortBy } from '../../extension-registry-t
 import { ExtensionList } from './extension-list';
 import { ExtensionListHeader } from './extension-list-header';
 
-export { ExtensionListRoutes } from './extension-list-routes';
-
 export const ExtensionListContainer: FunctionComponent = () => {
 
     const [searchQuery, setSearchQuery] = useState('');

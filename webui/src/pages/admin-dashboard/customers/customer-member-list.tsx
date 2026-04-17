@@ -24,7 +24,7 @@ import {
     ListItemText, IconButton, type PaperProps, Paper
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { AdminDashboardRoutes } from '../admin-routes';
+import { AdminDashboardRoutes } from '../admin-dashboard-routes';
 import { MainContext } from '../../../context';
 import { CustomerMembership, Customer, UserData, isError } from '../../../extension-registry-types';
 import { AddUserDialog } from '../../user/add-user-dialog';

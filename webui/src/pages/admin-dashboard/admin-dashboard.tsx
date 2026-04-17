@@ -42,18 +42,17 @@ import { MainContext } from '../../context';
 import { NavigationItem } from '../../components/sidepanel/navigation-item';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 
-const CustomerDetails = lazy(() => import('./customers/customer-details').then(m => ({ default: m.CustomerDetails })));
-const Customers = lazy(() => import('./customers/customers').then(m => ({ default: m.Customers })));
-const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
-const Logs = lazy(() => import('./logs/logs').then(m => ({ default: m.Logs })));
-const NamespaceAdmin = lazy(() => import('./namespace-admin').then(m => ({ default: m.NamespaceAdmin })));
-const PublisherAdmin = lazy(() => import('./publisher-admin').then(m => ({ default: m.PublisherAdmin })));
-const ScanAdmin = lazy(() => import('./scan-admin').then(m => ({ default: m.ScanAdmin })));
-const Tiers = lazy(() => import('./tiers/tiers').then(m => ({ default: m.Tiers })));
-const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
-const Welcome = lazy(() => import('./welcome').then(m => ({ default: m.Welcome })));
+import { NamespaceAdmin } from './namespace-admin';
+import { PublisherAdmin } from './publisher-admin';
+import { ScanAdmin } from './scan-admin';
+import { Tiers } from './tiers/tiers';
+import { Customers } from './customers/customers';
+import { CustomerDetails } from './customers/customer-details';
+import { Logs } from './logs/logs';
+import { Welcome } from './welcome';
 
-export { AdminDashboardRoutes } from './admin-dashboard-routes';
+const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
+const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 
 const Message: FunctionComponent<{message: string}> = ({ message }) => {
     return (<Box sx={{

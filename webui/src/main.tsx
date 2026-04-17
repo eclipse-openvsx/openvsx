@@ -19,11 +19,11 @@ import { UserData, isError, ReportedError, isSuccess, LoginProviders } from './e
 import { MainContext } from './context';
 import { PageSettings } from './page-settings';
 import { ErrorResponse } from './server-request';
+import { OtherPages } from './other-pages';
 
 import '../src/main.css';
 
 const AdminDashboard = lazy(() => import('./pages/admin-dashboard/admin-dashboard').then(m => ({ default: m.AdminDashboard })));
-const OtherPages = lazy(() => import('./other-pages').then(m => ({ default: m.OtherPages })));
 
 export const Main: FunctionComponent<MainProps> = props => {
     const [user, setUser] = useState<UserData>();
@@ -104,11 +104,7 @@ export const Main: FunctionComponent<MainProps> = props => {
                         <AdminDashboard userLoading={userLoading} />
                     </Suspense>
                 } />
-                <Route path='*' element={
-                    <Suspense fallback={null}>
-                        <OtherPages user={user} userLoading={userLoading} />
-                    </Suspense>
-                } />
+                <Route path='*' element={<OtherPages user={user} userLoading={userLoading} />} />
             </Routes>
             {
                 error ?
