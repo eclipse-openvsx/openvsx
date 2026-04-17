@@ -4,6 +4,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ## [next] (unreleased)
 
+### Changed
+
+- Reduce size of main bundle by splitting it up in separate chunks that are dynamically loaded ([#1750](https://github.com/eclipse/openvsx/pull/1750))
+
 ### Fixed
 
 - Refactor extension detail page to avoid unnecessary data reloads ([#1760](https://github.com/eclipse/openvsx/pull/1760))

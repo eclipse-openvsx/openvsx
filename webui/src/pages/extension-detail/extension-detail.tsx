@@ -29,6 +29,7 @@ import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-rout
 import { ExtensionDetailOverview } from './extension-detail-overview';
 import { ExtensionDetailChanges } from './extension-detail-changes';
 import { ExtensionDetailReviews } from './extension-detail-reviews';
+
 import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { useExtensionDetail } from './use-extension-details';
 

@@ -15,3 +15,4 @@ yarn-error.log
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+stats.html

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useState } from 'react';
+import { FunctionComponent, ReactNode, useContext, useState, lazy, Suspense } from 'react';
 import {
     Box,
     Container,
@@ -35,22 +35,24 @@ import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
-import { CustomerDetails } from './customers/customer-details';
-import { Customers } from './customers/customers';
 import { DrawerHeader } from '../../components/sidepanel/drawer-header';
 import { Sidepanel } from "../../components/sidepanel/sidepanel";
-import { ExtensionAdmin } from './extension-admin';
 import { LoginComponent } from "../../default/login";
-import { Logs } from './logs/logs';
 import { MainContext } from '../../context';
-import { NamespaceAdmin } from './namespace-admin';
 import { NavigationItem } from '../../components/sidepanel/navigation-item';
+import { AdminDashboardRoutes } from './admin-dashboard-routes';
+
+import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
 import { Tiers } from './tiers/tiers';
-import { UsageStatsView } from './usage-stats/usage-stats';
+import { Customers } from './customers/customers';
+import { CustomerDetails } from './customers/customer-details';
+import { Logs } from './logs/logs';
 import { Welcome } from './welcome';
-import { AdminDashboardRoutes } from "./admin-routes";
+
+const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
+const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 
 const Message: FunctionComponent<{message: string}> = ({ message }) => {
     return (<Box sx={{
@@ -270,21 +272,23 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                         }}
                     >
                         <Container sx={{ pt: 2, pb: 4, px: 3 }} maxWidth='xl'>
-                            <Routes>
-                                <Route path='/namespaces' element={<NamespaceAdmin/>} />
-                                <Route path='/extensions' element={<ExtensionAdmin/>} />
-                                <Route path='/extensions/:namespace/:extension' element={<ExtensionAdmin/>} />
-                                <Route path='/publisher' element={<PublisherAdmin/>} />
-                                <Route path='/publisher/:publisher' element={<PublisherAdmin/>} />
-                                <Route path='/scans' element={<ScanAdmin/>} />
-                                <Route path='/tiers' element={<Tiers/>} />
-                                <Route path='/customers' element={<Customers/>} />
-                                <Route path='/customers/:customer' element={<CustomerDetails/>} />
-                                <Route path='/usage' element={<UsageStatsView/>} />
-                                <Route path='/usage/:customer' element={<UsageStatsView/>} />
-                                <Route path='/logs' element={<Logs/>} />
-                                <Route path='*' element={<Welcome/>} />
-                            </Routes>
+                            <Suspense fallback={null}>
+                                <Routes>
+                                    <Route path='/namespaces' element={<NamespaceAdmin/>} />
+                                    <Route path='/extensions' element={<ExtensionAdmin/>} />
+                                    <Route path='/extensions/:namespace/:extension' element={<ExtensionAdmin/>} />
+                                    <Route path='/publisher' element={<PublisherAdmin/>} />
+                                    <Route path='/publisher/:publisher' element={<PublisherAdmin/>} />
+                                    <Route path='/scans' element={<ScanAdmin/>} />
+                                    <Route path='/tiers' element={<Tiers/>} />
+                                    <Route path='/customers' element={<Customers/>} />
+                                    <Route path='/customers/:customer' element={<CustomerDetails/>} />
+                                    <Route path='/usage' element={<UsageStatsView/>} />
+                                    <Route path='/usage/:customer' element={<UsageStatsView/>} />
+                                    <Route path='/logs' element={<Logs/>} />
+                                    <Route path='*' element={<Welcome/>} />
+                                </Routes>
+                            </Suspense>
                         </Container>
                     </Box>
                 </Main>

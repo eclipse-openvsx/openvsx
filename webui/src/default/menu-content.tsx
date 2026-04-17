@@ -25,7 +25,7 @@ import { MainContext } from '../context';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { AdminDashboardRoutes } from '../pages/admin-dashboard/admin-routes';
+import { AdminDashboardRoutes } from '../pages/admin-dashboard/admin-dashboard-routes';
 import { LogoutForm } from '../pages/user/logout';
 import { LoginComponent } from './login';
 

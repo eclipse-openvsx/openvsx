@@ -17,7 +17,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { MainContext } from "../../../context";
 import type { Customer } from "../../../extension-registry-types";
 import { handleError } from "../../../utils";
-import { AdminDashboardRoutes } from "../admin-routes";
+import { AdminDashboardRoutes } from "../admin-dashboard-routes";
 import { SearchListContainer } from "../search-list-container";
 import { CustomerSearch } from "./usage-stats-search";
 import { UsageStatsChart } from "../../../components/rate-limiting/usage-stats/usage-stats-chart";

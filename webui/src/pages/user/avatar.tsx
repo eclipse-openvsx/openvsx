@@ -12,7 +12,7 @@ import { FunctionComponent, useContext, useRef, useState } from 'react';
 import { Avatar, Menu, Typography, MenuItem, Link, Divider, IconButton } from '@mui/material';
 import { Link as RouteLink } from 'react-router-dom';
 import { UserSettingsRoutes } from './user-settings-routes';
-import { AdminDashboardRoutes } from '../admin-dashboard/admin-routes';
+import { AdminDashboardRoutes } from '../admin-dashboard/admin-dashboard-routes';
 import { MainContext } from '../../context';
 import { LogoutForm } from './logout';
 
