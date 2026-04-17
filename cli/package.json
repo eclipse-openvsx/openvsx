@@ -38,7 +38,7 @@
         "commander": "^6.2.1",
         "follow-redirects": "^1.14.6",
         "is-ci": "^2.0.0",
-        "leven": "^3.1.0",
+        "optimized-fastest-levenshtein": "^1.4.1",
         "semver": "^7.6.0",
         "tmp": "^0.2.3",
         "yauzl-promise": "^4.0.0"

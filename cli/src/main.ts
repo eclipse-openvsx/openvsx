@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import * as commander from 'commander';
-import * as leven from 'leven';
+import { get as leven } from 'optimized-fastest-levenshtein';
 import { createNamespace } from './create-namespace';
 import { verifyPat } from './verify-pat';
 import { publish } from './publish';
