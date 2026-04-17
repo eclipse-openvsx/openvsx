@@ -38,6 +38,7 @@
     "engines": {
         "node": ">=22.0.0"
     },
+    "type": "module",
     "dependencies": {
         "@babel/core": "^7.29.0",
         "@emotion/react": "^11.11.1",
@@ -107,6 +108,7 @@
         "express-rate-limit": "^7.4.0",
         "mocha": "^11.7.0",
         "rimraf": "^6.1.0",
+        "rollup-plugin-visualizer": "^7.0.1",
         "ts-mocha": "^11.1.0",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.0",
@@ -125,6 +127,7 @@
         "watch:default": "yarn build:server && vite build --watch",
         "start:default": "node lib/default/server",
         "dev": "vite dev",
+        "preview": "vite preview",
         "link2server": "sh -c 'ln -sf $(realpath dist) ../server/build/resources/main/static'"
     },
     "packageManager": "yarn@4.9.1"
