@@ -33,7 +33,12 @@ import org.eclipse.openvsx.json.TargetPlatformVersionJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
-import org.eclipse.openvsx.util.*;
+import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.LogService;
+import org.eclipse.openvsx.util.NamingUtil;
+import org.eclipse.openvsx.util.NotFoundException;
+import org.eclipse.openvsx.util.TimeUtil;
+import org.eclipse.openvsx.util.UrlUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
@@ -41,6 +46,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -392,6 +398,36 @@ public class AdminAPI {
 
     private String createAdminNamespaceUrl(NamespaceJson namespace) {
         return UrlUtil.createApiUrl(UrlUtil.getBaseUrl(), "admin", "namespace", namespace.getName());
+    }
+
+    @DeleteMapping(
+        path = "/admin/namespace/{namespaceName}"
+    )
+    @Operation(summary = "Delete a namespace")
+    @ApiResponse(
+            responseCode = "200",
+            description = "A success message is returned in JSON format"
+    )
+    @ApiResponse(
+            responseCode = "403",
+            description = "An error message is returned in JSON format",
+            content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    @ApiResponse(
+            responseCode = "404",
+            description = "An error message is returned in JSON format",
+            content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    public ResponseEntity<ResultJson> deleteNamespace(@PathVariable String namespaceName) {
+        try {
+            var adminUser = admins.checkAdminUser();
+            return ResponseEntity.ok(admins.deleteNamespace(namespaceName, adminUser));
+        } catch (NotFoundException exc) {
+            var json = NamespaceJson.error("Namespace not found: " + namespaceName);
+            return new ResponseEntity<>(json, HttpStatus.NOT_FOUND);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(ResultJson.class);
+        }
     }
 
     @PostMapping(

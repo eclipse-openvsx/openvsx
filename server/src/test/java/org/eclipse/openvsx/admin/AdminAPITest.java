@@ -9,11 +9,35 @@
  ********************************************************************************/
 package org.eclipse.openvsx.admin;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import jakarta.persistence.EntityManager;
-import org.eclipse.openvsx.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import org.eclipse.openvsx.ExtensionService;
+import org.eclipse.openvsx.ExtensionValidator;
+import org.eclipse.openvsx.LocalRegistryService;
+import org.eclipse.openvsx.MockTransactionTemplate;
+import org.eclipse.openvsx.UpstreamRegistryService;
+import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.accesstoken.AccessTokenConfig;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.adapter.VSCodeIdService;
@@ -21,9 +45,25 @@ import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
 import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.eclipse.EclipseTokenService;
-import org.eclipse.openvsx.entities.*;
-import org.eclipse.openvsx.json.*;
+import org.eclipse.openvsx.entities.AdminStatistics;
+import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionReview;
+import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.NamespaceMembership;
+import org.eclipse.openvsx.entities.PersonalAccessToken;
+import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.json.AdminStatisticsJson;
+import org.eclipse.openvsx.json.ChangeNamespaceJson;
+import org.eclipse.openvsx.json.ExtensionJson;
+import org.eclipse.openvsx.json.NamespaceJson;
+import org.eclipse.openvsx.json.NamespaceMembershipJson;
+import org.eclipse.openvsx.json.NamespaceMembershipListJson;
+import org.eclipse.openvsx.json.ResultJson;
+import org.eclipse.openvsx.json.UserJson;
+import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.mail.MailService;
+import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -36,8 +76,13 @@ import org.eclipse.openvsx.search.SimilarityService;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
-import org.eclipse.openvsx.storage.*;
-import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
+import org.eclipse.openvsx.storage.AwsStorageService;
+import org.eclipse.openvsx.storage.AzureBlobStorageService;
+import org.eclipse.openvsx.storage.CdnServiceConfig;
+import org.eclipse.openvsx.storage.FileCacheDurationConfig;
+import org.eclipse.openvsx.storage.GoogleCloudStorageService;
+import org.eclipse.openvsx.storage.LocalStorageService;
+import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.storage.log.DownloadCountService;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -46,7 +91,6 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.client.AutoConfigureWebClient;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -62,18 +106,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import jakarta.persistence.EntityManager;
 
 @WebMvcTest(AdminAPI.class)
 @AutoConfigureWebClient
@@ -555,6 +592,68 @@ class AdminAPITest {
                 .with(csrf().asHeader()))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().json(errorJson("Namespace already exists: foobar")));
+    }
+
+
+    @Test
+    void testDeleteNamespaceNotLoggedIn() throws Exception {
+        mockMvc.perform(delete("/admin/namespace/test-namespace")
+                .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testDeleteNamespaceNotAdmin() throws Exception {
+        mockNormalUser();
+        mockMvc.perform(delete("/admin/namespace/test-namespace")
+                .with(user("test_user"))
+                .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testDeleteNamespace() throws Exception {
+        mockAdminUser();
+        var namespace = mockNamespace();
+        Mockito.when(repositories.findExtensions(namespace)).thenReturn(Streamable.empty());
+
+        mockMvc.perform(delete("/admin/namespace/" + namespace.getName())
+                .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("Deleted namespace foobar")));
+    }
+
+    @Test
+    void testDeleteNamespaceHasMembers() throws Exception {
+        mockAdminUser();
+        
+        var namespace = mockNamespace(1);
+        Mockito.when(repositories.findExtensions(namespace)).thenReturn(Streamable.empty());
+
+        mockMvc.perform(delete("/admin/namespace/" + namespace.getName())
+                .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("Deleted namespace foobar")));
+    }
+    @Test
+    void testDeleteNamespaceNotExist() throws Exception {
+        mockAdminUser();
+        mockMvc.perform(delete("/admin/namespace/" + UUID.randomUUID().toString())
+                .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                .with(csrf().asHeader()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testDeleteNamespaceNotEmpty() throws Exception {
+        mockAdminUser();
+        var extensionVersions = mockExtension(2, 0, 0);
+        mockMvc.perform(delete("/admin/namespace/" + extensionVersions.getFirst().getExtension().getNamespace().getName())
+                .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -1256,14 +1355,37 @@ class AdminAPITest {
     }
 
     private Namespace mockNamespace() {
+        return mockNamespace(0);
+    }
+
+    private Namespace mockNamespace(int numberOfMembers) {
         var namespace = new Namespace();
         namespace.setName("foobar");
         Mockito.when(repositories.findNamespace("foobar"))
                 .thenReturn(namespace);
         Mockito.when(repositories.findActiveExtensions(namespace))
                 .thenReturn(Streamable.empty());
-        Mockito.when(repositories.hasMemberships(namespace, NamespaceMembership.ROLE_OWNER))
+        if (numberOfMembers == 0) {
+            Mockito.when(repositories.hasMemberships(namespace, NamespaceMembership.ROLE_OWNER))
                 .thenReturn(false);
+            Mockito.when(repositories.findMemberships(namespace))
+                .thenReturn(Streamable.empty());
+        } else {
+            Mockito.when(repositories.hasMemberships(namespace, NamespaceMembership.ROLE_OWNER))
+                .thenReturn(true);
+            var memberships = new ArrayList<NamespaceMembership>(numberOfMembers);
+            var user = mockNormalUser();
+            for (var i = 0; i < numberOfMembers; i++) {
+                var membership = new NamespaceMembership();
+                membership.setNamespace(namespace);
+                membership.setRole(NamespaceMembership.ROLE_OWNER);
+                membership.setUser(user);
+                memberships.add(membership);
+            }
+            Mockito.when(repositories.findMemberships(namespace))
+                .thenReturn(Streamable.of(memberships));
+        }
+        
         return namespace;
     }
 
@@ -1288,6 +1410,8 @@ class AdminAPITest {
         Mockito.when(entityManager.merge(extension)).thenReturn(extension);
         Mockito.when(repositories.findExtension("baz", "foobar"))
                 .thenReturn(extension);
+        Mockito.when(repositories.findExtensions(namespace))
+                .thenReturn(Streamable.of(extension));
 
         var versions = new ArrayList<ExtensionVersion>(numberOfVersions);
         for (var i = 0; i < numberOfVersions; i++) {
@@ -1350,6 +1474,7 @@ class AdminAPITest {
                 .thenReturn(Streamable.empty());
         Mockito.when(repositories.findDeprecatedExtensions(extension))
                 .thenReturn(Streamable.empty());
+                
         return versions;
     }
 
