@@ -12,6 +12,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Refactor extension detail page to avoid unnecessary data reloads ([#1760](https://github.com/eclipse/openvsx/pull/1760))
 - Fix refreshing of extension readme when switching versions ([#1760](https://github.com/eclipse/openvsx/pull/1760))
+- Fix namespace / publisher column on extension detail page ([#1765](https://github.com/eclipse/openvsx/pull/1765))
 
 ### Dependencies
 
