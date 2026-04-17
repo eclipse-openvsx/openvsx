@@ -9,6 +9,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Refactor extension detail page to avoid unnecessary data reloads ([#1760](https://github.com/eclipse/openvsx/pull/1760))
 - Fix refreshing of extension readme when switching versions ([#1760](https://github.com/eclipse/openvsx/pull/1760))
 
+### Dependencies
+
+- Bump dompurify from `3.3.2` to `3.4.0` ([#1768](https://github.com/eclipse/openvsx/pull/1768))
+
 ## [v0.20.0] (13/04/2026)
 
 ### Added
