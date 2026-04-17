@@ -52,6 +52,7 @@ Click _Open Browser_ on port 3000 to see the running web application.
 
 ### cli
 
+ * `yarn prepare` &mdash; generates required local version data and builds the library and `ovsx` command
  * `yarn build` &mdash; build the library and `ovsx` command
  * `yarn watch` &mdash; watch (build continuously)
 

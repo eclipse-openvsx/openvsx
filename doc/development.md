@@ -143,7 +143,7 @@ To run the Open VSX registry in a development environment, you can use `docker c
 - cd cli
 
   - yarn install
-  - yarn build
+  - yarn prepare
 
 - cd server
 
