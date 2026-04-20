@@ -18,7 +18,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +34,6 @@ import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.util.ErrorResultException;
-import org.eclipse.openvsx.util.TempFile;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -207,7 +205,7 @@ class PublishExtensionVersionHandlerTest {
         when(processor.getExtensionName()).thenReturn(name);
         when(processor.getVersion()).thenReturn(version);
         if (iconPath != null) {
-            when(processor.getIcon(ArgumentMatchers.any())).thenReturn(new TempFile(Path.of(iconPath)));
+            when(processor.getIconPath()).thenReturn(iconPath);
         }
 
         var ev = new ExtensionVersion();
