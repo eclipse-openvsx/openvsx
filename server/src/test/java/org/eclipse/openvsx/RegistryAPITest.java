@@ -29,6 +29,7 @@ import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -119,6 +120,9 @@ class RegistryAPITest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    PublishingConfig publishingConfig;
 
     @Autowired
     ExtensionService extensionService;
@@ -1525,9 +1529,9 @@ class RegistryAPITest {
 
     @Test
     void testPublishRequireLicenseNone() throws Exception {
-        var previousRequireLicense = extensionService.isLicenseRequired();
+        var previousRequireLicense = publishingConfig.isRequireLicense();
         try {
-            extensionService.setLicenseRequired(true);
+            publishingConfig.setRequireLicense(true);
             mockForPublish("contributor");
             var bytes = createExtensionPackage("bar", "1.0.0", null);
             mockMvc.perform(post("/api/-/publish?token={token}", "my_token")
@@ -1536,15 +1540,15 @@ class RegistryAPITest {
                     .andExpect(status().isBadRequest())
                     .andExpect(content().json(errorJson("This extension cannot be accepted because it has no license.")));
         } finally {
-            extensionService.setLicenseRequired(previousRequireLicense);
+            publishingConfig.setRequireLicense(previousRequireLicense);
         }
     }
 
     @Test
     void testPublishRequireLicenseOk() throws Exception {
-        var previousRequireLicense = extensionService.isLicenseRequired();
+        var previousRequireLicense = publishingConfig.isRequireLicense();
         try {
-            extensionService.setLicenseRequired(true);
+            publishingConfig.setRequireLicense(true);
             mockForPublish("contributor");
             mockActiveVersion();
             var bytes = createExtensionPackage("bar", "1.0.0", "MIT");
@@ -1563,7 +1567,7 @@ class RegistryAPITest {
                         e.setDownloadable(true);
                     })));
         } finally {
-            extensionService.setLicenseRequired(previousRequireLicense);
+            publishingConfig.setRequireLicense(previousRequireLicense);
         }
     }
 
@@ -1709,7 +1713,7 @@ class RegistryAPITest {
                     return extensionVersion.getVersion().equals(extVersion.getVersion());
                 });
 
-        var bytes = createExtensionPackage("bar", "1.0.0", null, true, TargetPlatform.NAME_LINUX_X64, "/tmp/known-good-icon.jpg");
+        var bytes = createExtensionPackage("bar", "1.0.0", null, true, TargetPlatform.NAME_LINUX_X64);
         mockMvc.perform(post("/api/-/publish?token={token}", "my_token")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .content(bytes))
@@ -1731,7 +1735,7 @@ class RegistryAPITest {
                     return extensionVersion.getVersion().equals(extVersion.getVersion());
                 });
 
-        var bytes = createExtensionPackage("bar", "1.5.0", null, false, TargetPlatform.NAME_ALPINE_ARM64,"/tmp/known-good-icon.png");
+        var bytes = createExtensionPackage("bar", "1.5.0", null, false, TargetPlatform.NAME_ALPINE_ARM64);
         mockMvc.perform(post("/api/-/publish?token={token}", "my_token")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .content(bytes))
@@ -2483,10 +2487,10 @@ class RegistryAPITest {
     }
 
     private byte[] createExtensionPackage(String name, String version, String license) throws IOException {
-        return createExtensionPackage(name, version, license, false, null, "/tmp/known-good-icon.png");
+        return createExtensionPackage(name, version, license, false, null);
     }
 
-    private byte[] createExtensionPackage(String name, String version, String license, boolean preRelease, String targetPlatform, String iconPath) throws IOException {
+    private byte[] createExtensionPackage(String name, String version, String license, boolean preRelease, String targetPlatform) throws IOException {
         var bytes = new ByteArrayOutputStream();
         var archive = new ZipOutputStream(bytes);
         archive.putNextEntry(new ZipEntry("extension.vsixmanifest"));
@@ -2516,7 +2520,6 @@ class RegistryAPITest {
             "<Dependencies/>" +
             "<Assets>" +
             "<Asset Type=\"Microsoft.VisualStudio.Code.Manifest\" Path=\"extension/package.json\" Addressable=\"true\" />" +
-            "<Asset Type=\"Microsoft.VisualStudio.Services.Icons.Default\" Path=\"" + iconPath + "\" Addressable=\"true\" />" +
             "</Assets>" +
             "</PackageManifest>";
         archive.write(vsixmanifest.getBytes());
@@ -2529,9 +2532,6 @@ class RegistryAPITest {
                 (license == null ? "" : ",\"license\": \"" + license + "\"" ) +
             "}";
         archive.write(packageJson.getBytes());
-        archive.closeEntry();
-        archive.putNextEntry(new ZipEntry(iconPath));
-        archive.write("placeholder".getBytes());
         archive.closeEntry();
         archive.finish();
         return bytes.toByteArray();
@@ -2622,7 +2622,13 @@ class RegistryAPITest {
         }
 
         @Bean
+        PublishingConfig publishingConfig() {
+            return new PublishingConfig();
+        }
+
+        @Bean
         PublishExtensionVersionHandler publishExtensionVersionHandler(
+                PublishingConfig publishingConfig,
                 PublishExtensionVersionService service,
                 ExtensionVersionIntegrityService integrityService,
                 EntityManager entityManager,
@@ -2634,6 +2640,7 @@ class RegistryAPITest {
                 ExtensionScanService extensionScanService
         ) {
             return new PublishExtensionVersionHandler(
+                    publishingConfig,
                     service,
                     integrityService,
                     entityManager,
@@ -2648,6 +2655,7 @@ class RegistryAPITest {
 
         @Bean
         ExtensionService extensionService(
+                PublishingConfig publishingConfig,
                 EntityManager entityManager,
                 RepositoryService repositories,
                 SearchUtilService search,
@@ -2659,6 +2667,7 @@ class RegistryAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
+                    publishingConfig,
                     entityManager,
                     repositories,
                     search,

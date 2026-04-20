@@ -21,6 +21,7 @@ import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -420,6 +421,7 @@ class EclipseServiceTest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
+                    new PublishingConfig(),
                     entityManager,
                     repositories,
                     search,

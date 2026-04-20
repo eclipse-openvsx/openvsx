@@ -61,6 +61,6 @@ public class TempFile implements Closeable {
 
     @Override
     public void close() throws IOException {
-        Files.delete(path);
+        Files.deleteIfExists(path);
     }
 }

@@ -21,15 +21,15 @@ import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.*;
 import org.jobrunr.scheduling.JobRequestScheduler;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -42,10 +42,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-@Component
+@Service
 public class ExtensionService {
-    private static final int MAX_CONTENT_SIZE = 512 * 1024 * 1024;
-
+    private final PublishingConfig publishingConfig;
     private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final SearchUtilService search;
@@ -56,10 +55,8 @@ public class ExtensionService {
     private final ExtensionScanService scanService;
     private final ExtensionScanPersistenceService scanPersistenceService;
 
-    @Value("${ovsx.publishing.max-content-size:" + MAX_CONTENT_SIZE + "}")
-    int maxContentSize;
-
     public ExtensionService(
+            PublishingConfig publishingConfig,
             EntityManager entityManager,
             RepositoryService repositories,
             SearchUtilService search,
@@ -70,6 +67,7 @@ public class ExtensionService {
             ExtensionScanService scanService,
             ExtensionScanPersistenceService scanPersistenceService
     ) {
+        this.publishingConfig = publishingConfig;
         this.entityManager = entityManager;
         this.repositories = repositories;
         this.search = search;
@@ -81,14 +79,8 @@ public class ExtensionService {
         this.scanPersistenceService = scanPersistenceService;
     }
 
-    // For testing only
-    boolean isLicenseRequired() {
-        return publishHandler.isLicenseRequired();
-    }
-
-    // For testing only
-    void setLicenseRequired(boolean requireLicense) {
-        publishHandler.setLicenseRequired(requireLicense);
+    private long getMaxContentSize() {
+        return publishingConfig.getMaxContentSize();
     }
 
     @Transactional
@@ -164,6 +156,7 @@ public class ExtensionService {
     }
 
     private TempFile createExtensionFile(InputStream content) {
+        long maxContentSize = getMaxContentSize();
         try (var input = ByteStreams.limit(new BufferedInputStream(content), maxContentSize + 1)) {
             long size;
             var extensionFile = new TempFile("extension_", ".vsix");
