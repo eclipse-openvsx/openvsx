@@ -115,7 +115,7 @@ public class PublishExtensionVersionHandler {
                     .map(id -> parseExtensionId(id, "extensionDependencies"))
                     .toList();
 
-            if(!parsedDependencies.isEmpty()) {
+            if (!parsedDependencies.isEmpty()) {
                 checkDependencies(parsedDependencies);
             }
             bundledExtensions.forEach(id -> parseExtensionId(id, "extensionPack"));
@@ -123,7 +123,7 @@ public class PublishExtensionVersionHandler {
 
         extVersion.setDependencies(dependencies);
         extVersion.setBundledExtensions(bundledExtensions);
-        if(integrityService.isEnabled()) {
+        if (integrityService.isEnabled()) {
             extVersion.setSignatureKeyPair(repositories.findActiveKeyPair());
         }
 
@@ -179,6 +179,7 @@ public class PublishExtensionVersionHandler {
 
         validateLicense(processor, extVersion);
         validateIcon(processor, extVersion);
+        validateFileResources(processor, extVersion);
         validateMetadata(extVersion);
         entityManager.persist(extVersion);
         return extVersion;
@@ -228,6 +229,16 @@ public class PublishExtensionVersionHandler {
             }
         } catch (IOException e) {
             throw new ServerErrorException("Failed to read icon file", e);
+        }
+    }
+
+    private void validateFileResources(ExtensionProcessor processor, ExtensionVersion extVersion) {
+        try {
+            // validate that all file resources are readable/accessible during synchronous publishing
+            // to avoid failing during async publishing and report errors directly back to publishers
+            processor.getFileResources(extVersion, _ -> {});
+        } catch (ErrorResultException exc) {
+            throw new ErrorResultException("Validation failed: " + exc.getMessage());
         }
     }
 
