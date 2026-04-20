@@ -2,11 +2,12 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
-## [next] (unreleased)
+## [v0.20.1] (20/04/2026)
 
 ### Changed
 
 - Reduce size of main bundle by splitting it up in separate chunks that are dynamically loaded ([#1750](https://github.com/eclipse/openvsx/pull/1750))
+- Display download link also for error'ed security scans on scan card ([#1778](https://github.com/eclipse/openvsx/pull/1778))
 
 ### Fixed
 
