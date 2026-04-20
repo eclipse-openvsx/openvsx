@@ -473,8 +473,9 @@ public class ExtensionProcessor implements AutoCloseable {
         return null;
     }
 
-    public @Nullable TempFile getIcon(ExtensionVersion extVersion) throws IOException {
+    public @Nullable String getIconPath() {
         var iconPath = tryGetAssetPath(ExtensionQueryResult.ExtensionFile.FILE_ICON);
+
         if (StringUtils.isEmpty(iconPath)) {
             loadPackageJson();
             var iconPathNode = packageJson.get("icon");
@@ -487,6 +488,15 @@ public class ExtensionProcessor implements AutoCloseable {
             }
 
             iconPath = "extension/" + iconPath;
+        }
+
+        return iconPath;
+    }
+
+    public @Nullable TempFile getIcon(ExtensionVersion extVersion) throws IOException {
+        var iconPath = getIconPath();
+        if (iconPath == null) {
+            return null;
         }
 
         var entryFile = ArchiveUtil.readEntry(zipFile, iconPath);

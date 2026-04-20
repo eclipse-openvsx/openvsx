@@ -10,7 +10,6 @@
 package org.eclipse.openvsx.publish;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Consumer;
@@ -65,7 +64,7 @@ public class PublishExtensionVersionHandler {
     private final ExtensionControlService extensionControl;
     private final ExtensionScanService scanService;
 
-    private final Predicate<Path> unsupportedIconExtensions;
+    private final Predicate<String> unsupportedIconExtensions;
 
     public PublishExtensionVersionHandler(
             PublishingConfig config,
@@ -95,7 +94,7 @@ public class PublishExtensionVersionHandler {
                 return false;
             }
 
-            var fileExtension = FilenameUtils.getExtension(path.toString());
+            var fileExtension = FilenameUtils.getExtension(path);
             return config.getUnsupportedIconFormats().stream().anyMatch(ext -> ext.equalsIgnoreCase(fileExtension));
         };
     }
@@ -178,7 +177,7 @@ public class PublishExtensionVersionHandler {
         extVersion.setExtension(extension);
 
         validateLicense(processor, extVersion);
-        validateIcon(processor, extVersion);
+        validateIcon(processor);
         validateFileResources(processor, extVersion);
         validateMetadata(extVersion);
         entityManager.persist(extVersion);
@@ -222,20 +221,19 @@ public class PublishExtensionVersionHandler {
         }
     }
 
-    private void validateIcon(ExtensionProcessor processor, ExtensionVersion extVersion) {
-        try (var iconFile = processor.getIcon(extVersion)) {
-            if (iconFile != null && unsupportedIconExtensions.test(iconFile.getPath())) {
-                throw new ErrorResultException("This extension cannot be accepted as it uses an unsupported icon format.");
-            }
-        } catch (IOException e) {
-            throw new ServerErrorException("Failed to read icon file", e);
+    private void validateIcon(ExtensionProcessor processor) {
+        var iconPath = processor.getIconPath();
+        if (iconPath != null && unsupportedIconExtensions.test(iconPath)) {
+            throw new ErrorResultException("This extension cannot be accepted as it uses an unsupported icon format.");
         }
     }
 
     private void validateFileResources(ExtensionProcessor processor, ExtensionVersion extVersion) {
         try {
-            // validate that all file resources are readable/accessible during synchronous publishing
-            // to avoid failing during async publishing and report errors directly back to publishers
+            // Validate that all file resources are readable/accessible during synchronous publishing
+            // to avoid failing during async publishing and report errors directly back to publishers.
+            // This creates unnecessary temp files, however these are usually small and thus it is
+            // acceptable in this case.
             processor.getFileResources(extVersion, _ -> {});
         } catch (ErrorResultException exc) {
             throw new ErrorResultException("Validation failed: " + exc.getMessage());
