@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FC } from "react";
+import { FC } from 'react';
 import { Box, Typography, Collapse, Chip } from '@mui/material';
 import { useTheme, Theme } from '@mui/material/styles';
 import { ScanResult, Threat, ValidationFailure, CheckResult } from '../../../context/scan-admin';
@@ -63,7 +63,7 @@ const ThreatItem: FC<ThreatItemProps> = ({ threat }) => {
 /**
  * A single validation failure item in the expanded content.
  */
-const ValidationFailureItem: React.FC<ValidationFailureItemProps> = ({ failure }) => {
+const ValidationFailureItem: FC<ValidationFailureItemProps> = ({ failure }) => {
     const theme = useTheme();
     const isUnenforced = !failure.enforcedFlag;
 
@@ -119,7 +119,7 @@ const formatDuration = (ms: number | null): string | undefined => {
 /**
  * A single check result item showing what check was run and its outcome.
  */
-const CheckResultItem: React.FC<CheckResultItemProps> = ({ checkResult }) => {
+const CheckResultItem: FC<CheckResultItemProps> = ({ checkResult }) => {
     const theme = useTheme();
     const colors = getCheckResultColor(checkResult.result, theme);
     const isPassed = checkResult.result === 'PASSED';
@@ -182,7 +182,7 @@ const CheckResultItem: React.FC<CheckResultItemProps> = ({ checkResult }) => {
  * The expanded content section showing threats, validation failures, and check results.
  * Each item's enforcedFlag controls its individual striping effect.
  */
-export const ScanCardExpandedContent: React.FC<ScanCardExpandedContentProps> = ({ scan, expanded, onCollapseComplete }) => {
+export const ScanCardExpandedContent: FC<ScanCardExpandedContentProps> = ({ scan, expanded, onCollapseComplete }) => {
     const theme = useTheme();
     const hasThreats = scan.threats.length > 0;
     const hasValidationFailures = scan.validationFailures.length > 0;

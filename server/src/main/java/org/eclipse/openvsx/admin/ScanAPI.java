@@ -914,6 +914,7 @@ public class ScanAPI {
         json.setDisplayName(version.getDisplayName());
 
         var isQuarantined = scanStatus == ScanStatus.QUARANTINED;
+        var isErrored = scanStatus == ScanStatus.ERRORED;
         var fileTypes = isQuarantined ?
                 new String[] { FileResource.ICON } :
                 new String[] { FileResource.ICON, FileResource.DOWNLOAD };
@@ -931,9 +932,10 @@ public class ScanAPI {
                 json.setExtensionIcon(iconUrl);
             }
 
-            // if the extension is quarantined,
+            // if the extension is quarantined or errored,
             // resolve the download location as the api endpoint will return 404.
-            if (isQuarantined) {
+            // TODO: this does not work when using local storage as in this case always an api url is returned
+            if (isQuarantined || isErrored) {
                 var downloadResource = repositories.findFileByType(version, FileResource.DOWNLOAD);
                 if (downloadResource != null) {
                     var url = storageUtil.getLocation(downloadResource);
