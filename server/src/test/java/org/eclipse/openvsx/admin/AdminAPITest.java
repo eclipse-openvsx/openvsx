@@ -1374,7 +1374,10 @@ class AdminAPITest {
             Mockito.when(repositories.hasMemberships(namespace, NamespaceMembership.ROLE_OWNER))
                 .thenReturn(true);
             var memberships = new ArrayList<NamespaceMembership>(numberOfMembers);
-            var user = mockNormalUser();
+            
+            var user = new UserData();
+            user.setLoginName(UUID.randomUUID().toString());
+            user.setFullName("Test User");
             for (var i = 0; i < numberOfMembers; i++) {
                 var membership = new NamespaceMembership();
                 membership.setNamespace(namespace);
