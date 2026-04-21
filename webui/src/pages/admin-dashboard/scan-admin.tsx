@@ -45,14 +45,11 @@ const ScanAdminContent: FunctionComponent = () => {
 
     return (
         <Box sx={{
-            width: 'min(1500px, 100vw - 280px)',
-            maxWidth: 'none',
+            width: '100%',
+            maxWidth: 1500,
             mx: 'auto',
             px: 2,
             pb: 3,
-            position: 'relative',
-            left: '50%',
-            transform: 'translateX(-50%)',
         }}>
             <Typography variant='h5' gutterBottom sx={{ mb: 2 }}>
                 Extension Scans
