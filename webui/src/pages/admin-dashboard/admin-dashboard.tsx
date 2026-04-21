@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useState, lazy, Suspense } from 'react';
+import { FunctionComponent, ReactNode, useContext, lazy, Suspense } from 'react';
 import {
     Box,
     Container,
@@ -18,10 +18,9 @@ import {
     Breadcrumbs,
     LinkProps,
     Link,
-    Toolbar
+    Toolbar,
+    AppBar,
 } from '@mui/material';
-import MuiAppBar, { AppBarProps as MuiAppBarProps } from '@mui/material/AppBar';
-import { styled } from "@mui/material/styles";
 import { Link as RouterLink, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
@@ -29,18 +28,16 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import HistoryIcon from '@mui/icons-material/History';
-import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
-import { DrawerHeader } from '../../components/sidepanel/drawer-header';
-import { Sidepanel } from "../../components/sidepanel/sidepanel";
 import { LoginComponent } from "../../default/login";
 import { MainContext } from '../../context';
-import { NavigationItem } from '../../components/sidepanel/navigation-item';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
+import { AdminSidepanel } from './admin-sidepanel';
+import { isNavGroup, NavEntry } from './nav-types';
 
 import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
@@ -53,33 +50,6 @@ import { Welcome } from './welcome';
 
 const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
 const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
-
-const Message: FunctionComponent<{message: string}> = ({ message }) => {
-    return (<Box sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%'
-    }}>
-        <Typography variant='h6'>{message}</Typography>
-    </Box>);
-};
-
-interface RouteEntry {
-    path: string;
-    name: string;
-    icon: ReactNode;
-}
-
-interface NavGroup {
-    name: string;
-    icon: ReactNode;
-    children: RouteEntry[];
-}
-
-type NavEntry = RouteEntry | NavGroup;
-
-const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in entry;
 
 const navConfig: NavEntry[] = [
     { path: AdminDashboardRoutes.NAMESPACE_ADMIN, name: 'Namespaces', icon: <AssignmentIndIcon /> },
@@ -98,7 +68,6 @@ const navConfig: NavEntry[] = [
     { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon /> },
 ];
 
-// Flat name lookup for breadcrumbs
 const routeNames: { [key: string]: string } = {
     [AdminDashboardRoutes.MAIN]: 'Admin Dashboard',
     ...navConfig.reduce<{ [key: string]: string }>((acc, entry) => {
@@ -113,28 +82,16 @@ const routeNames: { [key: string]: string } = {
     }, {}),
 };
 
-const drawerWidth = 240;
-
-interface AppBarProps extends MuiAppBarProps {
-    open?: boolean;
-}
-
-const AppBar = styled(MuiAppBar, {
-    shouldForwardProp: (prop) => prop !== 'open',
-})<AppBarProps>(({ theme, open }) => ({
-    transition: theme.transitions.create(['margin', 'width'], {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.leavingScreen,
-    }),
-    ...(open && {
-        width: `calc(100% - ${drawerWidth}px)`,
-        marginLeft: `${drawerWidth}px`,
-        transition: theme.transitions.create(['margin', 'width'], {
-            easing: theme.transitions.easing.easeOut,
-            duration: theme.transitions.duration.enteringScreen,
-        }),
-    }),
-}));
+const Message: FunctionComponent<{message: string}> = ({ message }) => {
+    return (<Box sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%'
+    }}>
+        <Typography variant='h6'>{message}</Typography>
+    </Box>);
+};
 
 interface LinkRouterProps extends LinkProps {
     to: string;
@@ -148,7 +105,7 @@ const LinkRouter = (props: LinkRouterProps) => (
 const BreadcrumbsComponent = () => {
     const { pathname } = useLocation();
 
-    const pathnames = pathname.split("/").filter((segment) => segment);
+    const pathnames = pathname.split("/").filter(Boolean);
 
     return (
         <Breadcrumbs aria-label='breadcrumb' sx={{ pt: 2, pb: 2, px: 4 }} >
@@ -173,89 +130,33 @@ const BreadcrumbsComponent = () => {
     );
 };
 
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
-    open?: boolean;
-}>(({ theme, open }) => ({
-    flexGrow: 1,
-    padding: theme.spacing(3),
-    transition: theme.transitions.create('margin', {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.leavingScreen,
-    }),
-    marginLeft: `-${drawerWidth}px`,
-    ...(open && {
-        transition: theme.transitions.create('margin', {
-            easing: theme.transitions.easing.easeOut,
-            duration: theme.transitions.duration.enteringScreen,
-        }),
-        marginLeft: 0,
-    }),
-}));
-
 export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
     const { user, loginProviders } = useContext(MainContext);
-    const [drawerOpen, setDrawerOpen] = useState(true);
 
     const navigate = useNavigate();
     const toMainPage = () => navigate('/');
 
-    const [currentPage, setCurrentPage] = useState<string | undefined>(useLocation().pathname);
-    const handleOpenRoute = (route: string) => {
-        setCurrentPage(route);
-    };
-
     let content: ReactNode = null;
     if (user?.role === 'admin') {
         content =
-            <Box sx={{ display: 'flex', width: '100%' }}>
+            <Box sx={{ display: 'flex', width: '100%', height: '100%' }}>
                 <CssBaseline />
-                <AppBar position='fixed' open={drawerOpen} color='default' enableColorOnDark elevation={0}>
-                    <Toolbar>
-                        <IconButton
-                            aria-label='open drawer'
-                            onClick={() => setDrawerOpen(true)}
-                            edge='start'
-                            sx={[{ mr: 2 }, drawerOpen && { display: 'none' }]}
-                        >
-                            <MenuIcon />
-                        </IconButton>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                            <BreadcrumbsComponent />
-                            <IconButton onClick={toMainPage} sx={{ mt: 1, mr: 1 }}>
-                                <HighlightOffIcon/>
-                            </IconButton>
-                        </Box>
-                    </Toolbar>
-                </AppBar>
-                <Sidepanel width={drawerWidth} open={drawerOpen} handleDrawerClose={() => setDrawerOpen(false)} >
-                    {navConfig.map((entry) => {
-                        if (isNavGroup(entry)) {
-                            return (
-                                <NavigationItem
-                                    key={entry.name}
-                                    label={entry.name}
-                                    icon={entry.icon}
-                                >
-                                    {entry.children.map((child) => (
-                                        <NavigationItem key={child.path} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(child.path)}
-                                                        label={child.name} icon={child.icon} route={child.path}/>
-                                    ))}
-                                </NavigationItem>
-                            );
-                        }
-                        return (
-                            <NavigationItem key={entry.path} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(entry.path)}
-                                            label={entry.name} icon={entry.icon} route={entry.path}/>
-                        );
-                    })}
-                </Sidepanel>
-                <Main open={drawerOpen} >
-                    <DrawerHeader />
+                <AdminSidepanel items={navConfig} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    <AppBar position='sticky' color='default' enableColorOnDark elevation={0}>
+                        <Toolbar>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                                <BreadcrumbsComponent />
+                                <IconButton onClick={toMainPage} sx={{ mt: 1, mr: 1 }}>
+                                    <HighlightOffIcon />
+                                </IconButton>
+                            </Box>
+                        </Toolbar>
+                    </AppBar>
                     <Box
-                        overflow='auto'
-                        flex={1}
                         sx={{
-                            overflowY: 'scroll',
+                            flex: 1,
+                            overflowY: 'auto',
                             '&::-webkit-scrollbar': {
                                 width: '12px',
                             },
@@ -291,7 +192,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                             </Suspense>
                         </Container>
                     </Box>
-                </Main>
+                </Box>
             </Box>;
     } else if (user) {
         content = <Message message='You are not authorized as administrator.'/>;
