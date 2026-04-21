@@ -15,18 +15,13 @@ import {
     CssBaseline,
     Typography,
     IconButton,
-    Breadcrumbs,
-    LinkProps,
-    Link,
-    Toolbar,
-    AppBar,
 } from '@mui/material';
-import { Link as RouterLink, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { styled } from '@mui/material/styles';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
-import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
@@ -37,6 +32,7 @@ import { LoginComponent } from "../../default/login";
 import { MainContext } from '../../context';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { AdminSidepanel } from './admin-sidepanel';
+import { AdminHeader } from './admin-header';
 import { isNavGroup, NavEntry } from './nav-types';
 
 import { NamespaceAdmin } from './namespace-admin';
@@ -82,6 +78,24 @@ const routeNames: { [key: string]: string } = {
     }, {}),
 };
 
+const ScrollableContent = styled(Box)(({ theme }) => ({
+    flex: 1,
+    overflowY: 'auto',
+    '&::-webkit-scrollbar': {
+        width: '12px',
+    },
+    '&::-webkit-scrollbar-track': {
+        backgroundColor: theme.palette.action.hover,
+    },
+    '&::-webkit-scrollbar-thumb': {
+        backgroundColor: theme.palette.action.selected,
+        borderRadius: '6px',
+        '&:hover': {
+            backgroundColor: theme.palette.action.focus,
+        },
+    },
+}));
+
 const Message: FunctionComponent<{message: string}> = ({ message }) => {
     return (<Box sx={{
         display: 'flex',
@@ -91,43 +105,6 @@ const Message: FunctionComponent<{message: string}> = ({ message }) => {
     }}>
         <Typography variant='h6'>{message}</Typography>
     </Box>);
-};
-
-interface LinkRouterProps extends LinkProps {
-    to: string;
-    replace?: boolean;
-}
-
-const LinkRouter = (props: LinkRouterProps) => (
-    <Link {...props} component={RouterLink as any} />
-);
-
-const BreadcrumbsComponent = () => {
-    const { pathname } = useLocation();
-
-    const pathnames = pathname.split("/").filter(Boolean);
-
-    return (
-        <Breadcrumbs aria-label='breadcrumb' sx={{ pt: 2, pb: 2, px: 4 }} >
-            <LinkRouter underline='hover' color='inherit' to='/'>
-                Home
-            </LinkRouter>
-            {pathnames.map((value, index) => {
-                const last = index === pathnames.length - 1;
-                const to = `/${pathnames.slice(0, index + 1).join("/")}`;
-
-                return last ? (
-                    <Typography color='text.primary' key={to}>
-                        {routeNames[to] ?? value}
-                    </Typography>
-                ) : (
-                    <LinkRouter underline='hover' color='inherit' to={to} key={to}>
-                        {routeNames[to]}
-                    </LinkRouter>
-                );
-            })}
-        </Breadcrumbs>
-    );
 };
 
 export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
@@ -143,35 +120,8 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                 <CssBaseline />
                 <AdminSidepanel items={navConfig} />
                 <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                    <AppBar position='sticky' color='default' enableColorOnDark elevation={0}>
-                        <Toolbar>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                                <BreadcrumbsComponent />
-                                <IconButton onClick={toMainPage} sx={{ mt: 1, mr: 1 }}>
-                                    <HighlightOffIcon />
-                                </IconButton>
-                            </Box>
-                        </Toolbar>
-                    </AppBar>
-                    <Box
-                        sx={{
-                            flex: 1,
-                            overflowY: 'auto',
-                            '&::-webkit-scrollbar': {
-                                width: '12px',
-                            },
-                            '&::-webkit-scrollbar-track': {
-                                backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                            },
-                            '&::-webkit-scrollbar-thumb': {
-                                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                borderRadius: '6px',
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                                },
-                            },
-                        }}
-                    >
+                    <AdminHeader routeNames={routeNames} onClose={toMainPage} />
+                    <ScrollableContent>
                         <Container sx={{ pt: 2, pb: 4, px: 3 }} maxWidth='xl'>
                             <Suspense fallback={null}>
                                 <Routes>
@@ -191,7 +141,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                 </Routes>
                             </Suspense>
                         </Container>
-                    </Box>
+                    </ScrollableContent>
                 </Box>
             </Box>;
     } else if (user) {
