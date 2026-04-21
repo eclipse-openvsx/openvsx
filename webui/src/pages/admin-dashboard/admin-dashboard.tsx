@@ -48,20 +48,20 @@ const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ defau
 const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 
 const navConfig: NavEntry[] = [
-    { path: AdminDashboardRoutes.NAMESPACE_ADMIN, name: 'Namespaces', icon: <AssignmentIndIcon /> },
-    { path: AdminDashboardRoutes.EXTENSION_ADMIN, name: 'Extensions', icon: <ExtensionSharpIcon /> },
-    { path: AdminDashboardRoutes.PUBLISHER_ADMIN, name: 'Publisher', icon: <PersonIcon /> },
-    { path: AdminDashboardRoutes.SCANS_ADMIN, name: 'Scans', icon: <SecurityIcon /> },
+    { path: AdminDashboardRoutes.NAMESPACE_ADMIN, name: 'Namespaces', icon: <AssignmentIndIcon />, description: 'Manage user roles and create new namespaces' },
+    { path: AdminDashboardRoutes.EXTENSION_ADMIN, name: 'Extensions', icon: <ExtensionSharpIcon />, description: 'Search for extensions and remove certain versions' },
+    { path: AdminDashboardRoutes.PUBLISHER_ADMIN, name: 'Publisher', icon: <PersonIcon />, description: 'Search for publishers and revoke their contributions' },
+    { path: AdminDashboardRoutes.SCANS_ADMIN, name: 'Scans', icon: <SecurityIcon />, description: 'View security scan results and manage quarantined extensions' },
     {
         name: 'Rate Limiting',
         icon: <SpeedIcon />,
         children: [
-            { path: AdminDashboardRoutes.TIERS, name: 'Tiers', icon: <StarIcon /> },
-            { path: AdminDashboardRoutes.CUSTOMERS, name: 'Customers', icon: <PeopleIcon /> },
-            { path: AdminDashboardRoutes.USAGE_STATS, name: 'Usage Stats', icon: <BarChartIcon /> },
+            { path: AdminDashboardRoutes.TIERS, name: 'Tiers', icon: <StarIcon />, description: 'Manage rate-limit tiers' },
+            { path: AdminDashboardRoutes.CUSTOMERS, name: 'Customers', icon: <PeopleIcon />, description: 'Manage rate-limit customers' },
+            { path: AdminDashboardRoutes.USAGE_STATS, name: 'Usage Stats', icon: <BarChartIcon />, description: 'Show usage stats for customers' },
         ],
     },
-    { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon /> },
+    { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon />, description: 'Browse admin activity logs' },
 ];
 
 const routeNames: { [key: string]: string } = {
@@ -137,7 +137,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/usage' element={<UsageStatsView/>} />
                                     <Route path='/usage/:customer' element={<UsageStatsView/>} />
                                     <Route path='/logs' element={<Logs/>} />
-                                    <Route path='*' element={<Welcome/>} />
+                                    <Route path='*' element={<Welcome items={navConfig} />} />
                                 </Routes>
                             </Suspense>
                         </Container>

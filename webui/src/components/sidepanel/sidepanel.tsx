@@ -8,17 +8,16 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { createContext, FunctionComponent, PropsWithChildren, useMemo } from 'react';
+import { FunctionComponent, PropsWithChildren, useMemo } from 'react';
 import { Divider, Drawer, IconButton, List } from '@mui/material';
 import { styled, Theme, CSSObject } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DrawerHeader } from './drawer-header';
+import { SidebarContext } from './sidebar-context';
 
 export const DRAWER_WIDTH = 240;
 export const COLLAPSED_WIDTH = 57;
-
-export const SidebarContext = createContext<{ collapsed: boolean }>({ collapsed: false });
 
 const openedMixin = (theme: Theme): CSSObject => ({
     width: DRAWER_WIDTH,

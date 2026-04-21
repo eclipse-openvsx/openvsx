@@ -9,54 +9,86 @@
  ********************************************************************************/
 
 import { FunctionComponent } from 'react';
-import { Typography, Grid, Paper } from '@mui/material';
-import { styled, Theme } from '@mui/material/styles';
-import { Link } from 'react-router-dom';
-import { AdminDashboardRoutes } from './admin-dashboard-routes';
+import { Box, Card, CardActionArea, CardContent, Divider, Grid, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { isNavGroup, NavEntry, RouteEntry } from './nav-types';
 
-export const Welcome: FunctionComponent = props => {
-    return <Grid container direction='column' spacing={2} sx={{ height: '100%' }}>
-        <Grid item container direction='column' alignItems='center' justifyContent='flex-end'>
-            <Paper elevation={3} sx={{ p: 4 }}>
-                <Typography sx={{ mb: 2 }} align='center' variant='h5'>Welcome to the Admin Dashboard!</Typography>
-                <Typography align='center'>You can switch pages in the sidepanel menu on the left side.</Typography>
-                <Typography align='center'>
-                    Choose between administration for
-                </Typography>
-                <Grid container justifyContent='center' alignItems='center' sx={{ mt: 2 }}>
-                    <WelcomeLinkItem route={AdminDashboardRoutes.NAMESPACE_ADMIN} label='Namespaces' description='Manage user roles, create new namespaces' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.EXTENSION_ADMIN} label='Extensions' description='Search for extensions and remove certain versions' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.PUBLISHER_ADMIN} label='Publishers' description='Search for publishers and revoke their contributions' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.SCANS_ADMIN} label='Scans' description='View security scan results and manage quarantined extensions' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.TIERS} label='Tiers' description='Manage rate-limit tiers' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.CUSTOMERS} label='Customers' description='Manage rate-limit customers' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.USAGE_STATS} label='Usage Stats' description='Show usage stats for customers' />
-                    <WelcomeLinkItem route={AdminDashboardRoutes.LOGS} label='Logs' description='Browse admin logs' />
-                </Grid>
-            </Paper>
-        </Grid>
-    </Grid>;
+interface NavSection {
+    groupName?: string;
+    entries: RouteEntry[];
+}
+
+/** Preserve the original group structure: ungrouped items come first as a section without a title. */
+function buildSections(items: NavEntry[]): NavSection[] {
+    const ungrouped: RouteEntry[] = items.filter((e): e is RouteEntry => !isNavGroup(e));
+    const groups: NavSection[] = items
+        .filter(isNavGroup)
+        .map(group => ({ groupName: group.name, entries: group.children }));
+
+    return ungrouped.length > 0 ? [{ entries: ungrouped }, ...groups] : groups;
+}
+
+const NavCard: FunctionComponent<{ entry: RouteEntry }> = ({ entry }) => {
+    const navigate = useNavigate();
+    return (
+        <Card variant='outlined' sx={{ height: '100%' }}>
+            <CardActionArea
+                onClick={() => navigate(entry.path)}
+                sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3, px: 2 }}
+            >
+                <Box sx={{ fontSize: 40, color: 'primary.main', mb: 1, display: 'flex' }}>
+                    {entry.icon}
+                </Box>
+                <CardContent sx={{ textAlign: 'center', p: 1 }}>
+                    <Typography variant='h6' gutterBottom>{entry.name}</Typography>
+                    {entry.description && (
+                        <Typography variant='body2' color='text.secondary'>
+                            {entry.description}
+                        </Typography>
+                    )}
+                </CardContent>
+            </CardActionArea>
+        </Card>
+    );
 };
 
-const StyledLink = styled(Link)(({ theme }: { theme: Theme }) => ({
-    color: theme.palette.secondary.main,
-    textDecoration: 'none',
-    '&:hover': {
-        textDecoration: 'underline'
-    }
-}));
+export interface WelcomeProps {
+    items: NavEntry[];
+}
 
-const WelcomeLinkItem: FunctionComponent<{ route: string, label: string, description: string }> = props => {
-    return <Grid container item xs={8} sx={{ mb: 2 }}>
-        <Grid container alignItems='center' item xs={12} md={4}>
-            <Typography>
-                <StyledLink to={props.route}>
-                    {props.label}
-                </StyledLink>
+export const Welcome: FunctionComponent<WelcomeProps> = ({ items }) => {
+    const sections = buildSections(items);
+
+    return (
+        <Box sx={{ py: 4, px: 2 }}>
+            <Typography variant='h5' gutterBottom>
+                Welcome to the Admin Dashboard
             </Typography>
-        </Grid>
-        <Grid item xs={12} md={8}>
-            <Typography variant='body1' style={{ lineHeight: 1.5 }}>{props.description}</Typography>
-        </Grid>
-    </Grid>;
+            <Typography variant='body1' color='text.secondary' sx={{ mb: 4 }}>
+                Select a section below to get started
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {sections.map((section, i) => (
+                    <Box key={section.groupName ?? '__root__'}>
+                        {section.groupName && (
+                            <>
+                                <Typography variant='overline' color='text.secondary' sx={{ mb: 1, display: 'block' }}>
+                                    {section.groupName}
+                                </Typography>
+                                <Divider sx={{ mb: 2 }} />
+                            </>
+                        )}
+                        {!section.groupName && i > 0 && <Divider sx={{ mb: 2 }} />}
+                        <Grid container spacing={3}>
+                            {section.entries.map(entry => (
+                                <Grid item key={entry.path} xs={12} sm={6} md={4} lg={3}>
+                                    <NavCard entry={entry} />
+                                </Grid>
+                            ))}
+                        </Grid>
+                    </Box>
+                ))}
+            </Box>
+        </Box>
+    );
 };

@@ -14,6 +14,7 @@ export interface RouteEntry {
     path: string;
     name: string;
     icon: ReactNode;
+    description?: string;
 }
 
 export interface NavGroup {

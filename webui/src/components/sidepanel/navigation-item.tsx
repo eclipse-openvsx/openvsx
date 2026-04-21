@@ -16,7 +16,7 @@ import {
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate } from 'react-router';
-import { SidebarContext } from './sidepanel';
+import { SidebarContext } from './sidebar-context';
 
 const EXPANDED_CONTEXT = { collapsed: false };
 
