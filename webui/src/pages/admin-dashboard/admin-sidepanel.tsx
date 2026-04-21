@@ -8,22 +8,19 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useState } from 'react';
+import { FunctionComponent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Sidepanel } from '../../components/sidepanel/sidepanel';
 import { NavigationItem } from '../../components/sidepanel/navigation-item';
 import { isNavGroup, NavEntry } from './nav-types';
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+import { useLocalStorage } from '../../hooks/use-local-storage';
 
 export interface AdminSidepanelProps {
     items: NavEntry[];
 }
 
 export const AdminSidepanel: FunctionComponent<AdminSidepanelProps> = ({ items }) => {
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useLocalStorage('admin-sidepanel-open', true);
     const { pathname } = useLocation();
 
     return (
