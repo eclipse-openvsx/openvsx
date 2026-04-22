@@ -182,6 +182,10 @@ namespace TargetPlatform {
     export const LINUX_X64 = 'linux-x64';
     export const LINUX_ARM64 = 'linux-arm64';
     export const LINUX_ARMHF = 'linux-armhf';
+    export const LINUX_LOONG64 = 'linux-loong64';
+    export const LINUX_PPC64 = 'linux-ppc64le';
+    export const LINUX_RISCV64 = 'linux-riscv64';
+    export const LINUX_S390X = 'linux-s390x';
     export const ALPINE_X64 = 'alpine-x64';
     export const ALPINE_ARM64 = 'alpine-arm64';
     export const DARWIN_X64 = 'darwin-x64';
@@ -198,6 +202,10 @@ export function getTargetPlatforms(): string[] {
         TargetPlatform.LINUX_X64,
         TargetPlatform.LINUX_ARM64,
         TargetPlatform.LINUX_ARMHF,
+        TargetPlatform.LINUX_LOONG64,
+        TargetPlatform.LINUX_PPC64,
+        TargetPlatform.LINUX_RISCV64,
+        TargetPlatform.LINUX_S390X,
         TargetPlatform.ALPINE_X64,
         TargetPlatform.ALPINE_ARM64,
         TargetPlatform.DARWIN_X64,
@@ -216,6 +224,10 @@ export function getTargetPlatformDisplayName(targetPlatform: string): string {
         [TargetPlatform.LINUX_X64, 'Linux x64'],
         [TargetPlatform.LINUX_ARM64, 'Linux ARM64'],
         [TargetPlatform.LINUX_ARMHF, 'Linux ARMhf'],
+        [TargetPlatform.LINUX_LOONG64, 'Linux LoongArch 64 bit'],
+        [TargetPlatform.LINUX_PPC64, 'Linux PowerPC 64 bit (little endian)'],
+        [TargetPlatform.LINUX_RISCV64, 'Linux RISC-V 64 bit'],
+        [TargetPlatform.LINUX_S390X, 'Linux s390x'],
         [TargetPlatform.ALPINE_X64, 'Alpine Linux 64 bit'],
         [TargetPlatform.ALPINE_ARM64, 'Alpine Linux ARM64'],
         [TargetPlatform.DARWIN_X64, 'macOS Intel'],
