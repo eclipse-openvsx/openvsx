@@ -122,7 +122,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                     <AdminHeader routeNames={routeNames} onClose={toMainPage} />
                     <ScrollableContent>
-                        <Container sx={{ pt: 2, pb: 4, px: 3 }} maxWidth='xl'>
+                        <Container sx={{ pt: 3, pb: 4, px: 3 }} maxWidth='xl'>
                             <Suspense fallback={null}>
                                 <Routes>
                                     <Route path='/namespaces' element={<NamespaceAdmin/>} />

@@ -6,13 +6,13 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
-- Persist open/closed state for the admin dashboard sidepanel ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
-- Revamp admin dashboard welcome page ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
+- Persist open/closed state for the admin dashboard side-panel ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
 
 ### Changed
 
-- Refactor admin dashboard sidepanel implementation ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
+- Refactor admin dashboard side-panel implementation ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
 - Extract breadcrumbs into its own component in the admin dashboard ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
+- Revamp admin dashboard welcome page ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
 
 ### Fixed
 
