@@ -75,6 +75,13 @@ export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props =>
     const handleCloseDeleteDialog = async () => {
         setDeleteDialogIsOpen(false);
     };
+    const handleDeletedNamespace = async () => {
+        setDeleteDialogIsOpen(false);
+        if (props.onDelete !== undefined) {
+            props.onDelete();
+        }
+    };
+
     const handleOpenDeleteDialog = () => {
         setDeleteDialogIsOpen(true);
     };
@@ -109,17 +116,19 @@ export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props =>
                 <NamespaceHeader>
                     <Typography variant='h4'>{props.namespace.name}</Typography>
                     { pathname.startsWith(AdminDashboardRoutes.NAMESPACE_ADMIN)
-                        ? 
+                        ?
                         <Box>
                             <Button sx={{ ml: { xs: 2, sm: 2, md: 2, lg: 0, xl: 0 } }} variant='outlined' onClick={handleOpenChangeDialog}>
                                 Change Namespace
                             </Button>
-                            <Button
-                                variant='outlined'
-                                sx={{ color: 'error.main', height: 36, ml: { xs: 2 } }}
-                                onClick={handleOpenDeleteDialog}>
-                                Delete
-                            </Button>
+                            { Object.keys(props.namespace.extensions).length === 0 &&
+                                <Button
+                                    variant='outlined'
+                                    sx={{ color: 'error.main', height: 36, ml: { xs: 2 } }}
+                                    onClick={handleOpenDeleteDialog}>
+                                    Delete
+                                </Button>
+                            }
                         </Box>
                         : null
                     }
@@ -157,6 +166,7 @@ export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props =>
         <NamespaceDeleteDialog
             open={deleteDialogIsOpen}
             onClose={handleCloseDeleteDialog}
+            onDelete={handleDeletedNamespace}
             namespace={props.namespace}
             setLoadingState={props.setLoadingState} />
     </>;
@@ -169,4 +179,5 @@ export interface NamespaceDetailProps {
     setLoadingState: (loading: boolean) => void;
     namespaceAccessUrl?: string;
     theme?: string;
+    onDelete?: () => void;
 }

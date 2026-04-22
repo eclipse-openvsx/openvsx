@@ -117,7 +117,7 @@ export const UserSettingsNamespaces: FunctionComponent = () => {
                 filterUsers={(foundUser: UserData) => foundUser.provider !== user?.provider || foundUser.loginName !== user?.loginName}
                 fixSelf={true}
                 namespaceAccessUrl={namespaceAccessUrl}
-                theme={pageSettings.themeType}/>
+                theme={pageSettings.themeType} />
         </Box>;
     } else if (!loading) {
         namespaceContainer = <Typography variant='body1'>No namespaces available. Read <Link color='secondary' href={namespaceAccessUrl} target='_blank'>here</Link> about claiming namespaces.</Typography>;
