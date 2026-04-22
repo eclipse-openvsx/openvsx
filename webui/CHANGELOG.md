@@ -6,12 +6,35 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
+- Persist open/closed state for the admin dashboard side-panel ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
 - Add support to delete empty namespaces in the admin dashboard ([#1773](https://github.com/eclipse/openvsx/pull/1773))
+
+### Changed
+
+- Refactor admin dashboard side-panel implementation ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
+- Extract breadcrumbs into its own component in the admin dashboard ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
+- Revamp admin dashboard welcome page ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
+
+### Fixed
+
+- Fix admin dashboard breadcrumbs not being URL-decoded ([#1781](https://github.com/eclipse-openvsx/openvsx/pull/1781))
+
+## [v0.20.1] (20/04/2026)
+
+### Changed
+
+- Reduce size of main bundle by splitting it up in separate chunks that are dynamically loaded ([#1750](https://github.com/eclipse/openvsx/pull/1750))
+- Display download link also for error'ed security scans on scan card ([#1778](https://github.com/eclipse/openvsx/pull/1778))
 
 ### Fixed
 
 - Refactor extension detail page to avoid unnecessary data reloads ([#1760](https://github.com/eclipse/openvsx/pull/1760))
 - Fix refreshing of extension readme when switching versions ([#1760](https://github.com/eclipse/openvsx/pull/1760))
+- Fix namespace / publisher column on extension detail page ([#1765](https://github.com/eclipse/openvsx/pull/1765))
+
+### Dependencies
+
+- Bump dompurify from `3.3.2` to `3.4.0` ([#1768](https://github.com/eclipse/openvsx/pull/1768))
 
 ## [v0.20.0] (13/04/2026)
 

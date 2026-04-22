@@ -9,9 +9,13 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.publish;
 
-import com.google.common.base.Joiner;
-import jakarta.persistence.EntityManager;
-import jakarta.transaction.Transactional;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.ExtensionProcessor;
@@ -19,33 +23,37 @@ import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.adapter.VSCodeIdNewExtensionJobRequest;
-import org.eclipse.openvsx.entities.*;
+import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionScan;
+import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.entities.PersonalAccessToken;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
-import org.eclipse.openvsx.util.*;
+import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.ExtensionId;
+import org.eclipse.openvsx.util.NamingUtil;
+import org.eclipse.openvsx.util.TempFile;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerErrorException;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.function.Consumer;
+import com.google.common.base.Joiner;
+
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 
 @Component
 public class PublishExtensionVersionHandler {
-
     protected final Logger logger = LoggerFactory.getLogger(PublishExtensionVersionHandler.class);
 
-    @Value("${ovsx.publishing.require-license:false}")
-    boolean requireLicense;
-
+    private final PublishingConfig config;
     private final PublishExtensionVersionService service;
     private final ExtensionVersionIntegrityService integrityService;
     private final EntityManager entityManager;
@@ -56,7 +64,10 @@ public class PublishExtensionVersionHandler {
     private final ExtensionControlService extensionControl;
     private final ExtensionScanService scanService;
 
+    private final Predicate<String> unsupportedIconExtensions;
+
     public PublishExtensionVersionHandler(
+            PublishingConfig config,
             PublishExtensionVersionService service,
             ExtensionVersionIntegrityService integrityService,
             EntityManager entityManager,
@@ -67,6 +78,7 @@ public class PublishExtensionVersionHandler {
             ExtensionControlService extensionControl,
             ExtensionScanService scanService
     ) {
+        this.config = config;
         this.service = service;
         this.integrityService = integrityService;
         this.entityManager = entityManager;
@@ -76,14 +88,19 @@ public class PublishExtensionVersionHandler {
         this.validator = validator;
         this.extensionControl = extensionControl;
         this.scanService = scanService;
+
+        this.unsupportedIconExtensions = path -> {
+            if (path == null) {
+                return false;
+            }
+
+            var fileExtension = FilenameUtils.getExtension(path);
+            return config.getUnsupportedIconFormats().stream().anyMatch(ext -> ext.equalsIgnoreCase(fileExtension));
+        };
     }
 
     public boolean isLicenseRequired() {
-        return requireLicense;
-    }
-
-    public void setLicenseRequired(boolean requireLicense) {
-        this.requireLicense = requireLicense;
+        return config.isRequireLicense();
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
@@ -97,7 +114,7 @@ public class PublishExtensionVersionHandler {
                     .map(id -> parseExtensionId(id, "extensionDependencies"))
                     .toList();
 
-            if(!parsedDependencies.isEmpty()) {
+            if (!parsedDependencies.isEmpty()) {
                 checkDependencies(parsedDependencies);
             }
             bundledExtensions.forEach(id -> parseExtensionId(id, "extensionPack"));
@@ -105,7 +122,7 @@ public class PublishExtensionVersionHandler {
 
         extVersion.setDependencies(dependencies);
         extVersion.setBundledExtensions(bundledExtensions);
-        if(integrityService.isEnabled()) {
+        if (integrityService.isEnabled()) {
             extVersion.setSignatureKeyPair(repositories.findActiveKeyPair());
         }
 
@@ -160,6 +177,8 @@ public class PublishExtensionVersionHandler {
         extVersion.setExtension(extension);
 
         validateLicense(processor, extVersion);
+        validateIcon(processor);
+        validateFileResources(processor, extVersion);
         validateMetadata(extVersion);
         entityManager.persist(extVersion);
         return extVersion;
@@ -185,7 +204,7 @@ public class PublishExtensionVersionHandler {
     }
 
     private void validateLicense(ExtensionProcessor processor, ExtensionVersion extVersion) {
-        if (requireLicense) {
+        if (isLicenseRequired()) {
             // Check the extension's license
             try (var licenseFile = processor.getLicense(extVersion)) {
                 checkLicense(extVersion, licenseFile);
@@ -199,6 +218,25 @@ public class PublishExtensionVersionHandler {
         if (StringUtils.isEmpty(extVersion.getLicense()) &&
                 (licenseFile == null || !licenseFile.getResource().getType().equals(FileResource.LICENSE))) {
             throw new ErrorResultException("This extension cannot be accepted because it has no license.");
+        }
+    }
+
+    private void validateIcon(ExtensionProcessor processor) {
+        var iconPath = processor.getIconPath();
+        if (iconPath != null && unsupportedIconExtensions.test(iconPath)) {
+            throw new ErrorResultException("This extension cannot be accepted as it uses an unsupported icon format.");
+        }
+    }
+
+    private void validateFileResources(ExtensionProcessor processor, ExtensionVersion extVersion) {
+        try {
+            // Validate that all file resources are readable/accessible during synchronous publishing
+            // to avoid failing during async publishing and report errors directly back to publishers.
+            // This creates unnecessary temp files, however these are usually small and thus it is
+            // acceptable in this case.
+            processor.getFileResources(extVersion, _ -> {});
+        } catch (ErrorResultException exc) {
+            throw new ErrorResultException("Validation failed: " + exc.getMessage());
         }
     }
 

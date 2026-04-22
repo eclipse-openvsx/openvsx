@@ -1,7 +1,7 @@
 FROM node:22-alpine3.22 AS builder
 
 # Copy sources
-COPY --chown=node:node package.json tsconfig.json vite.config.ts yarn.lock .yarnrc.yml /home/node/builder/
+COPY --chown=node:node package.json tsconfig.json vite.config.mts yarn.lock .yarnrc.yml /home/node/builder/
 WORKDIR /home/node/builder
 COPY --chown=node:node .yarn ./.yarn/
 COPY --chown=node:node configs ./configs/

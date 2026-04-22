@@ -8,95 +8,62 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useState } from 'react';
+import { FunctionComponent, ReactNode, useContext, lazy, Suspense } from 'react';
 import {
     Box,
     Container,
     CssBaseline,
     Typography,
     IconButton,
-    Breadcrumbs,
-    LinkProps,
-    Link,
-    Toolbar
 } from '@mui/material';
-import MuiAppBar, { AppBarProps as MuiAppBarProps } from '@mui/material/AppBar';
-import { styled } from "@mui/material/styles";
-import { Link as RouterLink, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { styled } from '@mui/material/styles';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
-import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import HistoryIcon from '@mui/icons-material/History';
-import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
-import { CustomerDetails } from './customers/customer-details';
-import { Customers } from './customers/customers';
-import { DrawerHeader } from '../../components/sidepanel/drawer-header';
-import { Sidepanel } from "../../components/sidepanel/sidepanel";
-import { ExtensionAdmin } from './extension-admin';
 import { LoginComponent } from "../../default/login";
-import { Logs } from './logs/logs';
 import { MainContext } from '../../context';
+import { AdminDashboardRoutes } from './admin-dashboard-routes';
+import { AdminSidepanel } from './admin-sidepanel';
+import { AdminHeader } from './admin-header';
+import { isNavGroup, NavEntry } from './nav-types';
+
 import { NamespaceAdmin } from './namespace-admin';
-import { NavigationItem } from '../../components/sidepanel/navigation-item';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
 import { Tiers } from './tiers/tiers';
-import { UsageStatsView } from './usage-stats/usage-stats';
+import { Customers } from './customers/customers';
+import { CustomerDetails } from './customers/customer-details';
+import { Logs } from './logs/logs';
 import { Welcome } from './welcome';
-import { AdminDashboardRoutes } from "./admin-routes";
 
-const Message: FunctionComponent<{message: string}> = ({ message }) => {
-    return (<Box sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%'
-    }}>
-        <Typography variant='h6'>{message}</Typography>
-    </Box>);
-};
-
-interface RouteEntry {
-    path: string;
-    name: string;
-    icon: ReactNode;
-}
-
-interface NavGroup {
-    name: string;
-    icon: ReactNode;
-    children: RouteEntry[];
-}
-
-type NavEntry = RouteEntry | NavGroup;
-
-const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in entry;
+const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
+const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 
 const navConfig: NavEntry[] = [
-    { path: AdminDashboardRoutes.NAMESPACE_ADMIN, name: 'Namespaces', icon: <AssignmentIndIcon /> },
-    { path: AdminDashboardRoutes.EXTENSION_ADMIN, name: 'Extensions', icon: <ExtensionSharpIcon /> },
-    { path: AdminDashboardRoutes.PUBLISHER_ADMIN, name: 'Publisher', icon: <PersonIcon /> },
-    { path: AdminDashboardRoutes.SCANS_ADMIN, name: 'Scans', icon: <SecurityIcon /> },
+    { path: AdminDashboardRoutes.NAMESPACE_ADMIN, name: 'Namespaces', icon: <AssignmentIndIcon />, description: 'Manage user roles and create new namespaces' },
+    { path: AdminDashboardRoutes.EXTENSION_ADMIN, name: 'Extensions', icon: <ExtensionSharpIcon />, description: 'Search for extensions and remove certain versions' },
+    { path: AdminDashboardRoutes.PUBLISHER_ADMIN, name: 'Publisher', icon: <PersonIcon />, description: 'Search for publishers and revoke their contributions' },
+    { path: AdminDashboardRoutes.SCANS_ADMIN, name: 'Scans', icon: <SecurityIcon />, description: 'View security scan results and manage quarantined extensions' },
     {
         name: 'Rate Limiting',
         icon: <SpeedIcon />,
         children: [
-            { path: AdminDashboardRoutes.TIERS, name: 'Tiers', icon: <StarIcon /> },
-            { path: AdminDashboardRoutes.CUSTOMERS, name: 'Customers', icon: <PeopleIcon /> },
-            { path: AdminDashboardRoutes.USAGE_STATS, name: 'Usage Stats', icon: <BarChartIcon /> },
+            { path: AdminDashboardRoutes.TIERS, name: 'Tiers', icon: <StarIcon />, description: 'Manage rate-limit tiers' },
+            { path: AdminDashboardRoutes.CUSTOMERS, name: 'Customers', icon: <PeopleIcon />, description: 'Manage rate-limit customers' },
+            { path: AdminDashboardRoutes.USAGE_STATS, name: 'Usage Stats', icon: <BarChartIcon />, description: 'Show usage stats for customers' },
         ],
     },
-    { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon /> },
+    { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon />, description: 'Browse admin activity logs' },
 ];
 
-// Flat name lookup for breadcrumbs
 const routeNames: { [key: string]: string } = {
     [AdminDashboardRoutes.MAIN]: 'Admin Dashboard',
     ...navConfig.reduce<{ [key: string]: string }>((acc, entry) => {
@@ -111,183 +78,71 @@ const routeNames: { [key: string]: string } = {
     }, {}),
 };
 
-const drawerWidth = 240;
-
-interface AppBarProps extends MuiAppBarProps {
-    open?: boolean;
-}
-
-const AppBar = styled(MuiAppBar, {
-    shouldForwardProp: (prop) => prop !== 'open',
-})<AppBarProps>(({ theme, open }) => ({
-    transition: theme.transitions.create(['margin', 'width'], {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.leavingScreen,
-    }),
-    ...(open && {
-        width: `calc(100% - ${drawerWidth}px)`,
-        marginLeft: `${drawerWidth}px`,
-        transition: theme.transitions.create(['margin', 'width'], {
-            easing: theme.transitions.easing.easeOut,
-            duration: theme.transitions.duration.enteringScreen,
-        }),
-    }),
+const ScrollableContent = styled(Box)(({ theme }) => ({
+    flex: 1,
+    overflowY: 'auto',
+    '&::-webkit-scrollbar': {
+        width: '12px',
+    },
+    '&::-webkit-scrollbar-track': {
+        backgroundColor: theme.palette.action.hover,
+    },
+    '&::-webkit-scrollbar-thumb': {
+        backgroundColor: theme.palette.action.selected,
+        borderRadius: '6px',
+        '&:hover': {
+            backgroundColor: theme.palette.action.focus,
+        },
+    },
 }));
 
-interface LinkRouterProps extends LinkProps {
-    to: string;
-    replace?: boolean;
-}
-
-const LinkRouter = (props: LinkRouterProps) => (
-    <Link {...props} component={RouterLink as any} />
-);
-
-const BreadcrumbsComponent = () => {
-    const { pathname } = useLocation();
-
-    const pathnames = pathname.split("/").filter((segment) => segment);
-
-    return (
-        <Breadcrumbs aria-label='breadcrumb' sx={{ pt: 2, pb: 2, px: 4 }} >
-            <LinkRouter underline='hover' color='inherit' to='/'>
-                Home
-            </LinkRouter>
-            {pathnames.map((value, index) => {
-                const last = index === pathnames.length - 1;
-                const to = `/${pathnames.slice(0, index + 1).join("/")}`;
-
-                return last ? (
-                    <Typography color='text.primary' key={to}>
-                        {routeNames[to] ?? value}
-                    </Typography>
-                ) : (
-                    <LinkRouter underline='hover' color='inherit' to={to} key={to}>
-                        {routeNames[to]}
-                    </LinkRouter>
-                );
-            })}
-        </Breadcrumbs>
-    );
+const Message: FunctionComponent<{message: string}> = ({ message }) => {
+    return (<Box sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%'
+    }}>
+        <Typography variant='h6'>{message}</Typography>
+    </Box>);
 };
-
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
-    open?: boolean;
-}>(({ theme, open }) => ({
-    flexGrow: 1,
-    padding: theme.spacing(3),
-    transition: theme.transitions.create('margin', {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.leavingScreen,
-    }),
-    marginLeft: `-${drawerWidth}px`,
-    ...(open && {
-        transition: theme.transitions.create('margin', {
-            easing: theme.transitions.easing.easeOut,
-            duration: theme.transitions.duration.enteringScreen,
-        }),
-        marginLeft: 0,
-    }),
-}));
 
 export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
     const { user, loginProviders } = useContext(MainContext);
-    const [drawerOpen, setDrawerOpen] = useState(true);
 
     const navigate = useNavigate();
     const toMainPage = () => navigate('/');
 
-    const [currentPage, setCurrentPage] = useState<string | undefined>(useLocation().pathname);
-    const handleOpenRoute = (route: string) => {
-        setCurrentPage(route);
-    };
-
     let content: ReactNode = null;
     if (user?.role === 'admin') {
         content =
-            <Box sx={{ display: 'flex', width: '100%' }}>
+            <Box sx={{ display: 'flex', width: '100%', height: '100%' }}>
                 <CssBaseline />
-                <AppBar position='fixed' open={drawerOpen} color='default' enableColorOnDark elevation={0}>
-                    <Toolbar>
-                        <IconButton
-                            aria-label='open drawer'
-                            onClick={() => setDrawerOpen(true)}
-                            edge='start'
-                            sx={[{ mr: 2 }, drawerOpen && { display: 'none' }]}
-                        >
-                            <MenuIcon />
-                        </IconButton>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                            <BreadcrumbsComponent />
-                            <IconButton onClick={toMainPage} sx={{ mt: 1, mr: 1 }}>
-                                <HighlightOffIcon/>
-                            </IconButton>
-                        </Box>
-                    </Toolbar>
-                </AppBar>
-                <Sidepanel width={drawerWidth} open={drawerOpen} handleDrawerClose={() => setDrawerOpen(false)} >
-                    {navConfig.map((entry) => {
-                        if (isNavGroup(entry)) {
-                            return (
-                                <NavigationItem
-                                    key={entry.name}
-                                    label={entry.name}
-                                    icon={entry.icon}
-                                >
-                                    {entry.children.map((child) => (
-                                        <NavigationItem key={child.path} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(child.path)}
-                                                        label={child.name} icon={child.icon} route={child.path}/>
-                                    ))}
-                                </NavigationItem>
-                            );
-                        }
-                        return (
-                            <NavigationItem key={entry.path} onOpenRoute={handleOpenRoute} active={currentPage?.startsWith(entry.path)}
-                                            label={entry.name} icon={entry.icon} route={entry.path}/>
-                        );
-                    })}
-                </Sidepanel>
-                <Main open={drawerOpen} >
-                    <DrawerHeader />
-                    <Box
-                        overflow='auto'
-                        flex={1}
-                        sx={{
-                            overflowY: 'scroll',
-                            '&::-webkit-scrollbar': {
-                                width: '12px',
-                            },
-                            '&::-webkit-scrollbar-track': {
-                                backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                            },
-                            '&::-webkit-scrollbar-thumb': {
-                                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                borderRadius: '6px',
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                                },
-                            },
-                        }}
-                    >
-                        <Container sx={{ pt: 2, pb: 4, px: 3 }} maxWidth='xl'>
-                            <Routes>
-                                <Route path='/namespaces' element={<NamespaceAdmin/>} />
-                                <Route path='/extensions' element={<ExtensionAdmin/>} />
-                                <Route path='/extensions/:namespace/:extension' element={<ExtensionAdmin/>} />
-                                <Route path='/publisher' element={<PublisherAdmin/>} />
-                                <Route path='/publisher/:publisher' element={<PublisherAdmin/>} />
-                                <Route path='/scans' element={<ScanAdmin/>} />
-                                <Route path='/tiers' element={<Tiers/>} />
-                                <Route path='/customers' element={<Customers/>} />
-                                <Route path='/customers/:customer' element={<CustomerDetails/>} />
-                                <Route path='/usage' element={<UsageStatsView/>} />
-                                <Route path='/usage/:customer' element={<UsageStatsView/>} />
-                                <Route path='/logs' element={<Logs/>} />
-                                <Route path='*' element={<Welcome/>} />
-                            </Routes>
+                <AdminSidepanel items={navConfig} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    <AdminHeader routeNames={routeNames} onClose={toMainPage} />
+                    <ScrollableContent>
+                        <Container sx={{ pt: 3, pb: 4, px: 3 }} maxWidth='xl'>
+                            <Suspense fallback={null}>
+                                <Routes>
+                                    <Route path='/namespaces' element={<NamespaceAdmin/>} />
+                                    <Route path='/extensions' element={<ExtensionAdmin/>} />
+                                    <Route path='/extensions/:namespace/:extension' element={<ExtensionAdmin/>} />
+                                    <Route path='/publisher' element={<PublisherAdmin/>} />
+                                    <Route path='/publisher/:publisher' element={<PublisherAdmin/>} />
+                                    <Route path='/scans' element={<ScanAdmin/>} />
+                                    <Route path='/tiers' element={<Tiers/>} />
+                                    <Route path='/customers' element={<Customers/>} />
+                                    <Route path='/customers/:customer' element={<CustomerDetails/>} />
+                                    <Route path='/usage' element={<UsageStatsView/>} />
+                                    <Route path='/usage/:customer' element={<UsageStatsView/>} />
+                                    <Route path='/logs' element={<Logs/>} />
+                                    <Route path='*' element={<Welcome items={navConfig} />} />
+                                </Routes>
+                            </Suspense>
                         </Container>
-                    </Box>
-                </Main>
+                    </ScrollableContent>
+                </Box>
             </Box>;
     } else if (user) {
         content = <Message message='You are not authorized as administrator.'/>;

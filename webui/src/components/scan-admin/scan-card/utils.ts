@@ -189,7 +189,7 @@ export const shouldShowExpandButton = (scan: ScanResult): boolean => {
 };
 
 export const hasDownload = (scan: ScanResult): boolean => {
-    return scan.status === 'PASSED' || scan.status === 'QUARANTINED';
+    return scan.status === 'PASSED' || scan.status === 'QUARANTINED' || scan.status === 'ERROR';
 };
 
 export const getFileName = (url?: string): string => {

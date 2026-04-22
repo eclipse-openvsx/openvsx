@@ -8,11 +8,10 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useEffect, useState, useRef } from 'react';
+import { FunctionComponent, ReactNode, useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { CssBaseline } from '@mui/material';
 import { Route, Routes } from 'react-router-dom';
-import { AdminDashboard } from './pages/admin-dashboard/admin-dashboard';
-import { AdminDashboardRoutes } from './pages/admin-dashboard/admin-routes';
+import { AdminDashboardRoutes } from './pages/admin-dashboard/admin-dashboard-routes';
 import { ErrorDialog } from './components/error-dialog';
 import { handleError } from './utils';
 import { ExtensionRegistryService } from './extension-registry-service';
@@ -20,9 +19,11 @@ import { UserData, isError, ReportedError, isSuccess, LoginProviders } from './e
 import { MainContext } from './context';
 import { PageSettings } from './page-settings';
 import { ErrorResponse } from './server-request';
+import { OtherPages } from './other-pages';
 
 import '../src/main.css';
-import { OtherPages } from './other-pages';
+
+const AdminDashboard = lazy(() => import('./pages/admin-dashboard/admin-dashboard').then(m => ({ default: m.AdminDashboard })));
 
 export const Main: FunctionComponent<MainProps> = props => {
     const [user, setUser] = useState<UserData>();
@@ -98,8 +99,12 @@ export const Main: FunctionComponent<MainProps> = props => {
         return <>
             { MainHeadTagsComponent ? <MainHeadTagsComponent pageSettings={props.pageSettings}/> : null }
             <Routes>
-                <Route path={AdminDashboardRoutes.MAIN + '/*'} element={<AdminDashboard userLoading={userLoading} />} />
-                <Route path='*' element={ <OtherPages user={user} userLoading={userLoading} /> } />
+                <Route path={AdminDashboardRoutes.MAIN + '/*'} element={
+                    <Suspense fallback={null}>
+                        <AdminDashboard userLoading={userLoading} />
+                    </Suspense>
+                } />
+                <Route path='*' element={<OtherPages user={user} userLoading={userLoading} />} />
             </Routes>
             {
                 error ?

@@ -8,43 +8,71 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, PropsWithChildren } from 'react';
+import { FunctionComponent, PropsWithChildren, useMemo } from 'react';
 import { Divider, Drawer, IconButton, List } from '@mui/material';
+import { styled, Theme, CSSObject } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { DrawerHeader } from './drawer-header';
+import { SidebarContext } from './sidebar-context';
 
-export const Sidepanel: FunctionComponent<PropsWithChildren<SidepanelProps>> = props => {
-    const width = props.width;
+export const DRAWER_WIDTH = 240;
+export const COLLAPSED_WIDTH = 57;
 
+const openedMixin = (theme: Theme): CSSObject => ({
+    width: DRAWER_WIDTH,
+    transition: theme.transitions.create('width', {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.enteringScreen,
+    }),
+    overflowX: 'hidden',
+});
+
+const closedMixin = (theme: Theme): CSSObject => ({
+    width: COLLAPSED_WIDTH,
+    transition: theme.transitions.create('width', {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.leavingScreen,
+    }),
+    overflowX: 'hidden',
+});
+
+const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== 'open' })(
+    ({ theme, open }) => ({
+        width: DRAWER_WIDTH,
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
+        boxSizing: 'border-box',
+        ...(open ? {
+            ...openedMixin(theme),
+            '& .MuiDrawer-paper': openedMixin(theme),
+        } : {
+            ...closedMixin(theme),
+            '& .MuiDrawer-paper': closedMixin(theme),
+        }),
+    })
+);
+
+export const Sidepanel: FunctionComponent<PropsWithChildren<SidepanelProps>> = ({ open, onToggle, children }) => {
+    const contextValue = useMemo(() => ({ collapsed: !open }), [open]);
     return (
-        <Drawer
-            sx={{
-                width: width,
-                flexShrink: 0,
-                '& .MuiDrawer-paper': {
-                    width: width,
-                    boxSizing: 'border-box',
-                },
-            }}
-            variant='persistent'
-            anchor='left'
-            open={props.open}
-        >
-            <DrawerHeader>
-                <IconButton onClick={props.handleDrawerClose}>
-                    <ChevronLeftIcon />
-                </IconButton>
-            </DrawerHeader>
-            <Divider />
-            <List>
-                {props.children}
-            </List>
-        </Drawer>
+        <SidebarContext.Provider value={contextValue}>
+            <StyledDrawer variant='permanent' anchor='left' open={open}>
+                <DrawerHeader>
+                    <IconButton onClick={onToggle} aria-label={open ? 'collapse sidebar' : 'expand sidebar'}>
+                        {open ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+                    </IconButton>
+                </DrawerHeader>
+                <Divider />
+                <List disablePadding>
+                    {children}
+                </List>
+            </StyledDrawer>
+        </SidebarContext.Provider>
     );
 };
 
-interface SidepanelProps {
-    width: number;
+export interface SidepanelProps {
     open: boolean;
-    handleDrawerClose: () => void;
+    onToggle: () => void;
 }

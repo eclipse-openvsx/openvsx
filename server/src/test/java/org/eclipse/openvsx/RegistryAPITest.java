@@ -29,6 +29,7 @@ import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -119,6 +120,9 @@ class RegistryAPITest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    PublishingConfig publishingConfig;
 
     @Autowired
     ExtensionService extensionService;
@@ -1525,9 +1529,9 @@ class RegistryAPITest {
 
     @Test
     void testPublishRequireLicenseNone() throws Exception {
-        var previousRequireLicense = extensionService.isLicenseRequired();
+        var previousRequireLicense = publishingConfig.isRequireLicense();
         try {
-            extensionService.setLicenseRequired(true);
+            publishingConfig.setRequireLicense(true);
             mockForPublish("contributor");
             var bytes = createExtensionPackage("bar", "1.0.0", null);
             mockMvc.perform(post("/api/-/publish?token={token}", "my_token")
@@ -1536,15 +1540,15 @@ class RegistryAPITest {
                     .andExpect(status().isBadRequest())
                     .andExpect(content().json(errorJson("This extension cannot be accepted because it has no license.")));
         } finally {
-            extensionService.setLicenseRequired(previousRequireLicense);
+            publishingConfig.setRequireLicense(previousRequireLicense);
         }
     }
 
     @Test
     void testPublishRequireLicenseOk() throws Exception {
-        var previousRequireLicense = extensionService.isLicenseRequired();
+        var previousRequireLicense = publishingConfig.isRequireLicense();
         try {
-            extensionService.setLicenseRequired(true);
+            publishingConfig.setRequireLicense(true);
             mockForPublish("contributor");
             mockActiveVersion();
             var bytes = createExtensionPackage("bar", "1.0.0", "MIT");
@@ -1563,7 +1567,7 @@ class RegistryAPITest {
                         e.setDownloadable(true);
                     })));
         } finally {
-            extensionService.setLicenseRequired(previousRequireLicense);
+            publishingConfig.setRequireLicense(previousRequireLicense);
         }
     }
 
@@ -2618,7 +2622,13 @@ class RegistryAPITest {
         }
 
         @Bean
+        PublishingConfig publishingConfig() {
+            return new PublishingConfig();
+        }
+
+        @Bean
         PublishExtensionVersionHandler publishExtensionVersionHandler(
+                PublishingConfig publishingConfig,
                 PublishExtensionVersionService service,
                 ExtensionVersionIntegrityService integrityService,
                 EntityManager entityManager,
@@ -2630,6 +2640,7 @@ class RegistryAPITest {
                 ExtensionScanService extensionScanService
         ) {
             return new PublishExtensionVersionHandler(
+                    publishingConfig,
                     service,
                     integrityService,
                     entityManager,
@@ -2644,6 +2655,7 @@ class RegistryAPITest {
 
         @Bean
         ExtensionService extensionService(
+                PublishingConfig publishingConfig,
                 EntityManager entityManager,
                 RepositoryService repositories,
                 SearchUtilService search,
@@ -2655,6 +2667,7 @@ class RegistryAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
+                    publishingConfig,
                     entityManager,
                     repositories,
                     search,

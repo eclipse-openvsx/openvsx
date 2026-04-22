@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import jakarta.annotation.Nullable;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.adapter.ExtensionQueryResult;
@@ -472,8 +473,9 @@ public class ExtensionProcessor implements AutoCloseable {
         return null;
     }
 
-    protected TempFile getIcon(ExtensionVersion extVersion) throws IOException {
+    public @Nullable String getIconPath() {
         var iconPath = tryGetAssetPath(ExtensionQueryResult.ExtensionFile.FILE_ICON);
+
         if (StringUtils.isEmpty(iconPath)) {
             loadPackageJson();
             var iconPathNode = packageJson.get("icon");
@@ -486,6 +488,15 @@ public class ExtensionProcessor implements AutoCloseable {
             }
 
             iconPath = "extension/" + iconPath;
+        }
+
+        return iconPath;
+    }
+
+    public @Nullable TempFile getIcon(ExtensionVersion extVersion) throws IOException {
+        var iconPath = getIconPath();
+        if (iconPath == null) {
+            return null;
         }
 
         var entryFile = ArchiveUtil.readEntry(zipFile, iconPath);

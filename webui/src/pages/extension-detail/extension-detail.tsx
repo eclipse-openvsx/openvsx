@@ -29,6 +29,7 @@ import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-rout
 import { ExtensionDetailOverview } from './extension-detail-overview';
 import { ExtensionDetailChanges } from './extension-detail-changes';
 import { ExtensionDetailReviews } from './extension-detail-reviews';
+
 import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { useExtensionDetail } from './use-extension-details';
 
@@ -198,14 +199,14 @@ const ExtensionHeaderInfo: FunctionComponent<{
             )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', color: headerTextColor, flexDirection: { xs: 'column', md: 'row' } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     <VerificationIcon verified={extension.verified} color={headerTextColor} />&nbsp;
                     <StyledRouteLink to={createRoute([NamespaceDetailRoutes.ROOT, extension.namespace])} style={{ color: headerTextColor }}>
                         {extension.namespaceDisplayName}
                     </StyledRouteLink>
                 </Box>
                 <TextDivider backgroundColor={headerTextColor} collapseSmall />
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     Published by&nbsp;<UserPopover user={extension.publishedBy} color={headerTextColor} />
                 </Box>
                 <TextDivider backgroundColor={headerTextColor} collapseSmall />
