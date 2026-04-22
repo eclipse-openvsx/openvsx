@@ -4,6 +4,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ## [next] (unreleased)
 
+### Fixed
+
+- Fix admin dashboard breadcrumbs not being URL-decoded ([#1781](https://github.com/eclipse-openvsx/openvsx/pull/1781))
+
 ## [v0.20.1] (20/04/2026)
 
 ### Changed
