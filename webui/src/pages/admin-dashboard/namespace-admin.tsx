@@ -31,6 +31,10 @@ export const NamespaceAdmin: FunctionComponent = props => {
         };
     }, []);
 
+    const handleDeleteNamespace = () => {
+        setCurrentNamespace(undefined);
+    };
+
     const fetchNamespace = async (namespaceName: string) => {
         if (!namespaceName) {
             setCurrentNamespace(undefined);
@@ -82,6 +86,7 @@ export const NamespaceAdmin: FunctionComponent = props => {
         listContainer = <NamespaceDetailConfigContext.Provider value={{ defaultMemberRole: 'owner' }}>
             <NamespaceDetail
                 setLoadingState={setLoading}
+                onDelete={handleDeleteNamespace}
                 namespace={currentNamespace}
                 filterUsers={() => true}
                 fixSelf={false}

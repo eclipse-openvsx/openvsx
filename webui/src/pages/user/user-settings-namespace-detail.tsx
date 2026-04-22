@@ -17,6 +17,7 @@ import { UserNamespaceExtensionListContainer } from './user-namespace-extension-
 import { AdminDashboardRoutes } from '../admin-dashboard/admin-dashboard-routes';
 import { Namespace, UserData } from '../../extension-registry-types';
 import { NamespaceChangeDialog } from '../admin-dashboard/namespace-change-dialog';
+import { NamespaceDeleteDialog } from '../admin-dashboard/namespace-delete-dialog';
 import { UserNamespaceMemberList } from './user-namespace-member-list';
 import { UserNamespaceDetails } from './user-namespace-details';
 
@@ -61,6 +62,7 @@ const NamespaceHeader = styled(Box)(({ theme }: { theme: Theme }) => ({
 
 export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props => {
     const [changeDialogIsOpen, setChangeDialogIsOpen] = useState(false);
+    const [deleteDialogIsOpen, setDeleteDialogIsOpen] = useState(false);
     const { pathname } = useLocation();
 
     const handleCloseChangeDialog = async () => {
@@ -70,6 +72,19 @@ export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props =>
         setChangeDialogIsOpen(true);
     };
 
+    const handleCloseDeleteDialog = async () => {
+        setDeleteDialogIsOpen(false);
+    };
+    const handleDeletedNamespace = async () => {
+        setDeleteDialogIsOpen(false);
+        if (props.onDelete !== undefined) {
+            props.onDelete();
+        }
+    };
+
+    const handleOpenDeleteDialog = () => {
+        setDeleteDialogIsOpen(true);
+    };
     const warningColor = props.theme === 'dark' ? '#fff' : '#151515';
     return <>
         <NamespaceDetailContainer container direction='column' spacing={4}>
@@ -101,9 +116,20 @@ export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props =>
                 <NamespaceHeader>
                     <Typography variant='h4'>{props.namespace.name}</Typography>
                     { pathname.startsWith(AdminDashboardRoutes.NAMESPACE_ADMIN)
-                        ? <Button sx={{ ml: { xs: 2, sm: 2, md: 2, lg: 0, xl: 0 } }} variant='outlined' onClick={handleOpenChangeDialog}>
-                            Change Namespace
-                        </Button>
+                        ?
+                        <Box>
+                            <Button sx={{ ml: { xs: 2, sm: 2, md: 2, lg: 0, xl: 0 } }} variant='outlined' onClick={handleOpenChangeDialog}>
+                                Change Namespace
+                            </Button>
+                            { Object.keys(props.namespace.extensions).length === 0 &&
+                                <Button
+                                    variant='outlined'
+                                    sx={{ color: 'error.main', height: 36, ml: { xs: 2 } }}
+                                    onClick={handleOpenDeleteDialog}>
+                                    Delete
+                                </Button>
+                            }
+                        </Box>
                         : null
                     }
                 </NamespaceHeader>
@@ -137,6 +163,12 @@ export const NamespaceDetail: FunctionComponent<NamespaceDetailProps> = props =>
             onClose={handleCloseChangeDialog}
             namespace={props.namespace}
             setLoadingState={props.setLoadingState} />
+        <NamespaceDeleteDialog
+            open={deleteDialogIsOpen}
+            onClose={handleCloseDeleteDialog}
+            onDelete={handleDeletedNamespace}
+            namespace={props.namespace}
+            setLoadingState={props.setLoadingState} />
     </>;
 };
 
@@ -147,4 +179,5 @@ export interface NamespaceDetailProps {
     setLoadingState: (loading: boolean) => void;
     namespaceAccessUrl?: string;
     theme?: string;
+    onDelete?: () => void;
 }

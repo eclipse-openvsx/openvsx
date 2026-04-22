@@ -9,8 +9,23 @@
  ********************************************************************************/
 package org.eclipse.openvsx.admin;
 
-import jakarta.persistence.EntityManager;
-import jakarta.transaction.Transactional;
+import static org.eclipse.openvsx.entities.FileResource.CHANGELOG;
+import static org.eclipse.openvsx.entities.FileResource.DOWNLOAD;
+import static org.eclipse.openvsx.entities.FileResource.ICON;
+import static org.eclipse.openvsx.entities.FileResource.LICENSE;
+import static org.eclipse.openvsx.entities.FileResource.MANIFEST;
+import static org.eclipse.openvsx.entities.FileResource.README;
+import static org.eclipse.openvsx.entities.FileResource.VSIXMANIFEST;
+
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.ExtensionValidator;
@@ -18,15 +33,31 @@ import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.eclipse.EclipseService;
-import org.eclipse.openvsx.entities.*;
-import org.eclipse.openvsx.json.*;
+import org.eclipse.openvsx.entities.AdminStatistics;
+import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionReview;
+import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.PersonalAccessToken;
+import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.json.ChangeNamespaceJson;
+import org.eclipse.openvsx.json.ExtensionJson;
+import org.eclipse.openvsx.json.NamespaceJson;
+import org.eclipse.openvsx.json.ResultJson;
+import org.eclipse.openvsx.json.TargetPlatformVersionJson;
+import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.StorageUtilService;
-import org.eclipse.openvsx.util.*;
+import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.LogService;
+import org.eclipse.openvsx.util.NamingUtil;
+import org.eclipse.openvsx.util.NotFoundException;
+import org.eclipse.openvsx.util.TimeUtil;
+import org.eclipse.openvsx.util.UrlUtil;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jobrunr.scheduling.cron.Cron;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
@@ -34,11 +65,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-import java.time.ZoneId;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static org.eclipse.openvsx.entities.FileResource.*;
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 
 @Component
 public class AdminService {
@@ -246,6 +274,44 @@ public class AdminService {
         extensions.updateExtension(extension);
 
         var result = ResultJson.success("Deleted " + NamingUtil.toLogFormat(extVersion));
+        logs.logAction(admin, result);
+        return result;
+    }
+
+    @Transactional(rollbackOn = ErrorResultException.class)
+    public ResultJson deleteNamespace(String namespaceName, UserData admin) throws ErrorResultException {
+        var namespace = repositories.findNamespace(namespaceName);
+        if (namespace == null) {
+            throw new NotFoundException();
+        }
+        return deleteNamespace(namespace, admin);
+    }
+
+    private ResultJson deleteNamespace(Namespace namespace, UserData admin) {
+        var namespaceExtensions = repositories.findExtensions(namespace);
+        if (!namespaceExtensions.isEmpty()) {
+          throw new ErrorResultException("Cannot delete namespaces that contain extensions.", HttpStatus.BAD_REQUEST);
+        }
+
+        var memberships = repositories.findMemberships(namespace);
+        for (var membership : memberships) {
+            entityManager.remove(membership);
+        }
+
+        if (namespace.getLogoStorageType() != null) {
+            try {
+                storageUtil.removeNamespaceLogo(namespace);
+            } catch (RuntimeException exc) {
+                throw new ErrorResultException("Failed to delete namespace icon: " + exc.getMessage());
+            }
+        }
+
+        entityManager.remove(namespace);
+
+        // Clear cache for the namespace
+        cache.evictNamespaceDetails(namespace);
+
+        var result = ResultJson.success("Deleted namespace " + namespace.getName());
         logs.logAction(admin, result);
         return result;
     }

@@ -20,6 +20,7 @@ export const UserSettingTabs = (): ReactElement => {
     const isATablet = useMediaQuery(theme.breakpoints.down('md'));
     const isAMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const { tab } = useParams();
+
     const navigate = useNavigate();
 
     const handleChange = (event: ChangeEvent, newTab: string) => {
@@ -32,10 +33,10 @@ export const UserSettingTabs = (): ReactElement => {
 
     return (
         <Tabs
-            value={tab}
+            value={tab ?? 'extensions'}
             onChange={handleChange}
             orientation={isATablet ? 'horizontal' : 'vertical'}
-            centered={isAMobile ? true : false}
+            centered={isAMobile}
             indicatorColor='secondary'
         >
             <Tab value='profile' label='Profile' />

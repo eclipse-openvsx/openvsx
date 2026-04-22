@@ -143,6 +143,7 @@ To run the Open VSX registry in a development environment, you can use `docker c
 - cd cli
 
   - yarn install
+  - yarn prepare
   - yarn build
 
 - cd server
@@ -156,6 +157,7 @@ To run the Open VSX registry in a development environment, you can use `docker c
   - yarn build
   - yarn build:default
   - yarn start:default
+
 - Go to localhost:3000 on browser and it should be up and running
 
 ### Optional: Deploy example extensions to your local registry
