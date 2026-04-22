@@ -284,7 +284,7 @@ public class ElasticSearchService implements ISearchService {
         }
 
         var queryBuilder = new NativeQueryBuilder();
-        queryBuilder.withQuery(builder -> builder.bool(boolQuery -> createSearchQuery(boolQuery, options)));
+        createQuery(queryBuilder, options);
 
         // Sort search results according to 'sortOrder' and 'sortBy' options
         sortResults(queryBuilder, options.sortOrder(), options.sortBy());
@@ -396,6 +396,22 @@ public class ElasticSearchService implements ISearchService {
         return boolQuery;
     }
 
+    private void createQuery(NativeQueryBuilder queryBuilder, Options options) {
+        if(SortBy.RELEVANCE.equals(options.sortBy())) {
+            queryBuilder.withQuery(
+                    builder -> builder.functionScore(
+                            scoreQuery -> scoreQuery.query(
+                                    sortQueryBuilder -> sortQueryBuilder.bool(boolQuery -> createSearchQuery(boolQuery, options))
+                            ).functions(
+                                    functionBuilder -> functionBuilder.fieldValueFactor(factor -> factor.field("relevance").factor(1.0))
+                            )
+                    )
+            );
+        } else {
+            queryBuilder.withQuery(builder -> builder.bool(boolQuery -> createSearchQuery(boolQuery, options)));
+        }
+    }
+
     private void sortResults(NativeQueryBuilder queryBuilder, String sortOrder, String sortBy) {
         sortOrder = sortOrder.toLowerCase();
         var orders = Map.of("asc", SortOrder.Asc, "desc", SortOrder.Desc);
@@ -418,7 +434,7 @@ public class ElasticSearchService implements ISearchService {
 
         var scoreSort = new SortOptions.Builder().score(builder -> builder.order(order)).build();
         var fieldSort = new SortOptions.Builder().field(builder -> builder.field(sortBy).unmappedType(type).order(order)).build();
-        var sortOptions = sortBy.equals(SortBy.RELEVANCE) ? List.of(scoreSort, fieldSort) : List.of(fieldSort, scoreSort);
+        var sortOptions = sortBy.equals(SortBy.RELEVANCE) ? List.of(scoreSort) : List.of(fieldSort, scoreSort);
         queryBuilder.withSort(sortOptions);
     }
 }
