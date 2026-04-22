@@ -13,6 +13,7 @@ objects:
   kind: PersistentVolumeClaim
   metadata:
     name: postgres-pvc
+    namespace: "${NAMESPACE}"
   spec:
     accessModes:
     - ReadWriteOnce
@@ -192,6 +193,7 @@ objects:
   kind: PersistentVolumeClaim
   metadata:
     name: extensions-pvc
+    namespace: "${NAMESPACE}"
   spec:
     accessModes:
     - ReadWriteOnce
@@ -279,7 +281,7 @@ objects:
         targetPort: 8080
     selector:
       deployment: openvsx-server
-- apiVersion: v1
+- apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
     namespace: "${NAMESPACE}"

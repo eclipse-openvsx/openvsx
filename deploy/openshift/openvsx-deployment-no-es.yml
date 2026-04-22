@@ -13,6 +13,7 @@ objects:
   kind: PersistentVolumeClaim
   metadata:
     name: postgres-pvc
+    namespace: "${NAMESPACE}"
   spec:
     accessModes:
     - ReadWriteOnce
@@ -114,6 +115,7 @@ objects:
   kind: PersistentVolumeClaim
   metadata:
     name: extensions-pvc
+    namespace: "${NAMESPACE}"
   spec:
     accessModes:
     - ReadWriteOnce
@@ -198,7 +200,7 @@ objects:
         targetPort: 8080
     selector:
       deployment: openvsx-server
-- apiVersion: v1
+- apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
     namespace: "${NAMESPACE}"
@@ -239,9 +241,6 @@ parameters:
 - name: OPENVSX_SERVER_IMAGE
   displayName: OpenVSX Server image
   description: OpenVSX Server image to use for the deployment of the OpenVSX Server
-- name: OPENVSX_CLI_IMAGE
-  displayName: OpenVSX CLI image
-  description: OpenVSX CLI image to use for the deployment of the OpenVSX CLI
 - name: OVSX_PAT_BASE64
   value: ZWNsaXBzZV9jaGVfdG9rZW4=
   displayName: OVSX personal access token
