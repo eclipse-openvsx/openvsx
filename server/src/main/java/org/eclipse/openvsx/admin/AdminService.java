@@ -279,16 +279,15 @@ public class AdminService {
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
-    public ResultJson deleteNamespace(String namespaceName, UserData admin)
-            throws ErrorResultException {
-        var namespaceEntity = repositories.findNamespace(namespaceName);
-        if (namespaceEntity == null) {
-            throw new ErrorResultException("Namespace not found: " + namespaceName, HttpStatus.NOT_FOUND);
+    public ResultJson deleteNamespace(String namespaceName, UserData admin) throws ErrorResultException {
+        var namespace = repositories.findNamespace(namespaceName);
+        if (namespace == null) {
+            throw new NotFoundException();
         }
-        return deleteNamespace(namespaceEntity, admin);
+        return deleteNamespace(namespace, admin);
     }
 
-    protected ResultJson deleteNamespace(Namespace namespace, UserData admin) {
+    private ResultJson deleteNamespace(Namespace namespace, UserData admin) {
         var namespaceExtensions = repositories.findExtensions(namespace);
         if (!namespaceExtensions.isEmpty()) {
           throw new ErrorResultException("Cannot delete namespaces that contain extensions.", HttpStatus.BAD_REQUEST);
@@ -299,7 +298,16 @@ public class AdminService {
             entityManager.remove(membership);
         }
 
+        if (namespace.getLogoStorageType() != null) {
+            try {
+                storageUtil.removeNamespaceLogo(namespace);
+            } catch (RuntimeException exc) {
+                throw new ErrorResultException("Failed to delete namespace icon: " + exc.getMessage());
+            }
+        }
+
         entityManager.remove(namespace);
+
         // Clear cache for the namespace
         cache.evictNamespaceDetails(namespace);
 

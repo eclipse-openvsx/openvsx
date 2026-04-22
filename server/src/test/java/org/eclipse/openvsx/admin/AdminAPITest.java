@@ -640,7 +640,7 @@ class AdminAPITest {
     @Test
     void testDeleteNamespaceNotExist() throws Exception {
         mockAdminUser();
-        mockMvc.perform(delete("/admin/namespace/" + UUID.randomUUID().toString())
+        mockMvc.perform(delete("/admin/namespace/" + UUID.randomUUID())
                 .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
                 .with(csrf().asHeader()))
                 .andExpect(status().isNotFound());

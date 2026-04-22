@@ -400,8 +400,26 @@ public class AdminAPI {
         return UrlUtil.createApiUrl(UrlUtil.getBaseUrl(), "admin", "namespace", namespace.getName());
     }
 
+    @PostMapping(
+        path = "/admin/create-namespace",
+        consumes = MediaType.APPLICATION_JSON_VALUE,
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ResultJson> createNamespace(@RequestBody NamespaceJson namespace) {
+        try {
+            admins.checkAdminUser();
+            var json = admins.createNamespace(namespace);
+            var url = createAdminNamespaceUrl(namespace);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .location(URI.create(url))
+                    .body(json);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        }
+    }
+
     @DeleteMapping(
-        path = "/admin/namespace/{namespaceName}"
+            path = "/admin/namespace/{namespaceName}"
     )
     @Operation(summary = "Delete a namespace")
     @ApiResponse(
@@ -427,24 +445,6 @@ public class AdminAPI {
             return new ResponseEntity<>(json, HttpStatus.NOT_FOUND);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(ResultJson.class);
-        }
-    }
-
-    @PostMapping(
-        path = "/admin/create-namespace",
-        consumes = MediaType.APPLICATION_JSON_VALUE,
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<ResultJson> createNamespace(@RequestBody NamespaceJson namespace) {
-        try {
-            admins.checkAdminUser();
-            var json = admins.createNamespace(namespace);
-            var url = createAdminNamespaceUrl(namespace);
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .location(URI.create(url))
-                    .body(json);
-        } catch (ErrorResultException exc) {
-            return exc.toResponseEntity();
         }
     }
 
