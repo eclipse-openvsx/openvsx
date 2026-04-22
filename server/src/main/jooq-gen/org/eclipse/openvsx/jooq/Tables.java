@@ -13,6 +13,8 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostDownloadedExtension
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensionVersions;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
 import org.eclipse.openvsx.jooq.tables.Customer;
+import org.eclipse.openvsx.jooq.tables.CustomerMembership;
+import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
 import org.eclipse.openvsx.jooq.tables.DownloadCountProcessedItem;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
@@ -35,6 +37,7 @@ import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.NamespaceSocialLinks;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.PersonalAccessToken;
+import org.eclipse.openvsx.jooq.tables.RateLimitToken;
 import org.eclipse.openvsx.jooq.tables.ScanCheckResult;
 import org.eclipse.openvsx.jooq.tables.ScanJob;
 import org.eclipse.openvsx.jooq.tables.SignatureKeyPair;
@@ -99,6 +102,16 @@ public class Tables {
      * The table <code>public.customer</code>.
      */
     public static final Customer CUSTOMER = Customer.CUSTOMER;
+
+    /**
+     * The table <code>public.customer_membership</code>.
+     */
+    public static final CustomerMembership CUSTOMER_MEMBERSHIP = CustomerMembership.CUSTOMER_MEMBERSHIP;
+
+    /**
+     * The table <code>public.daily_usage_stats</code>.
+     */
+    public static final DailyUsageStats DAILY_USAGE_STATS = DailyUsageStats.DAILY_USAGE_STATS;
 
     /**
      * The table <code>public.download_count_processed_item</code>.
@@ -209,6 +222,11 @@ public class Tables {
      * The table <code>public.personal_access_token</code>.
      */
     public static final PersonalAccessToken PERSONAL_ACCESS_TOKEN = PersonalAccessToken.PERSONAL_ACCESS_TOKEN;
+
+    /**
+     * The table <code>public.rate_limit_token</code>.
+     */
+    public static final RateLimitToken RATE_LIMIT_TOKEN = RateLimitToken.RATE_LIMIT_TOKEN;
 
     /**
      * Records all check/scan executions for audit trail

@@ -9,11 +9,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import org.eclipse.openvsx.jooq.Indexes;
 import org.eclipse.openvsx.jooq.Keys;
 import org.eclipse.openvsx.jooq.Public;
 import org.eclipse.openvsx.jooq.tables.records.SignatureKeyPairRecord;
 import org.jooq.Condition;
 import org.jooq.Field;
+import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.PlainSQL;
 import org.jooq.QueryPart;
@@ -113,6 +115,11 @@ public class SignatureKeyPair extends TableImpl<SignatureKeyPairRecord> {
     @Override
     public Schema getSchema() {
         return aliased() ? null : Public.PUBLIC;
+    }
+
+    @Override
+    public List<Index> getIndexes() {
+        return Arrays.asList(Indexes.UNIQUE_ACTIVE_SIGNATURE_KEY_PAIR_IDX);
     }
 
     @Override

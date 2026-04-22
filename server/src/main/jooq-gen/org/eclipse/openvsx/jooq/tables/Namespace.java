@@ -91,11 +91,6 @@ public class Namespace extends TableImpl<NamespaceRecord> {
     public final TableField<NamespaceRecord, String> LOGO_NAME = createField(DSL.name("logo_name"), SQLDataType.VARCHAR(255), this, "");
 
     /**
-     * The column <code>public.namespace.logo_bytes</code>.
-     */
-    public final TableField<NamespaceRecord, byte[]> LOGO_BYTES = createField(DSL.name("logo_bytes"), SQLDataType.BLOB, this, "");
-
-    /**
      * The column <code>public.namespace.logo_storage_type</code>.
      */
     public final TableField<NamespaceRecord, String> LOGO_STORAGE_TYPE = createField(DSL.name("logo_storage_type"), SQLDataType.VARCHAR(32), this, "");
