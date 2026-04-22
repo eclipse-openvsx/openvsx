@@ -73,7 +73,8 @@ public interface ISearchService {
             String sortBy,
             boolean includeAllVersions,
             String[] namespacesToExclude,
-            String namespace
+            String namespace,
+            Boolean webOnly
     ) {
         private static final Pattern PUBLISHER_PATTERN = Pattern.compile("^@?publisher:| @?publisher:");
 
@@ -88,7 +89,38 @@ public interface ISearchService {
                 boolean includeAllVersions,
                 String[] namespacesToExclude
         ) {
-            String namespace = null;
+            this(queryString, category, targetPlatform, requestedSize, requestedOffset, sortOrder, sortBy, includeAllVersions, namespacesToExclude, null, null);
+        }
+
+        public Options(
+                String queryString,
+                String category,
+                String targetPlatform,
+                int requestedSize,
+                int requestedOffset,
+                String sortOrder,
+                String sortBy,
+                boolean includeAllVersions,
+                String[] namespacesToExclude,
+                String namespace
+        ) {
+            this(queryString, category, targetPlatform, requestedSize, requestedOffset, sortOrder, sortBy, includeAllVersions, namespacesToExclude, namespace, null);
+        }
+
+        public Options(
+                String queryString,
+                String category,
+                String targetPlatform,
+                int requestedSize,
+                int requestedOffset,
+                String sortOrder,
+                String sortBy,
+                boolean includeAllVersions,
+                String[] namespacesToExclude,
+                String namespace,
+                Boolean webOnly
+        ) {
+            String extractedNamespace = null;
             if(queryString != null) {
                 var matcher =  PUBLISHER_PATTERN.matcher(queryString);
                 var results = matcher.results().toList();
@@ -101,7 +133,7 @@ public interface ISearchService {
                     if(publisherEndIndex == -1) {
                         publisherEndIndex = queryString.length();
                     }
-                    namespace = queryString.substring(first.end(), publisherEndIndex);
+                    extractedNamespace = queryString.substring(first.end(), publisherEndIndex);
                     var newQuery = "";
                     if(publisherStartIndex > 0) {
                         newQuery += queryString.substring(0, publisherStartIndex);
@@ -114,18 +146,17 @@ public interface ISearchService {
                 }
             }
 
-            this(
-                    queryString,
-                    category,
-                    targetPlatform,
-                    requestedSize,
-                    requestedOffset,
-                    sortOrder,
-                    sortBy,
-                    includeAllVersions,
-                    namespacesToExclude,
-                    namespace
-            );
+            this.queryString = queryString;
+            this.category = category;
+            this.targetPlatform = targetPlatform;
+            this.requestedSize = requestedSize;
+            this.requestedOffset = requestedOffset;
+            this.sortOrder = sortOrder;
+            this.sortBy = sortBy;
+            this.includeAllVersions = includeAllVersions;
+            this.namespacesToExclude = namespacesToExclude;
+            this.namespace = namespace != null ? namespace : extractedNamespace;
+            this.webOnly = webOnly;
         }
 
 
@@ -143,12 +174,13 @@ public interface ISearchService {
                     && Objects.equals(sortOrder, options.sortOrder)
                     && Objects.equals(sortBy, options.sortBy)
                     && Arrays.equals(namespacesToExclude, options.namespacesToExclude)
-                    && Objects.equals(namespace, options.namespace);
+                    && Objects.equals(namespace, options.namespace)
+                    && Objects.equals(webOnly, options.webOnly);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(queryString, category, targetPlatform, requestedSize, requestedOffset, sortOrder, sortBy, includeAllVersions, namespace);
+            int result = Objects.hash(queryString, category, targetPlatform, requestedSize, requestedOffset, sortOrder, sortBy, includeAllVersions, namespace, webOnly);
             result = 31 * result + Arrays.hashCode(namespacesToExclude);
             return result;
         }

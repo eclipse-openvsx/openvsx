@@ -348,6 +348,10 @@ public class ElasticSearchService implements ISearchService {
                 boolQuery.mustNot(QueryBuilders.term(builder -> builder.field("namespace.keyword").value(namespaceToExclude)));
             }
         }
+        if (options.webOnly() != null && options.webOnly()) {
+            // Filter by web-only extensions
+            boolQuery.must(QueryBuilders.matchPhrase(builder -> builder.field("extensionKind").query("web")));
+        }
 
         return boolQuery;
     }

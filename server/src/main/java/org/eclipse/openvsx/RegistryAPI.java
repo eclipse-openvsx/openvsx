@@ -763,7 +763,10 @@ public class RegistryAPI {
             String sortBy,
             @RequestParam(defaultValue = "false")
             @Parameter(description = "Whether to include information on all available versions for each returned entry")
-            boolean includeAllVersions
+            boolean includeAllVersions,
+            @RequestParam(required = false)
+            @Parameter(description = "Filter to only return web-only extensions (extensionKind=web)", schema = @Schema(type = "boolean"))
+            Boolean webOnly
     ) {
         if (size < 0) {
             var json = SearchResultJson.error(negativeSizeMessage());
@@ -774,7 +777,7 @@ public class RegistryAPI {
             return new ResponseEntity<>(json, HttpStatus.BAD_REQUEST);
         }
 
-        var options = new ISearchService.Options(query, category, targetPlatform, size, offset, sortOrder, sortBy, includeAllVersions, null);
+        var options = new ISearchService.Options(query, category, targetPlatform, size, offset, sortOrder, sortBy, includeAllVersions, null, null, webOnly);
         var resultOffset = 0;
         var resultSize = 0;
         var resultExtensions = new ArrayList<SearchEntryJson>(size);
