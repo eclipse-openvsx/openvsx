@@ -184,7 +184,6 @@ public class UserService {
         }
         if(StringUtils.isEmpty(details.getLogo()) && StringUtils.isNotEmpty(namespace.getLogoName())) {
             storageUtil.removeNamespaceLogo(namespace);
-            namespace.clearLogoBytes();
             namespace.setLogoName(null);
             namespace.setLogoStorageType(null);
         }

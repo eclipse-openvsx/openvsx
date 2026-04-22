@@ -40,7 +40,6 @@ public class MigrationService {
             "FixTargetPlatformMigration", FixTargetPlatformsJobRequestHandler.class,
             "GenerateSha256ChecksumMigration", GenerateSha256ChecksumJobRequestHandler.class,
             "CheckPotentiallyMaliciousExtensionVersions", PotentiallyMaliciousJobRequestHandler.class,
-            "LocalNamespaceLogoMigration", NamespaceLogoFileResourceJobRequestHandler.class,
             "RemoveFileResourceTypeResourceMigration", RemoveFileResourceTypeResourceJobRequestHandler.class,
             "FixMissingFilesMigration", FixMissingFilesJobRequestHandler.class
     );

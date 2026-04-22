@@ -26,9 +26,19 @@ public class Sequences {
     public static final Sequence<Long> ADMIN_STATISTICS_SEQ = Internal.createSequence("admin_statistics_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
+     * The sequence <code>public.customer_membership_seq</code>
+     */
+    public static final Sequence<Long> CUSTOMER_MEMBERSHIP_SEQ = Internal.createSequence("customer_membership_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
+
+    /**
      * The sequence <code>public.customer_seq</code>
      */
     public static final Sequence<Long> CUSTOMER_SEQ = Internal.createSequence("customer_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
+
+    /**
+     * The sequence <code>public.daily_usage_stats_seq</code>
+     */
+    public static final Sequence<Long> DAILY_USAGE_STATS_SEQ = Internal.createSequence("daily_usage_stats_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
 
     /**
      * The sequence <code>public.download_count_processed_item_seq</code>
@@ -104,6 +114,11 @@ public class Sequences {
      * The sequence <code>public.personal_access_token_seq</code>
      */
     public static final Sequence<Long> PERSONAL_ACCESS_TOKEN_SEQ = Internal.createSequence("personal_access_token_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
+
+    /**
+     * The sequence <code>public.rate_limit_token_seq</code>
+     */
+    public static final Sequence<Long> RATE_LIMIT_TOKEN_SEQ = Internal.createSequence("rate_limit_token_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
 
     /**
      * The sequence <code>public.scan_check_result_seq</code>

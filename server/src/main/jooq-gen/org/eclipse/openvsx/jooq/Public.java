@@ -16,6 +16,8 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostDownloadedExtension
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensionVersions;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
 import org.eclipse.openvsx.jooq.tables.Customer;
+import org.eclipse.openvsx.jooq.tables.CustomerMembership;
+import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
 import org.eclipse.openvsx.jooq.tables.DownloadCountProcessedItem;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
@@ -38,6 +40,7 @@ import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.NamespaceSocialLinks;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.PersonalAccessToken;
+import org.eclipse.openvsx.jooq.tables.RateLimitToken;
 import org.eclipse.openvsx.jooq.tables.ScanCheckResult;
 import org.eclipse.openvsx.jooq.tables.ScanJob;
 import org.eclipse.openvsx.jooq.tables.SignatureKeyPair;
@@ -113,6 +116,16 @@ public class Public extends SchemaImpl {
      * The table <code>public.customer</code>.
      */
     public final Customer CUSTOMER = Customer.CUSTOMER;
+
+    /**
+     * The table <code>public.customer_membership</code>.
+     */
+    public final CustomerMembership CUSTOMER_MEMBERSHIP = CustomerMembership.CUSTOMER_MEMBERSHIP;
+
+    /**
+     * The table <code>public.daily_usage_stats</code>.
+     */
+    public final DailyUsageStats DAILY_USAGE_STATS = DailyUsageStats.DAILY_USAGE_STATS;
 
     /**
      * The table <code>public.download_count_processed_item</code>.
@@ -225,6 +238,11 @@ public class Public extends SchemaImpl {
     public final PersonalAccessToken PERSONAL_ACCESS_TOKEN = PersonalAccessToken.PERSONAL_ACCESS_TOKEN;
 
     /**
+     * The table <code>public.rate_limit_token</code>.
+     */
+    public final RateLimitToken RATE_LIMIT_TOKEN = RateLimitToken.RATE_LIMIT_TOKEN;
+
+    /**
      * Records all check/scan executions for audit trail
      */
     public final ScanCheckResult SCAN_CHECK_RESULT = ScanCheckResult.SCAN_CHECK_RESULT;
@@ -282,7 +300,9 @@ public class Public extends SchemaImpl {
         return Arrays.asList(
             Sequences.ADMIN_SCAN_DECISION_SEQ,
             Sequences.ADMIN_STATISTICS_SEQ,
+            Sequences.CUSTOMER_MEMBERSHIP_SEQ,
             Sequences.CUSTOMER_SEQ,
+            Sequences.DAILY_USAGE_STATS_SEQ,
             Sequences.DOWNLOAD_COUNT_PROCESSED_ITEM_SEQ,
             Sequences.EXTENSION_REVIEW_SEQ,
             Sequences.EXTENSION_SCAN_SEQ,
@@ -298,6 +318,7 @@ public class Public extends SchemaImpl {
             Sequences.NAMESPACE_SEQ,
             Sequences.PERSISTED_LOG_SEQ,
             Sequences.PERSONAL_ACCESS_TOKEN_SEQ,
+            Sequences.RATE_LIMIT_TOKEN_SEQ,
             Sequences.SCAN_CHECK_RESULT_SEQ,
             Sequences.SCAN_JOB_SEQ,
             Sequences.SIGNATURE_KEY_PAIR_SEQ,
@@ -319,6 +340,8 @@ public class Public extends SchemaImpl {
             AdminStatisticsTopNamespaceExtensionVersions.ADMIN_STATISTICS_TOP_NAMESPACE_EXTENSION_VERSIONS,
             AdminStatisticsTopNamespaceExtensions.ADMIN_STATISTICS_TOP_NAMESPACE_EXTENSIONS,
             Customer.CUSTOMER,
+            CustomerMembership.CUSTOMER_MEMBERSHIP,
+            DailyUsageStats.DAILY_USAGE_STATS,
             DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM,
             Extension.EXTENSION,
             ExtensionReview.EXTENSION_REVIEW,
@@ -341,6 +364,7 @@ public class Public extends SchemaImpl {
             NamespaceSocialLinks.NAMESPACE_SOCIAL_LINKS,
             PersistedLog.PERSISTED_LOG,
             PersonalAccessToken.PERSONAL_ACCESS_TOKEN,
+            RateLimitToken.RATE_LIMIT_TOKEN,
             ScanCheckResult.SCAN_CHECK_RESULT,
             ScanJob.SCAN_JOB,
             SignatureKeyPair.SIGNATURE_KEY_PAIR,

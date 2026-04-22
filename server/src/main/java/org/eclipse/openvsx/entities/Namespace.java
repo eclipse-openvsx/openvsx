@@ -51,9 +51,7 @@ public class Namespace implements Serializable {
 	private String supportLink;
 
 	private String logoName;
-
-	private byte[] logoBytes;
-
+	
 	@Column(length = 32)
 	private String logoStorageType;
 
@@ -115,18 +113,6 @@ public class Namespace implements Serializable {
 
 	public void setLogoName(String logoName) {
 		this.logoName = logoName;
-	}
-
-	/**
-	 * @deprecated
-	 */
-	@Deprecated
-	public byte[] getLogoBytes() {
-		return logoBytes;
-	}
-
-	public void clearLogoBytes() {
-		this.logoBytes = null;
 	}
 
 	public String getLogoStorageType() {

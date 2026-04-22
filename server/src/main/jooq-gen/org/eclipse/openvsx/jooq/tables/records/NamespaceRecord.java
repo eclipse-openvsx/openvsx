@@ -130,31 +130,17 @@ public class NamespaceRecord extends UpdatableRecordImpl<NamespaceRecord> {
     }
 
     /**
-     * Setter for <code>public.namespace.logo_bytes</code>.
-     */
-    public void setLogoBytes(byte[] value) {
-        set(8, value);
-    }
-
-    /**
-     * Getter for <code>public.namespace.logo_bytes</code>.
-     */
-    public byte[] getLogoBytes() {
-        return (byte[]) get(8);
-    }
-
-    /**
      * Setter for <code>public.namespace.logo_storage_type</code>.
      */
     public void setLogoStorageType(String value) {
-        set(9, value);
+        set(8, value);
     }
 
     /**
      * Getter for <code>public.namespace.logo_storage_type</code>.
      */
     public String getLogoStorageType() {
-        return (String) get(9);
+        return (String) get(8);
     }
 
     // -------------------------------------------------------------------------
@@ -180,7 +166,7 @@ public class NamespaceRecord extends UpdatableRecordImpl<NamespaceRecord> {
     /**
      * Create a detached, initialised NamespaceRecord
      */
-    public NamespaceRecord(Long id, String name, String publicId, String displayName, String description, String website, String supportLink, String logoName, byte[] logoBytes, String logoStorageType) {
+    public NamespaceRecord(Long id, String name, String publicId, String displayName, String description, String website, String supportLink, String logoName, String logoStorageType) {
         super(Namespace.NAMESPACE);
 
         setId(id);
@@ -191,7 +177,6 @@ public class NamespaceRecord extends UpdatableRecordImpl<NamespaceRecord> {
         setWebsite(website);
         setSupportLink(supportLink);
         setLogoName(logoName);
-        setLogoBytes(logoBytes);
         setLogoStorageType(logoStorageType);
         resetChangedOnNotNull();
     }
