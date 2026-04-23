@@ -46,7 +46,7 @@ const ScanAdminContent: FunctionComponent = () => {
     return (
         <Box sx={{
             width: '100%',
-            maxWidth: 1500,
+            maxWidth: 'none',
             mx: 'auto',
             px: 2,
             pb: 3,
