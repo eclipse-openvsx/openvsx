@@ -30,6 +30,9 @@ public class SecurityConfig {
     @Value("${ovsx.webui.frontendRoutes:/extension/**,/namespace/**,/user-settings/**,/admin-dashboard/**}")
     String[] frontendRoutes;
 
+    @Value("${ovsx.webui.additional-routes:}")
+    String[] additionalRoutes;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, OAuth2UserServices userServices) throws Exception {
         var filterChain = http.authorizeHttpRequests(
@@ -43,6 +46,8 @@ public class SecurityConfig {
                         .requestMatchers(pathMatchers("/admin/**"))
                             .hasAuthority("ROLE_ADMIN")
                         .requestMatchers(pathMatchers(frontendRoutes))
+                            .permitAll()
+                        .requestMatchers(pathMatchers(additionalRoutes))
                             .permitAll()
                         .anyRequest()
                             .authenticated()
