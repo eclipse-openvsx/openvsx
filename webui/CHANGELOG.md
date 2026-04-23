@@ -19,6 +19,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Fix admin dashboard breadcrumbs not being URL-decoded ([#1781](https://github.com/eclipse-openvsx/openvsx/pull/1781))
 
+### Dependencies
+
+- Bump react-avatar-editor from `13.0.2` to `15.1.0` ([#1787](https://github.com/eclipse/openvsx/pull/1787))
+
 ## [v0.20.1] (20/04/2026)
 
 ### Changed
