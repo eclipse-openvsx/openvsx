@@ -1,8 +1,5 @@
 {
   "workspaces": [
     "webui"
-  ],
-  "scripts": {
-    "postinstall": "yarn workspace openvsx-webui build"
-  }
+  ]
 }
