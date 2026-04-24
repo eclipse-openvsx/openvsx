@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openvsx-webui
+  namespace: openvsx
+  labels:
+    app.kubernetes.io/name: openvsx
+    app.kubernetes.io/component: openvsx-webui
+    app.kubernetes.io/instance: openvsx-webui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openvsx
+      app.kubernetes.io/component: openvsx-webui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openvsx
+        app.kubernetes.io/component: openvsx-webui
+        app.kubernetes.io/instance: openvsx-webui
+    spec:
+      containers:
+        - name: openvsx-webui
+          image: ghcr.io/eclipse-openvsx/openvsx-webui:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 5
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openvsx-webui
+  namespace: openvsx
+  labels:
+    app.kubernetes.io/name: openvsx
+    app.kubernetes.io/component: openvsx-webui
+    app.kubernetes.io/instance: openvsx-webui
+spec:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: openvsx
+    app.kubernetes.io/component: openvsx-webui

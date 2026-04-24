@@ -1,0 +1,105 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openvsx
+  namespace: openvsx
+  labels:
+    app.kubernetes.io/name: openvsx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - openvsx.example.com
+      secretName: openvsx-tls
+  rules:
+    - host: openvsx.example.com
+      http:
+        paths:
+          # API, authentication, and admin routes -> server
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /user
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /login
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /logout
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /login-providers
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /documents
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /swagger-ui
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          - path: /v3/api-docs
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-server
+                port:
+                  number: 8080
+          # Everything else -> webui
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openvsx-webui
+                port:
+                  number: 3000

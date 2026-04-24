@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openvsx
+  labels:
+    app.kubernetes.io/name: openvsx
+    app.kubernetes.io/part-of: openvsx
