@@ -57,6 +57,23 @@ class RemoteScannerPropertiesTest {
         assertFalse(config.isAsync());
     }
 
+    @Test
+    void scannerConfig_externalUrlTemplateDefaultsToNull() {
+        // Scanners without an external dashboard should not contribute a deep
+        // link. The absence of a template is the signal for that.
+        var config = new RemoteScannerProperties.ScannerConfig();
+
+        assertNull(config.getExternalUrlTemplate());
+    }
+
+    @Test
+    void scannerConfig_externalUrlTemplateSetterWorks() {
+        var config = new RemoteScannerProperties.ScannerConfig();
+        config.setExternalUrlTemplate("https://app.example.com/scans/{jobId}");
+
+        assertEquals("https://app.example.com/scans/{jobId}", config.getExternalUrlTemplate());
+    }
+
     // === HttpOperation defaults ===
 
     @Test
@@ -127,6 +144,7 @@ class RemoteScannerPropertiesTest {
         response.setThreatsPath("$.threats[*]");
         response.setErrorPath("$.error");
         response.setErrorCondition("$.status == 'error'");
+        response.setSummaryPath("$.verdictData.summary");
 
         assertEquals("xml", response.getFormat());
         assertEquals("$.scan.id", response.getJobIdPath());
@@ -135,6 +153,7 @@ class RemoteScannerPropertiesTest {
         assertEquals("$.threats[*]", response.getThreatsPath());
         assertEquals("$.error", response.getErrorPath());
         assertEquals("$.status == 'error'", response.getErrorCondition());
+        assertEquals("$.verdictData.summary", response.getSummaryPath());
     }
 
     // === ThreatMapping tests ===

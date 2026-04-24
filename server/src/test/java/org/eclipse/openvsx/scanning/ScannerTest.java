@@ -92,6 +92,48 @@ class ScannerTest {
                 result.getThreats().clear());
     }
 
+    @Test
+    void result_cleanWithoutSummaryReturnsNullSummary() {
+        var result = Scanner.Result.clean();
+
+        assertNull(result.getSummary());
+    }
+
+    @Test
+    void result_cleanWithSummaryStoresIt() {
+        var result = Scanner.Result.clean("Extension looks benign.");
+
+        assertTrue(result.isClean());
+        assertEquals("Extension looks benign.", result.getSummary());
+    }
+
+    @Test
+    void result_withThreatsAndSummaryStoresBoth() {
+        var threat = new Scanner.Threat("malware", "found", "HIGH");
+        var result = Scanner.Result.withThreats(List.of(threat), "Verdict: malicious");
+
+        assertFalse(result.isClean());
+        assertEquals(1, result.getThreats().size());
+        assertEquals("Verdict: malicious", result.getSummary());
+    }
+
+    // === Scanner default methods ===
+
+    @Test
+    void scanner_buildExternalUrlDefaultsToNull() {
+        // The default is used by scanners that have no external UI (internal
+        // checks, self-hosted services without a dashboard). They simply don't
+        // contribute a "View in scanner" deep link.
+        Scanner scanner = new Scanner() {
+            @Override public @jakarta.annotation.Nonnull String getScannerType() { return "TEST"; }
+            @Override public boolean isAsync() { return false; }
+            @Override public @jakarta.annotation.Nonnull Scanner.Invocation startScan(@jakarta.annotation.Nonnull Command command) { throw new UnsupportedOperationException(); }
+        };
+
+        assertNull(scanner.buildExternalUrl("any-job-id"));
+        assertNull(scanner.buildExternalUrl(null));
+    }
+
     // === Threat class tests ===
 
     @Test
