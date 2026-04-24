@@ -15,6 +15,7 @@ package org.eclipse.openvsx.json;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.annotation.Nullable;
 
 /**
  * JSON representation of a scan check execution result.
@@ -59,6 +60,11 @@ public class CheckResultJson {
 
     @Schema(description = "Whether this check was required (errors block publishing). Null for scanner jobs.")
     private Boolean required;
+
+    @Schema(description = "Deep link to the external scanner's own dashboard for this job. " +
+        "Only populated for SCANNER_JOB rows whose scanner configures external-url-template.")
+    @Nullable
+    private String externalUrl;
 
     // Getters and setters
 
@@ -148,5 +154,14 @@ public class CheckResultJson {
 
     public void setRequired(Boolean required) {
         this.required = required;
+    }
+
+    @Nullable
+    public String getExternalUrl() {
+        return externalUrl;
+    }
+
+    public void setExternalUrl(@Nullable String externalUrl) {
+        this.externalUrl = externalUrl;
     }
 }

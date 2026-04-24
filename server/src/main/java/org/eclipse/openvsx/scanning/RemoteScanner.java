@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,6 +93,21 @@ public class RemoteScanner implements Scanner {
     @Override
     public RemoteScannerProperties.PollConfig getPollConfig() {
         return config.getPolling();
+    }
+
+    /**
+     * Build a dashboard URL for a scanner job by substituting {jobId} in the
+     * configured external-url-template. Returns null if no template is
+     * configured or externalJobId is null.
+     */
+    @Override
+    @Nullable
+    public String buildExternalUrl(@Nullable String externalJobId) {
+        String template = config.getExternalUrlTemplate();
+        if (template == null || externalJobId == null) {
+            return null;
+        }
+        return template.replace("{jobId}", externalJobId);
     }
     
     /**
@@ -376,11 +392,20 @@ public class RemoteScanner implements Scanner {
             }
         }
         
+        String summary = null;
+        if (responseConfig.getSummaryPath() != null) {
+            summary = responseExtractor.extractString(
+                response,
+                responseConfig.getFormat(),
+                responseConfig.getSummaryPath()
+            );
+        }
+
         // Extract threats
         String threatsPath = responseConfig.getThreatsPath();
         if (threatsPath == null) {
             // No threats path - assume clean
-            return Scanner.Result.clean();
+            return Scanner.Result.clean(summary);
         }
         
         List<Map<String, Object>> threatObjects = responseExtractor.extractList(
@@ -393,9 +418,9 @@ public class RemoteScanner implements Scanner {
         List<Scanner.Threat> threats = mapThreats(threatObjects, responseConfig);
         
         if (threats.isEmpty()) {
-            return Scanner.Result.clean();
+            return Scanner.Result.clean(summary);
         } else {
-            return Scanner.Result.withThreats(threats);
+            return Scanner.Result.withThreats(threats, summary);
         }
     }
     
