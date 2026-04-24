@@ -1,6 +1,6 @@
 {
     "name": "openvsx-webui",
-    "version": "0.20.2-dev.0",
+    "version": "0.20.2-dev.1",
     "description": "User interface for Eclipse Open VSX",
     "keywords": [
         "react",
@@ -125,7 +125,8 @@
         "start:default": "node lib/default/server",
         "dev": "vite dev",
         "preview": "vite preview",
-        "link2server": "sh -c 'ln -sf $(realpath dist) ../server/build/resources/main/static'"
+        "link2server": "sh -c 'ln -sf $(realpath dist) ../server/build/resources/main/static'",
+        "prepack": "yarn build"
     },
     "packageManager": "yarn@4.9.1"
 }
