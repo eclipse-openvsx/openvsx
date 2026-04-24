@@ -20,6 +20,8 @@ import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -61,19 +63,25 @@ public class ScanAPI {
     private final LogService logs;
     private final StorageUtilService storageUtil;
     private final org.eclipse.openvsx.scanning.ExtensionScanCompletionService completionService;
+    private final org.eclipse.openvsx.scanning.ScannerRegistry scannerRegistry;
+    private final org.eclipse.openvsx.repositories.ScannerJobRepository scanJobRepository;
 
     public ScanAPI(
             RepositoryService repositories,
             AdminService admins,
             LogService logs,
             StorageUtilService storageUtil,
-            org.eclipse.openvsx.scanning.ExtensionScanCompletionService completionService
+            org.eclipse.openvsx.scanning.ExtensionScanCompletionService completionService,
+            org.eclipse.openvsx.scanning.ScannerRegistry scannerRegistry,
+            org.eclipse.openvsx.repositories.ScannerJobRepository scanJobRepository
     ) {
         this.repositories = repositories;
         this.admins = admins;
         this.logs = logs;
         this.storageUtil = storageUtil;
         this.completionService = completionService;
+        this.scannerRegistry = scannerRegistry;
+        this.scanJobRepository = scanJobRepository;
     }
 
     /**
@@ -871,7 +879,34 @@ public class ScanAPI {
         json.setSummary(checkResult.getSummary());
         json.setErrorMessage(checkResult.getErrorMessage());
         json.setRequired(checkResult.getRequired());
+        json.setExternalUrl(buildExternalScannerUrl(checkResult));
+
         return json;
+    }
+
+    /**
+     * Look up the ScannerJob for a SCANNER_JOB check result and ask its scanner
+     * to build a dashboard URL. Returns null for publish checks, jobs without an
+     * external id, or scanners that don't configure a url template.
+     */
+    @Nullable
+    private String buildExternalScannerUrl(@Nonnull ScanCheckResult checkResult) {
+        if (checkResult.getCategory() != ScanCheckResult.CheckCategory.SCANNER_JOB) {
+            return null;
+        }
+        Long jobId = checkResult.getScannerJobId();
+        if (jobId == null) {
+            return null;
+        }
+        var job = scanJobRepository.findById(jobId).orElse(null);
+        if (job == null || job.getExternalJobId() == null) {
+            return null;
+        }
+        var scanner = scannerRegistry.getScanner(job.getScannerType());
+        if (scanner == null) {
+            return null;
+        }
+        return scanner.buildExternalUrl(job.getExternalJobId());
     }
 
     /**

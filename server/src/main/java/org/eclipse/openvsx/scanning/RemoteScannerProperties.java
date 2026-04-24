@@ -12,6 +12,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.scanning;
 
+import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -188,6 +189,19 @@ public class RemoteScannerProperties {
          */
         @Valid
         private PollConfig polling = new PollConfig();
+
+        /**
+         * Optional template for a user-facing URL pointing at the scanner's own
+         * dashboard for this scan. Supports the {jobId} placeholder which is
+         * replaced with the scanner's externalJobId.
+         *
+         * Example: "https://app.example.com/scans/{jobId}"
+         *
+         * When set, the scan admin dashboard renders a "View in <scanner>" link
+         * for each scanner job that has a known externalJobId.
+         */
+        @Nullable
+        private String externalUrlTemplate;
         
         // Operation configurations
         @NotNull(message = "Start operation must be configured")
@@ -233,6 +247,10 @@ public class RemoteScannerProperties {
         
         public PollConfig getPolling() { return polling; }
         public void setPolling(PollConfig polling) { this.polling = polling; }
+
+        @Nullable
+        public String getExternalUrlTemplate() { return externalUrlTemplate; }
+        public void setExternalUrlTemplate(@Nullable String externalUrlTemplate) { this.externalUrlTemplate = externalUrlTemplate; }
         
         public HttpOperation getStart() { return start; }
         public void setStart(HttpOperation start) { this.start = start; }
@@ -346,6 +364,10 @@ public class RemoteScannerProperties {
         // For extracting threats (result operation)
         private String threatsPath;  // JSONPath to array of threats
         private ThreatMapping threatMapping;
+
+        // For extracting a scanner-provided summary string (result operation).
+        // Surfaced verbatim in ScanCheckResult.summary when present
+        private String summaryPath;
         
         // For error detection
         private String errorPath;  // Path to error message
@@ -369,7 +391,10 @@ public class RemoteScannerProperties {
         
         public ThreatMapping getThreatMapping() { return threatMapping; }
         public void setThreatMapping(ThreatMapping threatMapping) { this.threatMapping = threatMapping; }
-        
+
+        public String getSummaryPath() { return summaryPath; }
+        public void setSummaryPath(String summaryPath) { this.summaryPath = summaryPath; }
+
         public String getErrorPath() { return errorPath; }
         public void setErrorPath(String errorPath) { this.errorPath = errorPath; }
         

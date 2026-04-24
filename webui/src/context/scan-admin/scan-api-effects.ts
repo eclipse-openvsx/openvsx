@@ -211,6 +211,7 @@ export const useScansEffect = (
                             summary: result.summary || null,
                             errorMessage: result.errorMessage || null,
                             required: result.required ?? null,
+                            externalUrl: result.externalUrl || null,
                         })),
                         extensionIcon: scan.extensionIcon,
                         downloadUrl: scan.downloadUrl || null,

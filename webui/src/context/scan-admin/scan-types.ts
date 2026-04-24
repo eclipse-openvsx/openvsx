@@ -58,6 +58,8 @@ export interface CheckResult {
     errorMessage: string | null;
     /** Whether this check was required (errors block publishing). Null for scanner jobs. */
     required: boolean | null;
+    /** Deep link to the external scanner's dashboard for this job. Null if not applicable. */
+    externalUrl: string | null;
 }
 
 export interface ScanResult {

@@ -12,7 +12,8 @@
  ********************************************************************************/
 
 import { FC } from 'react';
-import { Box, Typography, Collapse, Chip } from '@mui/material';
+import { Box, Typography, Collapse, Chip, Link } from '@mui/material';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useTheme, Theme } from '@mui/material/styles';
 import { ScanResult, Threat, ValidationFailure, CheckResult } from '../../../context/scan-admin';
 import { ScanDetailCard } from './scan-detail-card';
@@ -127,17 +128,22 @@ const CheckResultItem: FC<CheckResultItemProps> = ({ checkResult }) => {
     // Non-required errors get striped styling to indicate they didn't block publishing
     const isOptionalError = isError && checkResult.required === false;
 
+    // Scanner rows often carry long verdict text while publish checks just show
+    // short statuses like "No issues found"
+    const isScannerJob = checkResult.category === 'SCANNER_JOB';
+    const showSummaryInMiddle = isScannerJob && !!checkResult.summary;
+
     return (
         <Box sx={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            gap: 2,
             p: 1.5,
             borderRadius: 1,
             bgcolor: isPassed ? 'action.hover' : 'transparent',
             border: isPassed ? 'none' : `1px solid ${theme.palette.divider}`,
         }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
                 <Chip
                     label={checkResult.result}
                     size='small'
@@ -162,11 +168,50 @@ const CheckResultItem: FC<CheckResultItemProps> = ({ checkResult }) => {
                     sx={{ fontSize: '0.65rem', height: 18 }}
                 />
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}>
-                {checkResult.summary && (
+            {showSummaryInMiddle && (
+                <Typography
+                    variant='caption'
+                    sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        lineHeight: 1.5,
+                        color: 'text.secondary',
+                    }}
+                >
+                    {checkResult.summary}
+                </Typography>
+            )}
+            <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                ml: 'auto',
+                color: 'text.secondary',
+                flexShrink: 0,
+            }}>
+                {!showSummaryInMiddle && checkResult.summary && (
                     <Typography variant='caption'>
                         {checkResult.summary}
                     </Typography>
+                )}
+                {checkResult.externalUrl && (
+                    <Link
+                        href={checkResult.externalUrl}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            fontSize: '0.7rem',
+                            fontWeight: 500,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        View in scanner
+                        <OpenInNewIcon sx={{ fontSize: '0.85rem' }} />
+                    </Link>
                 )}
                 {checkResult.durationMs !== null && (
                     <Typography variant='caption' sx={{ minWidth: 50, textAlign: 'right' }}>

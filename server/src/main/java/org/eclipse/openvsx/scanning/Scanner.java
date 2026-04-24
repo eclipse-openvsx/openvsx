@@ -68,20 +68,32 @@ public interface Scanner {
     class Result {
         private final boolean clean;
         private final List<Threat> threats;
-        
-        private Result(boolean clean, List<Threat> threats) {
+        private final String summary;
+
+        private Result(boolean clean, List<Threat> threats, String summary) {
             this.clean = clean;
             this.threats = new ArrayList<>(threats);
+            this.summary = summary;
         }
         
         @Nonnull
         public static Result clean() {
-            return new Result(true, Collections.emptyList());
+            return new Result(true, Collections.emptyList(), null);
         }
-        
+
+        @Nonnull
+        public static Result clean(@Nullable String summary) {
+            return new Result(true, Collections.emptyList(), summary);
+        }
+
         @Nonnull
         public static Result withThreats(@Nonnull List<Threat> threats) {
-            return new Result(false, threats);
+            return new Result(false, threats, null);
+        }
+
+        @Nonnull
+        public static Result withThreats(@Nonnull List<Threat> threats, @Nullable String summary) {
+            return new Result(false, threats, summary);
         }
         
         public boolean isClean() {
@@ -91,6 +103,12 @@ public interface Scanner {
         @Nonnull
         public List<Threat> getThreats() {
             return Collections.unmodifiableList(threats);
+        }
+
+        /** Scanner-provided summary text, or null if not supplied. */
+        @Nullable
+        public String getSummary() {
+            return summary;
         }
     }
     
@@ -181,6 +199,20 @@ public interface Scanner {
      * which promotes QUEUED jobs in FIFO order.
      */
     default int getMaxConcurrency() { return -1; }
+
+    /**
+     * Build a user-facing URL pointing at the scanner's own dashboard for a
+     * given external job id. Used by the admin UI to deep-link from a scan
+     * check result to the scanner service's UI for debugging / detail.
+     * <p>
+     * Default returns null — scanners that don't have an external UI
+     * (internal checks, self-hosted services without a web UI) simply don't
+     * contribute a link.
+     */
+    @Nullable
+    default String buildExternalUrl(@Nullable String externalJobId) {
+        return null;
+    }
 
     /**
      * Maximum time (minutes) a concurrency-limited job may wait in QUEUED status

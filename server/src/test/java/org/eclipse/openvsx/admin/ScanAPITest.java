@@ -67,6 +67,12 @@ class ScanAPITest {
     @MockitoBean
     org.eclipse.openvsx.scanning.ExtensionScanCompletionService completionService;
 
+    @MockitoBean
+    org.eclipse.openvsx.scanning.ScannerRegistry scannerRegistry;
+
+    @MockitoBean
+    org.eclipse.openvsx.repositories.ScannerJobRepository scanJobRepository;
+
     @Test
     void getScans_filters_sorting_and_pagination_are_applied() throws Exception {
         // Always allow the request to pass the admin gate in this test setup.

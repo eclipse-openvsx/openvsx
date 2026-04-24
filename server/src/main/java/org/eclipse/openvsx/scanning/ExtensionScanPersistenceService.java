@@ -417,6 +417,12 @@ public class ExtensionScanPersistenceService {
                 summary = String.format("Found %d threat(s) - not enforced", threatCount);
             }
         }
+
+        // If the scanner provided its own human-readable summary, prefer it
+        // over our auto-generated text.
+        if (result.getSummary() != null && !result.getSummary().isBlank()) {
+            summary = result.getSummary();
+        }
         
         // Record scanner job result for audit trail
         recordScannerJobResult(

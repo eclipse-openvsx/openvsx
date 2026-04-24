@@ -20,11 +20,11 @@ import jakarta.annotation.Nullable;
  * Exception thrown when a scan operation fails.
  */
 public class ScannerException extends Exception {
-    
+
     public ScannerException(@Nonnull String message) {
         super(message);
     }
-    
+
     public ScannerException(@Nonnull String message, @Nullable Throwable cause) {
         super(message, cause);
     }
