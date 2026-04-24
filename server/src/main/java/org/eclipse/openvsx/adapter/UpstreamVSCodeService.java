@@ -21,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestClientException;
@@ -36,13 +36,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-@Component
+@Service
 public class UpstreamVSCodeService implements IVSCodeService {
     private static final String VAR_NAMESPACE = "namespace";
     private static final String VAR_EXTENSION = "extension";
     private static final String VAR_VERSION = "version";
 
-    protected final Logger logger = LoggerFactory.getLogger(UpstreamVSCodeService.class);
+    private final Logger logger = LoggerFactory.getLogger(UpstreamVSCodeService.class);
 
     private final RestTemplate restTemplate;
     private UpstreamProxyService proxy;
@@ -77,11 +77,11 @@ public class UpstreamVSCodeService implements IVSCodeService {
         }
 
         var statusCode = response.getStatusCode();
-        if(statusCode.is2xxSuccessful()) {
+        if (statusCode.is2xxSuccessful()) {
             var json = response.getBody();
             return proxy != null ? proxy.rewriteUrls(json) : json;
         }
-        if(statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
+        if (statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
             logger.error("POST {}: {}", urlTemplate, response);
         }
 
@@ -241,9 +241,13 @@ public class UpstreamVSCodeService implements IVSCodeService {
             @Override
             public ResponseEntity<StreamingResponseBody> extractData(ClientHttpResponse response) throws IOException {
                 var statusCode = response.getStatusCode();
-                if(statusCode.is3xxRedirection()) {
+                if (statusCode.is3xxRedirection()) {
                     var location = response.getHeaders().getLocation();
-                    if(proxy != null) {
+                    if (location == null) {
+                        return ResponseEntity.internalServerError().build();
+                    }
+
+                    if (proxy != null) {
                         location = proxy.rewriteUrl(location);
                     }
 
@@ -251,9 +255,9 @@ public class UpstreamVSCodeService implements IVSCodeService {
                             .headers(response.getHeaders())
                             .location(location)
                             .build();
-                } else if(statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
+                } else if (statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
                     handleResponseError(urlTemplate, uriVariables, response);
-                } else if(!statusCode.is2xxSuccessful()) {
+                } else if (!statusCode.is2xxSuccessful()) {
                     throw new NotFoundException();
                 }
 

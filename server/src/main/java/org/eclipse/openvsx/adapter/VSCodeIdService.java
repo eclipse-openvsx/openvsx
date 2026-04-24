@@ -18,27 +18,23 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jobrunr.scheduling.cron.Cron;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
-@Component
+@Service
 public class VSCodeIdService {
-
+    // TODO: check if this version is still valid when connecting to the VSC Marketplace
     private static final String API_VERSION = "3.0-preview.1";
-
-    protected final Logger logger = LoggerFactory.getLogger(VSCodeIdService.class);
 
     private final RestTemplate vsCodeIdRestTemplate;
     private final UrlConfigService urlConfigService;
@@ -65,10 +61,10 @@ public class VSCodeIdService {
 
     @EventListener
     public void applicationStarted(ApplicationStartedEvent event) {
-        if(mirrorEnabled) {
+        if (mirrorEnabled) {
             return;
         }
-        if(updateOnStart) {
+        if (updateOnStart) {
             scheduler.schedule(TimeUtil.getCurrentUTC().plusSeconds(delay), new HandlerJobRequest<>(VSCodeIdDailyUpdateJobRequestHandler.class));
         }
 
@@ -106,9 +102,9 @@ public class VSCodeIdService {
         headers.set(HttpHeaders.ACCEPT, "application/json;api-version=" + API_VERSION);
         var result = vsCodeIdRestTemplate.postForObject(requestUrl, new HttpEntity<>(requestData, headers), ExtensionQueryResult.class);
         if (result != null && result.results() != null && !result.results().isEmpty()) {
-            var item = result.results().get(0);
+            var item = result.results().getFirst();
             if (item.extensions() != null && !item.extensions().isEmpty()) {
-                return item.extensions().get(0);
+                return item.extensions().getFirst();
             }
         }
 
@@ -127,9 +123,6 @@ public class VSCodeIdService {
                 )
         );
 
-        return new ExtensionQueryParam(
-                List.of(new ExtensionQueryParam.Filter(criteria, 1, 1, 0, 0)),
-            0
-        );
+        return new ExtensionQueryParam(List.of(new ExtensionQueryParam.Filter(criteria, 1, 1, 0, 0)), 0);
     }
 }

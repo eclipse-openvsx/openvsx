@@ -10,6 +10,5 @@
 package org.eclipse.openvsx.adapter;
 
 public interface IExtensionQueryRequestHandler {
-
     ExtensionQueryResult getResult(ExtensionQueryParam param, int pageSize, int defaultPageSize);
 }

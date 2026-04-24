@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,10 +38,9 @@ import java.util.zip.ZipFile;
 
 import static org.eclipse.openvsx.cache.CacheService.*;
 
-@Component
+@Service
 public class WebResourceService {
-
-    protected final Logger logger = LoggerFactory.getLogger(WebResourceService.class);
+    private final Logger logger = LoggerFactory.getLogger(WebResourceService.class);
 
     private final StorageUtilService storageUtil;
     private final RepositoryService repositories;
@@ -62,12 +61,12 @@ public class WebResourceService {
 
     public Path getExtensionDownload(String namespace, String extension, String targetPlatform, String version) {
         var download = repositories.findFileByType(namespace, extension, targetPlatform, version, FileResource.DOWNLOAD);
-        if(download == null) {
+        if (download == null) {
             return null;
         }
 
         var path = storageUtil.getCachedFile(download);
-        if(path != null && !Files.exists(path)) {
+        if (path != null && !Files.exists(path)) {
             logger.error("File doesn't exist {}", path);
             cache.evictExtensionFile(download);
             path = null;
@@ -79,9 +78,9 @@ public class WebResourceService {
     @Observed
     @Cacheable(value = CACHE_WEB_RESOURCE_FILES, keyGenerator = GENERATOR_FILES, cacheManager = "fileCacheManager", sync = true)
     public Path getWebResource(String namespace, String extension, String targetPlatform, String version, String name, Path extensionDownloadPath) {
-        try(var zip = new ZipFile(extensionDownloadPath.toFile())) {
+        try (var zip = new ZipFile(extensionDownloadPath.toFile())) {
             var fileEntry = zip.getEntry(name);
-            if(fileEntry != null) {
+            if (fileEntry != null) {
                 var fileExt = getFileExtension(fileEntry);
                 var file = filesCacheKeyGenerator.generateCachedWebResourcePath(namespace, extension, targetPlatform, version, name, fileExt);
                 writeBinaryFile(file, zip, fileEntry);
@@ -100,13 +99,13 @@ public class WebResourceService {
 
     @Cacheable(value = CACHE_BROWSE_EXTENSION_FILES, keyGenerator = GENERATOR_FILES, cacheManager = "fileCacheManager")
     public ArrayNode browseExtensionPackage(String namespace, String extension, String targetPlatform, String version, String name, Path extensionDownloadPath) {
-        try(var zip = new ZipFile(extensionDownloadPath.toFile())) {
+        try (var zip = new ZipFile(extensionDownloadPath.toFile())) {
             var dirName = getDirectoryName(name);
             var dirEntries = zip.stream()
                     .filter(entry -> entry.getName().startsWith(dirName))
                     .map(entry -> getFileInDirectory(dirName, entry))
                     .collect(Collectors.toSet());
-            if(dirEntries.isEmpty()) {
+            if (dirEntries.isEmpty()) {
                 return null;
             }
 
@@ -136,7 +135,7 @@ public class WebResourceService {
         FileUtil.writeSync(file, p -> {
             try (var in = zip.getInputStream(fileEntry)) {
                 Files.copy(in, p);
-            } catch(IOException e) {
+            } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
