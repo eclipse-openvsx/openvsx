@@ -28,7 +28,7 @@ import { MainContext } from '../../context';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { Namespace, NamespaceDetails, isError } from '../../extension-registry-types';
 import Dropzone from 'react-dropzone';
-import AvatarEditor, { Position } from 'react-avatar-editor';
+import AvatarEditor, { Position, type AvatarEditorRef } from 'react-avatar-editor';
 import _ from 'lodash';
 import { styled, Theme } from '@mui/material/styles';
 
@@ -81,7 +81,7 @@ export const UserNamespaceDetails: FunctionComponent<UserNamespaceDetailsProps> 
     const LINKED_IN_COMPANY = 'company';
 
     const abortController = useRef<AbortController>(new AbortController());
-    const editor = useRef<AvatarEditor>(null);
+    const editor = useRef<AvatarEditorRef>(null);
 
     const context = useContext(MainContext);
     const [currentDetails, setCurrentDetails] = useState<NamespaceDetails>();
@@ -316,9 +316,8 @@ export const UserNamespaceDetails: FunctionComponent<UserNamespaceDetailsProps> 
     };
 
     const handleApplyLogo = () => {
-        const avatarEditor = editor.current as AvatarEditor;
-        const canvasScaled = avatarEditor.getImageScaledToCanvas();
-        canvasScaled.toBlob(async (blob) => {
+        const canvasScaled = editor.current?.getImageScaledToCanvas();
+        canvasScaled?.toBlob(async (blob) => {
             if (blob) {
                 if (logoPreview) {
                     URL.revokeObjectURL(logoPreview);
