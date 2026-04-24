@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openvsx-server-config
+  namespace: openvsx
+  labels:
+    app.kubernetes.io/name: openvsx
+    app.kubernetes.io/component: openvsx-server
+data:
+  application.yml: |
+    logging:
+      pattern:
+        level: '%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]'
+
+    server:
+      port: 8080
+      jetty:
+        threads:
+          max-queue-capacity: 100
+
+    spring:
+      application:
+        name: openvsx-server
+      autoconfigure:
+        exclude:
+         - org.springframework.boot.actuate.autoconfigure.tracing.zipkin.ZipkinAutoConfiguration
+      profiles:
+        include: ovsx
+      cache:
+        jcache:
+          config: classpath:ehcache.xml
+      datasource:
+        url: jdbc:postgresql://postgresql:5432/openvsx
+        username: ${DB_USERNAME}
+        password: ${DB_PASSWORD}
+      flyway:
+        baseline-on-migrate: true
+        baseline-version: 0.1.0
+        baseline-description: JobRunr tables
+      jpa:
+        open-in-view: false
+        properties:
+          hibernate:
+            dialect: org.hibernate.dialect.PostgreSQLDialect
+        hibernate:
+          ddl-auto: none
+      session:
+        store-type: jdbc
+        jdbc:
+          initialize-schema: never
+      thymeleaf:
+        enabled: false
+      # Uncomment and configure to enable GitHub OAuth authentication
+      # security:
+      #   oauth2:
+      #     client:
+      #       registration:
+      #         github:
+      #           client-id: ""
+      #           client-secret: ""
+
+    management:
+      health:
+        redis:
+          enabled: false
+        probes:
+          enabled: true
+      endpoints:
+        web:
+          exposure:
+            include:
+              - health
+              - metrics
+              - prometheus
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http:
+              server:
+                requests: true
+              client:
+                requests: true
+
+    springdoc:
+      swagger-ui:
+        path: /swagger-ui
+        docExpansion: list
+        operationsSorter: alpha
+        supportedSubmitMethods:
+          - get
+
+    org:
+      jobrunr:
+        job-scheduler:
+          enabled: true
+        background-job-server:
+          enabled: true
+          worker-count: 2
+        dashboard:
+          enabled: false
+        database:
+          type: sql
+        miscellaneous:
+          allow-anonymous-data-usage: false
+
+    bucket4j:
+      enabled: false
+
+    ovsx:
+      databasesearch:
+        enabled: false
+      elasticsearch:
+        clear-on-start: true
+        host: elasticsearch:9200
+      eclipse:
+        base-url: https://api.eclipse.org
+        publisher-agreement:
+          timezone: US/Eastern
+      integrity:
+        key-pair: create
+      storage:
+        local:
+          directory: /tmp/extensions

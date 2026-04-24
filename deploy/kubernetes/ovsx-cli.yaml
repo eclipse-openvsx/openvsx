@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ovsx-cli
+  namespace: openvsx
+  labels:
+    app.kubernetes.io/name: openvsx
+    app.kubernetes.io/component: ovsx-cli
+    app.kubernetes.io/instance: ovsx-cli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openvsx
+      app.kubernetes.io/component: ovsx-cli
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openvsx
+        app.kubernetes.io/component: ovsx-cli
+        app.kubernetes.io/instance: ovsx-cli
+    spec:
+      containers:
+        - name: ovsx-cli
+          image: node:22-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args: ["npm install -g ovsx && tail -f /dev/null"]
+          env:
+            - name: OVSX_REGISTRY_URL
+              value: http://openvsx-server:8080
+            - name: OVSX_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: ovsx-pat
+                  key: token
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
