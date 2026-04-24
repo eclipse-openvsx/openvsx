@@ -8,6 +8,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Persist open/closed state for the admin dashboard side-panel ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
 - Add support to delete empty namespaces in the admin dashboard ([#1773](https://github.com/eclipse/openvsx/pull/1773))
+- Add support to link to an external URL for remote scanner results ([#1789](https://github.com/eclipse/openvsx/pull/1789))
 
 ### Changed
 
