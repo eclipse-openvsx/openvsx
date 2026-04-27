@@ -73,6 +73,10 @@ public class UpstreamProxyService {
                 .toList());
     }
 
+    public ExtensionQueryResult.Extension rewriteUrls(ExtensionQueryResult.Extension json) {
+        return rewriteExtensionUrls(List.of(json)).getFirst();
+    }
+
     private List<ExtensionQueryResult.Extension> rewriteExtensionUrls(List<ExtensionQueryResult.Extension> extensions) {
         return extensions.stream()
                 .map(extension -> new ExtensionQueryResult.Extension(

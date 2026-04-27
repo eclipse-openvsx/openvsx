@@ -26,6 +26,7 @@ import org.eclipse.openvsx.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.Criterion.*;
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.*;
@@ -276,6 +278,49 @@ public class LocalVSCodeService implements IVSCodeService {
         } else {
             return "desc";
         }
+    }
+
+    @Override
+    @Cacheable(value = CacheService.CACHE_LATEST_EXTENSION_VERSION_VSCODE)
+    public ExtensionQueryResult.Extension latest(String namespaceName, String extensionName) {
+        if (BuiltInExtensionUtil.isBuiltIn(namespaceName)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, builtinExtensionMessage());
+        }
+
+        var extension = repositories.findActiveExtension(extensionName, namespaceName);
+        if (extension == null) {
+            throw new NotFoundException();
+        }
+
+        var latestRegularVersions = versions.getLatestByTargetPlatform(extension, false);
+        var latestPrereleaseVersions = versions.getLatestByTargetPlatform(extension, true);
+
+        var versions = Stream.concat(latestRegularVersions.stream(), latestPrereleaseVersions.stream()).toList();
+        if (versions.isEmpty()) {
+            throw new NotFoundException();
+        }
+
+        var fileTypes = new ArrayList<>(List.of(MANIFEST, README, LICENSE, ICON, DOWNLOAD, CHANGELOG, VSIXMANIFEST));
+        if (integrityService.isEnabled()) {
+            fileTypes.add(DOWNLOAD_SIG);
+        }
+
+        var fileResources =
+            repositories.findFileResourcesByExtensionVersionIdAndType(
+                versions.stream().map(ExtensionVersion::getId).toList(), fileTypes)
+                .stream()
+                .collect(Collectors.groupingBy(fr -> fr.getExtension().getId()));
+
+        // get the latest published version, giving regular releases precedence
+        var latestVersion = versions.stream()
+                .max(Comparator.comparing(ExtensionVersion::isPreRelease).reversed().thenComparing(ExtensionVersion::getTimestamp));
+
+        var queryVersions = versions.stream()
+                .sorted(ExtensionVersion.SORT_COMPARATOR.reversed())
+                .map(ev -> toQueryVersion(ev, fileResources, FLAG_INCLUDE_ASSET_URI | FLAG_INCLUDE_VERSION_PROPERTIES))
+                .toList();
+
+        return toQueryExtension(extension, latestVersion.get(), queryVersions, FLAG_INCLUDE_STATISTICS);
     }
 
     @Observed

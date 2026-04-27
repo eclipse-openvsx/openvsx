@@ -347,23 +347,19 @@ public class VSCodeAPI {
             @PathVariable @Parameter(description = "Extension namespace", example = "malloydata") String namespaceName,
             @PathVariable @Parameter(description = "Extension name", example = "malloy-vscode") String extensionName
     ) {
-        var extensionId = String.join(".", namespaceName, extensionName);
-        var criterion = new ExtensionQueryParam.Criterion(ExtensionQueryParam.Criterion.FILTER_EXTENSION_NAME, extensionId);
-        var filter = new ExtensionQueryParam.Filter(List.of(criterion), 0, 0, 0, 0);
-        int flags = FLAG_INCLUDE_VERSIONS | FLAG_INCLUDE_ASSET_URI | FLAG_INCLUDE_VERSION_PROPERTIES | FLAG_INCLUDE_FILES | FLAG_INCLUDE_STATISTICS;
-        var param = new ExtensionQueryParam(List.of(filter), flags);
-        var result = extensionQueryRequestHandler.getResult(param, 1, DEFAULT_PAGE_SIZE);
-        var extension = Optional.of(result)
-                .filter(r -> !r.results().isEmpty())
-                .map(r -> r.results().getFirst().extensions())
-                .filter(e -> !e.isEmpty())
-                .map(List::getFirst)
-                .orElse(null);
-
-        return extension != null
-                ? ResponseEntity.ok()
-                    .cacheControl(CacheControl.maxAge(10, TimeUnit.MINUTES).cachePublic())
-                    .body(extension)
-                : ResponseEntity.notFound().build();
+        try {
+            for (var service : getVSCodeServices()) {
+                try {
+                    var result = service.latest(namespaceName, extensionName);
+                    return ResponseEntity.ok(result);
+                } catch (NotFoundException exc) {
+                    // Try the next registry
+                }
+            }
+            return ResponseEntity.notFound().build();
+        } catch (ErrorResultException ex) {
+            logger.error(ex.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

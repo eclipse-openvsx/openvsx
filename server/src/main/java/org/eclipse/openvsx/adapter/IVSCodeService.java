@@ -15,6 +15,8 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public interface IVSCodeService {
     ExtensionQueryResult extensionQuery(ExtensionQueryParam param, int defaultPageSize);
 
+    ExtensionQueryResult.Extension latest(String namespaceName, String extensionName);
+
     ResponseEntity<StreamingResponseBody> browse(String namespaceName, String extensionName, String version, String path);
 
     String download(String namespace, String extension, String version, String targetPlatform);

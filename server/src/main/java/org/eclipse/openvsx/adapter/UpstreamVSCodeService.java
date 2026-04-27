@@ -89,6 +89,35 @@ public class UpstreamVSCodeService implements IVSCodeService {
     }
 
     @Override
+    public ExtensionQueryResult.Extension latest(String namespaceName, String extensionName) {
+        var urlTemplate = urlConfigService.getUpstreamUrl() + "/vscode/gallery/{namespace}/{extension}/latest";
+        var uriVariables = new HashMap<>(Map.of(
+                VAR_NAMESPACE, namespaceName,
+                VAR_EXTENSION, extensionName
+        ));
+
+        URI url = restTemplate.getUriTemplateHandler().expand(urlTemplate, uriVariables);
+        var request = new RequestEntity<>(HttpHeadersUtil.getForwardedHeaders(), HttpMethod.GET, url);
+        ResponseEntity<ExtensionQueryResult.Extension> response;
+        try {
+            response = restTemplate.exchange(request, ExtensionQueryResult.Extension.class);
+        } catch (RestClientException exc) {
+            throw propagateRestException(exc, request.getMethod(), url.toString(), null);
+        }
+
+        var statusCode = response.getStatusCode();
+        if (statusCode.is2xxSuccessful()) {
+            var json = response.getBody();
+            return proxy != null ? proxy.rewriteUrls(json) : json;
+        }
+        if (statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
+            logger.error("GET {}: {}", urlTemplate, response);
+        }
+
+        throw new NotFoundException();
+    }
+
+    @Override
     public ResponseEntity<StreamingResponseBody> browse(String namespaceName, String extensionName, String version, String path) {
         var urlBuilder = new StringBuilder(urlConfigService.getUpstreamUrl() + "/vscode/unpkg/{namespace}/{extension}/{version}");
         var uriVariables = new HashMap<>(Map.of(

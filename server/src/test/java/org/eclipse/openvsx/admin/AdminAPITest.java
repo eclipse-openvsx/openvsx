@@ -1770,8 +1770,8 @@ class AdminAPITest {
         }
 
         @Bean
-        VersionService versionService() {
-            return new VersionService();
+        VersionService versionService(RepositoryService repositoryService) {
+            return new VersionService(repositoryService);
         }
 
         @Bean
