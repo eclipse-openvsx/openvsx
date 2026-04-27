@@ -12,6 +12,7 @@ package org.eclipse.openvsx.adapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.UpstreamProxyService;
 import org.eclipse.openvsx.UrlConfigService;
 import org.eclipse.openvsx.util.HttpHeadersUtil;
@@ -21,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestClientException;
@@ -36,29 +37,32 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-@Component
+@Service
 public class UpstreamVSCodeService implements IVSCodeService {
     private static final String VAR_NAMESPACE = "namespace";
     private static final String VAR_EXTENSION = "extension";
     private static final String VAR_VERSION = "version";
 
-    protected final Logger logger = LoggerFactory.getLogger(UpstreamVSCodeService.class);
+    private final Logger logger = LoggerFactory.getLogger(UpstreamVSCodeService.class);
 
     private final RestTemplate restTemplate;
     private UpstreamProxyService proxy;
     private final RestTemplate nonRedirectingRestTemplate;
     private final UrlConfigService urlConfigService;
+    private final ExtensionValidator extensionValidator;
 
     public UpstreamVSCodeService(
             RestTemplate restTemplate,
             Optional<UpstreamProxyService> upstreamProxyService,
             RestTemplate nonRedirectingRestTemplate,
-            UrlConfigService urlConfigService
+            UrlConfigService urlConfigService,
+            ExtensionValidator extensionValidator
     ) {
         this.restTemplate = restTemplate;
         upstreamProxyService.ifPresent(service -> this.proxy = service);
         this.nonRedirectingRestTemplate = nonRedirectingRestTemplate;
         this.urlConfigService = urlConfigService;
+        this.extensionValidator = extensionValidator;
     }
 
     public boolean isValid() {
@@ -77,12 +81,48 @@ public class UpstreamVSCodeService implements IVSCodeService {
         }
 
         var statusCode = response.getStatusCode();
-        if(statusCode.is2xxSuccessful()) {
+        if (statusCode.is2xxSuccessful()) {
             var json = response.getBody();
             return proxy != null ? proxy.rewriteUrls(json) : json;
         }
-        if(statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
+        if (statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
             logger.error("POST {}: {}", urlTemplate, response);
+        }
+
+        throw new NotFoundException();
+    }
+
+    @Override
+    public ExtensionQueryResult.Extension latest(String namespaceName, String extensionName) {
+        // Check that the user-provided namespace and extension parameters are actually valid before
+        // making a request to the upstream server.
+        if (extensionValidator.validateNamespace(namespaceName).isPresent() ||
+            extensionValidator.validateExtensionName(extensionName).isPresent()) {
+            throw new NotFoundException();
+        }
+
+        var urlTemplate = urlConfigService.getUpstreamUrl() + "/vscode/gallery/{namespace}/{extension}/latest";
+        var uriVariables = new HashMap<>(Map.of(
+                VAR_NAMESPACE, namespaceName,
+                VAR_EXTENSION, extensionName
+        ));
+
+        URI url = restTemplate.getUriTemplateHandler().expand(urlTemplate, uriVariables);
+        var request = new RequestEntity<>(HttpHeadersUtil.getForwardedHeaders(), HttpMethod.GET, url);
+        ResponseEntity<ExtensionQueryResult.Extension> response;
+        try {
+            response = restTemplate.exchange(request, ExtensionQueryResult.Extension.class);
+        } catch (RestClientException exc) {
+            throw propagateRestException(exc, request.getMethod(), url.toString(), null);
+        }
+
+        var statusCode = response.getStatusCode();
+        if (statusCode.is2xxSuccessful()) {
+            var json = response.getBody();
+            return proxy != null ? proxy.rewriteUrls(json) : json;
+        }
+        if (statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
+            logger.error("GET {}: {}", urlTemplate, response);
         }
 
         throw new NotFoundException();
@@ -241,9 +281,13 @@ public class UpstreamVSCodeService implements IVSCodeService {
             @Override
             public ResponseEntity<StreamingResponseBody> extractData(ClientHttpResponse response) throws IOException {
                 var statusCode = response.getStatusCode();
-                if(statusCode.is3xxRedirection()) {
+                if (statusCode.is3xxRedirection()) {
                     var location = response.getHeaders().getLocation();
-                    if(proxy != null) {
+                    if (location == null) {
+                        return ResponseEntity.internalServerError().build();
+                    }
+
+                    if (proxy != null) {
                         location = proxy.rewriteUrl(location);
                     }
 
@@ -251,9 +295,9 @@ public class UpstreamVSCodeService implements IVSCodeService {
                             .headers(response.getHeaders())
                             .location(location)
                             .build();
-                } else if(statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
+                } else if (statusCode.isError() && statusCode != HttpStatus.NOT_FOUND) {
                     handleResponseError(urlTemplate, uriVariables, response);
-                } else if(!statusCode.is2xxSuccessful()) {
+                } else if (!statusCode.is2xxSuccessful()) {
                     throw new NotFoundException();
                 }
 

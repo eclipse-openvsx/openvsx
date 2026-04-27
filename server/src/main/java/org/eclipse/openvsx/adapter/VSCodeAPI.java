@@ -34,7 +34,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -45,12 +44,12 @@ import static org.eclipse.openvsx.util.TargetPlatform.*;
 
 @RestController
 public class VSCodeAPI {
-
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final Logger logger = LoggerFactory.getLogger(VSCodeAPI.class);
 
     private final LocalVSCodeService local;
     private final UpstreamVSCodeService upstream;
+    private final List<IVSCodeService> registries;
     private final IExtensionQueryRequestHandler extensionQueryRequestHandler;
 
     public VSCodeAPI(
@@ -60,14 +59,19 @@ public class VSCodeAPI {
     ) {
         this.local = local;
         this.upstream = upstream;
+        this.registries = setupRegistries();
         this.extensionQueryRequestHandler = extensionQueryRequestHandler;
     }
 
+    private List<IVSCodeService> setupRegistries() {
+        if (upstream.isValid()) {
+            return List.of(local, upstream);
+        } else {
+            return List.of(local);
+        }
+    }
+
     private Iterable<IVSCodeService> getVSCodeServices() {
-        var registries = new ArrayList<IVSCodeService>();
-        registries.add(local);
-        if (upstream.isValid())
-            registries.add(upstream);
         return registries;
     }
 
@@ -343,23 +347,21 @@ public class VSCodeAPI {
             @PathVariable @Parameter(description = "Extension namespace", example = "malloydata") String namespaceName,
             @PathVariable @Parameter(description = "Extension name", example = "malloy-vscode") String extensionName
     ) {
-        var extensionId = String.join(".", namespaceName, extensionName);
-        var criterion = new ExtensionQueryParam.Criterion(ExtensionQueryParam.Criterion.FILTER_EXTENSION_NAME, extensionId);
-        var filter = new ExtensionQueryParam.Filter(List.of(criterion), 0, 0, 0, 0);
-        int flags = FLAG_INCLUDE_VERSIONS | FLAG_INCLUDE_ASSET_URI | FLAG_INCLUDE_VERSION_PROPERTIES | FLAG_INCLUDE_FILES | FLAG_INCLUDE_STATISTICS;
-        var param = new ExtensionQueryParam(List.of(filter), flags);
-        var result = extensionQueryRequestHandler.getResult(param, 1, DEFAULT_PAGE_SIZE);
-        var extension = Optional.of(result)
-                .filter(r -> !r.results().isEmpty())
-                .map(r -> r.results().getFirst().extensions())
-                .filter(e -> !e.isEmpty())
-                .map(List::getFirst)
-                .orElse(null);
-
-        return extension != null
-                ? ResponseEntity.ok()
-                    .cacheControl(CacheControl.maxAge(10, TimeUnit.MINUTES).cachePublic())
-                    .body(extension)
-                : ResponseEntity.notFound().build();
+        try {
+            for (var service : getVSCodeServices()) {
+                try {
+                    var result = service.latest(namespaceName, extensionName);
+                    return ResponseEntity.ok()
+                            .cacheControl(CacheControl.maxAge(10, TimeUnit.MINUTES).cachePublic().mustRevalidate())
+                            .body(result);
+                } catch (NotFoundException exc) {
+                    // Try the next registry
+                }
+            }
+            return ResponseEntity.notFound().build();
+        } catch (ErrorResultException ex) {
+            logger.error(ex.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

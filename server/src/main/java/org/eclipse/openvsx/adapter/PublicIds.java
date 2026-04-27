@@ -9,5 +9,4 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.adapter;
 
-public record PublicIds(String namespace, String extension) {
-}
+public record PublicIds(String namespace, String extension) {}

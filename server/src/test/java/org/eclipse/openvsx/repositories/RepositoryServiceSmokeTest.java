@@ -246,6 +246,7 @@ class RepositoryServiceSmokeTest {
                 () -> repositories.findLatestVersion(extension, "targetPlatform", false, false),
                 () -> repositories.findLatestVersions(namespace),
                 () -> repositories.findLatestVersions(userData),
+                () -> repositories.findLatestVersionByTargetPlatform(extension, true, true),
                 () -> repositories.findExtensionTargetPlatforms(extension),
                 () -> repositories.isNamespaceOwner(userData, namespace),
                 () -> repositories.findMembershipsForOwner(userData,"namespaceName"),

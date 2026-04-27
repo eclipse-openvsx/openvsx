@@ -18,12 +18,26 @@ import java.util.stream.Collectors;
 
 public class DefaultExtensionQueryRequestHandler implements IExtensionQueryRequestHandler {
 
-    private LocalVSCodeService local;
-    private UpstreamVSCodeService upstream;
+    private final LocalVSCodeService local;
+    private final UpstreamVSCodeService upstream;
+    private final List<IVSCodeService> registries;
 
     public DefaultExtensionQueryRequestHandler(LocalVSCodeService local, UpstreamVSCodeService upstream) {
         this.local = local;
         this.upstream = upstream;
+        this.registries = setupRegistries();
+    }
+
+    private List<IVSCodeService> setupRegistries() {
+        if (upstream.isValid()) {
+            return List.of(local, upstream);
+        } else {
+            return List.of(local);
+        }
+    }
+
+    private Iterable<IVSCodeService> getVSCodeServices() {
+        return registries;
     }
 
     @Override
@@ -38,7 +52,7 @@ public class DefaultExtensionQueryRequestHandler implements IExtensionQueryReque
                 var service = services.next();
                 if(extensions.isEmpty()) {
                     var subResult = service.extensionQuery(param, defaultPageSize);
-                    var subExtensions = subResult.results().get(0).extensions();
+                    var subExtensions = subResult.results().getFirst().extensions();
                     if(subExtensions != null) {
                         extensions.addAll(subExtensions);
                     }
@@ -47,7 +61,7 @@ public class DefaultExtensionQueryRequestHandler implements IExtensionQueryReque
                 } else {
                     var extensionCount = extensions.size();
                     var subResult = service.extensionQuery(param, defaultPageSize);
-                    var subExtensions = subResult.results().get(0).extensions();
+                    var subExtensions = subResult.results().getFirst().extensions();
                     var subExtensionsCount = subExtensions != null ? subExtensions.size() : 0;
                     if (subExtensionsCount > 0) {
                         int limit = pageSize - extensionCount;
@@ -66,18 +80,10 @@ public class DefaultExtensionQueryRequestHandler implements IExtensionQueryReque
         return local.toQueryResult(extensions, totalCount);
     }
 
-    private Iterable<IVSCodeService> getVSCodeServices() {
-        var registries = new ArrayList<IVSCodeService>();
-        registries.add(local);
-        if (upstream.isValid())
-            registries.add(upstream);
-        return registries;
-    }
-
     private void mergeExtensionQueryResults(List<ExtensionQueryResult.Extension> extensions, Set<String> extensionIds, List<ExtensionQueryResult.Extension> subExtensions, int limit) {
         if(extensionIds.isEmpty() && !extensions.isEmpty()) {
             var extensionIdSet = extensions.stream()
-                    .map(extension -> NamingUtil.toExtensionId(extension))
+                    .map(NamingUtil::toExtensionId)
                     .collect(Collectors.toSet());
 
             extensionIds.addAll(extensionIdSet);
@@ -95,15 +101,15 @@ public class DefaultExtensionQueryRequestHandler implements IExtensionQueryReque
     }
 
     private long getTotalCount(ExtensionQueryResult subResult) {
-        return subResult.results().get(0).resultMetadata().stream()
+        return subResult.results().getFirst().resultMetadata().stream()
                 .filter(metadata -> metadata.metadataType().equals("ResultCount"))
                 .findFirst()
-                .map(metadata -> metadata.metadataItems())
+                .map(ExtensionQueryResult.ResultMetadata::metadataItems)
                 .orElseGet(Collections::emptyList)
                 .stream()
                 .filter(item -> item.name().equals("TotalCount"))
                 .findFirst()
-                .map(item -> item.count())
+                .map(ExtensionQueryResult.ResultMetadataItem::count)
                 .orElse(0L);
     }
 }

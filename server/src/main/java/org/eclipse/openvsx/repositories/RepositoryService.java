@@ -625,6 +625,10 @@ public class RepositoryService {
         return extensionVersionJooqRepo.findLatest(extension, targetPlatform, onlyPreRelease, onlyActive);
     }
 
+    public List<ExtensionVersion> findLatestVersionByTargetPlatform(Extension extension, boolean preReleases, boolean onlyActive) {
+        return extensionVersionJooqRepo.findLatestVersionByTargetPlatform(extension, preReleases, onlyActive);
+    }
+
     public ExtensionVersion findLatestVersion(String namespaceName, String extensionName, String targetPlatform, boolean onlyPreRelease, boolean onlyActive) {
         return extensionVersionJooqRepo.findLatest(namespaceName, extensionName, targetPlatform, onlyPreRelease, onlyActive);
     }

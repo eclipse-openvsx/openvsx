@@ -38,7 +38,7 @@ public class NamingUtil {
 
     public static String toFileFormat(String namespace, String extension, String targetPlatform, String version) {
         var name = toExtensionId(namespace, extension) + "-" + version;
-        if(!TargetPlatform.isUniversal(targetPlatform)) {
+        if (targetPlatform != null && !TargetPlatform.isUniversal(targetPlatform)) {
             name += "@" + targetPlatform;
         }
 
@@ -61,10 +61,10 @@ public class NamingUtil {
 
     public static String toLogFormat(String namespace, String extension, String targetPlatform, String version) {
         var name = toExtensionId(namespace, extension);
-        if(!StringUtils.isEmpty(version)) {
+        if (!StringUtils.isEmpty(version)) {
             name += " " + version;
         }
-        if(!StringUtils.isEmpty(targetPlatform) && !TargetPlatform.isUniversal(targetPlatform)) {
+        if (!StringUtils.isEmpty(targetPlatform) && !TargetPlatform.isUniversal(targetPlatform)) {
             name += " (" + targetPlatform + ")";
         }
 

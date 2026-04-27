@@ -16,6 +16,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionAlias;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.interceptor.SimpleKey;
 import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,8 @@ public class CacheService {
     public static final String CACHE_EXTENSION_FILES = "files.extension";
     public static final String CACHE_EXTENSION_JSON = "extension.json";
     public static final String CACHE_LATEST_EXTENSION_VERSION = "latest.extension.version";
+    public static final String CACHE_LATEST_EXTENSION_VERSION_VSCODE = "latest.extension.version.vscode";
+    public static final String CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM = "latest.extension.versions.by.platform";
     public static final String CACHE_NAMESPACE_DETAILS_JSON = "namespace.details.json";
     public static final String CACHE_AVERAGE_REVIEW_RATING = "average.review.rating";
     public static final String CACHE_SITEMAP = "sitemap";
@@ -38,6 +41,7 @@ public class CacheService {
 
     public static final String GENERATOR_EXTENSION_JSON = "extensionJsonCacheKeyGenerator";
     public static final String GENERATOR_LATEST_EXTENSION_VERSION = "latestExtensionVersionCacheKeyGenerator";
+    public static final String GENERATOR_LATEST_EXTENSION_VERSIONS_BY_PLATFORM = "latestExtensionVersionsByPlatformCacheKeyGenerator";
     public static final String GENERATOR_FILES = "filesCacheKeyGenerator";
 
     private final CacheManager cacheManager;
@@ -45,6 +49,7 @@ public class CacheService {
     private final RepositoryService repositories;
     private final ExtensionJsonCacheKeyGenerator extensionJsonCacheKey;
     private final LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey;
+    private final LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator;
     private final FilesCacheKeyGenerator filesCacheKeyGenerator;
 
     public CacheService(
@@ -53,6 +58,7 @@ public class CacheService {
             RepositoryService repositories,
             ExtensionJsonCacheKeyGenerator extensionJsonCacheKey,
             LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey,
+            LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator,
             FilesCacheKeyGenerator filesCacheKeyGenerator
     ) {
         this.cacheManager = cacheManager;
@@ -60,6 +66,7 @@ public class CacheService {
         this.repositories = repositories;
         this.extensionJsonCacheKey = extensionJsonCacheKey;
         this.latestExtensionVersionCacheKey = latestExtensionVersionCacheKey;
+        this.latestExtensionVersionsByPlatformCacheKeyGenerator = latestExtensionVersionsByPlatformCacheKeyGenerator;
         this.filesCacheKeyGenerator = filesCacheKeyGenerator;
     }
 
@@ -151,11 +158,19 @@ public class CacheService {
 
     public void evictLatestExtensionVersions() {
         invalidateCache(CACHE_LATEST_EXTENSION_VERSION);
+        invalidateCache(CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM);
+        invalidateCache(CACHE_LATEST_EXTENSION_VERSION_VSCODE);
     }
 
     public void evictLatestExtensionVersion(Extension extension) {
+        evictInternalLatestExtensionVersion(extension);
+        evictInternalLatestExtensionVersionsByPlatform(extension);
+        evictInternalLatestExtensionVersionVSCode(extension);
+    }
+
+    private void evictInternalLatestExtensionVersion(Extension extension) {
         var cache = cacheManager.getCache(CACHE_LATEST_EXTENSION_VERSION);
-        if(cache == null) {
+        if (cache == null) {
             return;
         }
 
@@ -172,13 +187,35 @@ public class CacheService {
         for (var targetPlatform : targetPlatforms) {
             for (var preRelease : List.of(true, false)) {
                 for (var onlyActive : List.of(true, false)) {
-                    for(var type : ExtensionVersion.Type.values()) {
+                    for (var type : ExtensionVersion.Type.values()) {
                         var key = latestExtensionVersionCacheKey.generate(extension, targetPlatform, preRelease, onlyActive, type);
                         cache.evictIfPresent(key);
                     }
                 }
             }
         }
+    }
+
+    private void evictInternalLatestExtensionVersionsByPlatform(Extension extension) {
+        var cache = cacheManager.getCache(CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM);
+        if (cache == null) {
+            return;
+        }
+
+        for (var preRelease : List.of(true, false)) {
+            var key = latestExtensionVersionsByPlatformCacheKeyGenerator.generate(extension, preRelease);
+            cache.evictIfPresent(key);
+        }
+    }
+
+    private void evictInternalLatestExtensionVersionVSCode(Extension extension) {
+        var cache = cacheManager.getCache(CACHE_LATEST_EXTENSION_VERSION_VSCODE);
+        if (cache == null) {
+            return;
+        }
+
+        var key = new SimpleKey(extension.getNamespace().getName(), extension.getName());
+        cache.evictIfPresent(key);
     }
 
     private void invalidateCache(String cacheName) {

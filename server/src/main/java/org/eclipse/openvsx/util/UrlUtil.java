@@ -9,6 +9,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.util;
 
+import jakarta.annotation.Nonnull;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -94,9 +95,9 @@ public final class UrlUtil {
     /**
      * Create a URL pointing to an API path.
      */
-    public static String createApiUrl(String baseUrl, String... segments) {
-        if(Arrays.stream(segments).anyMatch(Objects::isNull)) {
-            return null;
+    public static @Nonnull String createApiUrl(String baseUrl, String... segments) {
+        if (Arrays.stream(segments).anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("Argument to createApiUrl has been null");
         }
 
         var path = Arrays.stream(segments)

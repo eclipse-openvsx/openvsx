@@ -37,7 +37,7 @@ public class LatestExtensionVersionCacheKeyGenerator implements KeyGenerator {
             onlyActive = (boolean) params[3];
         } else {
             var versions = (List<ExtensionVersion>) params[0];
-            var firstVersion = versions.get(0);
+            var firstVersion = versions.getFirst();
             extension = firstVersion.getExtension();
             type = firstVersion.getType();
             var groupedByTargetPlatform = (boolean) params[1];

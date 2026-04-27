@@ -516,7 +516,7 @@ public class ExtensionVersionJooqRepository {
         extVersion.setSponsorLink(row.get(extensionVersionMapper.map(EXTENSION_VERSION.SPONSOR_LINK)));
         extVersion.setPotentiallyMalicious(row.get(extensionVersionMapper.map(EXTENSION_VERSION.POTENTIALLY_MALICIOUS)));
 
-        if(extension == null) {
+        if (extension == null) {
             var namespace = new Namespace();
             namespace.setId(row.get(NAMESPACE.ID));
             namespace.setName(row.get(NAMESPACE.NAME));
@@ -1195,6 +1195,66 @@ public class ExtensionVersionJooqRepository {
             extVersion.getExtension().setDownloadable(row.get(EXTENSION.DOWNLOADABLE));
             return extVersion;
         });
+    }
+
+    public List<ExtensionVersion> findLatestVersionByTargetPlatform(
+            Extension extension,
+            boolean preReleases,
+            boolean onlyActive
+    ) {
+        var query = dsl.selectQuery();
+        query.addDistinctOn(EXTENSION_VERSION.TARGET_PLATFORM);
+        query.addFrom(EXTENSION_VERSION);
+
+        query.addJoin(EXTENSION, EXTENSION.ID.eq(EXTENSION_VERSION.EXTENSION_ID));
+        query.addJoin(NAMESPACE, NAMESPACE.ID.eq(EXTENSION.NAMESPACE_ID));
+        query.addJoin(SIGNATURE_KEY_PAIR, JoinType.LEFT_OUTER_JOIN, SIGNATURE_KEY_PAIR.ID.eq(EXTENSION_VERSION.SIGNATURE_KEY_PAIR_ID));
+
+        query.addConditions(EXTENSION_VERSION.PRE_RELEASE.eq(preReleases));
+
+        if (onlyActive) {
+            query.addConditions(EXTENSION_VERSION.ACTIVE.eq(true));
+        }
+
+        query.addOrderBy(
+                EXTENSION_VERSION.TARGET_PLATFORM,
+                EXTENSION_VERSION.SEMVER_MAJOR.desc(),
+                EXTENSION_VERSION.SEMVER_MINOR.desc(),
+                EXTENSION_VERSION.SEMVER_PATCH.desc(),
+                EXTENSION_VERSION.TIMESTAMP.desc()
+        );
+
+        query.addConditions(EXTENSION_VERSION.EXTENSION_ID.eq(extension.getId()));
+
+        query.addSelect(
+                NAMESPACE.ID,
+                NAMESPACE.NAME,
+                EXTENSION.ID,
+                EXTENSION.NAME,
+                EXTENSION_VERSION.ID,
+                EXTENSION_VERSION.VERSION,
+                EXTENSION_VERSION.POTENTIALLY_MALICIOUS,
+                EXTENSION_VERSION.TARGET_PLATFORM,
+                EXTENSION_VERSION.PREVIEW,
+                EXTENSION_VERSION.PRE_RELEASE,
+                EXTENSION_VERSION.TIMESTAMP,
+                EXTENSION_VERSION.DISPLAY_NAME,
+                EXTENSION_VERSION.DESCRIPTION,
+                EXTENSION_VERSION.ENGINES,
+                EXTENSION_VERSION.CATEGORIES,
+                EXTENSION_VERSION.TAGS,
+                EXTENSION_VERSION.EXTENSION_KIND,
+                EXTENSION_VERSION.REPOSITORY,
+                EXTENSION_VERSION.SPONSOR_LINK,
+                EXTENSION_VERSION.GALLERY_COLOR,
+                EXTENSION_VERSION.GALLERY_THEME,
+                EXTENSION_VERSION.LOCALIZED_LANGUAGES,
+                EXTENSION_VERSION.DEPENDENCIES,
+                EXTENSION_VERSION.BUNDLED_EXTENSIONS,
+                SIGNATURE_KEY_PAIR.PUBLIC_ID
+        );
+
+        return query.fetch().map(this::toExtensionVersion);
     }
 
     public ExtensionVersion findLatestForAllUrls(

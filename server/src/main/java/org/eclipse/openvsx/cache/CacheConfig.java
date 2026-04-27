@@ -19,6 +19,7 @@ import com.github.benmanes.caffeine.jcache.CacheManagerImpl;
 import com.github.benmanes.caffeine.jcache.configuration.CaffeineConfiguration;
 import com.github.benmanes.caffeine.jcache.spi.CaffeineCachingProvider;
 import io.micrometer.common.util.StringUtils;
+import org.eclipse.openvsx.adapter.ExtensionQueryResult;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceDetailsJson;
@@ -48,6 +49,7 @@ import redis.clients.jedis.JedisPool;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 import java.util.OptionalLong;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -158,6 +160,10 @@ public class CacheConfig {
             @Value("${ovsx.caching.extension-json.max-size:1024}") long extensionJsonMaxSize,
             @Value("${ovsx.caching.latest-extension-version.ttl:PT1H}") Duration latestExtensionVersionTtl,
             @Value("${ovsx.caching.latest-extension-version.max-size:1024}") long latestExtensionVersionMaxSize,
+            @Value("${ovsx.caching.latest-extension-version-vscode.ttl:PT1H}") Duration latestExtensionVersionVscodeTtl,
+            @Value("${ovsx.caching.latest-extension-version-vscode.max-size:1024}") long latestExtensionVersionVscodeMaxSize,
+            @Value("${ovsx.caching.latest-extension-versions-by-platform.ttl:PT1H}") Duration latestExtensionVersionsByPlatformTtl,
+            @Value("${ovsx.caching.latest-extension-versions-by-platform.max-size:1024}") long latestExtensionVersionsByPlatformMaxSize,
             @Value("${ovsx.caching.sitemap.ttl:PT1H}") Duration sitemapTtl,
             @Value("${ovsx.caching.sitemap.max-size:1}") long sitemapMaxSize,
             @Value("${ovsx.caching.malicious-extensions.ttl:P3D}") Duration maliciousExtensionsTtl,
@@ -172,6 +178,8 @@ public class CacheConfig {
         var databaseSearchCache = createCaffeineConfiguration(databaseSearchTtl, databaseSearchMaxSize, false);
         var extensionJsonCache = createCaffeineConfiguration(extensionJsonTtl, extensionJsonMaxSize, false);
         var latestExtensionVersionCache = createCaffeineConfiguration(latestExtensionVersionTtl, latestExtensionVersionMaxSize, false);
+        var latestExtensionVersionVscodeCache = createCaffeineConfiguration(latestExtensionVersionVscodeTtl, latestExtensionVersionVscodeMaxSize, false);
+        var latestExtensionVersionsByPlatformCache = createCaffeineConfiguration(latestExtensionVersionsByPlatformTtl, latestExtensionVersionsByPlatformMaxSize, false);
         var sitemapCache = createCaffeineConfiguration(sitemapTtl, sitemapMaxSize, false);
         var maliciousExtensionsCache = createCaffeineConfiguration(maliciousExtensionsTtl, maliciousExtensionsMaxSize, false);
         var rateLimitingCache = createCaffeineConfiguration(rateLimitingTti, rateLimitingMaxSize, true);
@@ -189,6 +197,8 @@ public class CacheConfig {
         cacheManager.createCache(CACHE_DATABASE_SEARCH, databaseSearchCache);
         cacheManager.createCache(CACHE_EXTENSION_JSON, extensionJsonCache);
         cacheManager.createCache(CACHE_LATEST_EXTENSION_VERSION, latestExtensionVersionCache);
+        cacheManager.createCache(CACHE_LATEST_EXTENSION_VERSION_VSCODE, latestExtensionVersionVscodeCache);
+        cacheManager.createCache(CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM, latestExtensionVersionsByPlatformCache);
         cacheManager.createCache(CACHE_SITEMAP, sitemapCache);
         cacheManager.createCache(CACHE_MALICIOUS_EXTENSIONS, maliciousExtensionsCache);
         cacheManager.createCache(rateLimitingCacheName, rateLimitingCache);
@@ -217,6 +227,8 @@ public class CacheConfig {
             @Value("${ovsx.caching.database-search.ttl:PT1H}") Duration databaseSearchTtl,
             @Value("${ovsx.caching.extension-json.ttl:PT1H}") Duration extensionJsonTtl,
             @Value("${ovsx.caching.latest-extension-version.ttl:PT1H}") Duration latestExtensionVersionTtl,
+            @Value("${ovsx.caching.latest-extension-version-vscode.ttl:PT1H}") Duration latestExtensionVersionVscodeTtl,
+            @Value("${ovsx.caching.latest-extension-versions-by-platform.ttl:PT1H}") Duration latestExtensionVersionsByPlatformTtl,
             @Value("${ovsx.caching.sitemap.ttl:PT1H}") Duration sitemapTtl,
             @Value("${ovsx.caching.malicious-extensions.ttl:P3D}") Duration maliciousExtensionsTtl
     ) {
@@ -243,8 +255,16 @@ public class CacheConfig {
                         redisCacheConfig(new Jackson2JsonRedisSerializer<>(ExtensionJson.class), extensionJsonTtl)
                 )
                 .withCacheConfiguration(
+                        CACHE_LATEST_EXTENSION_VERSION_VSCODE,
+                        redisCacheConfig(new Jackson2JsonRedisSerializer<>(ExtensionQueryResult.Extension.class), latestExtensionVersionVscodeTtl)
+                )
+                .withCacheConfiguration(
                         CACHE_LATEST_EXTENSION_VERSION,
                         redisCacheConfig(new Jackson2JsonRedisSerializer<>(extensionVersionMapper, ExtensionVersion.class), latestExtensionVersionTtl)
+                )
+                .withCacheConfiguration(
+                        CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM,
+                        redisCacheConfig(new Jackson2JsonRedisSerializer<>(extensionVersionMapper, List.class), latestExtensionVersionsByPlatformTtl)
                 )
                 .withCacheConfiguration(
                         CACHE_SITEMAP,
