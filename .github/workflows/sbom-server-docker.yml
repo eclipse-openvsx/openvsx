@@ -1,0 +1,49 @@
+# FIXME: As temporary workaround this name is used to assign the SBOM to the
+# correct product slot within the OpenVSX project on DependencyTrack.
+name: Generate SBOM (server docker image) # PLEASE DO NOT CHANGE!
+
+on:
+  registry_package:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v1.2.3)"
+        required: true
+
+permissions:
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: eclipse
+  NAME: openvsx-server
+  # TODO: Make sure that `registry_package.[...].tag.name` can be relied on.
+  # What if 'docker/metadata-action' in release.yml sets no, or multiple tags?
+  VERSION: "${{ inputs.version || github.event.registry_package.package_version.container_metadata.tag.name }}"
+
+jobs:
+  sbom-server-docker:
+    if: github.event_name == 'workflow_dispatch' || github.event.registry_package.name == 'openvsx-server'
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout only .github/actions to make the upload-sbom composite action available
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        sparse-checkout: .github/actions
+        persist-credentials: false
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0.22.2
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.NAME }}:${{ env.VERSION }}
+        output-file: sbom.json
+        format: cyclonedx-json
+        upload-artifact: false
+
+    - name: Upload SBOM
+      uses: ./.github/actions/upload-sbom
+      with:
+        sbom-file: sbom.json
+        product-name: "${{ env.NAME }} docker image"
+        product-version: ${{ env.VERSION }}
