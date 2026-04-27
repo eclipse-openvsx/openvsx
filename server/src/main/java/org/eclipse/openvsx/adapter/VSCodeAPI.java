@@ -351,7 +351,9 @@ public class VSCodeAPI {
             for (var service : getVSCodeServices()) {
                 try {
                     var result = service.latest(namespaceName, extensionName);
-                    return ResponseEntity.ok(result);
+                    return ResponseEntity.ok()
+                            .cacheControl(CacheControl.maxAge(10, TimeUnit.MINUTES).cachePublic().mustRevalidate())
+                            .body(result);
                 } catch (NotFoundException exc) {
                     // Try the next registry
                 }
