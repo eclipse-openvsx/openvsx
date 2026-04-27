@@ -23,6 +23,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Dependencies
 
 - Bump react-avatar-editor from `13.0.2` to `15.1.0` ([#1787](https://github.com/eclipse/openvsx/pull/1787))
+- Bump postcss from `8.5.6` to `8.5.10` ([#1793](https://github.com/eclipse/openvsx/pull/1793))
 
 ## [v0.20.1] (20/04/2026)
 
