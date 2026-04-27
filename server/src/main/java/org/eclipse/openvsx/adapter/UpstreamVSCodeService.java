@@ -12,6 +12,7 @@ package org.eclipse.openvsx.adapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.UpstreamProxyService;
 import org.eclipse.openvsx.UrlConfigService;
 import org.eclipse.openvsx.util.HttpHeadersUtil;
@@ -48,17 +49,20 @@ public class UpstreamVSCodeService implements IVSCodeService {
     private UpstreamProxyService proxy;
     private final RestTemplate nonRedirectingRestTemplate;
     private final UrlConfigService urlConfigService;
+    private final ExtensionValidator extensionValidator;
 
     public UpstreamVSCodeService(
             RestTemplate restTemplate,
             Optional<UpstreamProxyService> upstreamProxyService,
             RestTemplate nonRedirectingRestTemplate,
-            UrlConfigService urlConfigService
+            UrlConfigService urlConfigService,
+            ExtensionValidator extensionValidator
     ) {
         this.restTemplate = restTemplate;
         upstreamProxyService.ifPresent(service -> this.proxy = service);
         this.nonRedirectingRestTemplate = nonRedirectingRestTemplate;
         this.urlConfigService = urlConfigService;
+        this.extensionValidator = extensionValidator;
     }
 
     public boolean isValid() {
@@ -90,6 +94,13 @@ public class UpstreamVSCodeService implements IVSCodeService {
 
     @Override
     public ExtensionQueryResult.Extension latest(String namespaceName, String extensionName) {
+        // Check that the user-provided namespace and extension parameters are actually valid before
+        // making a request to the upstream server.
+        if (extensionValidator.validateNamespace(namespaceName).isPresent() ||
+            extensionValidator.validateExtensionName(extensionName).isPresent()) {
+            throw new NotFoundException();
+        }
+
         var urlTemplate = urlConfigService.getUpstreamUrl() + "/vscode/gallery/{namespace}/{extension}/latest";
         var uriVariables = new HashMap<>(Map.of(
                 VAR_NAMESPACE, namespaceName,
