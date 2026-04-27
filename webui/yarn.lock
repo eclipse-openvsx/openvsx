@@ -1628,6 +1628,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tanstack/query-core@npm:5.99.0":
+  version: 5.99.0
+  resolution: "@tanstack/query-core@npm:5.99.0"
+  checksum: 10/752c38122c772a8c511ffd927e003282a23a3ab6979b066d1d8b100a2061a5448096fce4cfc9e2d93a2ef468ffac5440a6181203b1456d12f6e51f69bcdc1a4d
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query@npm:^5.99.0":
+  version: 5.99.0
+  resolution: "@tanstack/react-query@npm:5.99.0"
+  dependencies:
+    "@tanstack/query-core": "npm:5.99.0"
+  peerDependencies:
+    react: ^18 || ^19
+  checksum: 10/aafbc87fc9c6c01c8ac8229d42ab209273f39f8284a72b8917c5fab39722b949b8dff2cf3b28487b2ebcb286bb08a377a42ed8a56dabe7f1ac4681c5af338401
+  languageName: node
+  linkType: hard
+
 "@tsconfig/node10@npm:^1.0.7":
   version: 1.0.12
   resolution: "@tsconfig/node10@npm:1.0.12"
@@ -5880,6 +5898,7 @@ __metadata:
     "@mui/x-date-pickers": "npm:^8.27.2"
     "@playwright/test": "npm:^1.58.0"
     "@stylistic/eslint-plugin": "npm:^5.9.0"
+    "@tanstack/react-query": "npm:^5.99.0"
     "@types/chai": "npm:^4.3.5"
     "@types/d3-scale": "npm:^4.0"
     "@types/d3-shape": "npm:^3.1"

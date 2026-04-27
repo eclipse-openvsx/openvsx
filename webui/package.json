@@ -49,6 +49,7 @@
         "@mui/x-charts": "^8.28.2",
         "@mui/x-data-grid": "^8.28.2",
         "@mui/x-date-pickers": "^8.27.2",
+        "@tanstack/react-query": "^5.99.0",
         "clipboard-copy": "^4.0.1",
         "clsx": "^1.2.1",
         "dompurify": "^3.0.4",

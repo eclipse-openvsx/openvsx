@@ -14,6 +14,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ExtensionRegistryService } from '../extension-registry-service';
 import { Main } from '../main';
 import createPageSettings from './page-settings';
@@ -48,6 +49,8 @@ async function getServerVersion(): Promise<string> {
    }
 }
 
+const queryClient = new QueryClient();
+
 export const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
     const theme = useMemo(
@@ -57,14 +60,16 @@ export const App = () => {
 
     const pageSettings = createPageSettings(prefersDarkMode, service.serverUrl, getServerVersion());
     return (
-        <HelmetProvider>
-            <ThemeProvider theme={theme}>
-                <Main
-                    service={service}
-                    pageSettings={pageSettings}
-                />
-            </ThemeProvider>
-        </HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+            <HelmetProvider>
+                <ThemeProvider theme={theme}>
+                    <Main
+                        service={service}
+                        pageSettings={pageSettings}
+                    />
+                </ThemeProvider>
+            </HelmetProvider>
+        </QueryClientProvider>
     );
 };
 
