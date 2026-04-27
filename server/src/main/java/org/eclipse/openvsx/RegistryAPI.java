@@ -252,6 +252,8 @@ public class RegistryAPI {
                         .body(registry.getExtension(namespace, extension, null));
             } catch (NotFoundException exc) {
                 // Try the next registry
+            } finally {
+                logger.info("done getting extension {}.{}", namespace, extension);
             }
         }
         var json = ExtensionJson.error(extensionNotFoundMessage(NamingUtil.toExtensionId(namespace, extension)));
