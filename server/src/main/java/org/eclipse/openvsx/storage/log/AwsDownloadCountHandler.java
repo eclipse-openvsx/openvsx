@@ -12,6 +12,7 @@ package org.eclipse.openvsx.storage.log;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.metrics.DownloadCountValidator;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.storage.AwsStorageService;
 import org.eclipse.openvsx.util.TempFile;
@@ -33,9 +34,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
@@ -63,6 +66,7 @@ public class AwsDownloadCountHandler implements JobRequestHandler<HandlerJobRequ
 
     private final AwsStorageService  awsStorageService;
     private final DownloadCountProcessor processor;
+    private final Optional<DownloadCountValidator> downloadCountValidator;
 
     @Value("${ovsx.logs.aws.bucket:}")
     String bucket;
@@ -81,9 +85,14 @@ public class AwsDownloadCountHandler implements JobRequestHandler<HandlerJobRequ
 
     LogFileParser logFileParser;
 
-    public AwsDownloadCountHandler(AwsStorageService awsStorageService, DownloadCountProcessor processor) {
+    public AwsDownloadCountHandler(
+            AwsStorageService awsStorageService,
+            DownloadCountProcessor processor,
+            Optional<DownloadCountValidator> downloadCountValidator
+    ) {
         this.awsStorageService = awsStorageService;
         this.processor = processor;
+        this.downloadCountValidator = downloadCountValidator;
     }
 
     @PostConstruct
@@ -222,7 +231,7 @@ public class AwsDownloadCountHandler implements JobRequestHandler<HandlerJobRequ
                 var gzipStream = new GZIPInputStream(fileStream);
                 var reader = new BufferedReader(new InputStreamReader(gzipStream, StandardCharsets.UTF_8));
         ) {
-            var fileCounts = new HashMap<String, Integer>();
+            var events = new ArrayList<DownloadEvent>();
             var lines = reader.lines().iterator();
             while (lines.hasNext()) {
                 var line = lines.next();
@@ -236,11 +245,39 @@ public class AwsDownloadCountHandler implements JobRequestHandler<HandlerJobRequ
                     var uri = record.url();
                     var uriComponents = uri.split("/");
                     var vsixFile = UriUtils.decode(uriComponents[uriComponents.length - 1], StandardCharsets.UTF_8).toUpperCase();
-                    fileCounts.merge(vsixFile, 1, Integer::sum);
+                    events.add(new DownloadEvent(vsixFile, record.clientIp(), record.userAgent(), record.eventTime()));
                 }
             }
+            return countValidatedEvents(events);
+        }
+    }
+
+    Map<String, Integer> countValidatedEvents(List<DownloadEvent> events) {
+        var fileCounts = new HashMap<String, Integer>();
+        if (events.isEmpty()) {
             return fileCounts;
         }
+
+        var fileNames = events.stream()
+                .map(DownloadEvent::fileName)
+                .distinct()
+                .toList();
+        var fileToExtensionId = processor.resolveDownloadFileToExtensionId(FileResource.STORAGE_AWS, fileNames);
+
+        for (var event : events) {
+            Long extensionId = fileToExtensionId.get(event.fileName());
+            if (extensionId == null) {
+                continue;
+            }
+
+            boolean shouldCount = downloadCountValidator
+                    .map(validator -> validator.shouldCountDownload(extensionId, event.clientIp(), event.userAgent(), event.eventTime()))
+                    .orElse(true);
+            if (shouldCount) {
+                fileCounts.merge(event.fileName(), 1, Integer::sum);
+            }
+        }
+        return fileCounts;
     }
 
     private boolean isGetOperation(LogRecord record) {
@@ -281,5 +318,8 @@ public class AwsDownloadCountHandler implements JobRequestHandler<HandlerJobRequ
         }
 
         return getS3Client().listObjectsV2(builder.build());
+    }
+
+    record DownloadEvent(String fileName, String clientIp, String userAgent, java.time.Instant eventTime) {
     }
 }

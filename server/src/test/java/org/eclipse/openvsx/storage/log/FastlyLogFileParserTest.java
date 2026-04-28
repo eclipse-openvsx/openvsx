@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -35,6 +36,10 @@ public class FastlyLogFileParserTest {
                 assertEquals("GET", record.method());
                 assertEquals(301, record.status());
                 assertEquals("/favicon.ico", record.url());
+                assertEquals("1.1.1.1", record.clientIp());
+                assertEquals("Mozilla/5.0", record.userAgent());
+                // "2026-02-09T04:20:50+0000" → UTC Instant
+                assertEquals(Instant.parse("2026-02-09T04:20:50Z"), record.eventTime());
             }
         }
     }

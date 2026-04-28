@@ -19,6 +19,7 @@ import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.metrics.DownloadCountValidator;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
@@ -31,6 +32,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -38,6 +40,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.eclipse.openvsx.entities.FileResource.*;
 import static org.eclipse.openvsx.util.UrlUtil.createApiFileUrl;
@@ -61,6 +65,7 @@ public class StorageUtilService implements IStorageService {
     private final EntityManager entityManager;
     private final FileCacheDurationConfig fileCacheDurationConfig;
     private final CdnServiceConfig cdnServiceConfig;
+    private final Optional<DownloadCountValidator> downloadCountValidator;
 
     /** Determines which external storage service to use in case multiple services are configured. */
     @Value("${ovsx.storage.primary-service:}")
@@ -82,7 +87,8 @@ public class StorageUtilService implements IStorageService {
             CacheService cache,
             EntityManager entityManager,
             FileCacheDurationConfig fileCacheDurationConfig,
-            CdnServiceConfig cdnServiceConfig
+            CdnServiceConfig cdnServiceConfig,
+            Optional<DownloadCountValidator> downloadCountValidator
     ) {
         this.repositories = repositories;
         this.googleStorage = googleStorage;
@@ -96,6 +102,7 @@ public class StorageUtilService implements IStorageService {
         this.entityManager = entityManager;
         this.fileCacheDurationConfig = fileCacheDurationConfig;
         this.cdnServiceConfig = cdnServiceConfig;
+        this.downloadCountValidator = downloadCountValidator;
     }
 
     public boolean shouldStoreExternally(FileResource resource) {
@@ -291,6 +298,14 @@ public class StorageUtilService implements IStorageService {
 
         var managedResource = entityManager.find(FileResource.class, resource.getId());
         var extension = managedResource.getExtension().getExtension();
+
+        if (downloadCountValidator.isPresent() && downloadCountValidator.get().isValidationEnabled()) {
+            var request = getCurrentHttpRequest();
+            if (!downloadCountValidator.get().shouldCountDownload(extension, request)) {
+                return;
+            }
+        }
+
         extension.setDownloadCount(extension.getDownloadCount() + 1);
 
         cache.evictNamespaceDetails(extension);
@@ -298,6 +313,18 @@ public class StorageUtilService implements IStorageService {
         if (extension.isActive()) {
             search.updateSearchEntry(extension);
         }
+    }
+
+    /**
+     * Gets the current HttpServletRequest from Spring's RequestContextHolder.
+     * Returns null if called outside a servlet request context (e.g., batch jobs).
+     */
+    private HttpServletRequest getCurrentHttpRequest() {
+        var attrs = RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof ServletRequestAttributes servletAttrs) {
+            return servletAttrs.getRequest();
+        }
+        return null;
     }
 
     public ResponseEntity<StreamingResponseBody> getFileResponse(FileResource resource) {

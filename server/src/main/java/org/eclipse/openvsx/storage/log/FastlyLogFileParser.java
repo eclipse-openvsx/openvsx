@@ -24,6 +24,10 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.annotation.Nullable;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 class FastlyLogFileParser implements LogFileParser {
     private final Logger logger = LoggerFactory.getLogger(FastlyLogFileParser.class);
@@ -56,6 +60,8 @@ class FastlyLogFileParser implements LogFileParser {
 
 class LogRecordDeserializer extends StdDeserializer<LogRecord> {
 
+    private static final Logger logger = LoggerFactory.getLogger(LogRecordDeserializer.class);
+
     public LogRecordDeserializer() {
         this(null);
     }
@@ -71,6 +77,39 @@ class LogRecordDeserializer extends StdDeserializer<LogRecord> {
         String operation = node.get("request_method").asText();
         int status = (Integer) node.get("response_status").numberValue();
         String url = node.get("url").asText();
-        return new LogRecord(operation, status, url);
+        String clientIp = node.path("client_ip").asText(null);
+        String userAgent = node.path("request_user_agent").asText(null);
+        Instant eventTime = parseEventTime(node.path("timestamp").asText(null));
+        return new LogRecord(operation, status, url, clientIp, userAgent, eventTime);
+    }
+
+    /**
+     * Parses Fastly timestamp to UTC Instant.
+     *
+     * Fastly uses the basic-offset ISO-8601 form "2026-02-09T04:20:50+0000"
+     * (no colon in offset) which the default ISO parser rejects.
+     * We try standard ISO first (covers "+00:00" and "Z"), then fall back
+     * to a basic-offset formatter (covers "+0000").
+     */
+    private static final DateTimeFormatter FASTLY_TS_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXX");
+
+    private Instant parseEventTime(String timestamp) {
+        if (timestamp == null || timestamp.isBlank()) {
+            return null;
+        }
+        // Try standard ISO offset first ("+00:00", "Z")
+        try {
+            return OffsetDateTime.parse(timestamp).toInstant();
+        } catch (DateTimeParseException ignored) {
+            // fall through
+        }
+        // Try basic offset format ("+0000") used by Fastly
+        try {
+            return OffsetDateTime.parse(timestamp, FASTLY_TS_FORMATTER).toInstant();
+        } catch (DateTimeParseException e) {
+            logger.debug("Failed to parse Fastly event timestamp: {}", timestamp);
+            return null;
+        }
     }
 }

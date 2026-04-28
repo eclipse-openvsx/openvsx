@@ -53,6 +53,7 @@ import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -466,7 +467,8 @@ class EclipseServiceTest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig
+                    cdnServiceConfig,
+                    Optional.empty()
             );
         }
 

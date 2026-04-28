@@ -31,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 
 import static org.eclipse.openvsx.entities.FileResource.README;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -193,7 +194,8 @@ public class StorageUtilServiceTest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig
+                    cdnServiceConfig,
+                    Optional.empty()
             );
         }
     }

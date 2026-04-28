@@ -1113,7 +1113,8 @@ class VSCodeAPITest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig
+                    cdnServiceConfig,
+                    Optional.empty()
             );
         }
 
