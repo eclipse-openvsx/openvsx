@@ -12,6 +12,7 @@ package org.eclipse.openvsx;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.search.ISearchService;
+import org.eclipse.openvsx.util.BooleanTernary;
 import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ public class UpstreamRegistryService implements IExtensionRegistry {
     private static final String VAR_NAMESPACE = "namespace";
     private static final String VAR_EXTENSION = "extension";
     private static final String VAR_TARGET = "targetPlatform";
+    private static final String VAR_PRE_RELEASES = "preReleases";
     private static final String VAR_OFFSET = "offset";
     private static final String VAR_SIZE = "size";
     private static final String VAR_ALL_VERSIONS = "includeAllVersions";
@@ -195,7 +197,7 @@ public class UpstreamRegistryService implements IExtensionRegistry {
     }
 
     @Override
-    public VersionReferencesJson getVersionReferences(String namespace, String extension, String targetPlatform, int size, int offset) {
+    public VersionReferencesJson getVersionReferences(String namespace, String extension, String targetPlatform, BooleanTernary preReleases, int size, int offset) {
         var urlTemplate = urlConfigService.getUpstreamUrl() + URL_EXTENSION_FRAGMENT;
         var uriVariables = new HashMap<String, String>();
         uriVariables.put(VAR_NAMESPACE, namespace);
@@ -208,6 +210,11 @@ public class UpstreamRegistryService implements IExtensionRegistry {
         urlTemplate += "/version-references?offset={offset}&size={size}";
         uriVariables.put(VAR_OFFSET, String.valueOf(offset));
         uriVariables.put(VAR_SIZE, String.valueOf(size));
+
+        if (preReleases != BooleanTernary.UNKNOWN) {
+            urlTemplate += "&preReleases={preReleases}";
+            uriVariables.put(VAR_PRE_RELEASES, String.valueOf(preReleases));
+        }
 
         try {
             var json = restTemplate.getForObject(urlTemplate, VersionReferencesJson.class, uriVariables);

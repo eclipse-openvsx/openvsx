@@ -11,6 +11,7 @@ package org.eclipse.openvsx;
 
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.search.ISearchService;
+import org.eclipse.openvsx.util.BooleanTernary;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -27,7 +28,7 @@ public interface IExtensionRegistry {
 
     VersionsJson getVersions(String namespace, String extension, String targetPlatform, int size, int offset);
 
-    VersionReferencesJson getVersionReferences(String namespace, String extension, String targetPlatform, int size, int offset);
+    VersionReferencesJson getVersionReferences(String namespace, String extension, String targetPlatform, BooleanTernary preReleases, int size, int offset);
 
     ResponseEntity<StreamingResponseBody> getFile(String namespace, String extensionName, String targetPlatform, String version, String fileName);
 
