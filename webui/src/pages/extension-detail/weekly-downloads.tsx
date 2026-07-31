@@ -66,7 +66,8 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
         enabled: analyticsEnabled
     });
 
-    const counts = useMemo(() => trailingWeeklySums(points?.map(point => point.count) ?? []), [points]);
+    const daily = useMemo(() => points ?? [], [points]);
+    const counts = useMemo(() => trailingWeeklySums(daily.map(point => point.count)), [daily]);
     const hasDownloads = counts.some(count => count > 0);
     if (!analyticsEnabled || counts.length === 0 || !hasDownloads) {
         return null;
@@ -90,6 +91,8 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                             showHighlight
                             color={theme.palette.secondary.main}
                             valueFormatter={value => (value === null ? '' : `${value.toLocaleString()} downloads`)}
+                            // `.MuiAreaElement-root` is the sparkline's area path; lighten its fill to a wash.
+                            sx={{ '& .MuiAreaElement-root': { fillOpacity: 0.14 } }}
                         />
                     </Box>
                 </Box>
