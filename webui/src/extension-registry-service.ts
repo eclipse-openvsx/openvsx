@@ -28,6 +28,8 @@ import {
     NamespaceMembershipList,
     PublisherInfo,
     RegistryVersion,
+    DownloadSeries,
+    DownloadSeriesInterval,
     SearchEntry,
     LoginProviders,
     ScanResultJson,
@@ -94,6 +96,28 @@ export class ExtensionRegistryService {
         }
 
         return createAbsoluteURL(arr);
+    }
+
+    /**
+     * Fetches the download time series for an extension from the analytics endpoint. The endpoint
+     * only exists when download analytics are enabled server-side (otherwise it responds 404), so
+     * callers should gate on {@link RegistryVersion.analyticsEnabled}. `from`/`to` are UTC dates
+     * (yyyy-MM-dd); `from` is inclusive and `to` is exclusive.
+     */
+    async getExtensionDownloadSeries(
+        abortController: AbortController,
+        params: { namespace: string; name: string; from?: string; to?: string; interval?: DownloadSeriesInterval }
+    ): Promise<Readonly<DownloadSeries>> {
+        const endpoint = createAbsoluteURL(
+            [this.serverUrl, 'api', params.namespace, params.name, 'analytics', 'downloads'],
+            [
+                { key: 'from', value: params.from },
+                { key: 'to', value: params.to },
+                { key: 'interval', value: params.interval }
+            ]
+        );
+        // Non-retriable: retries are owned by the TanStack query that calls this.
+        return sendNonRetriableRequest<DownloadSeries>({ abortController, endpoint });
     }
 
     async getNamespaceDetails(abortController: AbortController, name: string): Promise<Readonly<NamespaceDetails>> {

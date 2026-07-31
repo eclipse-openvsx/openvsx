@@ -365,7 +365,20 @@ export interface TargetPlatformVersion {
 export interface RegistryVersion {
     version: string;
     maxExtensionSize?: number;
+    analyticsEnabled?: boolean;
 }
+
+/** One bucket of the download time series: `t` is the UTC bucket start (yyyy-MM-dd). */
+export interface DownloadSeriesPoint {
+    t: string;
+    count: number;
+}
+
+export interface DownloadSeries {
+    points: DownloadSeriesPoint[];
+}
+
+export type DownloadSeriesInterval = 'day' | 'week' | 'month';
 
 export interface LoginProviders {
     loginProviders: Record<string, string>;
