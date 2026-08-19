@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -1260,6 +1261,100 @@ public class RepositoryService {
 
     public List<String> findDistinctValidationFailureCheckTypes() {
         return extensionValidationFailureRepo.findDistinctCheckTypes();
+    }
+
+    /**
+     * Find one page of the extensions that failed the given check, as {@code <namespace>/<extension>}
+     * keys ordered by their most recent detection. See
+     * {@link ExtensionValidationFailureRepository#findFlaggedExtensionKeys}.
+     */
+    public List<String> findFlaggedExtensionKeys(
+            String checkType,
+            @Nullable String namespace,
+            @Nullable String publisher,
+            @Nullable String name,
+            @Nullable LocalDateTime detectedFrom,
+            @Nullable LocalDateTime detectedTo,
+            org.eclipse.openvsx.admin.NameSquattingAPI.@Nullable ExtensionStateFilter stateFilter,
+            boolean ascending,
+            int limit,
+            int offset
+    ) {
+        var applyStateFilter = stateFilter != null && stateFilter.hasFilter();
+        return extensionValidationFailureRepo.findFlaggedExtensionKeys(
+                checkType,
+                blankToNull(namespace),
+                blankToNull(publisher),
+                blankToNull(name),
+                detectedFrom,
+                detectedTo,
+                applyStateFilter,
+                stateFilter != null && stateFilter.filterPublished(),
+                stateFilter != null && stateFilter.filterDeactivated(),
+                stateFilter != null && stateFilter.filterRejected(),
+                ascending,
+                limit,
+                offset);
+    }
+
+    /**
+     * Count the extensions matched by {@link #findFlaggedExtensionKeys} with the same filters.
+     */
+    public long countFlaggedExtensions(
+            String checkType,
+            @Nullable String namespace,
+            @Nullable String publisher,
+            @Nullable String name,
+            @Nullable LocalDateTime detectedFrom,
+            @Nullable LocalDateTime detectedTo,
+            org.eclipse.openvsx.admin.NameSquattingAPI.@Nullable ExtensionStateFilter stateFilter
+    ) {
+        var applyStateFilter = stateFilter != null && stateFilter.hasFilter();
+        return extensionValidationFailureRepo.countFlaggedExtensions(
+                checkType,
+                blankToNull(namespace),
+                blankToNull(publisher),
+                blankToNull(name),
+                detectedFrom,
+                detectedTo,
+                applyStateFilter,
+                stateFilter != null && stateFilter.filterPublished(),
+                stateFilter != null && stateFilter.filterDeactivated(),
+                stateFilter != null && stateFilter.filterRejected());
+    }
+
+    /**
+     * Find all failures of the given check type recorded for one extension, newest first.
+     * Namespace and extension name are matched case-insensitively.
+     */
+    public List<ExtensionValidationFailure> findValidationFailures(
+            String checkType,
+            String namespaceName,
+            String extensionName,
+            @Nullable LocalDateTime detectedFrom,
+            @Nullable LocalDateTime detectedTo
+    ) {
+        return extensionValidationFailureRepo.findByCheckTypeAndExtension(
+                checkType,
+                namespaceName.toLowerCase(Locale.ROOT),
+                extensionName.toLowerCase(Locale.ROOT),
+                detectedFrom,
+                detectedTo);
+    }
+
+    /**
+     * Delete all failures of the given check type recorded for one extension and return how many
+     * rows were removed. Namespace and extension name are matched case-insensitively.
+     */
+    public int deleteValidationFailures(String checkType, String namespaceName, String extensionName) {
+        return extensionValidationFailureRepo.deleteByCheckTypeAndExtension(
+                checkType,
+                namespaceName.toLowerCase(Locale.ROOT),
+                extensionName.toLowerCase(Locale.ROOT));
+    }
+
+    private static @Nullable String blankToNull(@Nullable String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     public AdminScanDecision saveAdminScanDecision(AdminScanDecision decision) {
