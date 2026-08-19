@@ -27,6 +27,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
+import org.eclipse.openvsx.admin.NameSquattingAPI;
 import org.eclipse.openvsx.entities.AdminScanDecision;
 import org.eclipse.openvsx.entities.Customer;
 import org.eclipse.openvsx.entities.DailyUsageStats;
@@ -391,8 +392,39 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findExtensionScan(1L),
                 () -> repositories.findValidationFailures(scan),
                 () -> repositories.findDistinctValidationFailureCheckTypes(),
+                () -> repositories.findFlaggedExtensionKeys(
+                        validationFailure.getCheckType(),
+                        namespace.getName(),
+                        scan.getPublisher(),
+                        extension.getName(),
+                        NOW,
+                        NOW,
+                        new NameSquattingAPI.ExtensionStateFilter(true, true, true),
+                        false,
+                        10,
+                        0),
+                () -> repositories.countFlaggedExtensions(
+                        validationFailure.getCheckType(),
+                        namespace.getName(),
+                        scan.getPublisher(),
+                        extension.getName(),
+                        NOW,
+                        NOW,
+                        new NameSquattingAPI.ExtensionStateFilter(true, true, true)),
+                () -> repositories.findValidationFailures(
+                        validationFailure.getCheckType(),
+                        namespace.getName(),
+                        extension.getName(),
+                        NOW,
+                        NOW),
                 () -> repositories.saveExtensionScan(scan),
                 () -> repositories.saveValidationFailure(validationFailure),
+                // Hibernate flushes before a bulk delete, so this has to run while every entity is
+                // still persistable - i.e. before the tier and customer deletes further down
+                () -> repositories.deleteValidationFailures(
+                        validationFailure.getCheckType(),
+                        namespace.getName(),
+                        extension.getName()),
                 // DB paging and filtering methods for scan API
                 () -> repositories.findScansFullyFiltered(
                         List.of(ScanStatus.STARTED),
