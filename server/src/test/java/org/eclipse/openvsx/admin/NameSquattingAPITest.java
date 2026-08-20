@@ -12,7 +12,6 @@
  ********************************************************************************/
 package org.eclipse.openvsx.admin;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -21,30 +20,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.data.util.Streamable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import org.eclipse.openvsx.entities.Extension;
-import org.eclipse.openvsx.entities.ExtensionScan;
-import org.eclipse.openvsx.entities.ExtensionValidationFailure;
-import org.eclipse.openvsx.entities.ExtensionVersion;
-import org.eclipse.openvsx.entities.Namespace;
-import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.UserData;
-import org.eclipse.openvsx.json.ResultJson;
-import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.json.NameSquattingActionResponseJson;
+import org.eclipse.openvsx.json.NameSquattingActionResultJson;
+import org.eclipse.openvsx.json.NameSquattingCountsJson;
+import org.eclipse.openvsx.json.NameSquattingFlagJson;
+import org.eclipse.openvsx.json.NameSquattingFlagListJson;
 import org.eclipse.openvsx.util.ErrorResultException;
-import org.eclipse.openvsx.util.LogService;
-import org.eclipse.openvsx.util.TargetPlatformVersion;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,6 +44,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Tests for the HTTP layer of {@link NameSquattingAPI}: request mapping, parameter binding and
+ * validation, the admin check, and serialization of what {@link AdminService} returns. The
+ * moderation logic itself is covered by {@link NameSquattingAdminServiceTest}.
+ */
 @WebMvcTest(
     value = NameSquattingAPI.class,
     excludeAutoConfiguration = { OAuth2ClientWebSecurityAutoConfiguration.class }
@@ -60,91 +56,99 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 class NameSquattingAPITest {
 
-    private static final String CHECK_TYPE = "NAME_SQUATTING";
-
-    private static final LocalDateTime FIRST_DETECTED = LocalDateTime.of(2026, 1, 5, 9, 30);
-
-    private static final LocalDateTime LAST_DETECTED = LocalDateTime.of(2026, 2, 11, 14, 0);
+    private static final String TARGETS = "{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}";
 
     @Autowired
     MockMvc mockMvc;
 
     @MockitoBean
-    RepositoryService repositories;
-
-    @MockitoBean
     AdminService admins;
-
-    @MockitoBean
-    LogService logs;
 
     @MockitoBean
     MeterRegistry meterRegistry;
 
     @Test
-    void getFlaggedExtensions_groups_findings_per_extension() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-        stubFlaggedExtension("ns", "ext");
+    void getFlaggedExtensions_passes_the_query_on_and_returns_the_flags() throws Exception {
+        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(
+                admins.getNameSquattingFlags(
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(Integer.class),
+                        any(Integer.class),
+                        any()))
+                .thenReturn(flagList());
 
-        var extension = TestData.extension("ns", "ext", true);
-        when(repositories.findExtension("ext", "ns")).thenReturn(extension);
-        when(repositories.findActiveVersions(extension))
-                .thenReturn(Streamable.of(TestData.version("universal", "1.0.0")));
-
-        mockMvc.perform(get("/admin/name-squatting").accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(
+                get("/admin/name-squatting")
+                        .param("publisher", "publisher")
+                        .param("namespace", "ns")
+                        .param("name", "ext")
+                        .param("state", "PUBLISHED,DEACTIVATED")
+                        .param("dateDetectedFrom", "2026-01-01T00:00Z")
+                        .param("dateDetectedTo", "2026-02-01T00:00Z")
+                        .param("size", "25")
+                        .param("offset", "50")
+                        .param("sortOrder", "asc")
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalSize").value(3))
-                .andExpect(jsonPath("$.offset").value(0))
+                .andExpect(jsonPath("$.offset").value(50))
                 .andExpect(jsonPath("$.flags.length()").value(1))
                 .andExpect(jsonPath("$.flags[0].namespace").value("ns"))
                 .andExpect(jsonPath("$.flags[0].extensionName").value("ext"))
-                .andExpect(jsonPath("$.flags[0].displayName").value("Extension Display Name"))
-                .andExpect(jsonPath("$.flags[0].publisher").value("publisher"))
-                .andExpect(jsonPath("$.flags[0].state").value("PUBLISHED"))
-                .andExpect(jsonPath("$.flags[0].activeVersionCount").value(1))
-                .andExpect(jsonPath("$.flags[0].findingCount").value(2))
-                .andExpect(jsonPath("$.flags[0].findings.length()").value(2))
-                // Findings come back newest first, so the dates bracket the whole history.
-                .andExpect(jsonPath("$.flags[0].findings[0].version").value("2.0.0"))
-                .andExpect(jsonPath("$.flags[0].findings[0].scanStatus").value("PASSED"))
-                .andExpect(jsonPath("$.flags[0].findings[0].enforcedFlag").value(false))
-                .andExpect(jsonPath("$.flags[0].findings[1].version").value("1.0.0"))
-                .andExpect(jsonPath("$.flags[0].dateLastDetected").value("2026-02-11T14:00Z"))
-                .andExpect(jsonPath("$.flags[0].dateFirstDetected").value("2026-01-05T09:30Z"));
+                .andExpect(jsonPath("$.flags[0].state").value("PUBLISHED"));
+
+        verify(admins).getNameSquattingFlags(
+                eq("publisher"),
+                eq("ns"),
+                eq("ext"),
+                eq(List.of("PUBLISHED", "DEACTIVATED")),
+                eq("2026-01-01T00:00Z"),
+                eq("2026-02-01T00:00Z"),
+                eq(25),
+                eq(50),
+                eq("asc"));
     }
 
     @Test
-    void getFlaggedExtensions_reports_rejected_when_extension_was_never_created() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-        stubFlaggedExtension("ns", "ext");
-
-        // Publication was blocked by an enforced check, so no extension exists.
-        when(repositories.findExtension("ext", "ns")).thenReturn(null);
-
-        mockMvc.perform(get("/admin/name-squatting").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flags[0].state").value("REJECTED"))
-                .andExpect(jsonPath("$.flags[0].activeVersionCount").value(0));
-    }
-
-    @Test
-    void getFlaggedExtensions_reports_deactivated_when_no_active_versions_remain() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-        stubFlaggedExtension("ns", "ext");
-
-        var extension = TestData.extension("ns", "ext", false);
-        when(repositories.findExtension("ext", "ns")).thenReturn(extension);
-        when(repositories.findActiveVersions(extension)).thenReturn(Streamable.empty());
+    void getFlaggedExtensions_applies_the_paging_defaults() throws Exception {
+        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(
+                admins.getNameSquattingFlags(
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(Integer.class),
+                        any(Integer.class),
+                        any()))
+                .thenReturn(flagList());
 
         mockMvc.perform(get("/admin/name-squatting").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flags[0].state").value("DEACTIVATED"))
-                .andExpect(jsonPath("$.flags[0].activeVersionCount").value(0));
+                .andExpect(status().isOk());
+
+        verify(admins).getNameSquattingFlags(
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                eq(10),
+                eq(0),
+                eq("desc"));
     }
 
     @Test
     void getFlaggedExtensions_validates_paging_parameters() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkAdminUser()).thenReturn(adminUser());
 
         mockMvc.perform(
                 get("/admin/name-squatting")
@@ -169,8 +173,20 @@ class NameSquattingAPITest {
     }
 
     @Test
-    void getFlaggedExtensions_rejects_unknown_state_filter() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+    void getFlaggedExtensions_reports_a_rejected_query() throws Exception {
+        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(
+                admins.getNameSquattingFlags(
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(Integer.class),
+                        any(Integer.class),
+                        any()))
+                .thenThrow(new ErrorResultException("Unknown state filter: SOMETHING", HttpStatus.BAD_REQUEST));
 
         mockMvc.perform(
                 get("/admin/name-squatting")
@@ -181,110 +197,53 @@ class NameSquattingAPITest {
     }
 
     @Test
-    void getFlaggedExtensions_rejects_unknown_sort_order() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+    void getCounts_returns_the_breakdown_per_state() throws Exception {
+        when(admins.checkAdminUser()).thenReturn(adminUser());
+
+        var counts = new NameSquattingCountsJson();
+        counts.setTotal(9);
+        counts.setPublished(4);
+        counts.setDeactivated(2);
+        counts.setRejected(3);
+        when(admins.getNameSquattingCounts(any(), any(), any(), any(), any())).thenReturn(counts);
 
         mockMvc.perform(
-                get("/admin/name-squatting")
-                        .param("sortOrder", "sideways")
+                get("/admin/name-squatting/counts")
+                        .param("publisher", "publisher")
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Unsupported sortOrder value: sideways"));
-    }
-
-    @Test
-    void getCounts_breaks_down_flagged_extensions_by_state() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-
-        when(repositories.countFlaggedExtensions(eq(CHECK_TYPE), any(), any(), any(), any(), any(), eq(null)))
-                .thenReturn(9L);
-        when(
-                repositories.countFlaggedExtensions(
-                        eq(CHECK_TYPE),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        eq(new NameSquattingAPI.ExtensionStateFilter(true, false, false))))
-                .thenReturn(4L);
-        when(
-                repositories.countFlaggedExtensions(
-                        eq(CHECK_TYPE),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        eq(new NameSquattingAPI.ExtensionStateFilter(false, true, false))))
-                .thenReturn(2L);
-        when(
-                repositories.countFlaggedExtensions(
-                        eq(CHECK_TYPE),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        eq(new NameSquattingAPI.ExtensionStateFilter(false, false, true))))
-                .thenReturn(3L);
-
-        mockMvc.perform(get("/admin/name-squatting/counts").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(9))
                 .andExpect(jsonPath("$.published").value(4))
                 .andExpect(jsonPath("$.deactivated").value(2))
                 .andExpect(jsonPath("$.rejected").value(3));
+
+        verify(admins).getNameSquattingCounts(eq("publisher"), isNull(), isNull(), isNull(), isNull());
     }
 
     @Test
-    void clearFindings_removes_the_records_and_logs_the_action() throws Exception {
-        var adminUser = TestData.adminUser();
+    void clearFindings_hands_the_request_to_the_service() throws Exception {
+        var adminUser = adminUser();
         when(admins.checkAdminUser()).thenReturn(adminUser);
-        when(repositories.deleteValidationFailures(CHECK_TYPE, "ns", "ext")).thenReturn(2);
+        when(admins.clearNameSquattingFindings(eq(adminUser), any())).thenReturn(actionResponse("cleared"));
 
         mockMvc.perform(
                 post("/admin/name-squatting/clear")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
+                        .content(TARGETS)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.processed").value(1))
                 .andExpect(jsonPath("$.successful").value(1))
                 .andExpect(jsonPath("$.failed").value(0))
                 .andExpect(jsonPath("$.results[0].success").value(true))
-                .andExpect(
-                        jsonPath("$.results[0].message")
-                                .value("Cleared 2 name squatting findings for extension ns.ext as a false positive"));
-
-        verify(repositories).deleteValidationFailures(CHECK_TYPE, "ns", "ext");
-        verify(logs).logAction(eq(adminUser), any(ResultJson.class));
+                .andExpect(jsonPath("$.results[0].message").value("cleared"));
     }
 
     @Test
-    void clearFindings_reports_a_failure_when_nothing_is_recorded() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-        when(repositories.deleteValidationFailures(CHECK_TYPE, "ns", "ext")).thenReturn(0);
-
-        mockMvc.perform(
-                post("/admin/name-squatting/clear")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.successful").value(0))
-                .andExpect(jsonPath("$.failed").value(1))
-                .andExpect(jsonPath("$.results[0].success").value(false))
-                .andExpect(
-                        jsonPath("$.results[0].error")
-                                .value("No name squatting findings are recorded for this extension"));
-
-        verify(logs, never()).logAction(any(), any());
-    }
-
-    @Test
-    void clearFindings_requires_at_least_one_extension() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+    void clearFindings_reports_a_rejected_request() throws Exception {
+        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.clearNameSquattingFindings(any(), any()))
+                .thenThrow(new ErrorResultException("At least one extension is required", HttpStatus.BAD_REQUEST));
 
         mockMvc.perform(
                 post("/admin/name-squatting/clear")
@@ -296,117 +255,20 @@ class NameSquattingAPITest {
     }
 
     @Test
-    void clearFindings_rejects_targets_without_a_name() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-
-        mockMvc.perform(
-                post("/admin/name-squatting/clear")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\"}]}")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(
-                        jsonPath("$.error").value("Each extension must have a namespace and an extension name"));
-    }
-
-    @Test
-    void deleteExtensions_deactivates_every_active_version() throws Exception {
-        var adminUser = TestData.adminUser();
+    void deleteExtensions_hands_the_request_to_the_service() throws Exception {
+        var adminUser = adminUser();
         when(admins.checkAdminUser()).thenReturn(adminUser);
-
-        var extension = TestData.extension("ns", "ext", true);
-        when(repositories.findExtension("ext", "ns")).thenReturn(extension);
-        when(repositories.findActiveVersions(extension))
-                .thenReturn(
-                        Streamable.of(
-                                TestData.version("universal", "1.0.0"),
-                                TestData.version("linux-x64", "2.0.0")));
-        when(admins.deleteExtensionNoWait(any(), anyString(), anyString(), any(TargetPlatformVersion[].class)))
-                .thenReturn(ResultJson.success("deleted"));
+        when(admins.deleteNameSquattingExtensions(eq(adminUser), any())).thenReturn(actionResponse("deactivated"));
 
         mockMvc.perform(
                 post("/admin/name-squatting/delete")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
+                        .content(TARGETS)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.successful").value(1))
                 .andExpect(jsonPath("$.results[0].success").value(true))
-                .andExpect(
-                        jsonPath("$.results[0].message")
-                                .value("Deactivated 2 versions of extension ns.ext flagged for name squatting"));
-
-        verify(admins).deleteExtensionNoWait(
-                eq(adminUser),
-                eq("ns"),
-                eq("ext"),
-                eq(new TargetPlatformVersion("universal", "1.0.0")),
-                eq(new TargetPlatformVersion("linux-x64", "2.0.0")));
-        verify(logs).logAction(eq(adminUser), any(ResultJson.class));
-    }
-
-    @Test
-    void deleteExtensions_refuses_an_extension_that_was_never_created() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-        when(repositories.findExtension("ext", "ns")).thenReturn(null);
-
-        mockMvc.perform(
-                post("/admin/name-squatting/delete")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.successful").value(0))
-                .andExpect(jsonPath("$.failed").value(1))
-                .andExpect(
-                        jsonPath("$.results[0].error")
-                                .value("Extension does not exist, its publication was blocked by the check"));
-
-        verify(admins, never()).deleteExtensionNoWait(any(), anyString(), anyString());
-    }
-
-    @Test
-    void deleteExtensions_refuses_an_extension_that_is_already_deactivated() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-
-        var extension = TestData.extension("ns", "ext", false);
-        when(repositories.findExtension("ext", "ns")).thenReturn(extension);
-        when(repositories.findActiveVersions(extension)).thenReturn(Streamable.empty());
-
-        mockMvc.perform(
-                post("/admin/name-squatting/delete")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.failed").value(1))
-                .andExpect(
-                        jsonPath("$.results[0].error")
-                                .value("Extension has no active versions left to deactivate"));
-    }
-
-    @Test
-    void deleteExtensions_reports_why_a_deletion_was_refused() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
-
-        var extension = TestData.extension("ns", "ext", true);
-        when(repositories.findExtension("ext", "ns")).thenReturn(extension);
-        when(repositories.findActiveVersions(extension))
-                .thenReturn(Streamable.of(TestData.version("universal", "1.0.0")));
-        when(admins.deleteExtensionNoWait(any(), anyString(), anyString(), any(TargetPlatformVersion[].class)))
-                .thenThrow(
-                        new ErrorResultException(
-                                "Extension is bundled by other extensions",
-                                HttpStatus.BAD_REQUEST));
-
-        mockMvc.perform(
-                post("/admin/name-squatting/delete")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.failed").value(1))
-                .andExpect(jsonPath("$.results[0].error").value("Extension is bundled by other extensions"));
+                .andExpect(jsonPath("$.results[0].message").value("deactivated"));
     }
 
     @Test
@@ -416,6 +278,17 @@ class NameSquattingAPITest {
 
         mockMvc.perform(get("/admin/name-squatting").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
+
+        verify(admins, never()).getNameSquattingFlags(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(Integer.class),
+                any(Integer.class),
+                any());
     }
 
     @Test
@@ -425,6 +298,8 @@ class NameSquattingAPITest {
 
         mockMvc.perform(get("/admin/name-squatting/counts").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
+
+        verify(admins, never()).getNameSquattingCounts(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -435,108 +310,46 @@ class NameSquattingAPITest {
         mockMvc.perform(
                 post("/admin/name-squatting/clear")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
+                        .content(TARGETS)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(
                 post("/admin/name-squatting/delete")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targets\":[{\"namespace\":\"ns\",\"extension\":\"ext\"}]}")
+                        .content(TARGETS)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
 
-        verify(repositories, never()).deleteValidationFailures(anyString(), anyString(), anyString());
+        verify(admins, never()).clearNameSquattingFindings(any(), any());
+        verify(admins, never()).deleteNameSquattingExtensions(any(), any());
     }
 
-    /**
-     * Stub one flagged extension with two findings, newest first, as the repository returns them.
-     */
-    private void stubFlaggedExtension(String namespace, String extensionName) {
-        when(
-                repositories.findFlaggedExtensionKeys(
-                        eq(CHECK_TYPE),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        anyBoolean(),
-                        anyInt(),
-                        anyInt()))
-                .thenReturn(List.of(namespace + "/" + extensionName));
-        when(repositories.countFlaggedExtensions(eq(CHECK_TYPE), any(), any(), any(), any(), any(), any()))
-                .thenReturn(3L);
-        when(repositories.findValidationFailures(eq(CHECK_TYPE), eq(namespace), eq(extensionName), any(), any()))
-                .thenReturn(
-                        List.of(
-                                TestData.failure(
-                                        2,
-                                        TestData.scan(20, namespace, extensionName, "2.0.0", ScanStatus.PASSED),
-                                        LAST_DETECTED,
-                                        false),
-                                TestData.failure(
-                                        1,
-                                        TestData.scan(10, namespace, extensionName, "1.0.0", ScanStatus.REJECTED),
-                                        FIRST_DETECTED,
-                                        true)));
+    private static NameSquattingFlagListJson flagList() {
+        var flag = new NameSquattingFlagJson();
+        flag.setNamespace("ns");
+        flag.setExtensionName("ext");
+        flag.setState("PUBLISHED");
+
+        var result = new NameSquattingFlagListJson();
+        result.setOffset(50);
+        result.setTotalSize(3);
+        result.setFlags(List.of(flag));
+        return result;
     }
 
-    private static class TestData {
+    private static NameSquattingActionResponseJson actionResponse(String message) {
+        var response = new NameSquattingActionResponseJson();
+        response.setProcessed(1);
+        response.setSuccessful(1);
+        response.setFailed(0);
+        response.setResults(List.of(NameSquattingActionResultJson.success("ns", "ext", message)));
+        return response;
+    }
 
-        static ExtensionScan scan(long id, String namespace, String name, String version, ScanStatus status) {
-            var scan = new ExtensionScan();
-            scan.setId(id);
-            scan.setNamespaceName(namespace);
-            scan.setExtensionName(name);
-            scan.setExtensionDisplayName("Extension Display Name");
-            scan.setExtensionVersion(version);
-            scan.setTargetPlatform("universal");
-            scan.setUniversalTargetPlatform(true);
-            scan.setPublisher("publisher");
-            scan.setPublisherUrl("https://example.com/publisher");
-            scan.setStartedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
-            scan.setStatus(status);
-            return scan;
-        }
-
-        static ExtensionValidationFailure failure(
-                long id,
-                ExtensionScan scan,
-                LocalDateTime detectedAt,
-                boolean enforced
-        ) {
-            var failure = ExtensionValidationFailure
-                    .create(CHECK_TYPE, "Levenshtein Distance", "Too similar to an existing extension");
-            failure.setId(id);
-            failure.setScan(scan);
-            failure.setDetectedAt(detectedAt);
-            failure.setEnforced(enforced);
-            return failure;
-        }
-
-        static Extension extension(String namespaceName, String name, boolean active) {
-            var namespace = new Namespace();
-            namespace.setName(namespaceName);
-            var extension = new Extension();
-            extension.setName(name);
-            extension.setNamespace(namespace);
-            extension.setActive(active);
-            return extension;
-        }
-
-        static ExtensionVersion version(String targetPlatform, String version) {
-            var extVersion = new ExtensionVersion();
-            extVersion.setTargetPlatform(targetPlatform);
-            extVersion.setVersion(version);
-            return extVersion;
-        }
-
-        static UserData adminUser() {
-            var user = new UserData();
-            user.setRole(UserData.Role.ADMIN);
-            return user;
-        }
+    private static UserData adminUser() {
+        var user = new UserData();
+        user.setRole(UserData.Role.ADMIN);
+        return user;
     }
 }
