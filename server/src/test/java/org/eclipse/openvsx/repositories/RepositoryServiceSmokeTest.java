@@ -27,7 +27,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
-import org.eclipse.openvsx.admin.NameSquattingAPI;
+import org.eclipse.openvsx.admin.AdminService;
 import org.eclipse.openvsx.entities.AdminScanDecision;
 import org.eclipse.openvsx.entities.Customer;
 import org.eclipse.openvsx.entities.DailyUsageStats;
@@ -400,7 +400,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         extension.getName(),
                         NOW,
                         NOW,
-                        new NameSquattingAPI.ExtensionStateFilter(true, true, true),
+                        new AdminService.ExtensionStateFilter(true, true, true),
                         false,
                         10,
                         0),
@@ -411,7 +411,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         extension.getName(),
                         NOW,
                         NOW,
-                        new NameSquattingAPI.ExtensionStateFilter(true, true, true)),
+                        new AdminService.ExtensionStateFilter(true, true, true)),
                 () -> repositories.findValidationFailures(
                         validationFailure.getCheckType(),
                         namespace.getName(),

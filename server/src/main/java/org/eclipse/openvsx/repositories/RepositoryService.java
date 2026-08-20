@@ -1279,7 +1279,7 @@ public class RepositoryService {
             @Nullable String name,
             @Nullable LocalDateTime detectedFrom,
             @Nullable LocalDateTime detectedTo,
-            org.eclipse.openvsx.admin.NameSquattingAPI.@Nullable ExtensionStateFilter stateFilter,
+            org.eclipse.openvsx.admin.AdminService.@Nullable ExtensionStateFilter stateFilter,
             boolean ascending,
             int limit,
             int offset
@@ -1311,7 +1311,7 @@ public class RepositoryService {
             @Nullable String name,
             @Nullable LocalDateTime detectedFrom,
             @Nullable LocalDateTime detectedTo,
-            org.eclipse.openvsx.admin.NameSquattingAPI.@Nullable ExtensionStateFilter stateFilter
+            org.eclipse.openvsx.admin.AdminService.@Nullable ExtensionStateFilter stateFilter
     ) {
         var applyStateFilter = stateFilter != null && stateFilter.hasFilter();
         return extensionValidationFailureRepo.countFlaggedExtensions(
