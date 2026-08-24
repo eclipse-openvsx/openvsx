@@ -19,16 +19,14 @@ import { controllerFromSignal } from '../../query-client';
 import { DownloadSeriesPoint } from '../../extension-registry-types';
 
 const WEEKS = 52;
-// 6 extra leading days so the first plotted point already has a full trailing-7-day window.
-const LEAD_IN_DAYS = 6;
 
 /**
- * Loads roughly the last {@link WEEKS} weeks of *daily* downloads for an extension, up to and
- * including today, as the react-query result (`data` is the ordered {@link DownloadSeriesPoint}
- * array). Callers turn this into a trailing 7-day ("weekly downloads") view; daily granularity is
- * what lets that window end on today rather than the last complete calendar week. Gate with
- * `options.enabled` on `RegistryVersion.analyticsEnabled`, since the endpoint 404s when analytics
- * is disabled.
+ * Loads the last {@link WEEKS} whole weeks of *daily* downloads for an extension, ending today, as
+ * the react-query result (`data` is the ordered {@link DownloadSeriesPoint} array). The range is an
+ * exact multiple of 7 days so callers can fold it into whole weeks with nothing left over; daily
+ * granularity is what lets those weeks end on today rather than on the last complete calendar week.
+ * Gate with `options.enabled` on `RegistryVersion.analyticsEnabled`, since the endpoint 404s when
+ * analytics is disabled.
  */
 export const useExtensionDownloadSeries = (namespace: string, name: string, options?: { enabled?: boolean }) => {
     const { service } = useContext(MainContext);
@@ -38,7 +36,7 @@ export const useExtensionDownloadSeries = (namespace: string, name: string, opti
             const today = DateTime.utc().startOf('day');
             // `to` is exclusive, so today + 1 day includes today's (still-accruing) bucket.
             const to = today.plus({ days: 1 });
-            const from = to.minus({ weeks: WEEKS }).minus({ days: LEAD_IN_DAYS });
+            const from = to.minus({ weeks: WEEKS });
             const series = await service.getExtensionDownloadSeries(controllerFromSignal(signal), {
                 namespace,
                 name,
