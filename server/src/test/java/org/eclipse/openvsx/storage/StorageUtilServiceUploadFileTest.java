@@ -19,8 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
-import org.eclipse.openvsx.analytics.ingestion.DownloadCountService;
+import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -49,7 +51,9 @@ class StorageUtilServiceUploadFileTest {
     @Mock
     AwsStorageService awsStorage;
     @Mock
-    DownloadCountService downloadCountService;
+    ObjectProvider<DownloadRecordSource> ingestionSources;
+    @Mock
+    DownloadIngestionProcessor ingestionProcessor;
     @Mock
     ExtensionDownloadMetrics downloadMetrics;
     @Mock
@@ -104,7 +108,8 @@ class StorageUtilServiceUploadFileTest {
                 azureStorage,
                 localStorage,
                 awsStorage,
-                downloadCountService,
+                ingestionSources,
+                ingestionProcessor,
                 downloadMetrics,
                 search,
                 cache,

@@ -515,6 +515,14 @@ The schedule in crontab format to run the AWS download logs job.
 
 How many log objects to list per request while reading download logs from the bucket.
 
+| Property      | `ovsx.logs.aws.archive-prefix`
+|---------------|-------------------------------
+| Type          | string
+| Default       |
+| Compatibility | Unreleased
+
+Where to keep a processed log file instead of only deleting it. When set, the file is copied to this prefix within the same bucket before the original is removed; when empty, the default, a processed file is deleted outright.
+
 ## Azure Download Logs
 
 | Property      | `ovsx.logs.azure.sas-token`

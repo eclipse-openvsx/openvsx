@@ -14,15 +14,13 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
-import com.azure.core.http.rest.PagedIterable;
-import com.azure.core.http.rest.PagedResponse;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobContainerClientBuilder;
 import com.azure.storage.blob.models.BlobItem;
@@ -30,37 +28,35 @@ import com.azure.storage.blob.models.BlobListDetails;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import org.apache.commons.lang3.StringUtils;
-import org.jobrunr.jobs.annotations.Job;
-import org.jobrunr.jobs.lambdas.JobRequestHandler;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StopWatch;
 import org.springframework.web.util.UriUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import org.eclipse.openvsx.analytics.ingestion.DownloadCountProcessor;
+import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionMetrics;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
+import org.eclipse.openvsx.analytics.ingestion.RawDownloadRecord;
 import org.eclipse.openvsx.entities.FileResource;
-import org.eclipse.openvsx.migration.HandlerJobRequest;
-import org.eclipse.openvsx.settings.SettingsService;
 import org.eclipse.openvsx.util.TempFile;
 
 import static org.eclipse.openvsx.storage.AzureBlobStorageService.AZURE_USER_AGENT;
 
 /**
- * Pulls logs from Azure Blob Storage, extracts downloads from the logs
- * and updates download counts in the database.
+ * Reads downloads from Azure Blob Storage access logs.
  */
 @Component
-public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRequest<?>> {
+@ConditionalOnProperty(name = "ovsx.logs.azure.service-endpoint")
+public class AzureDownloadRecordSource implements DownloadRecordSource {
 
-    protected final Logger logger = LoggerFactory.getLogger(AzureDownloadCountHandler.class);
+    protected final Logger logger = LoggerFactory.getLogger(AzureDownloadRecordSource.class);
 
-    private final SettingsService settings;
-    private final DownloadCountProcessor processor;
+    private final DownloadIngestionMetrics metrics;
     private final JsonMapper jsonMapper;
     private BlobContainerClient containerClient;
     private Pattern blobItemNamePattern;
@@ -83,143 +79,70 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
     @Value("${ovsx.logs.azure.cron:0 5 * * * *}")
     String cronSchedule;
 
-    public AzureDownloadCountHandler(SettingsService settings, DownloadCountProcessor processor) {
-        this.settings = settings;
-        this.processor = processor;
+    public AzureDownloadRecordSource(DownloadIngestionMetrics metrics) {
+        this.metrics = metrics;
         this.jsonMapper = JsonMapper.shared();
     }
 
-    public String getRecurringJobId() {
-        return "update-azure-download-counts";
-    }
-
-    public String getCronSchedule() {
-        return cronSchedule;
-    }
-
     /**
-     * Indicates whether the download service is enabled by application config.
+     * Indicates whether this source is enabled by application config.
      */
+    @Override
     public boolean isEnabled() {
         var logsEnabled = !StringUtils.isEmpty(logsServiceEndpoint);
         var storageEnabled = !StringUtils.isEmpty(storageServiceEndpoint);
         if (logsEnabled && !storageEnabled) {
             logger.warn(
-                    "The ovsx.storage.azure.service-endpoint value must be set to enable AzureDownloadCountService");
+                    "The ovsx.storage.azure.service-endpoint value must be set to enable AzureDownloadRecordSource");
         }
 
         return logsEnabled && storageEnabled;
     }
 
-    /**
-     * Task scheduled once per hour to pull logs from Azure Blob Storage and update extension download counts.
-     */
-    @Job(name = "Update Azure Download Counts", retries = 0)
-    public void run(HandlerJobRequest<?> jobRequest) throws Exception {
-        if (!isEnabled()) {
-            return;
-        }
-
-        if (settings.isReadOnly()) {
-            logger.info("[AzureDownloadCountService] registry is in read-only mode, skipping job");
-            return;
-        }
-
-        logger.info("[AzureDownloadCountService] >> updateDownloadCounts");
-
-        var maxExecutionTime = LocalDateTime.now().plusMinutes(50);
-        var blobs = listBlobs();
-        var iterableByPage = blobs.iterableByPage();
-
-        var stopWatch = new StopWatch();
-        while (iterableByPage != null) {
-            PagedResponse<BlobItem> response = null;
-            var iterator = iterableByPage.iterator();
-            if (iterator.hasNext()) {
-                response = iterator.next();
-                if (!processResponse(response, stopWatch, maxExecutionTime)) {
-                    break;
-                }
-            }
-
-            var continuationToken = response != null ? response.getContinuationToken() : "";
-            iterableByPage = !StringUtils.isEmpty(continuationToken) ? blobs.iterableByPage(continuationToken) : null;
-        }
-
-        logger.info("[AzureDownloadCountService] << updateDownloadCounts");
+    @Override
+    public String getStorageType() {
+        return FileResource.STORAGE_AZURE;
     }
 
-    private boolean processResponse(
-            PagedResponse<BlobItem> response,
-            StopWatch stopWatch,
-            LocalDateTime maxExecutionTime
-    ) {
-        var blobNames = getBlobNames(response.getValue());
-        var processedItems = processor.processedItems(FileResource.STORAGE_AZURE, blobNames);
-        processedItems.forEach(this::deleteBlob);
-        blobNames.removeAll(processedItems);
-        for (var name : blobNames) {
-            if (LocalDateTime.now().isAfter(maxExecutionTime)) {
-                var nextJobRunTime = LocalDateTime.now().plusHours(1).withMinute(5);
-                logger.info(
-                        "Failed to process all download counts within timeslot, next job run is at {}",
-                        nextJobRunTime);
-                return false;
-            }
-
-            if (settings.isReadOnly()) {
-                logger.info("skip processing log files as registry is in read-only mode");
-                return false;
-            }
-
-            var processedOn = LocalDateTime.now();
-            var success = false;
-            stopWatch.start();
-            try {
-                var files = processBlobItem(name);
-                if (!files.isEmpty()) {
-                    var extensionDownloads = processor.processDownloadCounts(FileResource.STORAGE_AZURE, files);
-                    var updatedExtensions = processor.increaseDownloadCounts(extensionDownloads);
-                    updatedExtensions.forEach(processor::evictCaches);
-                    processor.updateSearchEntries(updatedExtensions);
-                }
-
-                success = true;
-            } catch (Exception e) {
-                logger.error("Failed to process BlobItem: {}", name, e);
-            }
-
-            stopWatch.stop();
-            var executionTime = (int) stopWatch.lastTaskInfo().getTimeMillis();
-            processor.persistProcessedItem(name, FileResource.STORAGE_AZURE, processedOn, executionTime, success);
-            if (success) {
-                deleteBlob(name);
-            }
-        }
-
-        return true;
+    @Override
+    public String getCronSchedule() {
+        return cronSchedule;
     }
 
-    private void deleteBlob(String blobName) {
-        try {
-            getContainerClient().getBlobClient(blobName).delete();
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() != HttpStatus.NOT_FOUND.value()) {
-                // 404 indicates that the file is already deleted
-                // so only throw an exception for other status codes
-                throw e;
-            }
-        }
+    @Override
+    public boolean covers(FileResource resource) {
+        return FileResource.STORAGE_AZURE.equals(resource.getStorageType()) && isEnabled();
     }
 
-    private Map<String, Integer> processBlobItem(String blobName) throws IOException {
+    @Override
+    public Iterator<List<String>> listBatches() {
+        var pages = listBlobs().iterator();
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return pages.hasNext();
+            }
+
+            @Override
+            public List<String> next() {
+                return getBlobNames(pages.next().getValue());
+            }
+        };
+    }
+
+    @Override
+    public List<RawDownloadRecord> read(String name) throws IOException {
         try (
-                var downloadsTempFile = downloadBlobItem(blobName);
+                var downloadsTempFile = downloadBlobItem(name);
                 var reader = Files.newBufferedReader(downloadsTempFile.getPath())
         ) {
-            var fileCounts = new HashMap<String, Integer>();
+            // records without their own timestamp fall back to the processing time
+            var fallbackTime = Instant.now();
+            var records = new ArrayList<RawDownloadRecord>();
+            var totalLines = 0;
             var lines = reader.lines().iterator();
             while (lines.hasNext()) {
+                totalLines++;
                 var line = lines.next();
                 var node = jsonMapper.readTree(line);
                 String[] pathParams = null;
@@ -231,11 +154,72 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
                 if (pathParams != null && storageBlobContainer.equals(pathParams[1])) {
                     var fileName = UriUtils.decode(pathParams[pathParams.length - 1], StandardCharsets.UTF_8)
                             .toUpperCase();
-                    fileCounts.merge(fileName, 1, Integer::sum);
+                    // Azure Storage logs carry no country information
+                    records.add(
+                            new RawDownloadRecord(
+                                    parseTime(node, fallbackTime),
+                                    fileName,
+                                    null,
+                                    callerIp(node),
+                                    userAgent(node)));
                 }
             }
-            return fileCounts;
+            metrics.recordParsedLines(totalLines, 0);
+            return records;
         }
+    }
+
+    @Override
+    public void finish(String name) {
+        try {
+            getContainerClient().getBlobClient(name).delete();
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() != HttpStatus.NOT_FOUND.value()) {
+                // 404 indicates that the file is already deleted
+                // so only throw an exception for other status codes
+                throw e;
+            }
+        }
+    }
+
+    private Instant parseTime(JsonNode node, Instant fallbackTime) {
+        var time = node.path("time");
+        if (time.isString()) {
+            try {
+                return Instant.parse(time.asString());
+            } catch (DateTimeParseException e) {
+                // fall back to the processing time below
+            }
+        }
+
+        return fallbackTime;
+    }
+
+    private @Nullable String userAgent(JsonNode node) {
+        var userAgent = node.path("properties").path("userAgentHeader");
+        return userAgent.isString() ? StringUtils.trimToNull(userAgent.asString()) : null;
+    }
+
+    /**
+     * Azure logs report the caller as {@code ip:port} (or {@code [ipv6]:port}); only the address
+     * part is kept.
+     */
+    private @Nullable String callerIp(JsonNode node) {
+        var value = node.path("callerIpAddress");
+        if (!value.isString() || StringUtils.isBlank(value.asString())) {
+            return null;
+        }
+
+        var address = value.asString().trim();
+        if (address.startsWith("[") && address.contains("]")) {
+            return address.substring(1, address.indexOf(']'));
+        }
+        var colon = address.lastIndexOf(':');
+        if (colon > -1 && address.indexOf(':') == colon) {
+            return address.substring(0, colon);
+        }
+
+        return address;
     }
 
     private boolean isGetBlobOperation(JsonNode node) {
@@ -274,7 +258,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
         return blobNames;
     }
 
-    private PagedIterable<BlobItem> listBlobs() {
+    private Iterable<com.azure.core.http.rest.PagedResponse<BlobItem>> listBlobs() {
         var details = new BlobListDetails()
                 .setRetrieveCopy(false)
                 .setRetrieveMetadata(false)
@@ -285,7 +269,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
                 .setRetrieveVersions(false);
 
         var options = new ListBlobsOptions().setMaxResultsPerPage(100).setDetails(details);
-        return getContainerClient().listBlobs(options, Duration.ofMinutes(5));
+        return getContainerClient().listBlobs(options, Duration.ofMinutes(5)).iterableByPage();
     }
 
     private BlobContainerClient getContainerClient() {

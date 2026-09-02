@@ -1,4 +1,9 @@
 spring:
+  # Every cached Spring context in the suite holds an idle pool against the one shared container,
+  # so the default of 10 exhausts its max_connections long before the tests are done.
+  datasource:
+    hikari:
+      maximum-pool-size: 4
   jpa:
     hibernate:
       ddl-auto: none
