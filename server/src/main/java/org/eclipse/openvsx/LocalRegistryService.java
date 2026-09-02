@@ -134,6 +134,9 @@ public class LocalRegistryService implements IExtensionRegistry {
     @Value("${ovsx.webui.url:}")
     String webuiUrl;
 
+    @Value("${ovsx.analytics.enabled:false}")
+    boolean analyticsEnabled;
+
     @Value("${ovsx.registry.version:}")
     String registryVersion;
 
@@ -1386,6 +1389,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         json.setMaxExtensionSize(publishingConfig.getMaxContentSize());
         json.setTrustedPublishingAudience(
                 trustedPublishingConfig.isEnabled() ? trustedPublishingConfig.getAudience() : null);
+        json.setAnalyticsEnabled(analyticsEnabled);
         return json;
     }
 

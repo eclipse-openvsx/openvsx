@@ -31,6 +31,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.analytics.DownloadEvent;
+import org.eclipse.openvsx.analytics.DownloadSeriesRequest;
+import org.eclipse.openvsx.analytics.DownloadSeriesRow;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
@@ -286,7 +288,12 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         }
     }
 
-    static class RecordingAnalyticsRepository implements DownloadAnalyticsRepository {
+    /** Overrides everything the processor calls, so the inherited DSLContext is never touched. */
+    static class RecordingAnalyticsRepository extends DownloadAnalyticsRepository {
+        RecordingAnalyticsRepository() {
+            super(null);
+        }
+
         final List<DownloadEvent> saved = new CopyOnWriteArrayList<>();
 
         volatile boolean failing;
@@ -298,6 +305,11 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
             }
 
             saved.addAll(events);
+        }
+
+        @Override
+        public List<DownloadSeriesRow> findSeries(DownloadSeriesRequest request) {
+            return List.of();
         }
     }
 }
