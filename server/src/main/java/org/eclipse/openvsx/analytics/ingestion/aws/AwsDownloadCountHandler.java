@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
-package org.eclipse.openvsx.storage.log;
+package org.eclipse.openvsx.analytics.ingestion.aws;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +34,7 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
+import org.eclipse.openvsx.analytics.ingestion.DownloadCountProcessor;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.migration.HandlerJobRequest;

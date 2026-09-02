@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(value = "ovsx.data.mirror.enabled", havingValue = "true")
 public class DownloadCountServiceAspect {
 
-    @Around("execution(* org.eclipse.openvsx.storage.log.*DownloadCountService.isEnabled(..))")
+    @Around("execution(* org.eclipse.openvsx.analytics.ingestion.*DownloadCountService.isEnabled(..))")
     public Object isEnabled(ProceedingJoinPoint ignoredPjp) throws Throwable {
         return false;
     }

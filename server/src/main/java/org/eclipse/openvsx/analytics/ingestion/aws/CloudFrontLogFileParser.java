@@ -10,7 +10,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
-package org.eclipse.openvsx.storage.log;
+package org.eclipse.openvsx.analytics.ingestion.aws;
 
 class CloudFrontLogFileParser implements LogFileParser {
     @Override

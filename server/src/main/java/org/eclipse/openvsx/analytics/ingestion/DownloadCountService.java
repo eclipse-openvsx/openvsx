@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
-package org.eclipse.openvsx.storage.log;
+package org.eclipse.openvsx.analytics.ingestion;
 
 import java.time.ZoneId;
 
@@ -18,6 +18,8 @@ import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
+import org.eclipse.openvsx.analytics.ingestion.aws.AwsDownloadCountHandler;
+import org.eclipse.openvsx.analytics.ingestion.azure.AzureDownloadCountHandler;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 
