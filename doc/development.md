@@ -30,6 +30,7 @@ To run the Open VSX registry in a development environment, you can use `docker c
  * Decide which profile(s) to run based on your needs. The [docker-compose.yml](../docker-compose.yml) file defines profiles for specific components:
    * `db`: Starts the PostgreSQL container.
    * `es`: Starts the Elasticsearch container.
+   * `analytics`: Starts the separate TimescaleDB container used by download analytics. Only needed when `ovsx.analytics.enabled` is set, which it is not by default.
    * `debug`: Starts the PostgreSQL and Elasticsearch containers, which suits running the OpenVSX server and web UI locally for easier debugging.
    * `backend`: Starts the OpenVSX server container (java).
    * `frontend`: Starts the web UI container.
