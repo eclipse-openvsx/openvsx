@@ -970,6 +970,10 @@ public class RepositoryService {
         return extensionVersionJooqRepo.findLatest(extensionIds);
     }
 
+    public List<ExtensionVersion> findLatestVersions(Collection<Long> extensionIds, String targetPlatform) {
+        return extensionVersionJooqRepo.findLatest(extensionIds, targetPlatform);
+    }
+
     public Map<Long, Boolean> findLatestVersionsIsPreview(Collection<Long> extensionIds) {
         return extensionVersionJooqRepo.findLatestIsPreview(extensionIds);
     }

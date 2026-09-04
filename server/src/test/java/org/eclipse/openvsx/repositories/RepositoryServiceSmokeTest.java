@@ -339,6 +339,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findActivePersonalAccessTokensAndType(userData, PersonalAccessTokenType.LLT),
                 () -> repositories.findAllPersonalAccessTokensByVersion(0),
                 () -> repositories.findLatestVersions(List.of(1L)),
+                () -> repositories.findLatestVersions(List.of(1L), "targetPlatform"),
                 () -> repositories.hasSameVersion(extVersion),
                 () -> repositories.hasActiveReview(extension, userData),
                 () -> repositories.findLatestVersionsIsPreview(List.of(1L)),

@@ -213,8 +213,18 @@ public class LocalVSCodeService implements IVSCodeService {
         // see https://github.com/eclipse/openvsx/issues/1394
         var extensionsMap = extensionsList.stream()
                 .collect(Collectors.toMap(Extension::getId, Function.identity(), (a, b) -> a));
-        List<ExtensionVersion> allActiveExtensionVersions = repositories
-                .findActiveExtensionVersions(extensionsMap.keySet(), targetPlatform, maxPreReleaseVersions);
+
+        // The full active version list (all pre-releases included, unless capped) is only needed to populate
+        // the response's per-extension version list, which itself is only included for these flags. Skipping
+        // the fetch otherwise avoids pulling an extension's entire (potentially unbounded) version history
+        // just to compute "latest", which repositories.findLatestVersions below does directly in the database.
+        var needsVersionList = test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)
+                || test(flags, FLAG_INCLUDE_VERSIONS)
+                || test(flags, FLAG_INCLUDE_VERSION_PROPERTIES);
+        List<ExtensionVersion> allActiveExtensionVersions = needsVersionList
+                ? repositories
+                        .findActiveExtensionVersions(extensionsMap.keySet(), targetPlatform, maxPreReleaseVersions)
+                : Collections.emptyList();
 
         List<ExtensionVersion> extensionVersions;
         if (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)) {
@@ -262,11 +272,7 @@ public class LocalVSCodeService implements IVSCodeService {
             fileResources = Collections.emptyMap();
         }
 
-        var latestVersions = allActiveExtensionVersions.stream()
-                .collect(Collectors.groupingBy(ev -> ev.getExtension().getId()))
-                .values()
-                .stream()
-                .map(list -> versions.getLatest(list, false))
+        var latestVersions = repositories.findLatestVersions(extensionsMap.keySet(), targetPlatform).stream()
                 .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
 
         var extensionQueryResults = new ArrayList<ExtensionQueryResult.Extension>();

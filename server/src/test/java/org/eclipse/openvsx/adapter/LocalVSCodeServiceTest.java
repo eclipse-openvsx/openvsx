@@ -74,6 +74,7 @@ public class LocalVSCodeServiceTest {
                 .thenReturn(List.of(extension, extension));
         Mockito.when(repositories.findActiveExtensionVersions(any(), any(), anyInt()))
                 .thenReturn(List.of(extensionVersion));
+        Mockito.when(repositories.findLatestVersions(any(), any())).thenReturn(List.of(extensionVersion));
         Mockito.when(versions.getLatest(anyList(), anyBoolean())).thenReturn(extensionVersion);
 
         var result = vsCodeService.extensionQuery(param, 10);
