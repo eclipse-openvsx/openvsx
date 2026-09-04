@@ -24,5 +24,10 @@ dependencies {
     implementation 'com.diffplug.spotless:spotless-lib-extra:3.3.1'
     implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.46.0'
     // must match the //DEPS version in scripts/src/DependencyOverrideCheck.java
-    implementation 'org.apache.maven:maven-artifact:3.9.9'
+    implementation 'org.apache.maven:maven-artifact:3.9.16'
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
 }
