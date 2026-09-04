@@ -63,6 +63,31 @@ export interface SearchEntry {
     deprecated: boolean;
 }
 
+/**
+ * Registry-wide statistics for one month, as archived by the monthly job or computed on the fly for
+ * the month in progress. Mirrors the server's `AdminStatisticsJson`.
+ *
+ * Every figure except `downloads` is a point-in-time snapshot rather than a total over the month;
+ * `downloads` is the growth in `downloadsTotal` since the previous month.
+ */
+export interface AdminStatistics {
+    year: number;
+    month: number;
+    extensions: number;
+    downloads: number;
+    downloadsTotal: number;
+    publishers: number;
+    averageReviewsPerExtension: number;
+    namespaceOwners: number;
+    extensionsByRating: { rating: number; extensions: number }[];
+    publishersByExtensionsPublished: { extensionsPublished: number; publishers: number }[];
+    topMostActivePublishingUsers: { userLoginName: string; publishedExtensionVersions: number }[];
+    topNamespaceExtensions: { namespace: string; extensions: number }[];
+    topNamespaceExtensionVersions: { namespace: string; extensionVersions: number }[];
+    topMostDownloadedExtensions: { extensionIdentifier: string; downloads: number }[];
+    error?: string;
+}
+
 export const VERSION_ALIASES = ['latest', 'pre-release'];
 
 export interface Extension {

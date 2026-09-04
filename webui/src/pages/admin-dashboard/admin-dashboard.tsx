@@ -14,6 +14,7 @@ import { styled } from '@mui/material/styles';
 import { Route, Routes, useNavigate } from 'react-router';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -47,6 +48,7 @@ const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ defau
 const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 const DataConsistency = lazy(() => import('./consistency/consistency').then(m => ({ default: m.DataConsistency })));
 const SearchIndexAdmin = lazy(() => import('./search-index/search-index').then(m => ({ default: m.SearchIndexAdmin })));
+const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => ({ default: m.StatisticsAdmin })));
 
 const navConfig: NavEntry[] = [
     {
@@ -115,6 +117,12 @@ const navConfig: NavEntry[] = [
         name: 'Search Index',
         icon: <ManageSearchIcon />,
         description: 'Inspect the search index and rebuild it'
+    },
+    {
+        path: AdminDashboardRoutes.STATISTICS,
+        name: 'Statistics',
+        icon: <AssessmentIcon />,
+        description: 'Registry statistics per month, with a CSV export'
     }
 ];
 
@@ -246,6 +254,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/tiers' element={<Tiers />} />
                                     <Route path='/customers' element={<Customers />} />
                                     <Route path='/customers/:customer' element={<CustomerDetails />} />
+                                    <Route path='/statistics' element={<StatisticsAdmin />} />
                                     <Route path='/usage' element={<UsageStatsView />} />
                                     <Route path='/usage/:customer' element={<UsageStatsView />} />
                                     <Route path='/settings' element={<RuntimeSettingsPage />} />

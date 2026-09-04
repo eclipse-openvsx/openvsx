@@ -108,14 +108,18 @@ import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
+import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -123,6 +127,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -177,6 +182,11 @@ class AdminAPITest {
 
     @MockitoBean
     ExtensionVersionIntegrityService integrityService;
+
+    // Only the on-the-fly current month reaches this; every other statistics path reads an
+    // archived row through the mocked RepositoryService above.
+    @MockitoBean
+    AdminStatisticsService adminStatisticsService;
 
     @Autowired
     MockMvc mockMvc;
@@ -1504,7 +1514,7 @@ class AdminAPITest {
     @Test
     void testReportFutureYearCsv() throws Exception {
         var token = mockAdminToken();
-        var future = LocalDateTime.now().plusYears(1);
+        var future = TimeUtil.getCurrentUTC().plusYears(1);
         mockMvc.perform(
                 get("/admin/report?token={token}&year={year}&month=3", token.getValue(), future.getYear())
                         .header(HttpHeaders.ACCEPT, "text/csv"))
@@ -1515,7 +1525,7 @@ class AdminAPITest {
     @Test
     void testReportFutureYearJson() throws Exception {
         var token = mockAdminToken();
-        var future = LocalDateTime.now().plusYears(1);
+        var future = TimeUtil.getCurrentUTC().plusYears(1);
         mockMvc.perform(
                 get("/admin/report?token={token}&year={year}&month=3", token.getValue(), future.getYear())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
@@ -1526,7 +1536,7 @@ class AdminAPITest {
     @Test
     void testReportMonthLessThanOneCsv() throws Exception {
         var token = mockAdminToken();
-        var now = LocalDateTime.now();
+        var now = TimeUtil.getCurrentUTC();
         mockMvc.perform(
                 get("/admin/report?token={token}&year={year}&month=0", token.getValue(), now.getYear())
                         .header(HttpHeaders.ACCEPT, "text/csv"))
@@ -1537,7 +1547,7 @@ class AdminAPITest {
     @Test
     void testReportMonthLessThanOneJson() throws Exception {
         var token = mockAdminToken();
-        var now = LocalDateTime.now();
+        var now = TimeUtil.getCurrentUTC();
         mockMvc.perform(
                 get("/admin/report?token={token}&year={year}&month=0", token.getValue(), now.getYear())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
@@ -1548,7 +1558,7 @@ class AdminAPITest {
     @Test
     void testReportMonthGreaterThanTwelveCsv() throws Exception {
         var token = mockAdminToken();
-        var now = LocalDateTime.now();
+        var now = TimeUtil.getCurrentUTC();
         mockMvc.perform(
                 get("/admin/report?token={token}&year={year}&month=13", token.getValue(), now.getYear())
                         .header(HttpHeaders.ACCEPT, "text/csv"))
@@ -1559,7 +1569,7 @@ class AdminAPITest {
     @Test
     void testReportMonthGreaterThanTwelveJson() throws Exception {
         var token = mockAdminToken();
-        var now = LocalDateTime.now();
+        var now = TimeUtil.getCurrentUTC();
         mockMvc.perform(
                 get("/admin/report?token={token}&year={year}&month=13", token.getValue(), now.getYear())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
@@ -1570,7 +1580,7 @@ class AdminAPITest {
     @Test
     void testReportFutureMonthCsv() throws Exception {
         var token = mockAdminToken();
-        var future = LocalDateTime.now().plusMonths(1);
+        var future = TimeUtil.getCurrentUTC().plusMonths(1);
         mockMvc.perform(
                 get(
                         "/admin/report?token={token}&year={year}&month={month}",
@@ -1585,7 +1595,7 @@ class AdminAPITest {
     @Test
     void testReportFutureMonthJson() throws Exception {
         var token = mockAdminToken();
-        var future = LocalDateTime.now().plusMonths(1);
+        var future = TimeUtil.getCurrentUTC().plusMonths(1);
         mockMvc.perform(
                 get(
                         "/admin/report?token={token}&year={year}&month={month}",
@@ -1600,7 +1610,7 @@ class AdminAPITest {
     @Test
     void testArchivedReportCsv() throws Exception {
         var token = mockAdminToken();
-        var past = LocalDateTime.now().minusMonths(1);
+        var past = TimeUtil.getCurrentUTC().minusMonths(1);
         var year = past.getYear();
         var month = past.getMonthValue();
         var extensions = 1234;
@@ -1683,7 +1693,7 @@ class AdminAPITest {
     @Test
     void testArchivedReportJson() throws Exception {
         var token = mockAdminToken();
-        var past = LocalDateTime.now().minusMonths(1);
+        var past = TimeUtil.getCurrentUTC().minusMonths(1);
         var year = past.getYear();
         var month = past.getMonthValue();
         var extensions = 1234;
@@ -1807,34 +1817,165 @@ class AdminAPITest {
                 })));
     }
 
+    // The month in progress has no archived row - the job only runs on the first of the following
+    // month - so it is computed on demand instead of being rejected as "in the future", which is
+    // what #235 specified and what makes the dashboard in #351 useful before a month has elapsed.
     @Test
     void testCurrentMonthAdminReportCsv() throws Exception {
         var token = mockAdminToken();
-        var now = LocalDateTime.now();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
         mockMvc.perform(
-                get(
-                        "/admin/report?token={token}&year={year}&month={month}",
-                        token.getValue(),
-                        now.getYear(),
-                        now.getMonthValue())
+                get("/admin/report?token={token}&year={year}&month={month}", token.getValue(), year, month)
                         .header(HttpHeaders.ACCEPT, "text/csv"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Combination of year and month lies in the future"));
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(year + "," + month + ",1234,423,67890")));
     }
 
     @Test
     void testCurrentMonthAdminReportJson() throws Exception {
         var token = mockAdminToken();
-        var now = LocalDateTime.now();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/report?token={token}&year={year}&month={month}", token.getValue(), year, month)
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(year))
+                .andExpect(jsonPath("$.month").value(month))
+                .andExpect(jsonPath("$.extensions").value(1234))
+                .andExpect(jsonPath("$.downloads").value(423));
+    }
+
+    // A month that has ended without an archived row can't be reconstructed - every figure but
+    // downloads is a snapshot of the registry as it was - so it stays a 404 rather than silently
+    // reporting today's numbers under a past month's heading.
+    @Test
+    void testPastMonthWithoutArchivedReportIsNotFound() throws Exception {
+        var token = mockAdminToken();
+        var past = TimeUtil.getCurrentUTC().minusMonths(2);
+        when(repositories.findAdminStatisticsByYearAndMonth(past.getYear(), past.getMonthValue())).thenReturn(null);
+
         mockMvc.perform(
                 get(
                         "/admin/report?token={token}&year={year}&month={month}",
                         token.getValue(),
-                        now.getYear(),
-                        now.getMonthValue())
+                        past.getYear(),
+                        past.getMonthValue())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().json(errorJson("Combination of year and month lies in the future")));
+                .andExpect(status().isNotFound());
+        Mockito.verify(adminStatisticsService, never()).computeAdminStatistics(anyInt(), anyInt());
+    }
+
+    // The session-authenticated counterpart to /admin/report, which the dashboard uses because
+    // /admin/report takes its token as a request parameter and is therefore permitAll in
+    // SecurityConfig - unusable from a logged-in browser session.
+    @Test
+    void testStatisticsForAnArchivedMonth() throws Exception {
+        mockAdminUser();
+        var past = TimeUtil.getCurrentUTC().minusMonths(1);
+        var year = past.getYear();
+        var month = past.getMonthValue();
+        when(repositories.findAdminStatisticsByYearAndMonth(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/statistics?year={year}&month={month}", year, month)
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(year))
+                .andExpect(jsonPath("$.extensions").value(1234));
+    }
+
+    @Test
+    void testStatisticsComputesTheCurrentMonth() throws Exception {
+        mockAdminUser();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/statistics?year={year}&month={month}", year, month)
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.month").value(month));
+        Mockito.verify(adminStatisticsService).computeAdminStatistics(year, month);
+    }
+
+    @Test
+    void testStatisticsNotAdmin() throws Exception {
+        mockNormalUser();
+        var past = TimeUtil.getCurrentUTC().minusMonths(1);
+        mockMvc.perform(
+                get("/admin/statistics?year={year}&month={month}", past.getYear(), past.getMonthValue())
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    // The download is a plain link from the dashboard, so it needs its own path (a navigation can't
+    // set an Accept header) and a filename for the browser to save it under.
+    @Test
+    void testStatisticsCsvIsAnAttachment() throws Exception {
+        mockAdminUser();
+        var past = TimeUtil.getCurrentUTC().minusMonths(1);
+        var year = past.getYear();
+        var month = past.getMonthValue();
+        when(repositories.findAdminStatisticsByYearAndMonth(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/statistics/csv?year={year}&month={month}", year, month)
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(
+                        header().string(
+                                HttpHeaders.CONTENT_DISPOSITION,
+                                String.format("attachment; filename=\"openvsx-statistics-%d-%02d.csv\"", year, month)))
+                .andExpect(content().string(containsString("year,month,extensions")));
+    }
+
+    @Test
+    void testStatisticsCsvNotAdmin() throws Exception {
+        mockNormalUser();
+        var past = TimeUtil.getCurrentUTC().minusMonths(1);
+        mockMvc.perform(
+                get("/admin/statistics/csv?year={year}&month={month}", past.getYear(), past.getMonthValue())
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    private AdminStatistics currentMonthStatistics(int year, int month) {
+        var stats = new AdminStatistics();
+        stats.setYear(year);
+        stats.setMonth(month);
+        stats.setExtensions(1234);
+        stats.setDownloads(423);
+        stats.setDownloadsTotal(67890);
+        stats.setPublishers(891);
+        stats.setAverageReviewsPerExtension(4.5);
+        stats.setNamespaceOwners(56);
+        stats.setExtensionsByRating(Map.of(5, 136));
+        stats.setPublishersByExtensionsPublished(Map.of(1, 670));
+        stats.setTopMostActivePublishingUsers(Map.of("u_foo", 93));
+        stats.setTopNamespaceExtensions(Map.of("n_foo", 9));
+        stats.setTopNamespaceExtensionVersions(Map.of("nv_foo", 234));
+        stats.setTopMostDownloadedExtensions(Map.of("foo.bar", 3847L));
+        return stats;
     }
 
     @Test
@@ -2694,7 +2835,8 @@ class AdminAPITest {
                 CacheService cache,
                 JobRequestScheduler scheduler,
                 MailService mail,
-                LogService logs
+                LogService logs,
+                AdminStatisticsService statistics
         ) {
             return new AdminService(
                     repositories,
@@ -2709,7 +2851,8 @@ class AdminAPITest {
                     cache,
                     scheduler,
                     mail,
-                    logs);
+                    logs,
+                    statistics);
         }
 
         @Bean

@@ -26,6 +26,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -162,6 +163,76 @@ public class AdminAPI {
     private AdminStatistics getReport(String tokenValue, int year, int month) {
         admins.checkAdminUser(tokenValue);
         return admins.getAdminStatistics(year, month);
+    }
+
+    /**
+     * Session-authenticated counterpart to {@code /admin/report}, for the admin dashboard.
+     * <p>
+     * {@code /admin/report} takes an access token as a request parameter and is therefore listed in
+     * SecurityConfig's permitAll block, which is why it can't simply be reused from a logged-in
+     * browser session. It stays as it is - scripts depend on it - and this serves the same data the
+     * way every other endpoint under {@code /admin/} does, through the session.
+     */
+    @GetMapping(
+        path = "/statistics",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "Get the admin statistics for the given month and year")
+    @ApiResponse(
+        responseCode = "200",
+        description = "The statistics are returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = AdminStatisticsJson.class)
+        )
+    )
+    @ApiResponse(
+        responseCode = "400",
+        description = "The year or month is invalid, or lies in the future",
+        content = @Content(schema = @Schema(implementation = AdminStatisticsJson.class))
+    )
+    @ApiResponse(
+        responseCode = "404",
+        description = "No statistics were archived for the given month",
+        content = @Content()
+    )
+    public ResponseEntity<AdminStatisticsJson> getStatistics(
+            @RequestParam("year") int year,
+            @RequestParam("month") int month
+    ) {
+        try {
+            admins.checkAdminUser();
+            return ResponseEntity.ok(admins.getAdminStatistics(year, month).toJson());
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(AdminStatisticsJson.class);
+        }
+    }
+
+    /**
+     * The same data as CSV, on its own path rather than by content negotiation so the dashboard's
+     * download can be a plain link - a browser navigation can't set an Accept header. The
+     * Content-Disposition names the file, which a bare string response wouldn't.
+     */
+    @GetMapping(
+        path = "/statistics/csv",
+        produces = "text/csv"
+    )
+    @Operation(hidden = true, summary = "Get the admin statistics for the given month and year as CSV")
+    @ApiResponse(responseCode = "200", description = "The statistics are returned as CSV")
+    public ResponseEntity<String> getStatisticsCsv(
+            @RequestParam("year") int year,
+            @RequestParam("month") int month
+    ) {
+        try {
+            admins.checkAdminUser();
+            var csv = admins.getAdminStatistics(year, month).toCsv();
+            var fileName = String.format("openvsx-statistics-%d-%02d.csv", year, month);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .body(csv);
+        } catch (ErrorResultException exc) {
+            return ResponseEntity.status(exc.getStatus()).body(exc.getMessage());
+        }
     }
 
     @GetMapping(

@@ -13,6 +13,7 @@ import { createRoute } from '../../utils';
 export namespace AdminDashboardRoutes {
     export const ROOT = 'admin-dashboard';
     export const MAIN = createRoute([ROOT]);
+    export const STATISTICS = createRoute([ROOT, 'statistics']);
     export const NAMESPACE_ADMIN = createRoute([ROOT, 'namespaces']);
     export const EXTENSION_ADMIN = createRoute([ROOT, 'extensions']);
     export const PUBLISHER_ADMIN = createRoute([ROOT, 'publisher']);

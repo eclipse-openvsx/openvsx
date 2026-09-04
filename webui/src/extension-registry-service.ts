@@ -58,7 +58,8 @@ import {
     TrustedPublisherStatus,
     ConsistencyCheckList,
     ConsistencyFindingList,
-    SearchIndex
+    SearchIndex,
+    AdminStatistics
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse, sendNonRetriableRequest, sendStrictRequest } from './server-request';
@@ -772,6 +773,12 @@ export interface AdminService {
     getSettings(abortController: AbortController): Promise<Readonly<Settings>>;
     updateSettings(settings: Settings): Promise<Readonly<Settings>>;
     getSearchIndex(abortController: AbortController): Promise<Readonly<SearchIndex>>;
+    getAdminStatistics(
+        abortController: AbortController,
+        year: number,
+        month: number
+    ): Promise<Readonly<AdminStatistics>>;
+    getAdminStatisticsCsvUrl(year: number, month: number): string;
     updateSearchIndex(): Promise<Readonly<SuccessResult>>;
     getConsistencyChecks(abortController: AbortController): Promise<Readonly<ConsistencyCheckList>>;
     getConsistencyFindings(
@@ -1575,6 +1582,39 @@ export class AdminServiceImpl implements AdminService {
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'settings']),
             headers
         });
+    }
+
+    async getAdminStatistics(
+        abortController: AbortController,
+        year: number,
+        month: number
+    ): Promise<Readonly<AdminStatistics>> {
+        return sendNonRetriableRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL(
+                [this.registry.serverUrl, 'admin', 'statistics'],
+                [
+                    { key: 'year', value: year },
+                    { key: 'month', value: month }
+                ]
+            )
+        });
+    }
+
+    /**
+     * The CSV export is a URL rather than a fetch: the download is a plain link, so the browser
+     * saves the file under the name the server's Content-Disposition gives it instead of the page
+     * having to build a blob.
+     */
+    getAdminStatisticsCsvUrl(year: number, month: number): string {
+        return createAbsoluteURL(
+            [this.registry.serverUrl, 'admin', 'statistics', 'csv'],
+            [
+                { key: 'year', value: year },
+                { key: 'month', value: month }
+            ]
+        );
     }
 
     async getSearchIndex(abortController: AbortController): Promise<Readonly<SearchIndex>> {
