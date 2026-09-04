@@ -38,6 +38,8 @@ the [EclipseFdn/open-vsx.org wiki](https://github.com/EclipseFdn/open-vsx.org/wi
 
 See the [openvsx Wiki](https://github.com/eclipse-openvsx/openvsx/wiki) for documentation of general concepts and usage of this project.
 
+To run this server as a copy of another registry (for example open-vsx.org), see [Mirror mode](doc/mirror.md).
+
 ## Development
 
 - The easiest way to get a development environment for this project is to open it in [Gitpod](https://gitpod.io/).

@@ -180,3 +180,7 @@ or
   find server/build/test-extensions-builtin -name '*.vsix' -exec cli/lib/ovsx publish '{}' \;
   find server/build/test-extensions -name '*.vsix' -exec cli/lib/ovsx publish '{}' \;
   ```
+
+## Mirror mode
+
+Configuration for running this server as a registry mirror is documented in [mirror.md](mirror.md). Local filesystem storage is not supported in that mode.
