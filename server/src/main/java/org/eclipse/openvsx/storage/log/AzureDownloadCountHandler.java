@@ -45,6 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.storage.AzureBlobStorageService;
 import org.eclipse.openvsx.util.TempFile;
 
 import static org.eclipse.openvsx.storage.AzureBlobStorageService.AZURE_USER_AGENT;
@@ -61,6 +62,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
     private final SettingsService settings;
     private final DownloadCountProcessor processor;
     private final JsonMapper jsonMapper;
+    private final AzureBlobStorageService storageService;
     private BlobContainerClient containerClient;
     private Pattern blobItemNamePattern;
 
@@ -73,18 +75,17 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
     @Value("${ovsx.logs.azure.blob-container:insights-logs-storageread}")
     String logsBlobContainer;
 
-    @Value("${ovsx.storage.azure.service-endpoint:}")
-    String storageServiceEndpoint;
-
-    @Value("${ovsx.storage.azure.blob-container:openvsx-resources}")
-    String storageBlobContainer;
-
     @Value("${ovsx.logs.azure.cron:0 5 * * * *}")
     String cronSchedule;
 
-    public AzureDownloadCountHandler(SettingsService settings, DownloadCountProcessor processor) {
+    public AzureDownloadCountHandler(
+            SettingsService settings,
+            DownloadCountProcessor processor,
+            AzureBlobStorageService storageService
+    ) {
         this.settings = settings;
         this.processor = processor;
+        this.storageService = storageService;
         this.jsonMapper = JsonMapper.shared();
     }
 
@@ -101,7 +102,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
      */
     public boolean isEnabled() {
         var logsEnabled = !StringUtils.isEmpty(logsServiceEndpoint);
-        var storageEnabled = !StringUtils.isEmpty(storageServiceEndpoint);
+        var storageEnabled = !StringUtils.isEmpty(storageService.getServiceEndpoint());
         if (logsEnabled && !storageEnabled) {
             logger.warn(
                     "The ovsx.storage.azure.service-endpoint value must be set to enable AzureDownloadCountService");
@@ -225,9 +226,9 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
                 if (isGetBlobOperation(node) && isStatusOk(node) && isExtensionPackageUri(node)
                         && isNotOpenVSXUserAgent(node)) {
                     var uri = node.get("uri").asString();
-                    pathParams = uri.substring(storageServiceEndpoint.length()).split("/");
+                    pathParams = uri.substring(storageService.getServiceEndpoint().length()).split("/");
                 }
-                if (pathParams != null && storageBlobContainer.equals(pathParams[1])) {
+                if (pathParams != null && storageService.getBlobContainer().equals(pathParams[1])) {
                     var fileName = UriUtils.decode(pathParams[pathParams.length - 1], StandardCharsets.UTF_8)
                             .toUpperCase();
                     fileCounts.merge(fileName, 1, Integer::sum);
@@ -305,7 +306,7 @@ public class AzureDownloadCountHandler implements JobRequestHandler<HandlerJobRe
 
     private Pattern getBlobItemNamePattern() {
         if (blobItemNamePattern == null) {
-            var host = URI.create(storageServiceEndpoint).getHost();
+            var host = URI.create(storageService.getServiceEndpoint()).getHost();
             var storageAccount = host.substring(0, host.indexOf('.'));
 
             var regex = "^resourceId=/subscriptions/.*/resourceGroups/.*/providers/Microsoft\\.Storage/storageAccounts/"

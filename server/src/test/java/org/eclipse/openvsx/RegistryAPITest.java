@@ -66,6 +66,8 @@ import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
+import org.eclipse.openvsx.migration.MigrationsProperties;
+import org.eclipse.openvsx.mirror.MirrorConfig;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
@@ -90,6 +92,7 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionAlias;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -3639,7 +3642,7 @@ class RegistryAPITest {
     }
 
     @TestConfiguration
-    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class })
+    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         TransactionTemplate transactionTemplate() {
@@ -3673,7 +3676,7 @@ class RegistryAPITest {
 
         @Bean
         AccessTokenConfig tokenConfig() {
-            return new AccessTokenConfig();
+            return new AccessTokenConfig(new MirrorConfig());
         }
 
         @Bean
@@ -3741,6 +3744,8 @@ class RegistryAPITest {
                     similarityCheckService,
                     publishingConfig,
                     trustedPublishingConfig,
+                    new MigrationsProperties(),
+                    new WebUiProperties(),
                     CHANGES_FEED_LAG);
         }
 

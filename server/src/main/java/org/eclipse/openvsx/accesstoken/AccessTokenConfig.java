@@ -22,8 +22,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
+import org.eclipse.openvsx.mirror.MirrorConfig;
+
 @Configuration
 public class AccessTokenConfig {
+
+    private final MirrorConfig mirrorConfig;
+
+    public AccessTokenConfig(MirrorConfig mirrorConfig) {
+        this.mirrorConfig = mirrorConfig;
+    }
+
     /**
      * The token prefix to use when generating a new access token.
      * <p>
@@ -123,9 +132,6 @@ public class AccessTokenConfig {
     @Value("${ovsx.access-token.token-hash-pepper:}")
     private String tokenHashPepper;
 
-    @Value("${ovsx.data.mirror.enabled:false}")
-    private boolean mirrorEnabled;
-
     public @NonNull String getPrefix() {
         return this.prefix;
     }
@@ -180,7 +186,7 @@ public class AccessTokenConfig {
 
     @PostConstruct
     public void validate() {
-        if (isTokenExpiryEnabled() && mirrorEnabled) {
+        if (isTokenExpiryEnabled() && mirrorConfig.isEnabled()) {
             throw new IllegalArgumentException(
                     "ovsx.access-token.expiration can not be enabled when mirror mode is active, got: " + expiration);
         }

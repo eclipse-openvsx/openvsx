@@ -34,6 +34,8 @@ import tools.jackson.databind.json.JsonMapper;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
+import org.eclipse.openvsx.migration.MigrationsProperties;
+import org.eclipse.openvsx.mirror.MirrorConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.ExtensionId;
@@ -52,9 +54,8 @@ public class ExtensionControlService {
     private final EntityManager entityManager;
     private final SearchUtilService search;
     private final CacheService cache;
-
-    @Value("${ovsx.data.mirror.enabled:false}")
-    boolean mirrorEnabled;
+    private final MirrorConfig mirrorConfig;
+    private final MigrationsProperties migrationsProperties;
 
     @Value("${ovsx.extension-control.enabled:true}")
     boolean enabled;
@@ -65,31 +66,32 @@ public class ExtensionControlService {
     @Value("${ovsx.extension-control.update-on-start:false}")
     boolean updateOnStart;
 
-    @Value("${ovsx.migrations.delay.seconds:0}")
-    long delay;
-
     public ExtensionControlService(
             JobRequestScheduler scheduler,
             RepositoryService repositories,
             EntityManager entityManager,
             SearchUtilService search,
-            CacheService cache
+            CacheService cache,
+            MirrorConfig mirrorConfig,
+            MigrationsProperties migrationsProperties
     ) {
         this.scheduler = scheduler;
         this.repositories = repositories;
         this.entityManager = entityManager;
         this.search = search;
         this.cache = cache;
+        this.mirrorConfig = mirrorConfig;
+        this.migrationsProperties = migrationsProperties;
     }
 
     @EventListener
     public void applicationStarted(ApplicationStartedEvent event) {
-        if (!enabled || mirrorEnabled) {
+        if (!enabled || mirrorConfig.isEnabled()) {
             scheduler.deleteRecurringJob("UpdateExtensionControl");
         } else {
             if (updateOnStart) {
                 scheduler.schedule(
-                        TimeUtil.getCurrentUTC().plusSeconds(delay),
+                        TimeUtil.getCurrentUTC().plusSeconds(migrationsProperties.getDelaySeconds()),
                         new HandlerJobRequest<>(ExtensionControlJobRequestHandler.class));
             }
 

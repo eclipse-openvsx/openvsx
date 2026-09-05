@@ -38,6 +38,7 @@ import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
+import org.eclipse.openvsx.migration.MigrationsProperties;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -62,6 +63,7 @@ import org.eclipse.openvsx.util.VersionAlias;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.util.auth.AuthenticatedUser;
 import org.eclipse.openvsx.util.auth.LoggedInAuthentication;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.cache.CacheService.*;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -89,6 +91,8 @@ public class LocalRegistryService implements IExtensionRegistry {
     private final SimilarityCheckService similarityCheckService;
     private final PublishingConfig publishingConfig;
     private final TrustedPublishingConfig trustedPublishingConfig;
+    private final MigrationsProperties migrationsProperties;
+    private final WebUiProperties webUi;
 
     /**
      * How far behind the present the changes feed stops, see {@link #visibleUntil}.
@@ -111,6 +115,8 @@ public class LocalRegistryService implements IExtensionRegistry {
             @Nullable SimilarityCheckService similarityCheckService,
             PublishingConfig publishingConfig,
             TrustedPublishingConfig trustedPublishingConfig,
+            MigrationsProperties migrationsProperties,
+            WebUiProperties webUi,
             @Value("${ovsx.changes-feed.lag:PT30S}") Duration changesFeedLag
     ) {
         this.entityManager = entityManager;
@@ -128,14 +134,10 @@ public class LocalRegistryService implements IExtensionRegistry {
         this.similarityCheckService = similarityCheckService;
         this.publishingConfig = publishingConfig;
         this.trustedPublishingConfig = trustedPublishingConfig;
+        this.migrationsProperties = migrationsProperties;
+        this.webUi = webUi;
         this.changesFeedLag = changesFeedLag;
     }
-
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    @Value("${ovsx.registry.version:}")
-    String registryVersion;
 
     @Override
     public NamespaceJson getNamespace(String namespaceName) {
@@ -1330,7 +1332,7 @@ public class LocalRegistryService implements IExtensionRegistry {
             return null;
         }
 
-        var baseUrl = webui ? webuiUrl : UrlUtil.getBaseUrl();
+        var baseUrl = webui ? webUi.getUrl() : UrlUtil.getBaseUrl();
         var segments = new String[] {
             webui ? "extension" : "api",
             replacement.getExtension().getNamespace().getName(),
@@ -1377,6 +1379,7 @@ public class LocalRegistryService implements IExtensionRegistry {
 
     @Override
     public RegistryVersionJson getRegistryVersion() {
+        var registryVersion = migrationsProperties.getRegistryVersion();
         if (StringUtils.isEmpty(registryVersion)) {
             throw new NotFoundException();
         }

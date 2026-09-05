@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import org.eclipse.openvsx.mirror.MirrorConfig;
+
 @Component
 public class MigrationScheduler implements JobRequestHandler<HandlerJobRequest<?>> {
 
@@ -26,9 +28,7 @@ public class MigrationScheduler implements JobRequestHandler<HandlerJobRequest<?
 
     private final OrphanNamespaceMigration orphanNamespaceMigration;
     private final JobRequestScheduler scheduler;
-
-    @Value("${ovsx.data.mirror.enabled:false}")
-    boolean mirrorEnabled;
+    private final MirrorConfig mirrorConfig;
 
     // Default matches JobRunr's Cron.every15minutes(). Configurable so a deployment that's
     // bothered by migration-item bursts crowding out real-time jobs (see
@@ -38,17 +38,19 @@ public class MigrationScheduler implements JobRequestHandler<HandlerJobRequest<?
 
     public MigrationScheduler(
             OrphanNamespaceMigration orphanNamespaceMigration,
-            JobRequestScheduler scheduler
+            JobRequestScheduler scheduler,
+            MirrorConfig mirrorConfig
     ) {
         this.orphanNamespaceMigration = orphanNamespaceMigration;
         this.scheduler = scheduler;
+        this.mirrorConfig = mirrorConfig;
     }
 
     @Override
     @Job(name = "Schedule migrations", retries = 0)
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
         orphanNamespaceMigration.fixOrphanNamespaces();
-        if (!mirrorEnabled) {
+        if (!mirrorConfig.isEnabled()) {
             scheduler.enqueue(new HandlerJobRequest<>(GenerateKeyPairJobRequestHandler.class));
         }
 

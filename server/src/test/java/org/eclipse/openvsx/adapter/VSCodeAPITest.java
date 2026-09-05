@@ -63,6 +63,7 @@ import org.eclipse.openvsx.storage.log.DownloadCountService;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.web.JacksonConfig;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -1436,7 +1437,7 @@ class VSCodeAPITest {
     }
 
     @TestConfiguration
-    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class })
+    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         IExtensionQueryRequestHandler extensionQueryRequestHandler(
@@ -1489,7 +1490,8 @@ class VSCodeAPITest {
                 StorageUtilService storageUtil,
                 ExtensionVersionIntegrityService integrityService,
                 WebResourceService webResourceService,
-                CacheService cache
+                CacheService cache,
+                WebUiProperties webUi
         ) {
             return new LocalVSCodeService(
                     repositories,
@@ -1498,7 +1500,8 @@ class VSCodeAPITest {
                     storageUtil,
                     integrityService,
                     webResourceService,
-                    cache);
+                    cache,
+                    webUi);
         }
 
         @Bean

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.webmvc.error.ErrorAttributes;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,10 +46,12 @@ class ServerErrorControllerTest {
 
     @Test
     void errorHtmlRedirectsToTheWebuiErrorPage() throws Exception {
+        var webUi = new WebUiProperties();
+        ReflectionTestUtils.setField(webUi, "url", "https://open-vsx.org");
         var controller = new ServerErrorController(
                 Mockito.mock(ErrorAttributes.class),
-                new WebProperties());
-        controller.webuiUrl = "https://open-vsx.org";
+                new WebProperties(),
+                webUi);
 
         var modelAndView = controller.errorHtml(
                 Mockito.mock(HttpServletRequest.class),

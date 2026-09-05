@@ -13,7 +13,6 @@ import java.net.URI;
 import java.util.Optional;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -25,22 +24,21 @@ import org.eclipse.openvsx.mirror.MirrorExtensionHandlerInterceptor;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    private final WebUiProperties webUi;
+
     private MirrorExtensionHandlerInterceptor mirrorInterceptor;
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    @Value(
-        "${ovsx.webui.frontendRoutes:/extension/**,/namespace/**,/search,/user-settings/**,/publish,/admin-dashboard/**}"
-    )
-    String[] frontendRoutes;
-
-    public WebConfig(Optional<MirrorExtensionHandlerInterceptor> mirrorExtensionHandlerInterceptor) {
+    public WebConfig(
+            WebUiProperties webUi,
+            Optional<MirrorExtensionHandlerInterceptor> mirrorExtensionHandlerInterceptor
+    ) {
+        this.webUi = webUi;
         mirrorExtensionHandlerInterceptor.ifPresent(service -> this.mirrorInterceptor = service);
     }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        var webuiUrl = webUi.getUrl();
         if (!StringUtils.isEmpty(webuiUrl) && URI.create(webuiUrl).isAbsolute()) {
             // The Web UI is given with an absolute URL, so we need to enable CORS with credentials.
             var authorizedEndpoints = new String[] {
@@ -71,7 +69,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        for (var route : frontendRoutes) {
+        for (var route : webUi.getFrontendRoutes()) {
             registry.addViewController(route).setViewName("forward:/index.html");
         }
     }

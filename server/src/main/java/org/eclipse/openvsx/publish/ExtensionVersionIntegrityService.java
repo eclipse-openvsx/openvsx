@@ -65,6 +65,10 @@ public class ExtensionVersionIntegrityService {
         return keyPairMode.equals(KEYPAIR_MODE_CREATE) || keyPairMode.equals(KEYPAIR_MODE_RENEW);
     }
 
+    public String getKeyPairMode() {
+        return keyPairMode;
+    }
+
     public boolean verifyExtensionVersion(TempFile extensionFile, TempFile signatureFile, TempFile publicKeyFile) {
         AsymmetricKeyParameter publicKeyParameters;
         try (var inReader = new InputStreamReader(Files.newInputStream(publicKeyFile.getPath()))) {

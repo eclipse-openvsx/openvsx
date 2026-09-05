@@ -20,20 +20,20 @@ import org.springframework.security.web.authentication.Http403ForbiddenEntryPoin
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
+import org.eclipse.openvsx.web.WebUiProperties;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    @Value(
-        "${ovsx.webui.frontendRoutes:/extension/**,/namespace/**,/search,/user-settings/**,/publish,/admin-dashboard/**}"
-    )
-    String[] frontendRoutes;
+    private final WebUiProperties webUi;
 
     @Value("${ovsx.webui.additional-routes:}")
     String[] additionalRoutes;
+
+    public SecurityConfig(WebUiProperties webUi) {
+        this.webUi = webUi;
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, OAuth2UserServices userServices) throws Exception {
@@ -74,7 +74,7 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(pathMatchers("/admin/**"))
                         .hasAuthority("ROLE_ADMIN")
-                        .requestMatchers(pathMatchers(frontendRoutes))
+                        .requestMatchers(pathMatchers(webUi.getFrontendRoutes()))
                         .permitAll()
                         .requestMatchers(pathMatchers(additionalRoutes))
                         .permitAll()
@@ -95,6 +95,7 @@ public class SecurityConfig {
                 .exceptionHandling(configurer -> configurer.authenticationEntryPoint(new Http403ForbiddenEntryPoint()));
 
         if (userServices.canLogin()) {
+            var webuiUrl = webUi.getUrl();
             var redirectUrl = StringUtils.isEmpty(webuiUrl) ? "/" : webuiUrl;
             filterChain.oauth2Login(configurer -> {
                 configurer.defaultSuccessUrl(redirectUrl);

@@ -44,6 +44,7 @@ import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.NamespaceJson;
+import org.eclipse.openvsx.migration.MigrationsProperties;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -55,6 +56,7 @@ import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.util.auth.AccessTokenAuthentication;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -129,6 +131,8 @@ class LocalRegistryServiceTest {
                 similarityCheckService,
                 new PublishingConfig(),
                 new TrustedPublishingConfig(),
+                new MigrationsProperties(),
+                new WebUiProperties(),
                 Duration.ofSeconds(30));
 
         // A permissive default for a void method rather than a per-test expectation: the tests of

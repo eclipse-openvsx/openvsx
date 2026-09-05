@@ -7,6 +7,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import org.eclipse.openvsx.mirror.MirrorConfig;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -21,9 +23,10 @@ class MigrationSchedulerTest {
 
     @Test
     void run_schedulesMigrationItemProcessingUsingTheConfiguredCron() throws Exception {
-        var migrationScheduler = new MigrationScheduler(orphanNamespaceMigration, scheduler);
+        var mirrorConfig = new MirrorConfig();
+        ReflectionTestUtils.setField(mirrorConfig, "enabled", true);
+        var migrationScheduler = new MigrationScheduler(orphanNamespaceMigration, scheduler, mirrorConfig);
         ReflectionTestUtils.setField(migrationScheduler, "migrationItemsCron", "0 * * * *");
-        ReflectionTestUtils.setField(migrationScheduler, "mirrorEnabled", true);
 
         migrationScheduler.run(new HandlerJobRequest<>(MigrationScheduler.class));
 

@@ -49,6 +49,8 @@ import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.mail.MailService;
+import org.eclipse.openvsx.migration.MigrationsProperties;
+import org.eclipse.openvsx.mirror.MirrorConfig;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.publish.PublishingConfig;
@@ -70,6 +72,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1154,7 +1157,7 @@ class UserAPITest {
     }
 
     @TestConfiguration
-    @Import(SecurityConfig.class)
+    @Import({ SecurityConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         TransactionTemplate transactionTemplate() {
@@ -1188,7 +1191,7 @@ class UserAPITest {
 
         @Bean
         AccessTokenConfig tokenConfig() {
-            return new AccessTokenConfig();
+            return new AccessTokenConfig(new MirrorConfig());
         }
 
         @Bean
@@ -1259,6 +1262,8 @@ class UserAPITest {
                     similarityCheckService,
                     new PublishingConfig(),
                     new TrustedPublishingConfig(),
+                    new MigrationsProperties(),
+                    new WebUiProperties(),
                     Duration.ofSeconds(30));
         }
 

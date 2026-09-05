@@ -11,7 +11,6 @@ package org.eclipse.openvsx.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.webmvc.autoconfigure.error.BasicErrorController;
@@ -28,11 +27,11 @@ import org.eclipse.openvsx.util.UrlUtil;
 @ConditionalOnProperty(value = "spring.web.error.path", havingValue = "/server-error")
 public class ServerErrorController extends BasicErrorController {
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
+    private final WebUiProperties webUi;
 
-    public ServerErrorController(ErrorAttributes errorAttributes, WebProperties webProperties) {
+    public ServerErrorController(ErrorAttributes errorAttributes, WebProperties webProperties, WebUiProperties webUi) {
         super(errorAttributes, webProperties.getError());
+        this.webUi = webUi;
     }
 
     // Override errorHtml() itself rather than adding a new method with its own explicit
@@ -43,6 +42,6 @@ public class ServerErrorController extends BasicErrorController {
     // the correct, property-driven path with no combination/doubling.
     @Override
     public ModelAndView errorHtml(HttpServletRequest request, HttpServletResponse response) {
-        return new ModelAndView("redirect:" + UrlUtil.createApiUrl(webuiUrl, "error"));
+        return new ModelAndView("redirect:" + UrlUtil.createApiUrl(webUi.getUrl(), "error"));
     }
 }
