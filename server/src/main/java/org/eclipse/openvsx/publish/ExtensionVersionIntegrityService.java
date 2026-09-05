@@ -25,8 +25,10 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.crypto.util.PublicKeyFactory;
+import org.bouncycastle.math.ec.rfc8032.Ed25519;
 import org.bouncycastle.openssl.PEMParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,19 +77,21 @@ public class ExtensionVersionIntegrityService {
             throw new ErrorResultException("Failed to read private key file", e);
         }
 
+        // The PEM above can carry any key type; Ed25519Signer would have thrown a ClassCastException from
+        // inside init() for anything else, which says nothing useful about the file that was handed in.
+        if (!(publicKeyParameters instanceof Ed25519PublicKeyParameters ed25519PublicKey)) {
+            throw new ErrorResultException("Public key file does not hold an Ed25519 public key");
+        }
+
         boolean verified;
         try {
-            var signer = new Ed25519Signer();
-            signer.init(false, publicKeyParameters);
-            try (var in = Files.newInputStream(extensionFile.getPath())) {
-                int len;
-                var buffer = new byte[1024];
-                while ((len = in.read(buffer)) > 0) {
-                    signer.update(buffer, 0, len);
-                }
-            }
-
-            verified = signer.verifySignature(Files.readAllBytes(signatureFile.getPath()));
+            // One array rather than a read loop into Ed25519Signer, for the reason spelled out on
+            // createSignatureFile below: the streaming signer buffers the whole message anyway, and does
+            // it in a structure that doubles as it grows.
+            var message = Files.readAllBytes(extensionFile.getPath());
+            var signature = Files.readAllBytes(signatureFile.getPath());
+            verified = ed25519PublicKey
+                    .verify(Ed25519.Algorithm.Ed25519, null, message, 0, message.length, signature, 0);
         } catch (IOException e) {
             throw new ErrorResultException("Failed to verify extension file", e);
         }
@@ -144,20 +148,33 @@ public class ExtensionVersionIntegrityService {
         return sigzipFile;
     }
 
-    private TempFile createSignatureFile(TempFile extensionFile, SignatureKeyPair keyPair) throws IOException {
+    /**
+     * Signs the package with the key pair's private key.
+     * <p>
+     * Reads it into one array rather than streaming it through {@link Ed25519Signer}, which reads as the
+     * memory-safe option and is the opposite of one. Pure Ed25519 (RFC 8032) hashes the message twice -
+     * once for the nonce, once for the challenge - so a signer cannot discard what it has been fed, and
+     * BouncyCastle's keeps it in a {@code ByteArrayOutputStream} that doubles its capacity as it fills.
+     * Feeding that a 300 MB package peaks at three quarters of a gigabyte, because the 256 MB array and
+     * the 512 MB one being copied into are both live during the last growth - which is why publishing
+     * one used to need a 2 GB heap (see #1450). Read in one go, the cost is the size of the package.
+     * <p>
+     * It is still the size of the package, so an instance running with the integrity service enabled
+     * wants a heap comfortably above {@code ovsx.publishing.max-content-size}. Constant memory is not
+     * reachable from here: every {@code sign} overload BouncyCastle exposes for pure Ed25519 takes a
+     * {@code byte[]}, and its one streaming signer implements Ed25519ph, whose signatures are a
+     * different scheme that nothing verifying these packages today would accept.
+     * <p>
+     * Package-private so that a test can measure what it allocates against the streaming alternative.
+     */
+    TempFile createSignatureFile(TempFile extensionFile, SignatureKeyPair keyPair) throws IOException {
         var privateKeyParameters = new Ed25519PrivateKeyParameters(keyPair.getPrivateKey(), 0);
-        var signer = new Ed25519Signer();
-        signer.init(true, privateKeyParameters);
-        try (var in = Files.newInputStream(extensionFile.getPath())) {
-            int len;
-            var buffer = new byte[1024];
-            while ((len = in.read(buffer)) > 0) {
-                signer.update(buffer, 0, len);
-            }
-        }
+        var message = Files.readAllBytes(extensionFile.getPath());
+        var signature = new byte[Ed25519PrivateKeyParameters.SIGNATURE_SIZE];
+        privateKeyParameters.sign(Ed25519.Algorithm.Ed25519, null, message, 0, message.length, signature, 0);
 
         var signatureFile = new TempFile("signature", ".sig");
-        Files.write(signatureFile.getPath(), signer.generateSignature());
+        Files.write(signatureFile.getPath(), signature);
         return signatureFile;
     }
 
