@@ -15,15 +15,22 @@ package org.eclipse.openvsx.accesstoken;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 import jakarta.annotation.PostConstruct;
 import org.jspecify.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 @Configuration
 public class AccessTokenConfig {
+
+    private static final Logger logger = LoggerFactory.getLogger(AccessTokenConfig.class);
+
     /**
      * The token prefix to use when generating a new access token.
      * <p>
@@ -123,6 +130,59 @@ public class AccessTokenConfig {
     @Value("${ovsx.access-token.token-hash-pepper:}")
     private String tokenHashPepper;
 
+    /**
+     * The peppers this instance used before the current one, so that tokens hashed with one of them keep
+     * working across a pepper change.
+     * <p>
+     * Rotation has to work this way round because the raw token value is never stored: a row holds only
+     * its hash, so nothing can rehash it under a new pepper except the holder presenting the token again.
+     * Each token listed here is therefore migrated to the current pepper the next time it is used, and a
+     * token nobody uses again keeps its old hash until it expires. That has two consequences worth
+     * planning for:
+     * <ul>
+     * <li>A retired pepper must stay listed until every row that might still use it is gone - bounded by
+     * {@code ovsx.access-token.expiration} after the change, plus one expiry sweep. Where expiry is
+     * disabled ({@code expiration: 0}) an unused token lives forever, and so must its pepper.</li>
+     * <li>No background job can finish the migration early, so removing a pepper from this list is the
+     * operator's decision, not something the application can signal.</li>
+     * </ul>
+     * Comma separated, and so a pepper itself must not contain a comma; {@link #validate()} rejects a
+     * current pepper that does, rather than letting it split into nonsense once it is rotated out.
+     * Generating peppers with {@code openssl rand -base64 32} keeps clear of the problem entirely. Blank
+     * entries - what a trailing or doubled comma leaves behind - are ignored rather than read as the
+     * unpeppered hash, which has its own flag in {@link #acceptUnpepperedTokenHashes}.
+     * <p>
+     * Property: {@code ovsx.access-token.token-hash-previous-peppers}
+     * Default: {@code ''}, no previous peppers
+     */
+    @Value("${ovsx.access-token.token-hash-previous-peppers:}")
+    private List<String> previousTokenHashPeppers;
+
+    /**
+     * Whether to accept tokens whose hash carries no pepper at all.
+     * <p>
+     * This is the switch for adopting a pepper on a deployment that ran without one - the default is the
+     * empty string, so this is the shape most instances start in. Set it alongside a new
+     * {@code token-hash-pepper} and every existing token stays valid, migrating to the peppered hash as
+     * it gets used; without it, setting a pepper for the first time invalidates all of them at once.
+     * <p>
+     * It is the unpeppered member of {@code token-hash-previous-peppers}, kept as its own flag because an
+     * empty entry in a comma separated list cannot be written unambiguously. Everything the list's
+     * documentation says about retiring a pepper applies here too.
+     * <p>
+     * Property: {@code ovsx.access-token.token-hash-accept-unpeppered}
+     * Default: {@code false}
+     */
+    @Value("${ovsx.access-token.token-hash-accept-unpeppered:false}")
+    private boolean acceptUnpepperedTokenHashes;
+
+    /**
+     * The peppers to fall back to, in order, when a token does not match under the current one. Derived
+     * in {@link #validate()} from the two properties above: deduplicated, and without the current pepper,
+     * which is always tried first anyway.
+     */
+    private List<String> tokenHashPepperKeyring = List.of();
+
     @Value("${ovsx.data.mirror.enabled:false}")
     private boolean mirrorEnabled;
 
@@ -178,6 +238,15 @@ public class AccessTokenConfig {
         return tokenHashPepper;
     }
 
+    /**
+     * The peppers a token that does not match under the current pepper is retried with, in order. Empty
+     * unless the instance is mid-rotation, in which case a hit means the row still carries an old hash
+     * and wants rewriting.
+     */
+    public @NonNull List<String> getTokenHashPepperKeyring() {
+        return tokenHashPepperKeyring;
+    }
+
     @PostConstruct
     public void validate() {
         if (isTokenExpiryEnabled() && mirrorEnabled) {
@@ -211,5 +280,44 @@ public class AccessTokenConfig {
         if (tokenHashPepper == null) {
             throw new IllegalArgumentException("ovsx.access-token.token-hash-pepper must not be null");
         }
+        if (tokenHashPepper.indexOf(',') >= 0) {
+            throw new IllegalArgumentException(
+                    "ovsx.access-token.token-hash-pepper must not contain a comma, because "
+                            + "ovsx.access-token.token-hash-previous-peppers is a comma separated list and "
+                            + "could not carry this value once it is rotated out");
+        }
+        // hasText, not isEmpty: a pepper of blanks is not a secret either, and how whitespace survives
+        // a property source depends on how it was quoted - neither is worth staying quiet about.
+        if (!StringUtils.hasText(tokenHashPepper)) {
+            // Not an error: this is the default, and refusing to start would lock out every existing
+            // deployment. It is worth one line at boot, though, because the alternative is that the
+            // recommendation lives only in a javadoc nobody deploying the server reads.
+            logger.warn(
+                    "No ovsx.access-token.token-hash-pepper is configured, so personal access tokens "
+                            + "are stored as unkeyed hashes. Whoever obtains a copy of the database can "
+                            + "then confirm a token found elsewhere without touching this registry, and "
+                            + "match hashes across dumps and instances. Generate one with "
+                            + "'openssl rand -base64 32'; to keep the tokens that already exist working, "
+                            + "set ovsx.access-token.token-hash-accept-unpeppered=true at the same time "
+                            + "and drop it once they have expired.");
+        }
+
+        // LinkedHashSet: the order operators wrote decides which pepper is tried first, and a pepper
+        // listed twice - or listed while still current - costs a query per authentication, not a bug.
+        var keyring = new LinkedHashSet<String>();
+        if (previousTokenHashPeppers != null) {
+            // hasText, and not merely non-null: a trailing or doubled comma leaves a blank element behind
+            // (Spring trims each one, so an all-whitespace entry arrives blank too), and a blank pepper is
+            // the unpeppered hash - the thing acceptUnpepperedTokenHashes exists to gate, kept as its own
+            // flag precisely because this list cannot express it unambiguously. Taking one at face value
+            // would let a stray comma switch on acceptance of unpeppered tokens with nobody asking for it,
+            // so a blank here means a typo and nothing else.
+            previousTokenHashPeppers.stream().filter(StringUtils::hasText).forEach(keyring::add);
+        }
+        if (acceptUnpepperedTokenHashes) {
+            keyring.add("");
+        }
+        keyring.remove(tokenHashPepper);
+        tokenHashPepperKeyring = List.copyOf(keyring);
     }
 }

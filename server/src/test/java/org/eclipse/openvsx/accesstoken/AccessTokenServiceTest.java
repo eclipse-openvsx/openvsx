@@ -12,12 +12,15 @@
  *****************************************************************************/
 package org.eclipse.openvsx.accesstoken;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import jakarta.persistence.EntityManager;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +50,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -75,6 +79,13 @@ class AccessTokenServiceTest {
         // lenient: generateTokenValue does not hash anything, so it needs neither of these
         lenient().when(config.getTokenHashAlgorithm()).thenReturn("SHA-256");
         lenient().when(config.getTokenHashPepper()).thenReturn("pepper");
+        // no rotation in progress unless a test says otherwise
+        lenient().when(config.getTokenHashPepperKeyring()).thenReturn(List.of());
+    }
+
+    /** The hash the service stores for a token, so a test can set up the row it expects to be found. */
+    private static String hashed(String tokenValue, String pepper) {
+        return DigestUtils.sha256Hex((tokenValue + pepper).getBytes(StandardCharsets.UTF_8));
     }
 
     private PersonalAccessToken activeUnrestrictedToken() {
@@ -392,5 +403,88 @@ class AccessTokenServiceTest {
                 Map.of());
 
         assertThat(json.getDeleteTokenUrl()).isNull();
+    }
+
+    // Pepper rotation: the raw value is never stored, so a row can only move to the new pepper while its
+    // holder is presenting the token. Listing the old pepper keeps such a token valid, and the hit
+    // rewrites the row so the next lookup matches on the first try.
+    @Test
+    void authenticatesATokenStillHashedWithAPreviousPepper() {
+        when(config.getTokenHashPepperKeyring()).thenReturn(List.of("old-pepper"));
+        var user = new UserData();
+        var token = activeUnrestrictedToken();
+        token.setUser(user);
+        token.setValue(hashed("tok", "old-pepper"));
+        when(repositories.findPersonalAccessToken(hashed("tok", "pepper"))).thenReturn(null);
+        when(repositories.findPersonalAccessToken(hashed("tok", "old-pepper"))).thenReturn(token);
+
+        var tau = accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify());
+
+        assertThat(tau).isNotNull();
+        assertThat(tau.userData()).isSameAs(user);
+        assertThat(token.getValue()).isEqualTo(hashed("tok", "pepper"));
+    }
+
+    // Adopting a pepper on an instance that ran without one: the previous pepper is the empty string,
+    // which is why it gets its own flag rather than an unwritable empty entry in the list.
+    @Test
+    void authenticatesAnUnpepperedTokenWhenAPepperIsAdopted() {
+        when(config.getTokenHashPepperKeyring()).thenReturn(List.of(""));
+        var user = new UserData();
+        var token = activeUnrestrictedToken();
+        token.setUser(user);
+        token.setValue(hashed("tok", ""));
+        when(repositories.findPersonalAccessToken(hashed("tok", "pepper"))).thenReturn(null);
+        when(repositories.findPersonalAccessToken(hashed("tok", ""))).thenReturn(token);
+
+        var tau = accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify());
+
+        assertThat(tau).isNotNull();
+        assertThat(token.getValue()).isEqualTo(hashed("tok", "pepper"));
+    }
+
+    // The keyring is tried in the configured order, and only until something matches.
+    @Test
+    void stopsAtTheFirstPreviousPepperThatMatches() {
+        when(config.getTokenHashPepperKeyring()).thenReturn(List.of("older", "old"));
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        token.setValue(hashed("tok", "older"));
+        when(repositories.findPersonalAccessToken(hashed("tok", "pepper"))).thenReturn(null);
+        when(repositories.findPersonalAccessToken(hashed("tok", "older"))).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNotNull();
+
+        verify(repositories).findPersonalAccessToken(hashed("tok", "pepper"));
+        verify(repositories).findPersonalAccessToken(hashed("tok", "older"));
+        verify(repositories, never()).findPersonalAccessToken(hashed("tok", "old"));
+    }
+
+    // A token already on the current pepper must not pay for the rotation: it matches on the first
+    // lookup, and neither the keyring nor the v0 fallback is consulted.
+    @Test
+    void doesNotRetryPreviousPeppersWhenTheCurrentOneMatches() {
+        // lenient: this stub going unread is half the assertion - the keyring is never even consulted
+        lenient().when(config.getTokenHashPepperKeyring()).thenReturn(List.of("old-pepper"));
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        when(repositories.findPersonalAccessToken(hashed("tok", "pepper"))).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNotNull();
+
+        verify(repositories).findPersonalAccessToken(hashed("tok", "pepper"));
+        verifyNoMoreInteractions(repositories);
+    }
+
+    // An unknown token still ends at the v0 raw-value fallback, having tried every configured pepper.
+    @Test
+    void fallsThroughToTheLegacyLookupWhenNoPepperMatches() {
+        when(config.getTokenHashPepperKeyring()).thenReturn(List.of("old-pepper"));
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNull();
+
+        verify(repositories).findPersonalAccessToken(hashed("tok", "pepper"));
+        verify(repositories).findPersonalAccessToken(hashed("tok", "old-pepper"));
+        verify(repositories).findPersonalAccessToken("tok");
     }
 }
