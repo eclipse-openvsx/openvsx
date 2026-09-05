@@ -169,7 +169,7 @@ class LocalRegistryServiceTest {
         when(extensions.createExtensionFile(any())).thenReturn(tempFile);
         when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tau);
         when(extensions.publishVersion(any(ExtensionProcessor.class), eq(tau))).thenReturn(extVersion);
-        when(storageUtilService.getFileUrls(any(), any(), any(String[].class))).thenReturn(Map.of(42L, Map.of()));
+        when(storageUtilService.getFiles(any(), any(String[].class))).thenReturn(Map.of(42L, List.of()));
 
         registryService.publish(new ByteArrayInputStream(new byte[0]), "tok");
 

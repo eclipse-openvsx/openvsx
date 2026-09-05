@@ -70,6 +70,12 @@ export interface Extension {
     reviewsUrl: UrlString;
     // key: file type, value: url
     files: { [id: string]: UrlString };
+    /**
+     * Size in bytes of the .vsix behind `files.download`. Absent where the registry does not know it yet,
+     * which is the case for extensions published before it started recording sizes. This is the download
+     * size, not the size the extension takes up once installed.
+     */
+    downloadSize?: number;
 
     name: string;
     namespace: string;

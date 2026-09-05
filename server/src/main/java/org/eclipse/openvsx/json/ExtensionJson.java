@@ -48,6 +48,15 @@ public class ExtensionJson extends ResultJson {
     )
     private Map<String, String> files;
 
+    @Schema(
+        description = "Size in bytes of the extension package - the file behind the 'download' entry of "
+                + "'files' - for this version and target platform. Null where the size is not known, which "
+                + "is the case for packages published before the registry started recording it and not yet "
+                + "backfilled. This is the download size; the installed extension is larger, by whatever "
+                + "the package's compression ratio happens to be."
+    )
+    private Long downloadSize;
+
     @Schema(description = "Name of the extension")
     @NotNull
     private String name;
@@ -257,6 +266,14 @@ public class ExtensionJson extends ResultJson {
 
     public void setFiles(Map<String, String> files) {
         this.files = files;
+    }
+
+    public Long getDownloadSize() {
+        return downloadSize;
+    }
+
+    public void setDownloadSize(Long downloadSize) {
+        this.downloadSize = downloadSize;
     }
 
     public String getName() {
@@ -647,6 +664,7 @@ public class ExtensionJson extends ResultJson {
         return Objects.equals(namespaceUrl, that.namespaceUrl)
                 && Objects.equals(reviewsUrl, that.reviewsUrl)
                 && Objects.equals(files, that.files)
+                && Objects.equals(downloadSize, that.downloadSize)
                 && Objects.equals(name, that.name)
                 && Objects.equals(namespace, that.namespace)
                 && Objects.equals(targetPlatform, that.targetPlatform)
@@ -698,6 +716,7 @@ public class ExtensionJson extends ResultJson {
                 namespaceUrl,
                 reviewsUrl,
                 files,
+                downloadSize,
                 name,
                 namespace,
                 targetPlatform,

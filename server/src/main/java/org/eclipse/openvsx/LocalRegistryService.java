@@ -1101,14 +1101,16 @@ public class LocalRegistryService implements IExtensionRegistry {
         }
 
         json.setAllVersions(allVersionsJson);
-        var fileUrls = storageUtil.getFileUrls(
-                List.of(extVersion),
-                serverUrl,
-                withFileTypes(DOWNLOAD, MANIFEST, ICON, README, LICENSE, CHANGELOG, VSIXMANIFEST));
-        json.setFiles(fileUrls.get(extVersion.getId()));
-        if (json.getFiles().containsKey(DOWNLOAD_SIG)) {
-            json.getFiles().put(PUBLIC_KEY, UrlUtil.getPublicKeyUrl(extVersion));
-        }
+        // getFiles rather than getFileUrls: the package size is read from the same rows as the URLs, so
+        // this path stays one query, and toFilesJson is the same mapping the two builders below already
+        // use - including the public key it adds alongside a signature.
+        var resources = storageUtil
+                .getFiles(
+                        List.of(extVersion),
+                        withFileTypes(DOWNLOAD, MANIFEST, ICON, README, LICENSE, CHANGELOG, VSIXMANIFEST))
+                .get(extVersion.getId());
+        json.setFiles(toFilesJson(extVersion, resources, UrlUtil.createApiFileBaseUrl(serverUrl, extVersion)));
+        json.setDownloadSize(downloadSize(resources));
         if (json.getDependencies() != null) {
             for (var ref : json.getDependencies()) {
                 ref.setUrl(createApiUrl(serverUrl, "api", ref.getNamespace(), ref.getExtension()));
@@ -1189,6 +1191,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         }
 
         json.setFiles(files);
+        json.setDownloadSize(downloadSize(resources));
         if (json.getDependencies() != null) {
             for (var ref : json.getDependencies()) {
                 ref.setUrl(createApiUrl(serverUrl, "api", ref.getNamespace(), ref.getExtension()));
@@ -1238,6 +1241,7 @@ public class LocalRegistryService implements IExtensionRegistry {
                 json.getTargetPlatform(),
                 json.getVersion());
         json.setFiles(toFilesJson(extVersion, resources, fileBaseUrl));
+        json.setDownloadSize(downloadSize(resources));
         setExtensionReferenceUrls(json.getDependencies(), serverUrl);
         setExtensionReferenceUrls(json.getBundledExtensions(), serverUrl);
         return json;
@@ -1295,6 +1299,20 @@ public class LocalRegistryService implements IExtensionRegistry {
         }
 
         return allVersionsJson;
+    }
+
+    /**
+     * The size of the extension package itself, read from the {@code download} resource rather than summed
+     * over the version's files: readme, icon, changelog and license are stored as rows of their own but
+     * hold content that is already inside the package, so a sum would count it twice. Null where the
+     * package predates the size column and has not been backfilled yet.
+     */
+    private Long downloadSize(List<FileResource> resources) {
+        return resources.stream()
+                .filter(resource -> DOWNLOAD.equals(resource.getType()))
+                .findFirst()
+                .map(FileResource::getSize)
+                .orElse(null);
     }
 
     private Map<String, String> toFilesJson(

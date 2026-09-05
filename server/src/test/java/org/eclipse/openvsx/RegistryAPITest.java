@@ -140,6 +140,9 @@ class RegistryAPITest {
      */
     private static final Duration CHANGES_FEED_LAG = Duration.ofSeconds(30);
 
+    /** The size the mocked extension's .vsix reports, in bytes. */
+    private static final long DOWNLOAD_SIZE = 1_234_567L;
+
     @MockitoSpyBean
     UserService users;
 
@@ -218,6 +221,31 @@ class RegistryAPITest {
                     e.setTimestamp("2000-01-01T10:00Z");
                     e.setDisplayName("Foo Bar");
                 })));
+    }
+
+    // The size travels from file_resource.size to the JSON untouched, so that a client - the web UI's
+    // More Info box among them - can show how big the download is without fetching it.
+    @Test
+    void testExtensionDownloadSize() throws Exception {
+        var extVersion = mockExtension();
+        Mockito.when(repositories.findExtensionVersion("foo", "bar", null, VersionAlias.LATEST)).thenReturn(extVersion);
+
+        mockMvc.perform(get("/api/{namespace}/{extension}", "foo", "bar"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.downloadSize").value(DOWNLOAD_SIZE));
+    }
+
+    // Null for anything published before the column existed that the backfill has not reached yet.
+    // Omitted rather than sent as 0, which a client would have no way to tell from a genuinely empty file.
+    @Test
+    void testExtensionDownloadSizeUnknown() throws Exception {
+        var extVersion = mockExtension();
+        Mockito.when(repositories.findExtensionVersion("foo", "bar", null, VersionAlias.LATEST)).thenReturn(extVersion);
+        repositories.findFilesByType(List.of(extVersion), List.of(DOWNLOAD)).forEach(file -> file.setSize(null));
+
+        mockMvc.perform(get("/api/{namespace}/{extension}", "foo", "bar"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.downloadSize").doesNotExist());
     }
 
     @Test
@@ -3022,6 +3050,7 @@ class RegistryAPITest {
         download.setType(DOWNLOAD);
         download.setStorageType(STORAGE_LOCAL);
         download.setName("extension-1.0.0.vsix");
+        download.setSize(DOWNLOAD_SIZE);
         var signature = new FileResource();
         if (withSignature) {
             signature.setExtension(extVersion);
