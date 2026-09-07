@@ -19,6 +19,7 @@ import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -35,6 +36,7 @@ import org.springframework.data.elasticsearch.core.query.IndexQuery;
 import org.springframework.data.util.Streamable;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
 import org.eclipse.openvsx.entities.*;
@@ -59,6 +61,66 @@ class ElasticSearchServiceTest {
 
     @Autowired
     ElasticSearchService search;
+
+    /**
+     * What the text query actually asks Elasticsearch for.
+     * <p>
+     * Asserted on the serialized query because the bug it guards against is invisible in the calling
+     * code: `boost` on a multi_match builder is the boost of the whole query rather than of the field
+     * named before it, and `boolQuery.should(q).boost(n)` boosts the bool and not the clause. Both read
+     * as per-field and per-clause weighting and were neither, so every field and every clause scored
+     * alike - and a query only tells you which by being looked at.
+     */
+    @Test
+    void weightsTheNameAboveTheDescriptionInTheTextQuery() {
+        var query = capturedQueryFor("markdown");
+
+        // The weights ride in the field names; anything else is not a weight.
+        assertThat(query).contains("name^5", "displayName^5", "tags^3", "namespace^2", "description");
+        assertThat(query).doesNotContain("\"fields\":[\"name\"],");
+    }
+
+    // The exact-phrase multi_match is meant to outscore the fuzzy one, which is a statement about that
+    // clause and so has to sit on it.
+    @Test
+    void boostsTheExactMatchAboveTheFuzzyOne() {
+        var query = capturedQueryFor("markdown");
+        var multiMatches = query.split("\"multi_match\"", -1).length - 1;
+
+        assertThat(multiMatches).isEqualTo(2);
+        assertThat(query).contains("\"boost\":5.0");
+        // The fuzzy clause is deliberately unboosted, so exactly one of the two carries the boost.
+        assertThat(query.split("\"boost\":5.0", -1).length - 1).isEqualTo(1);
+    }
+
+    private String capturedQueryFor(String queryString) {
+        var indexOps = Mockito.mock(IndexOperations.class);
+        Mockito.when(searchOperations.indexOps(ExtensionSearch.class)).thenReturn(indexOps);
+        Mockito.when(indexOps.getIndexCoordinates()).thenReturn(IndexCoordinates.of("extensions"));
+        // Read from the index settings at startup, which no test goes through, and left at zero every
+        // requested window exceeds it and search returns before building a query at all.
+        ReflectionTestUtils.setField(search, "maxResultWindow", 10_000L);
+
+        SearchHits<ExtensionSearch> empty = new SearchHitsImpl<>(
+                0L,
+                TotalHitsRelation.EQUAL_TO,
+                0f,
+                Duration.ZERO,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null);
+        var captor = ArgumentCaptor.forClass(NativeQuery.class);
+        Mockito.when(searchOperations.search(captor.capture(), Mockito.eq(ExtensionSearch.class), any()))
+                .thenReturn(empty);
+
+        search.search(
+                new ISearchService.Options(queryString, null, null, 10, 0, "desc", "relevance", false, null));
+
+        return captor.getValue().getQuery().toString();
+    }
 
     @Test
     void testRelevanceAverageRating() {

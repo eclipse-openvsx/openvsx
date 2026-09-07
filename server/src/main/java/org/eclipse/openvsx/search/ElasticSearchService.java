@@ -464,34 +464,41 @@ public class ElasticSearchService implements ISearchService {
                                 .caseInsensitive(true)
                                 .boost(10f)));
 
-        // matching of search query in multiple fields with boost
+        // Matching of the search query in multiple fields, weighted so that what an extension is called
+        // counts for more than what it says about itself.
+        //
+        // The weights belong in the field names. `boost` on a multi_match builder is the boost of the
+        // whole query - there is one of them, inherited from QueryBase - so a chain of `.fields(x)
+        // .boost(n)` calls does not weight x by n; each call overwrites the previous query boost and the
+        // fields end up weighted equally. Which is how a match in `description` came to count for as much
+        // as a match in `name`.
         var multiMatchQuery = QueryBuilders.multiMatch(
                 builder -> builder.query(options.queryString())
-                        .fields("name").boost(5f)
-                        .fields("displayName").boost(5f)
-                        .fields("tags").boost(3f)
-                        .fields("namespace").boost(2f)
-                        .fields("description"));
+                        .fields("name^5", "displayName^5", "tags^3", "namespace^2", "description")
+                        .boost(5f));
 
-        boolQuery.should(multiMatchQuery).boost(5f);
+        boolQuery.should(multiMatchQuery);
 
         // Fuzzy matching of search query in multiple fields without boost
         // Same as above except does not fuzzy match tags
         var fuzzyMultiMatchQuery = QueryBuilders.multiMatch(
                 builder -> builder.query(options.queryString())
-                        .fields("name")
-                        .fields("displayName")
-                        .fields("namespace")
-                        .fields("description")
+                        .fields("name", "displayName", "namespace", "description")
                         .fuzziness("AUTO")
                         .prefixLength(2));
 
         boolQuery.should(fuzzyMultiMatchQuery);
 
-        // Prefix matching of search query in display name and namespace
+        // Prefix matching of search query in display name and namespace.
+        //
+        // On the clause and not on the bool query, for the same reason as above: `boolQuery.should(q)`
+        // returns the bool builder, so `.boost(n)` after it set the boost of the bool - once per call,
+        // each overwriting the last. Every clause in here therefore scored alike, and the surviving
+        // boost scaled the whole text query uniformly, which changes no ordering at all.
         var prefixString = options.queryString().trim().toLowerCase();
-        var namePrefixQuery = QueryBuilders.prefix(builder -> builder.field("displayName").value(prefixString));
-        boolQuery.should(namePrefixQuery).boost(2f);
+        var namePrefixQuery = QueryBuilders
+                .prefix(builder -> builder.field("displayName").value(prefixString).boost(2f));
+        boolQuery.should(namePrefixQuery);
         var namespacePrefixQuery = QueryBuilders.prefix(builder -> builder.field("namespace").value(prefixString));
         boolQuery.should(namespacePrefixQuery);
 
