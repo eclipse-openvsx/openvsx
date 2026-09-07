@@ -133,9 +133,6 @@ class ElasticSearchServiceTest {
         var indexOps = Mockito.mock(IndexOperations.class);
         Mockito.when(searchOperations.indexOps(ExtensionSearch.class)).thenReturn(indexOps);
         Mockito.when(indexOps.getIndexCoordinates()).thenReturn(IndexCoordinates.of("extensions"));
-        // Read from the index settings at startup, which no test goes through, and left at zero every
-        // requested window exceeds it and search returns before building a query at all.
-        ReflectionTestUtils.setField(search, "maxResultWindow", 10_000L);
 
         SearchHits<ExtensionSearch> empty = new SearchHitsImpl<>(
                 0L,
@@ -152,10 +149,32 @@ class ElasticSearchServiceTest {
         Mockito.when(searchOperations.search(captor.capture(), Mockito.eq(ExtensionSearch.class), any()))
                 .thenReturn(empty);
 
-        search.search(
-                new ISearchService.Options(queryString, null, null, 10, 0, "desc", "relevance", false, null));
+        withMaxResultWindow(
+                10_000L,
+                () -> search.search(
+                        new ISearchService.Options(queryString, null, null, 10, 0, "desc", "relevance", false, null)));
 
         return captor.getValue().getQuery().toString();
+    }
+
+    /**
+     * Runs {@code body} with the result-window ceiling set, and puts back whatever was there before.
+     * <p>
+     * The field is only populated from the index settings during {@code initSearchIndex}, which no test
+     * goes through, so it sits at zero unless a test says otherwise - and at zero every requested window
+     * exceeds it and {@code search} returns before it builds a query at all. Leaving a value behind would
+     * decide, by test ordering alone, whether {@link #testSearchResultWindowTooLarge()} exercises its
+     * boundary or passes because everything exceeds a ceiling of nothing. The Spring context is shared,
+     * so nothing else would put it back.
+     */
+    private void withMaxResultWindow(long window, Runnable body) {
+        var previous = ReflectionTestUtils.getField(search, "maxResultWindow");
+        ReflectionTestUtils.setField(search, "maxResultWindow", window);
+        try {
+            body.run();
+        } finally {
+            ReflectionTestUtils.setField(search, "maxResultWindow", previous);
+        }
     }
 
     @Test
@@ -310,10 +329,14 @@ class ElasticSearchServiceTest {
     void testSearchResultWindowTooLarge() {
         mockIndex(true);
 
+        // Set explicitly, so this asserts the ceiling being exceeded rather than the field's untouched
+        // zero, against which every window is too large and the check under test never has to work.
         var options = new ISearchService.Options("foo", "bar", "universal", 50, 10000, null, null, false, null);
-        var searchHits = search.search(options);
-        assertThat(searchHits.getHits()).isEmpty();
-        assertThat(searchHits.getTotalHits()).isZero();
+        var searchHits = new SearchResult[1];
+        withMaxResultWindow(10_000L, () -> searchHits[0] = search.search(options));
+
+        assertThat(searchHits[0].getHits()).isEmpty();
+        assertThat(searchHits[0].getTotalHits()).isZero();
     }
 
     //---------- UTILITY ----------//
