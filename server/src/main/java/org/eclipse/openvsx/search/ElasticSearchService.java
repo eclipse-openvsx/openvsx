@@ -456,13 +456,48 @@ public class ElasticSearchService implements ISearchService {
         return boolQuery;
     }
 
-    private ObjectBuilder<BoolQuery> createTextSearchQuery(BoolQuery.Builder boolQuery, Options options) {
+    /**
+     * Puts an exact {@code namespace.name} first, which is what someone who already knows precisely which
+     * extension they want types or pastes.
+     * <p>
+     * Matched on the two fields that hold the parts, rather than on the {@code extensionId} the document
+     * also carries. That field is mapped {@code @Field(index = false)}, so it is in {@code _source} and in
+     * no inverted index, and the term query that used to be here looked for {@code extensionId.keyword} -
+     * a sub-field only a {@code text} field gets, which an unindexed one never does. It matched nothing,
+     * always, and said nothing about it.
+     * <p>
+     * Deriving the match is also the sounder of the two: {@code extensionId} is a composite of two fields
+     * next to it, and a namespace rename has to keep it honest, where two term queries cannot drift from
+     * the values they read.
+     * <p>
+     * Splitting on the dot is unambiguous. {@link org.eclipse.openvsx.ExtensionValidator} holds both a
+     * namespace and a name to {@code [\w\-\+\$~]+}, so neither can contain one and a well-formed id has
+     * exactly one. Anything else is not an id and adds no clause, leaving the query to the fields below.
+     */
+    private void addExtensionIdQuery(BoolQuery.Builder boolQuery, String queryString) {
+        var parts = queryString.trim().split("\\.", -1);
+        if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
+            return;
+        }
+
         boolQuery.should(
-                QueryBuilders.term(
-                        builder -> builder.field("extensionId.keyword")
-                                .value(options.queryString())
-                                .caseInsensitive(true)
+                QueryBuilders.bool(
+                        extensionId -> extensionId
+                                .must(
+                                        QueryBuilders.term(
+                                                builder -> builder.field("namespace.keyword")
+                                                        .value(parts[0])
+                                                        .caseInsensitive(true)))
+                                .must(
+                                        QueryBuilders.term(
+                                                builder -> builder.field("name.keyword")
+                                                        .value(parts[1])
+                                                        .caseInsensitive(true)))
                                 .boost(10f)));
+    }
+
+    private ObjectBuilder<BoolQuery> createTextSearchQuery(BoolQuery.Builder boolQuery, Options options) {
+        addExtensionIdQuery(boolQuery, options.queryString());
 
         // Matching of the search query in multiple fields, weighted so that what an extension is called
         // counts for more than what it says about itself.

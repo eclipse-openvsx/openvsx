@@ -80,6 +80,42 @@ class ElasticSearchServiceTest {
         assertThat(query).doesNotContain("\"fields\":[\"name\"],");
     }
 
+    /**
+     * An exact {@code namespace.name} gets its own heavily boosted clause, matched on the two fields that
+     * hold the parts. The {@code extensionId} field this replaces is mapped {@code index = false} and has
+     * no {@code .keyword} sub-field, so the term query that looked for one matched nothing at all.
+     */
+    @Test
+    void matchesAnExactExtensionIdOnTheFieldsThatHoldIt() {
+        var query = capturedQueryFor("yzhang.markdown-all-in-one");
+
+        assertThat(query).contains("\"namespace.keyword\":{\"value\":\"yzhang\"");
+        assertThat(query).contains("\"name.keyword\":{\"value\":\"markdown-all-in-one\"");
+        assertThat(query).contains("\"boost\":10.0");
+        // The field it used to look for cannot be matched, so nothing should be asking for it.
+        assertThat(query).doesNotContain("extensionId");
+    }
+
+    // Both halves have to match the same document, or "yzhang.anything" would pull in every extension in
+    // the namespace at a boost of ten.
+    @Test
+    void requiresBothHalvesOfAnExtensionIdToMatch() {
+        var query = capturedQueryFor("yzhang.markdown-all-in-one");
+
+        assertThat(query).contains("\"must\":[{\"term\":{\"namespace.keyword\"");
+        assertThat(query).doesNotContain("\"should\":[{\"term\":{\"namespace.keyword\"");
+    }
+
+    // A plain word is not an extension id, and a clause looking for one would only cost a lookup.
+    @Test
+    void addsNoExtensionIdClauseForAQueryThatIsNotOne() {
+        assertThat(capturedQueryFor("markdown")).doesNotContain("namespace.keyword");
+        // Nor for the shapes that split on a dot without naming both halves.
+        assertThat(capturedQueryFor("yzhang.")).doesNotContain("namespace.keyword");
+        assertThat(capturedQueryFor(".markdown")).doesNotContain("namespace.keyword");
+        assertThat(capturedQueryFor("a.b.c")).doesNotContain("namespace.keyword");
+    }
+
     // The exact-phrase multi_match is meant to outscore the fuzzy one, which is a statement about that
     // clause and so has to sit on it.
     @Test
