@@ -44,6 +44,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.TargetPlatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(SpringExtension.class)
@@ -211,6 +212,32 @@ class ElasticSearchServiceTest {
 
         assertThat(index.entries).hasSize(2);
         assertThat(index.entries.get(0).getRelevance()).isLessThan(index.entries.get(1).getRelevance());
+    }
+
+    /**
+     * What the download term is worth, rather than only that more downloads beat fewer.
+     * <p>
+     * Isolated by giving the extension no rating and the oldest timestamp in the registry, which zeroes
+     * the other two terms and leaves relevance equal to this one. On a linear scale a hundred thousand
+     * downloads against a registry maximum of a million is 0.1 - next to nothing beside a rating or a
+     * recent release, and the reason the results in EclipseFdn/open-vsx.org#13014 bore no relation to
+     * how popular anything was. Logarithmically it is 0.83.
+     */
+    @Test
+    void weighsDownloadsOnALogScale() {
+        var index = mockIndex(true);
+        // After mockIndex, which stubs a maximum of its own.
+        Mockito.when(repositories.getMaxExtensionDownloadCount()).thenReturn(1_000_000);
+        var oldest = LocalDateTime.parse("2020-01-01T00:00");
+        var extension = mockExtension("foo", "n1", "u1", 0.0, 0, 100_000, oldest, false, false);
+
+        search.updateSearchEntry(extension);
+
+        var expected = Math.log1p(100_000) / Math.log1p(1_000_000);
+        assertThat(index.entries).hasSize(1);
+        assertThat(index.entries.getFirst().getRelevance()).isCloseTo(expected, within(0.001));
+        // And the linear scale it replaces, so this fails rather than drifts if that comes back.
+        assertThat(index.entries.getFirst().getRelevance()).isGreaterThan(0.5);
     }
 
     @Test
