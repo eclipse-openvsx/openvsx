@@ -217,8 +217,10 @@ class ElasticSearchServiceTest {
     /**
      * What the download term is worth, rather than only that more downloads beat fewer.
      * <p>
-     * Isolated by giving the extension no rating and the oldest timestamp in the registry, which zeroes
-     * the other two terms and leaves relevance equal to this one. On a linear scale a hundred thousand
+     * Isolated so that relevance equals this one term: the oldest timestamp in the registry zeroes the
+     * recency term, and the rating term is zeroed by the registry's average review rating rather than by
+     * the extension's own lack of one - the formula smooths a rating towards that average, so an
+     * extension with no reviews scores the average, not nothing. On a linear scale a hundred thousand
      * downloads against a registry maximum of a million is 0.1 - next to nothing beside a rating or a
      * recent release, and the reason the results in EclipseFdn/open-vsx.org#13014 bore no relation to
      * how popular anything was. Logarithmically it is 0.83.
@@ -228,6 +230,8 @@ class ElasticSearchServiceTest {
         var index = mockIndex(true);
         // After mockIndex, which stubs a maximum of its own.
         Mockito.when(repositories.getMaxExtensionDownloadCount()).thenReturn(1_000_000);
+        // Stated rather than left to the mock's default, since it is what holds the rating term at zero.
+        Mockito.when(repositories.getAverageReviewRating()).thenReturn(0.0);
         var oldest = LocalDateTime.parse("2020-01-01T00:00");
         var extension = mockExtension("foo", "n1", "u1", 0.0, 0, 100_000, oldest, false, false);
 
