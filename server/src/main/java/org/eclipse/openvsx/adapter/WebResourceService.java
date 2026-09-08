@@ -37,6 +37,7 @@ import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.FileUtil;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.SizeLimitInputStream;
+import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.UrlUtil;
 
 import static org.eclipse.openvsx.cache.CacheService.*;
@@ -147,7 +148,12 @@ public class WebResourceService {
                 return null;
             }
 
-            var baseUrl = UrlUtil.createApiUrl("", "vscode", "unpkg", namespace, extension, version);
+            // The listed URLs are followed as-is, so the target has to survive the round trip or
+            // walking into a subdirectory silently drops back to whichever version matches first.
+            var versionSegment = TargetPlatform.isValid(targetPlatform) && !TargetPlatform.isUniversal(targetPlatform)
+                    ? version + "+" + targetPlatform
+                    : version;
+            var baseUrl = UrlUtil.createApiUrl("", "vscode", "unpkg", namespace, extension, versionSegment);
             var node = jsonMapper.createArrayNode();
             for (var entry : dirEntries) {
                 node.add(baseUrl + "/" + entry);
