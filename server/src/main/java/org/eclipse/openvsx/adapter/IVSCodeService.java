@@ -32,6 +32,7 @@ public interface IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     );
 
