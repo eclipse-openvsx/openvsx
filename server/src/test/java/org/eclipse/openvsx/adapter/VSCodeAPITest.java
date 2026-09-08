@@ -73,6 +73,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @WebMvcTest(VSCodeAPI.class)
 @MockitoBean(
@@ -109,6 +110,39 @@ class VSCodeAPITest {
 
     @Autowired
     MockMvc mockMvc;
+
+    // Both of these take targetPlatform as a query parameter with a documented allowableValues enum, and
+    // neither enforced it: an unknown value fell through to a lookup for a platform that cannot exist.
+    // These return a stream and a redirect rather than a ResultJson, so the rejection is a problem
+    // detail rather than the {"error": ...} body the registry API uses.
+    @Test
+    void testAssetRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/asset/{namespace}/{extension}/{version}/{assetType}",
+                        "redhat",
+                        "java",
+                        "1.0.0",
+                        "Microsoft.VisualStudio.Code.Manifest")
+                        .param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.errors[0]").value("targetPlatform: parameter must be a supported target platform"));
+    }
+
+    @Test
+    void testVspackageRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/gallery/publishers/{namespace}/vsextensions/{extension}/{version}/vspackage",
+                        "redhat",
+                        "java",
+                        "1.0.0")
+                        .param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.errors[0]").value("targetPlatform: parameter must be a supported target platform"));
+    }
 
     @Test
     void testSearch() throws Exception {

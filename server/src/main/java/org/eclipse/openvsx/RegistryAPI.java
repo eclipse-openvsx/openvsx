@@ -28,8 +28,10 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -846,6 +848,10 @@ public class RegistryAPI {
                 example = "Programming Languages"
             ) String category,
             @RequestParam(required = false)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
             @Parameter(
                 description = "Target platform",
                 example = TargetPlatform.NAME_LINUX_ARM64,
@@ -1005,6 +1011,10 @@ public class RegistryAPI {
                 )
             ) String includeAllVersions,
             @RequestParam(required = false)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
             @Parameter(
                 description = "Target platform",
                 example = TargetPlatform.NAME_LINUX_X64,
@@ -1136,6 +1146,10 @@ public class RegistryAPI {
                 description = "Whether to include all versions of an extension, ignored if extensionVersion is specified"
             ) boolean includeAllVersions,
             @RequestParam(required = false)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
             @Parameter(
                 description = "Target platform",
                 example = TargetPlatform.NAME_LINUX_X64,
@@ -1246,6 +1260,7 @@ public class RegistryAPI {
         description = "Returns redirect to GET /api/-/query."
     )
     public ResponseEntity<QueryResultJson> postQuery(
+            @Valid
             @RequestBody
             @Parameter(description = "Parameters of the metadata query") QueryParamJson param
     ) {

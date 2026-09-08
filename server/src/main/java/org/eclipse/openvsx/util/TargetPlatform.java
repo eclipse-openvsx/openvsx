@@ -33,6 +33,13 @@ public class TargetPlatform {
             NAME_DARWIN_X64 + "|" + NAME_DARWIN_ARM64 + "|" +
             NAME_WEB + "|" + NAME_UNIVERSAL;
 
+    /**
+     * Any known platform name, or nothing at all: unlike a path segment, a query parameter can be absent
+     * or empty, and neither is a request for an unknown platform. For validating the parameter forms of
+     * {@code targetPlatform}, whose {@code allowableValues} the path-segment regex above cannot enforce.
+     */
+    public static final String NAMES_PARAM_REGEX = "(" + NAMES_PATH_PARAM_REGEX + ")?";
+
     public static final List<String> TARGET_PLATFORM_NAMES = List.of(
             NAME_WIN32_X64,
             NAME_WIN32_IA32,
