@@ -460,19 +460,13 @@ public class ElasticSearchService implements ISearchService {
      * Puts an exact {@code namespace.name} first, which is what someone who already knows precisely which
      * extension they want types or pastes.
      * <p>
-     * Matched on the two fields that hold the parts, rather than on the {@code extensionId} the document
-     * also carries. That field is mapped {@code @Field(index = false)}, so it is in {@code _source} and in
-     * no inverted index, and the term query that used to be here looked for {@code extensionId.keyword} -
-     * a sub-field only a {@code text} field gets, which an unindexed one never does. It matched nothing,
-     * always, and said nothing about it.
+     * Matched on the two fields holding the parts rather than the {@code extensionId} the document also
+     * carries: that field is {@code @Field(index = false)}, so it reaches {@code _source} and no inverted
+     * index, and no term query against it can match.
      * <p>
-     * Deriving the match is also the sounder of the two: {@code extensionId} is a composite of two fields
-     * next to it, and a namespace rename has to keep it honest, where two term queries cannot drift from
-     * the values they read.
-     * <p>
-     * Splitting on the dot is unambiguous. {@link org.eclipse.openvsx.ExtensionValidator} holds both a
-     * namespace and a name to {@code [\w\-\+\$~]+}, so neither can contain one and a well-formed id has
-     * exactly one. Anything else is not an id and adds no clause, leaving the query to the fields below.
+     * Splitting on the dot is unambiguous - {@link org.eclipse.openvsx.ExtensionValidator} holds both a
+     * namespace and a name to {@code [\w\-\+\$~]+}, so a well-formed id has exactly one. Anything else
+     * adds no clause.
      */
     private void addExtensionIdQuery(BoolQuery.Builder boolQuery, String queryString) {
         var parts = queryString.trim().split("\\.", -1);
@@ -499,14 +493,9 @@ public class ElasticSearchService implements ISearchService {
     private ObjectBuilder<BoolQuery> createTextSearchQuery(BoolQuery.Builder boolQuery, Options options) {
         addExtensionIdQuery(boolQuery, options.queryString());
 
-        // Matching of the search query in multiple fields, weighted so that what an extension is called
-        // counts for more than what it says about itself.
-        //
-        // The weights belong in the field names. `boost` on a multi_match builder is the boost of the
-        // whole query - there is one of them, inherited from QueryBase - so a chain of `.fields(x)
-        // .boost(n)` calls does not weight x by n; each call overwrites the previous query boost and the
-        // fields end up weighted equally. Which is how a match in `description` came to count for as much
-        // as a match in `name`.
+        // Weighted so what an extension is called counts for more than what it says about itself. The
+        // weights belong in the field names: `boost` on a multi_match is the whole query's boost, not a
+        // per-field one, so `.fields(x).boost(n)` would weight nothing.
         var multiMatchQuery = QueryBuilders.multiMatch(
                 builder -> builder.query(options.queryString())
                         .fields("name^5", "displayName^5", "tags^3", "namespace^2", "description")
@@ -524,12 +513,8 @@ public class ElasticSearchService implements ISearchService {
 
         boolQuery.should(fuzzyMultiMatchQuery);
 
-        // Prefix matching of search query in display name and namespace.
-        //
-        // On the clause and not on the bool query, for the same reason as above: `boolQuery.should(q)`
-        // returns the bool builder, so `.boost(n)` after it set the boost of the bool - once per call,
-        // each overwriting the last. Every clause in here therefore scored alike, and the surviving
-        // boost scaled the whole text query uniformly, which changes no ordering at all.
+        // Prefix matching of search query in display name and namespace. The boost goes on the clause:
+        // `boolQuery.should(...)` returns the bool builder, so boosting after it would boost the bool.
         var prefixString = options.queryString().trim().toLowerCase();
         var namePrefixQuery = QueryBuilders
                 .prefix(builder -> builder.field("displayName").value(prefixString).boost(2f));
