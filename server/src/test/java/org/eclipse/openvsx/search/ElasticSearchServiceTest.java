@@ -220,10 +220,7 @@ class ElasticSearchServiceTest {
      * Isolated so that relevance equals this one term: the oldest timestamp in the registry zeroes the
      * recency term, and the rating term is zeroed by the registry's average review rating rather than by
      * the extension's own lack of one - the formula smooths a rating towards that average, so an
-     * extension with no reviews scores the average, not nothing. On a linear scale a hundred thousand
-     * downloads against a registry maximum of a million is 0.1 - next to nothing beside a rating or a
-     * recent release, and the reason the results in EclipseFdn/open-vsx.org#13014 bore no relation to
-     * how popular anything was. Logarithmically it is 0.83.
+     * extension with no reviews scores the average and not nothing.
      */
     @Test
     void weighsDownloadsOnALogScale() {

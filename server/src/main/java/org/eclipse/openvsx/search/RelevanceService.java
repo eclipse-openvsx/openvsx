@@ -129,15 +129,9 @@ public class RelevanceService {
         var extensionId = NamingUtil.toExtensionId(extension);
         logger.debug(">> [{}] CALCULATE RELEVANCE", extensionId);
         var ratingValue = calculateRating(extension, stats) / 5.0;
-        // Log scale, not linear. Both scales measure this against the largest download count in the
-        // registry, but download counts span several orders of magnitude, and dividing by the largest of
-        // them leaves everything outside the top few percent indistinguishable from nothing: against a
-        // maximum of twenty million, an extension with six hundred thousand downloads scores 0.03 of the
-        // one this term can contribute, so its popularity is worth roughly nothing next to a rating or a
-        // recent release. Taken logarithmically the same extension scores 0.79, which is what anyone
-        // comparing two extensions by download count would expect it to mean. See
-        // EclipseFdn/open-vsx.org#13014, where the download counts of the results bore no relation to
-        // what was being searched for.
+        // Log scale: download counts span several orders of magnitude, so measuring one against the
+        // largest in the registry leaves everything outside the top few percent indistinguishable
+        // from nothing. See EclipseFdn/open-vsx.org#13014.
         var downloadsValue = Math.log1p(extension.getDownloadCount()) / stats.downloadRefLog;
         var timestamp = latest.getTimestamp();
         var timestampValue = Duration.between(stats.oldest, timestamp).toSeconds() / stats.timestampRef;
