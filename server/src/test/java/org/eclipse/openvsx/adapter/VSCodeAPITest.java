@@ -1120,6 +1120,11 @@ class VSCodeAPITest {
                                 anyInt()))
                 .thenReturn(extVersions);
 
+        var latest = extVersions.stream().min(ExtensionVersion.SORT_COMPARATOR).orElse(null);
+        Mockito
+                .when(repositories.findLatestVersions(eq(Set.of(extension.getId())), eq(queryTargetPlatform)))
+                .thenReturn(latest != null ? List.of(latest) : Collections.emptyList());
+
         mockFileResources(extVersions);
     }
 
