@@ -220,6 +220,52 @@ class TrustedForwardedHeaderFilterTest {
                 "ovsx.server.trusted-proxies=*");
     }
 
+    /**
+     * An IPv6 literal is bracketed and made of colons, so the port split has to look for one after
+     * the closing bracket rather than for the last colon in the value.
+     */
+    @Test
+    void keepsAnIpv6HostForwardedByATrustedProxyIntact() {
+        withDefaults(config -> {
+            var request = request(TRUSTED_PROXY, "server", 8080, "http");
+            request.addHeader(TrustedForwardedHeaderFilter.HOST, "[2001:db8::1]");
+            request.addHeader(TrustedForwardedHeaderFilter.PROTO, "https");
+
+            assertThat(baseUrl(request, config)).isEqualTo("https://[2001:db8::1]");
+        });
+    }
+
+    @Test
+    void keepsAnIpv6HostAndPortForwardedByATrustedProxyIntact() {
+        withDefaults(config -> {
+            var request = request(TRUSTED_PROXY, "server", 8080, "http");
+            request.addHeader(TrustedForwardedHeaderFilter.HOST, "[2001:db8::1]:8443");
+            request.addHeader(TrustedForwardedHeaderFilter.PROTO, "https");
+
+            assertThat(baseUrl(request, config)).isEqualTo("https://[2001:db8::1]:8443");
+        });
+    }
+
+    @Test
+    void aConfiguredServerUrlMayBeAnIpv6Literal() {
+        withConfig(
+                config -> {
+                    var request = request(UNTRUSTED_PEER, "server", 8080, "http");
+                    assertThat(baseUrl(request, config)).isEqualTo("https://[2001:db8::1]");
+                },
+                "ovsx.server.url=https://[2001:db8::1]");
+    }
+
+    @Test
+    void aConfiguredServerUrlMayBeAnIpv6LiteralWithAPort() {
+        withConfig(
+                config -> {
+                    var request = request(UNTRUSTED_PEER, "server", 8080, "http");
+                    assertThat(baseUrl(request, config)).isEqualTo("https://[2001:db8::1]:8443");
+                },
+                "ovsx.server.url=https://[2001:db8::1]:8443");
+    }
+
     @Test
     void hidesTheHeadersItIgnoresFromEveryWayOfReadingThem() {
         withDefaults(config -> {

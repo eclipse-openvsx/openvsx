@@ -74,6 +74,22 @@ Distinct from `ovsx.webui.url` below: that is where the web UI is served, which 
 in the usual deployment but need not be, and is the upstream registry rather than this one in a
 mirror.
 
+| Deployment | What to set |
+|---|---|
+| One public hostname, TLS terminated by a reverse proxy | `ovsx.server.url`, e.g. `https://openvsx.example` |
+| Served under a path, e.g. `https://example.com/openvsx` | `ovsx.server.url`, including the path |
+| No proxy, the server itself is on the internet | `ovsx.server.url`; `ovsx.server.trusted-proxies` may be emptied to ignore the forwarded headers outright |
+| The proxy reaches the server from a public address, e.g. a cloud load balancer | `ovsx.server.url`; or add that address to `ovsx.server.trusted-proxies` |
+| A mirror | `ovsx.server.url` is the mirror's own URL, not `ovsx.upstream.url` or `ovsx.webui.url` |
+| Several hostnames answered by one registry | Leave `ovsx.server.url` unset, and make sure the proxy *overwrites* `X-Forwarded-Host` rather than passing on what the client sent |
+| Local development | Nothing: the server is reached over loopback, which is trusted by default |
+
+If the URLs in a response name an **internal host or port**, the proxy is not in
+`ovsx.server.trusted-proxies` and its headers are being ignored; the server logs a warning naming
+both properties the first time that happens. If they name a **host nobody configured**, the proxy is
+passing on the client's `X-Forwarded-Host` instead of overwriting it, and `ovsx.server.url` is the
+answer. Either way the wrong URLs are cached, so flush the caches after fixing it.
+
 | Property      | `ovsx.server.url`
 |---------------|---------------------
 | Type          | string
