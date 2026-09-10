@@ -58,6 +58,27 @@ public class PublishExtensionVersionService {
         repositories.deleteFiles(extVersion);
     }
 
+    /**
+     * Writes down why the publish of a version did not finish, so that a row left at
+     * {@code active == false} can account for itself.
+     * <p>
+     * Its own transaction, and the only column it touches, because the transaction the failure happened
+     * in is on its way to being rolled back: recording the reason must not be rolled back with it.
+     * <p>
+     * find-then-set rather than merge, per the rule the rest of this class follows: the version handed in
+     * has been through a failed attempt and may carry a stale snapshot of every other column.
+     */
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public void recordPublishError(ExtensionVersion extVersion, String reason) {
+        var current = entityManager.find(ExtensionVersion.class, extVersion.getId());
+        if (current == null) {
+            // Nothing left to annotate; the row was purged while the attempt was running.
+            return;
+        }
+
+        current.setPublishError(reason);
+    }
+
     @Retryable
     public void storeResource(TempFile tempFile) {
         storageUtil.uploadFile(tempFile);
@@ -126,6 +147,8 @@ public class PublishExtensionVersionService {
         // log is append-only: recording it again would report a second publication that never happened.
         var alreadyActive = current.isActive();
         current.setActive(true);
+        // Whatever a previous attempt failed on has been superseded by the one that got here.
+        current.setPublishError(null);
         if (!alreadyActive) {
             // The version becomes publicly visible here, which is what the changes feed reports as its
             // publication. It is reported at the current instant rather than at the timestamp the version
