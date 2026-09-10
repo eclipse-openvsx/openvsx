@@ -94,7 +94,7 @@ answer. Either way the wrong URLs are cached, so flush the caches after fixing i
 |---------------|---------------------
 | Type          | string
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The absolute URL this registry is served at, e.g. `https://openvsx.example`, or `https://example.com/openvsx` when it is served under a path. Setting it takes the base URL out of the request altogether: the `X-Forwarded-*` headers are ignored, whoever sends them and however the proxies in front are configured, every node in a cluster agrees on what it emits, and the response cache holds one entry per extension rather than one per host that was asked for. Set it on any deployment reachable from the open web.
 
@@ -104,7 +104,7 @@ Empty by default, which derives the base URL from each request and is only as tr
 |---------------|-----------------------------
 | Type          | string[]
 | Default       | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The peers whose `X-Forwarded-Host`, `X-Forwarded-Proto` and `X-Forwarded-Prefix` headers are read at all, as IP addresses or CIDR ranges, comma separated. Only consulted when `ovsx.server.url` is empty. The default is the loopback and private ranges, the same set Tomcat's `RemoteIpValve` trusts, because that is where a reverse proxy sits in a container or cluster deployment; a request from anywhere else is a client talking to this server directly and its forwarded headers are ignored.
 
@@ -927,7 +927,7 @@ Which browser origins may read this registry's public, unauthenticated surface.
 |---------------|--------------------------
 | Type          | string[]
 | Default       | `*`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The origins allowed to read the registry API, the VS Code gallery adapter and the static documents from a browser, comma separated; `*` for any. Any by default, because that surface exists to be consumed by clients that are not this registry's own web UI. Clients that are not browsers never consult it. Worth narrowing, or emptying to register no public CORS mappings at all, on a registry that is not meant to be read from the open web. Never sent with credentials, whatever it names.
 
@@ -1235,7 +1235,7 @@ Time to live duration for settings read from the database. A short one, because 
 |---------------|----------------------------------------------
 | Type          | long
 | Default       | `10485760`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 Largest web resource file, in bytes, that is cached at all. A file above this is served without being cached, so that one very large resource cannot evict everything else. Does not apply to Redis cache manager.
 
@@ -1243,7 +1243,7 @@ Largest web resource file, in bytes, that is cached at all. A file above this is
 |---------------|-----------------------------------------------
 | Type          | long
 | Default       | `2147483648`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 Total size, in bytes, of the cached web resource files. Each entry weighs its file size rather than counting as one, so this bounds the disk the cache occupies rather than the number of files in it. Does not apply to Redis cache manager.
 
@@ -1325,7 +1325,7 @@ with a long-lived personal access token. Disabled by default.
 |---------------|---------------------------------
 | Type          | boolean
 | Default       | `false`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 Whether trusted publishing is enabled at all.
 
@@ -1333,7 +1333,7 @@ Whether trusted publishing is enabled at all.
 |---------------|------------------------------------------
 | Type          | string[]
 | Default       | `github`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The providers that may be used, comma separated. Each id must be `github` or one of the configured GitLab instances.
 
@@ -1341,7 +1341,7 @@ The providers that may be used, comma separated. Each id must be `github` or one
 |---------------|--------------------------------
 | Type          | map
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The GitLab instances, keyed by provider id, each with a name, a URL and an OIDC issuer. The public instance is configured out of the box; any other one is added here and becomes usable once its id is listed in `active-providers`. Configuring the id of the default instance replaces it whole rather than patching single fields, so such an entry carries the name and URL itself.
 
@@ -1349,7 +1349,7 @@ The GitLab instances, keyed by provider id, each with a name, a URL and an OIDC 
 |---------------|----------------------------------
 | Type          | string
 | Default       | `${ovsx.webui.url}`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The audience to expect in the OIDC ID token. Defaults to the web UI URL of this instance.
 
@@ -1357,7 +1357,7 @@ The audience to expect in the OIDC ID token. Defaults to the web UI URL of this 
 |---------------|------------------------------------------
 | Type          | ISO 8601 duration
 | Default       | `PT5M`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 How long an issued publishing token is valid. Must be positive: a token that never expires is the long-lived credential trusted publishing exists to avoid. Ordinary personal access tokens use `ovsx.access-token.expiration` instead.
 
@@ -1365,7 +1365,7 @@ How long an issued publishing token is valid. Must be positive: a token that nev
 |---------------|-----------------------------------------------
 | Type          | string[]
 | Default       | `x5u,x5c,jku,jwk`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 JWT headers rejected in an ID token, comma separated. Each of these points at a key the token itself supplies, which would let a token vouch for its own signature.
 
@@ -1442,7 +1442,7 @@ The cron schedule of the job to notify about expiring access tokens.
 |---------------|----------------------------------------
 | Type          | string
 | Default       | `SHA-256`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 The hash algorithm personal access tokens are stored under.
 
@@ -1450,7 +1450,7 @@ The hash algorithm personal access tokens are stored under.
 |---------------|-------------------------------------
 | Type          | string
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 A secret mixed into the token hash, so that a leaked `personal_access_token.value` column is useless on its own. It is a secret, not a salt - the token values are 256 random bits each - so keep it out of anywhere a non-secret would go, and generate it with something like `openssl rand -base64 32`. The same pepper covers every token, so changing it invalidates all of them at once unless the old one is kept in `token-hash-previous-peppers`. Empty by default, which mixes in nothing and is not recommended in production.
 
@@ -1458,7 +1458,7 @@ A secret mixed into the token hash, so that a leaked `personal_access_token.valu
 |---------------|-----------------------------------------------
 | Type          | string[]
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 Peppers to fall back to, in order, when a token does not match under the current one, so that rotating a pepper does not invalidate every existing token. A token migrates to the current pepper as it is used; when to drop an old one is the operator's call, since a token that is never used never migrates. Comma separated, so a pepper must not contain a comma.
 
@@ -1466,7 +1466,7 @@ Peppers to fall back to, in order, when a token does not match under the current
 |---------------|------------------------------------------------
 | Type          | boolean
 | Default       | `false`
-| Compatibility | Unreleased
+| Compatibility | Since 1.2.0
 
 Whether a token hashed without any pepper is still accepted. This is what lets a pepper be introduced for the first time without invalidating every existing token; it is the unpeppered member of `token-hash-previous-peppers`, kept separate because an empty entry in a comma separated list cannot be written unambiguously.
 
