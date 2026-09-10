@@ -35,6 +35,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump qs from 6.15.2 to 6.16.0
 - Bump @humanfs/node from 0.16.6 to 0.16.8
 - Bump js-yaml from 4.3.1 to 4.3.2
+- Bump nanoid from 3.3.16 to 3.3.18
 
 ### [v1.1.1] (09/08/2026)
 
