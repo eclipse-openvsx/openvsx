@@ -29,31 +29,15 @@ import org.springframework.core.Ordered;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
 /**
- * Where this registry believes it is reachable, and whose word it takes for it.
- * <p>
- * The absolute URLs in a response - download links, icons, the API URLs of an extension - are built
- * from a base URL, and that base URL is derived per request from the {@code X-Forwarded-Host},
- * {@code X-Forwarded-Proto} and {@code X-Forwarded-Prefix} headers. Those are just request headers:
- * anything that can reach the server can set them, and the responses they end up in are cached under
- * keys that do not include the host, so one forged request could serve attacker-chosen URLs to everyone
- * else for the lifetime of the cache entry.
- * <p>
- * This holds the two settings that close that off, and {@link TrustedForwardedHeaderFilter} applies
- * them.
+ * Where this registry is reachable, which the absolute URLs in a response are built from.
+ * {@link TrustedForwardedHeaderFilter} applies these settings; doc/configuration.md, Server URL says which
+ * to use for which deployment.
  */
 @Configuration
 public class ServerUrlConfig {
 
     /**
-     * The absolute URL this registry is reachable at, e.g. {@code https://open-vsx.org}, or
-     * {@code https://example.com/openvsx} when it is served under a path.
-     * <p>
-     * Set this. It is the only setting that makes the base URL independent of the request: the
-     * {@code X-Forwarded-*} headers are then ignored entirely, whoever sends them and however the proxy
-     * in front is configured, and every node in a cluster agrees on what it emits.
-     * <p>
-     * Empty by default, which keeps the base URL derived from the request - correct only as far as
-     * {@code ovsx.server.trusted-proxies} is correct for the deployment.
+     * When set, the base URL is this and the {@code X-Forwarded-*} headers are ignored entirely.
      * <p>
      * Property: {@code ovsx.server.url}
      * Default: empty - derive the base URL from the request
@@ -62,19 +46,9 @@ public class ServerUrlConfig {
     String serverUrl;
 
     /**
-     * The peers whose {@code X-Forwarded-Host}, {@code X-Forwarded-Proto} and {@code X-Forwarded-Prefix}
-     * headers are honoured, as IP addresses or CIDR ranges, comma separated. Only consulted when
-     * {@code ovsx.server.url} is empty.
-     * <p>
-     * Defaults to the loopback and private ranges - the same set Tomcat's {@code RemoteIpValve} trusts
-     * by default - because that is where a reverse proxy sits in a container or cluster deployment. A
-     * request arriving from anywhere else is a client talking to this server directly, and its forwarded
-     * headers are ignored.
-     * <p>
-     * Needs extending for a proxy that reaches this server from a public address; a cloud load
-     * balancer that is not on the same private network is the usual case. {@code *} restores the old
-     * behaviour of believing every peer, and is unsafe on anything reachable from the open web - prefer
-     * {@code ovsx.server.url}, which does not depend on where a request came from at all.
+     * The peers whose forwarded headers are read, as IP addresses or CIDR ranges. Only consulted when
+     * {@code ovsx.server.url} is empty. The default is the loopback and private ranges, the same set
+     * Tomcat's {@code RemoteIpValve} trusts; {@code *} reads them from every peer.
      * <p>
      * Property: {@code ovsx.server.trusted-proxies}
      * Default: {@code 127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10}
@@ -92,9 +66,7 @@ public class ServerUrlConfig {
     private List<IpAddressMatcher> trustedProxyMatchers = List.of();
 
     /**
-     * Registered first in the filter chain deliberately: it settles what the {@code X-Forwarded-*} headers
-     * say, and everything after it - the security chain included - sees the resolved values rather than
-     * whatever the client sent.
+     * First in the chain, so everything after it - the security chain included - sees resolved headers.
      */
     @Bean
     public FilterRegistrationBean<TrustedForwardedHeaderFilter> trustedForwardedHeaderFilter() {
@@ -163,39 +135,22 @@ public class ServerUrlConfig {
         return uri;
     }
 
-    /**
-     * Whether the base URL is configured rather than derived from the request.
-     */
     public boolean hasServerUrl() {
         return scheme != null;
     }
 
-    /**
-     * The scheme of {@code ovsx.server.url}, or {@code null} when it is not set.
-     */
     public @Nullable String getScheme() {
         return scheme;
     }
 
-    /**
-     * The host of {@code ovsx.server.url}, with its port when that is not the scheme's default, or
-     * {@code null} when it is not set.
-     */
     public @Nullable String getHostAndPort() {
         return hostAndPort;
     }
 
-    /**
-     * The path {@code ovsx.server.url} is served under - empty for a registry at the root of its host -
-     * or {@code null} when it is not set.
-     */
     public @Nullable String getPrefix() {
         return prefix;
     }
 
-    /**
-     * Whether forwarded headers from {@code remoteAddr} are to be believed.
-     */
     public boolean isTrustedProxy(@Nullable String remoteAddr) {
         if (trustEveryPeer) {
             return true;

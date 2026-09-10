@@ -34,28 +34,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Settles what the {@code X-Forwarded-Host}, {@code X-Forwarded-Proto} and {@code X-Forwarded-Prefix}
- * headers say before anything reads them.
+ * Resolves {@code X-Forwarded-Host}, {@code X-Forwarded-Proto} and {@code X-Forwarded-Prefix} before
+ * anything reads them, so that the ~40 callers of {@code UrlUtil.getBaseUrl} cannot be handed a host
+ * the client chose - those responses are cached under keys that do not include it.
  * <p>
- * {@code UrlUtil.getBaseUrl} builds the absolute URLs in a response out of these three headers, and the
- * responses are cached under keys that do not mention the host - and cannot easily be, because eviction
- * enumerates exact keys. So a request carrying a forged {@code X-Forwarded-Host} that reached
- * {@code getBaseUrl} unchecked would put attacker-chosen download and asset URLs into a shared cache
- * entry, to be served to every other client until it expired.
- * <p>
- * Rewriting the headers here, rather than teaching each caller to be careful, is what makes that hold
- * everywhere: {@code getBaseUrl} is read from about forty places, and this runs before the request
- * reaches any of them.
- * <p>
- * Two rules, in this order:
- * <ul>
- * <li>With {@code ovsx.server.url} configured the headers are replaced by what it says, so the base URL
- * is the same for every request and every node, whatever a client or a proxy claims.
- * <li>Otherwise a header is honoured only from a peer in {@code ovsx.server.trusted-proxies}, and only
- * its <em>last</em> value counts. A proxy that appends to the header instead of overwriting it leaves the
- * client's own value in front, so the leftmost value can be attacker-supplied even when the immediate
- * peer is trusted; the value written last is the one written by the proxy closest to this server.
- * </ul>
+ * {@code ovsx.server.url} replaces the headers outright; otherwise they are read only from a peer in
+ * {@code ovsx.server.trusted-proxies}. See doc/configuration.md, Server URL.
  */
 public class TrustedForwardedHeaderFilter extends OncePerRequestFilter {
 
@@ -116,10 +100,9 @@ public class TrustedForwardedHeaderFilter extends OncePerRequestFilter {
     }
 
     /**
-     * The configured path prefix, less the servlet context path when it is already part of it -
-     * {@code UrlUtil.getBaseUrl} appends the context path after the prefix, so leaving it in both would
-     * emit it twice.
-     */
+      * {@code UrlUtil.getBaseUrl} appends the context path after the prefix, so a configured URL that
+      * already includes it would otherwise emit it twice.
+      */
     private String configuredPrefix(HttpServletRequest request) {
         var prefix = config.getPrefix();
         if (prefix == null) {
@@ -198,9 +181,6 @@ public class TrustedForwardedHeaderFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * Reports the forwarded headers as resolved, whatever arrived.
-     */
     private static class ForwardedHeaderRequest extends HttpServletRequestWrapper {
 
         private final Map<String, @Nullable String> resolved;
