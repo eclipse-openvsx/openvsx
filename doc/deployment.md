@@ -29,7 +29,7 @@ This section describes the special configuration properties supported by the Ope
 | Property      | `ovsx.registry.version`
 |---------------|-----------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.15.0
 
 The version of the running Open VSX registry instance.
@@ -65,7 +65,7 @@ The list of extensions that are not allowed as icons.
 | Property      | `ovsx.webui.url`
 |---------------|------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Base URL of the web UI. This is required only if it's different from the server.
@@ -157,7 +157,7 @@ Whether to connect with SSL.
 | Property      | `ovsx.elasticsearch.username`
 |---------------|-------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Username for basic authentication.
@@ -165,7 +165,7 @@ Username for basic authentication.
 | Property      | `ovsx.elasticsearch.password`
 |---------------|-------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Password for basic authentication.
@@ -173,7 +173,7 @@ Password for basic authentication.
 | Property      | `ovsx.elasticsearch.truststore`
 |---------------|---------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Path to a trust store file for SSL connection.
@@ -189,7 +189,7 @@ Protocol for SSL connection.
 | Property      | `ovsx.elasticsearch.truststorePassword`
 |---------------|-----------------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Password for trust store file.
@@ -241,7 +241,7 @@ Whether to enable search functionality though DB queries. Cannot be used togethe
 | Property      | `ovsx.storage.azure.service-endpoint`
 |---------------|---------------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Azure blob service endpoint URL (without parameters, must end with a slash). This is required in order to enable the Azure storage service. Example: `https://openvsx.blob.core.windows.net/`.
@@ -249,7 +249,7 @@ Azure blob service endpoint URL (without parameters, must end with a slash). Thi
 | Property      | `ovsx.storage.azure.sas-token`
 |---------------|--------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 The full query string containing the Azure SAS (Shared Access Signature) token.
@@ -265,7 +265,7 @@ Name of the Azure blob container.
 | Property      | `ovsx.storage.gcp.project-id`
 |---------------|-------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 GCP project id. This can be omitted if the GCP client is able to detect the project from the environment.
@@ -273,7 +273,7 @@ GCP project id. This can be omitted if the GCP client is able to detect the proj
 | Property      | `ovsx.storage.gcp.bucket-id`
 |---------------|------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 GCP bucket id. This is required in order to enable the Google Cloud storage service. Note that in order to upload files you need to authenticate with the storage service, e.g. by putting service account credentials into a file and pointing the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to that file. Unauthenticated access is possible when migrating from GCP to another storage provider.
@@ -326,7 +326,7 @@ Name of the S3 bucket used to store uploaded VSIX files. The bucket must already
 
 S3 service endpoint URL (must not contain query parameters).
 Required for enabling AWS storage.
-Example: https://s3.us-east-2.amazonaws.com.  
+Example: https://s3.us-east-2.amazonaws.com.
 
 | Property | `ovsx.storage.aws.path-style-access` |
 |----------|-------------------------------------|
@@ -339,7 +339,7 @@ Whether to use a path-style endpoint where the bucket name is part of the path.
 | Property      | `ovsx.storage.primary-service`
 |---------------|--------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 External storage service to use if multiple are active (`azure-blob` or `google-cloud`). All files that are not in the primary service are automatically migrated on application startup.
@@ -371,7 +371,7 @@ Delay in milliseconds between storage type migration of each file. This delay is
 | Property      | `ovsx.storage.local.directory`
 |---------------|--------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.18.0
 
 Base directory for local file storage. This is required in order to enable the local storage service.
@@ -408,7 +408,7 @@ Supported storage providers: `aws`, `azure`, `gcp`.
 | Property      | `ovsx.logs.aws.bucket`
 |---------------|--------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.31.0
 
 Name of the S3 bucket used to store uploaded log files. The bucket must already exist.
@@ -444,7 +444,7 @@ The schedule in crontab format to run the AWS download logs job.
 | Property      | `ovsx.logs.azure.sas-token`
 |---------------|--------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.6.0
 
 The full query string containing the Azure SAS (Shared Access Signature) token to get Azure download logs.
@@ -452,7 +452,7 @@ The full query string containing the Azure SAS (Shared Access Signature) token t
 | Property      | `ovsx.logs.azure.service-endpoint`
 |---------------|--------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.6.0
 
 Azure download logs blob service endpoint URL. This is required in order to enable the Azure download count service.
@@ -478,7 +478,7 @@ The schedule in crontab format to run the Azure download logs job.
 | Property      | `ovsx.upstream.url`
 |---------------|---------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Base URL of the [upstream registry instance](#upstream-registry-instance).
@@ -488,7 +488,7 @@ Base URL of the [upstream registry instance](#upstream-registry-instance).
 | Property      | `ovsx.vscode.upstream.gallery-url`
 |---------------|------------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Gallery URL of a registry instance from which to fetch extension UUIDs. These UUIDs are required by VS Code to identify and auto-update installed extensions. If no upstream gallery is set, random UUIDs are generated for all published extensions.
@@ -506,7 +506,7 @@ Whether to update public ids on startup from the upstream registry instance.
 | Property      | `ovsx.eclipse.base-url`
 |---------------|-------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Base URL of the Eclipse API.
@@ -514,7 +514,7 @@ Base URL of the Eclipse API.
 | Property      | `ovsx.eclipse.publisher-agreement.version`
 |---------------|--------------------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0
 
 Current version of the Eclipse Publisher Agreement. Since 0.28.0 only used to sign Eclipse Publisher Agreement.
@@ -522,7 +522,7 @@ Current version of the Eclipse Publisher Agreement. Since 0.28.0 only used to si
 | Property      | `ovsx.eclipse.publisher-agreement.allowed-versions`
 |---------------|--------------------------------------------
 | Type          | string[]
-| Default       | 
+| Default       |
 | Compatibility | Since 0.28.0
 
 Allowed versions of the Eclipse Publisher Agreement. Used to check Eclipse Publisher Agreement.
@@ -530,7 +530,7 @@ Allowed versions of the Eclipse Publisher Agreement. Used to check Eclipse Publi
 | Property      | `ovsx.eclipse.publisher-agreement.timezone`
 |---------------|---------------------------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.1.0, **removed** in 0.15.2
 
 `java.time.ZoneId` for timestamps returned by the Eclipse API.
@@ -574,7 +574,7 @@ Whether to enable mirror mode.
 | Property      | `ovsx.data.mirror.server-url`
 |---------------|-------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.9.0
 
 Base URL of the Open VSX instance to mirror.
@@ -582,7 +582,7 @@ Base URL of the Open VSX instance to mirror.
 | Property      | `ovsx.data.mirror.schedule`
 |---------------|-------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.9.0
 
 When to run the mirror job. A [CRON expression](https://www.jobrunr.io/en/documentation/background-methods/recurring-jobs/#using-a-cron-expression) is expected.
@@ -590,7 +590,7 @@ When to run the mirror job. A [CRON expression](https://www.jobrunr.io/en/docume
 | Property      | `ovsx.data.mirror.user-name`
 |---------------|-------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.9.0
 
 A username for the mirror mode user, so that its actions can be identified in the admin logs.
@@ -606,7 +606,7 @@ Limit the amount of requests per second to reduce strain on the mirrored Open VS
 | Property      | `ovsx.data.mirror.read-only.disallowed-methods`
 |---------------|-------------------------
 | Type          | string[]
-| Default       | 
+| Default       |
 | Compatibility | Since 0.9.0
 
 Disallowed HTTP methods (POST, GET, etc.) for server endpoints to limit access in mirror mode, e.g. disallow POST method to block publishing.
@@ -614,7 +614,7 @@ Disallowed HTTP methods (POST, GET, etc.) for server endpoints to limit access i
 | Property      | `ovsx.data.mirror.read-only.allowed-endpoints`
 |---------------|-------------------------
 | Type          | string[]
-| Default       | 
+| Default       |
 | Compatibility | Since 0.9.0
 
 Allowed server endpoints in mirror mode to override disallowed methods, e.g. disallow POST method but allow posting reviews.
@@ -724,20 +724,20 @@ Whether to run a nightly job to check for malicious and deprecated extensions. C
 | Compatibility | Since 0.17.0
 
 Whether to run a job on startup to check for malicious and deprecated extensions. If disabled, the job still runs nightly. Has no effect when `ovsx.extension-control.enabled` is `false`.
-  
+
 ### Extension Integrity
 
 | Property      | `ovsx.integrity.key-pair`
 |---------------|-------------------------
 | Type          | string
-| Default       | 
+| Default       |
 | Compatibility | Since 0.11.0
 
 Whether to generate a signature archive (sigzip) for published extensions. By default it does nothing. There are 3 modes: `create`, `renew` and `delete`. When `renew` is specified, then on startup a new keypair is generated and a new signature is generated for each extension version in the background. When `create` is specified then on startup, if no keypair exists, a keypair is created and a signature is generated for each extension version in the background. A signature is generated for newly published extension versions in both `renew` and `create` modes. The `delete` mode deletes the keypair and all generated signatures.
 
 ### OAuth2
 
-The `ovsx.oauth2.attribute-names.[provider-name].*` configuration properties allow mapping a login provider's attributes to Open VSX user data. By default it provides an attribute name configuration for [GitHub](https://docs.github.com/en/free-pro-team@latest/developers/apps/building-oauth-apps). It is possible to configure attribute name mappings for multiple login providers. Make sure to also configure Spring Security using its `spring.security.oauth2.client.registration.[provider-name].*` and `spring.security.oauth2.client.provider.[provider-name].*` properties. 
+The `ovsx.oauth2.attribute-names.[provider-name].*` configuration properties allow mapping a login provider's attributes to Open VSX user data. By default it provides an attribute name configuration for [GitHub](https://docs.github.com/en/free-pro-team@latest/developers/apps/building-oauth-apps). It is possible to configure attribute name mappings for multiple login providers. Make sure to also configure Spring Security using its `spring.security.oauth2.client.registration.[provider-name].*` and `spring.security.oauth2.client.provider.[provider-name].*` properties.
 
 | Property      | `ovsx.oauth2.attribute-names.[provider-name].avatar-url`
 |---------------|-------------------------
@@ -745,8 +745,8 @@ The `ovsx.oauth2.attribute-names.[provider-name].*` configuration properties all
 | Default       |
 | Compatibility | Since 0.23.0
 
-Avatar URL login provider attribute. 
- 
+Avatar URL login provider attribute.
+
 | Property      | `ovsx.oauth2.attribute-names.[provider-name].email`
 |---------------|-------------------------
 | Type          | string
@@ -767,9 +767,9 @@ Full name login provider attribute.
 |---------------|-------------------------
 | Type          | string
 | Default       |
-| Compatibility | Since 0.23.0  
+| Compatibility | Since 0.23.0
 
-Username or another login provider attribute that can be used to uniquely identify users. The registry uses `login-name` combined with `provider-name` to retrieve a user from the database. 
+Username or another login provider attribute that can be used to uniquely identify users. The registry uses `login-name` combined with `provider-name` to retrieve a user from the database.
 
 | Property      | `ovsx.oauth2.attribute-names.[provider-name].provider-url`
 |---------------|-------------------------
@@ -965,7 +965,7 @@ Maximum amount of latest extension version data grouped by target platform to ke
 | Default       | `PT1H`
 | Compatibility | Since 0.28.0
 
-Time to live for caching `/sitemap.xml`.     
+Time to live for caching `/sitemap.xml`.
 
 | Property      | `ovsx.caching.sitemap.max-size`
 |---------------|-------------------------
@@ -1118,7 +1118,7 @@ The cron schedule of the job to notify about expiring access tokens.
 
 ### Email
 
-The Open VSX server uses Spring mail to send emails. See the [common application properties](https://docs.spring.io/spring-boot/appendix/application-properties/index.html#appendix.application-properties.mail) documentation to configure email. 
+The Open VSX server uses Spring mail to send emails. See the [common application properties](https://docs.spring.io/spring-boot/appendix/application-properties/index.html#appendix.application-properties.mail) documentation to configure email.
 
 | Property      | `ovsx.mail.from`
 |---------------|-------------------------
