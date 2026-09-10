@@ -37,11 +37,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Settles what the {@code X-Forwarded-Host}, {@code X-Forwarded-Proto} and {@code X-Forwarded-Prefix}
  * headers say before anything reads them.
  * <p>
- * {@code UrlUtil.getBaseUrl} builds the absolute URLs in a response out of these three headers, and
- * used to take whatever arrived. Since the responses are cached under keys that do not mention the host -
- * and cannot easily be, because eviction enumerates exact keys - a single request carrying a forged
- * {@code X-Forwarded-Host} could put attacker-chosen download and asset URLs into a shared cache entry
- * and have them served to every other client until it expired.
+ * {@code UrlUtil.getBaseUrl} builds the absolute URLs in a response out of these three headers, and the
+ * responses are cached under keys that do not mention the host - and cannot easily be, because eviction
+ * enumerates exact keys. So a request carrying a forged {@code X-Forwarded-Host} that reached
+ * {@code getBaseUrl} unchecked would put attacker-chosen download and asset URLs into a shared cache
+ * entry, to be served to every other client until it expired.
  * <p>
  * Rewriting the headers here, rather than teaching each caller to be careful, is what makes that hold
  * everywhere: {@code getBaseUrl} is read from about forty places, and this runs before the request

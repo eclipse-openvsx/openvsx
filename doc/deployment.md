@@ -63,6 +63,15 @@ It is possible to [configure another Open VSX instance as upstream](configuratio
 A reverse proxy can be used to make an Open VSX instance available over HTTPS. The rest of this
 section shows how to configure [NGINX](https://nginx.org/) as that reverse proxy.
 
+Set [`ovsx.server.url`](configuration.md#server-url) to the URL the registry is served at when you
+put a proxy in front of it. The absolute URLs in a response - download links, icons, an extension's
+API URLs - are otherwise derived from the `X-Forwarded-Host`, `X-Forwarded-Proto` and
+`X-Forwarded-Prefix` headers of each request, and those are written by whoever sent the request.
+They are only read from a peer in
+[`ovsx.server.trusted-proxies`](configuration.md#server-url), which by default is the loopback and
+private ranges; a proxy reaching the server from a public address needs that list extended, or the
+registry emits internal-host URLs.
+
 ### 1. Create an OpenSSL Self-Signed Certificate
 
 If you don't have a self-signed certificate, you can create one using the following steps:
@@ -118,7 +127,11 @@ server {
     location / {
         proxy_pass http://<YOUR_PUBLIC_IP>:8080;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Host $host;
+        # A literal, not $host: $host is the Host header the client sent, and this server block is
+        # the default for the port, so a request naming any host at all reaches it. Forwarding that
+        # would let a client choose the host in the URLs the registry emits, and those responses are
+        # cached and served to everyone else. Setting ovsx.server.url settles it regardless.
+        proxy_set_header X-Forwarded-Host <YOUR_PUBLIC_IP>;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }

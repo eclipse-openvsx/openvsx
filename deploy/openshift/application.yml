@@ -110,13 +110,10 @@ ovsx:
     key-pair: create # create, renew, delete, 'undefined'
   registry:
     version: 'OPENVSX_VERSION'
-  # The absolute URL this registry is served at. Set it in any deployment reachable from the open web:
-  # absolute URLs in responses - download links, icons, API URLs - are otherwise derived per request
-  # from the X-Forwarded-Host/-Proto/-Prefix headers, which are only believed when the peer that sent
-  # them is in ovsx.server.trusted-proxies (loopback and the private ranges by default).
+  # Set this in any deployment reachable from the open web, or the URLs in a response are derived
+  # from headers the client sends. See doc/configuration.md, Server URL.
   #  server:
   #    url: https://openvsx.example
-  #    trusted-proxies: '127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10'
   storage:
     local:
       directory: /tmp/extensions
