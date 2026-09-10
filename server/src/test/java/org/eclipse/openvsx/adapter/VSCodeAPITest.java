@@ -753,6 +753,76 @@ class VSCodeAPITest {
                 .andDo(result -> Files.delete(path));
     }
 
+    // VS Code appends the target to the version when it resolves an extension's resources, so that a
+    // web build and a universal build of one version can be told apart - see #744 and #758. Without
+    // this the request 404s, and an extension published for both targets cannot be browsed at all from
+    // a web VS Code.
+    @Test
+    void testBrowseTopDirForATargetPlatformInTheVersion() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6";
+        var path = mockTargetedExtensionBrowse(namespaceName, extensionName, "web", version);
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        namespaceName,
+                        extensionName,
+                        version + "+web"))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                // The listed URLs keep the target, or following one drops back to whichever version
+                // matches first.
+                .andExpect(
+                        content().json(
+                                "["
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension.vsixmanifest\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension/\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/[Content_Types].xml\""
+                                        + "]"))
+                .andDo(result -> Files.delete(path));
+    }
+
+    @Test
+    void testBrowseTopDirForATargetPlatformParameter() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6";
+        var path = mockTargetedExtensionBrowse(namespaceName, extensionName, "web", version);
+        mockMvc.perform(
+                get("/vscode/unpkg/{namespaceName}/{extensionName}/{version}", namespaceName, extensionName, version)
+                        .param("target", "web"))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(
+                        content().json(
+                                "["
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension.vsixmanifest\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension/\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/[Content_Types].xml\""
+                                        + "]"))
+                .andDo(result -> Files.delete(path));
+    }
+
+    // A version may legitimately carry semver build metadata, which is part of the version and not a
+    // target, so the text after the last '+' is only taken when it names a platform.
+    @Test
+    void testBrowseKeepsSemverBuildMetadataInTheVersion() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        "EditorConfig",
+                        "EditorConfig",
+                        "1.2.3+build.5"))
+                .andExpect(status().isNotFound());
+
+        Mockito.verify(repositories).findFileByType("EditorConfig", "EditorConfig", null, "1.2.3+build.5", DOWNLOAD);
+    }
+
     @Test
     void testBrowseVsixManifest() throws Exception {
         var namespaceName = "EditorConfig";
@@ -1411,6 +1481,17 @@ class VSCodeAPITest {
 
     private Path mockWebResourceAsset(String namespaceName, String extensionName, String targetPlatform, String version)
             throws IOException {
+        return mockExtensionBrowse(namespaceName, extensionName, targetPlatform, version, false);
+    }
+
+    /** Browse setup for a request that names its target, so the download lookup is keyed by it rather
+     *  than by null the way an untargeted browse is. */
+    private Path mockTargetedExtensionBrowse(
+            String namespaceName,
+            String extensionName,
+            String targetPlatform,
+            String version
+    ) throws IOException {
         return mockExtensionBrowse(namespaceName, extensionName, targetPlatform, version, false);
     }
 

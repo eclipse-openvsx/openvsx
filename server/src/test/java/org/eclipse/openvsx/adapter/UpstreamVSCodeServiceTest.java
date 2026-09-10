@@ -54,7 +54,7 @@ public class UpstreamVSCodeServiceTest {
                 urlConfig,
                 Mockito.mock(ExtensionValidator.class));
 
-        var response = service.browse("foo", "bar", "1.0.0", "extension/readme.md");
+        var response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.md");
 
         assertEquals(
                 "text/plain;charset=UTF-8",
@@ -63,7 +63,7 @@ public class UpstreamVSCodeServiceTest {
                 response.getHeaders().getFirst("Content-Security-Policy"),
                 "proxied files must carry a Content-Security-Policy");
 
-        response = service.browse("foo", "bar", "1.0.0", "extension/readme.html");
+        response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.html");
 
         assertEquals(
                 "text/plain;charset=UTF-8",
