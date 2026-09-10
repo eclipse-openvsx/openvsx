@@ -15,6 +15,14 @@ This section describes the special configuration properties supported by the Ope
 
 The version of the running Open VSX registry instance.
 
+| Property      | `ovsx.changes-feed.lag`
+|---------------|-----------------------
+| Type          | ISO 8601 duration
+| Default       | `PT30S`
+| Compatibility | Since 1.1.0
+
+How far behind the present the changes feed stops. A change is only reported once it is this old, so that a reader polling the feed does not miss entries written while its request was being answered.
+
 ## Publishing
 
 | Property      | `ovsx.publishing.require-license`
@@ -41,6 +49,22 @@ The maximum content size the server accepts when publishing an extension.
 
 The list of extensions that are not allowed as icons.
 
+| Property      | `ovsx.publishing.max-tags`
+|---------------|--------------------------
+| Type          | int
+| Default       | `30`
+| Compatibility | Since 1.1.0
+
+Maximum number of author-declared tags to keep from a published package. Tags beyond the limit are dropped; a negative value keeps all of them.
+
+| Property      | `ovsx.publishing.max-internal-tags`
+|---------------|-----------------------------------
+| Type          | int
+| Default       | `100`
+| Compatibility | Since 1.1.0
+
+Maximum number of internal tags - the ones the packaging tool generates, such as `__ext_yml` - to keep from a published package. Counted separately from the author's own tags; a negative value keeps all of them.
+
 ## Web UI
 
 | Property      | `ovsx.webui.url`
@@ -58,6 +82,14 @@ Base URL of the web UI. This is required only if it's different from the server.
 | Compatibility | Since 0.1.0
 
 Routes to be forwarded to `/` because they are handled by the frontend.
+
+| Property      | `ovsx.webui.additional-routes`
+|---------------|------------------------------
+| Type          | string[]
+| Default       |
+| Compatibility | Since 0.9.0
+
+Further paths, comma separated, that the security configuration serves without authentication. For a customized web UI that adds pages of its own beyond `ovsx.webui.frontendRoutes`.
 
 ## Search Options
 
@@ -384,6 +416,14 @@ ovsx:
 
 Supported storage providers: `aws`, `azure`, `gcp`.
 
+| Property      | `ovsx.storage.file-cache-duration`
+|---------------|----------------------------------
+| Type          | ISO 8601 duration
+| Default       | `P7D`
+| Compatibility | Since 0.9.0
+
+The `max-age` of the `Cache-Control` header on files served from storage. Extension files never change once published, so this can be long.
+
 ## AWS Download Logs
 
 | Property      | `ovsx.logs.aws.bucket`
@@ -419,6 +459,14 @@ The type of log format to process. Supports `cloudfront` or `fastly`.
 | Compatibility | Since 0.32.0
 
 The schedule in crontab format to run the AWS download logs job.
+
+| Property      | `ovsx.logs.aws.max-keys`
+|---------------|------------------------
+| Type          | int
+| Default       | `100`
+| Compatibility | Since 0.34.0
+
+How many log objects to list per request while reading download logs from the bucket.
 
 ## Azure Download Logs
 
@@ -464,6 +512,14 @@ The schedule in crontab format to run the Azure download logs job.
 
 Base URL of the [upstream registry instance](deployment.md#upstream-registry-instance).
 
+| Property      | `ovsx.upstream.proxy.enabled`
+|---------------|-----------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Since 0.23.0
+
+Whether responses forwarded from the upstream registry have their URLs rewritten to point at this instance. Without it a client following a URL from a forwarded response leaves for the upstream registry.
+
 ## VS Code
 
 | Property      | `ovsx.vscode.upstream.gallery-url`
@@ -481,6 +537,14 @@ Gallery URL of a registry instance from which to fetch extension UUIDs. These UU
 | Compatibility | Since 0.14.2
 
 Whether to update public ids on startup from the upstream registry instance.
+
+| Property      | `ovsx.extension-query.max-pre-release-versions`
+|---------------|-----------------------------------------------
+| Type          | int
+| Default       | `-1`
+| Compatibility | Since 1.1.1
+
+How many of an extension's pre-release versions an `extensionquery` response lists. Regular releases are never capped. A negative value, the default, caps nothing.
 
 ## Eclipse
 
@@ -542,6 +606,22 @@ Delay in seconds to run migrations. This delay is important to avoid distributin
 
 Only run migrations once per version. Useful in production where server instances are frequently restarted.
 
+| Property      | `ovsx.migrations.cron`
+|---------------|----------------------
+| Type          | cron expression
+| Default       | `0 */15 * * * *`
+| Compatibility | Since 0.32.0
+
+How often due migration items are picked up.
+
+| Property      | `ovsx.migrations.batch-size`
+|---------------|----------------------------
+| Type          | int
+| Default       | `200`
+| Compatibility | Since 0.32.0
+
+How many migration items one scheduled run may queue, which bounds how much scheduled work can sit ahead of a user-triggered job.
+
 ## Mirror Mode
 
 | Property      | `ovsx.data.mirror.enabled`
@@ -599,6 +679,22 @@ Disallowed HTTP methods (POST, GET, etc.) for server endpoints to limit access i
 | Compatibility | Since 0.9.0
 
 Allowed server endpoints in mirror mode to override disallowed methods, e.g. disallow POST method but allow posting reviews.
+
+| Property      | `ovsx.data.mirror.include-extensions`
+|---------------|-------------------------------------
+| Type          | string[]
+| Default       |
+| Compatibility | Since 0.21.0
+
+The extensions to mirror, as `namespace.extension`, comma separated. Empty mirrors everything the upstream registry offers.
+
+| Property      | `ovsx.data.mirror.exclude-extensions`
+|---------------|-------------------------------------
+| Type          | string[]
+| Default       |
+| Compatibility | Since 0.21.0
+
+The extensions not to mirror, as `namespace.extension`, comma separated. Applied after `include-extensions`.
 
 ## Foreground HTTP Connection Pool
 
@@ -706,6 +802,14 @@ Whether to run a nightly job to check for malicious and deprecated extensions. C
 
 Whether to run a job on startup to check for malicious and deprecated extensions. If disabled, the job still runs nightly. Has no effect when `ovsx.extension-control.enabled` is `false`.
 
+| Property      | `ovsx.extension-control.delete-transitively`
+|---------------|--------------------------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Since 0.32.0
+
+Whether removing an extension through the extension control file also removes what depends on it, rather than only the extension named.
+
 ## Extension Integrity
 
 | Property      | `ovsx.integrity.key-pair`
@@ -759,6 +863,26 @@ Username or another login provider attribute that can be used to uniquely identi
 | Compatibility | Since 0.23.0
 
 Profile page login provider attribute
+
+| Property      | `ovsx.oauth2.attribute-names`
+|---------------|-----------------------------
+| Type          | map
+| Default       |
+| Compatibility | Since 0.15.0
+
+The attribute name mappings, keyed by login provider - the family the `ovsx.oauth2.attribute-names.[provider-name].*` entries above belong to. GitHub is mapped out of the box; any other provider needs an entry here.
+
+## CORS
+
+Which browser origins may read this registry's public, unauthenticated surface.
+
+| Property      | `ovsx.cors.public-origins`
+|---------------|--------------------------
+| Type          | string[]
+| Default       | `*`
+| Compatibility | Unreleased
+
+The origins allowed to read the registry API, the VS Code gallery adapter and the static documents from a browser, comma separated; `*` for any. Any by default, because that surface exists to be consumed by clients that are not this registry's own web UI. Clients that are not browsers never consult it. Worth narrowing, or emptying to register no public CORS mappings at all, on a registry that is not meant to be read from the open web. Never sent with credentials, whatever it names.
 
 ## Caching
 Since v0.28.0 Open VSX uses Spring Data Redis for caching. Previous Open VSX versions used Ehcache.<br/>
@@ -996,6 +1120,208 @@ Rate-limiting time to idle duration. Does not apply to Redis cache manager.
 
 Maximum amount of rate-limiting entries to keep in cache. Does not apply to Redis cache manager.
 
+| Property      | `ovsx.caching.customer.max-size`
+|---------------|--------------------------------
+| Type          | long
+| Default       | `100`
+| Compatibility | Since 0.32.0
+
+Maximum amount of rate-limiting customers to keep in cache. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.customer.tti`
+|---------------|---------------------------
+| Type          | ISO 8601 duration
+| Default       | `P1D`
+| Compatibility | Since 0.32.0
+
+Rate-limiting customer time to idle duration. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.tier.max-size`
+|---------------|----------------------------
+| Type          | long
+| Default       | `20`
+| Compatibility | Since 0.32.0
+
+Maximum amount of rate-limiting tiers to keep in cache. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.tier.tti`
+|---------------|-----------------------
+| Type          | ISO 8601 duration
+| Default       | `P1D`
+| Compatibility | Since 0.32.0
+
+Rate-limiting tier time to idle duration. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.rate-limit-token.max-size`
+|---------------|----------------------------------------
+| Type          | long
+| Default       | `1000`
+| Compatibility | Since 0.34.0
+
+Maximum amount of rate-limit tokens to keep in cache. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.rate-limit-token.ttl`
+|---------------|-----------------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT1H`
+| Compatibility | Since 0.34.0
+
+Rate-limit token time to live duration. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.usage.ttl`
+|---------------|------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT1H`
+| Compatibility | Since 0.34.0
+
+Rate-limit usage statistics time to live duration. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.setting.ttl`
+|---------------|--------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT1M`
+| Compatibility | Since 1.0.0
+
+Time to live duration for settings read from the database. A short one, because a setting changed in the admin dashboard should take effect promptly. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.files-webresource.max-file-size`
+|---------------|----------------------------------------------
+| Type          | long
+| Default       | `10485760`
+| Compatibility | Unreleased
+
+Largest web resource file, in bytes, that is cached at all. A file above this is served without being cached, so that one very large resource cannot evict everything else. Does not apply to Redis cache manager.
+
+| Property      | `ovsx.caching.files-webresource.max-total-size`
+|---------------|-----------------------------------------------
+| Type          | long
+| Default       | `2147483648`
+| Compatibility | Unreleased
+
+Total size, in bytes, of the cached web resource files. Each entry weighs its file size rather than counting as one, so this bounds the disk the cache occupies rather than the number of files in it. Does not apply to Redis cache manager.
+
+## Rate Limiting
+
+Tiered rate limiting, disabled by default. A request is attributed to a customer by IP address
+or to a token, and charged against the tier that customer or token belongs to.
+
+| Property      | `ovsx.rate-limit.enabled`
+|---------------|-------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Since 0.32.0
+
+Whether the tiered rate limit mechanism is enabled.
+
+| Property      | `ovsx.rate-limit.token-prefix`
+|---------------|------------------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 0.34.0
+
+Prefix given to newly generated rate limit tokens, so that they can be told apart from other tokens the registry issues.
+
+| Property      | `ovsx.rate-limit.ip-address-function`
+|---------------|-------------------------------------
+| Type          | string
+| Default       | `getRemoteAddr()`
+| Compatibility | Since 0.32.0
+
+SpEL expression, evaluated against the request, that yields the client IP address a rate limit bucket is keyed on. The default takes the address of the peer the request arrived from. An expression reading a header instead - `X-Forwarded-For`, say - takes the value from the request, so behind a proxy that does not overwrite that header the client chooses its own bucket.
+
+| Property      | `ovsx.rate-limit.filters`
+|---------------|-------------------------
+| Type          | list
+| Default       |
+| Compatibility | Since 0.32.0
+
+The rate limit filters, each applying to the requests whose path matches its `url` regular expression. A filter takes `url`, `filter-order`, and the `http-content-type`, `http-status-code`, `http-response-body` and `http-response-headers` to answer a limited request with; the four response settings fall back to the `default-http-*` properties below when a filter leaves them unset.
+
+| Property      | `ovsx.rate-limit.usage-stats`
+|---------------|-----------------------------
+| Type          | object
+| Default       |
+| Compatibility | Since 0.32.0
+
+Schedules for the jobs that aggregate rate limit usage, as `job-schedule` (default `0 */10 * * * *`) and `daily-job-schedule` (default `0 10 2 * * *`), both cron expressions.
+
+| Property      | `ovsx.rate-limit.default-http-status-code`
+|---------------|------------------------------------------
+| Type          | HTTP status
+| Default       | `TOO_MANY_REQUESTS`
+| Compatibility | Since 0.32.0
+
+Status returned to a rate limited request by a filter that does not set its own.
+
+| Property      | `ovsx.rate-limit.default-http-content-type`
+|---------------|-------------------------------------------
+| Type          | string
+| Default       | `application/json`
+| Compatibility | Since 0.32.0
+
+Content type of that response.
+
+| Property      | `ovsx.rate-limit.default-http-response-body`
+|---------------|--------------------------------------------
+| Type          | string
+| Default       | `{ "message": "Too many requests!" }`
+| Compatibility | Since 0.32.0
+
+Body of that response.
+
+## Trusted Publishing
+
+Publishing with a short-lived token proved by an OIDC ID token from a CI provider, rather than
+with a long-lived personal access token. Disabled by default.
+
+| Property      | `ovsx.trusted-publishing.enabled`
+|---------------|---------------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Unreleased
+
+Whether trusted publishing is enabled at all.
+
+| Property      | `ovsx.trusted-publishing.active-providers`
+|---------------|------------------------------------------
+| Type          | string[]
+| Default       | `github`
+| Compatibility | Unreleased
+
+The providers that may be used, comma separated. Each id must be `github` or one of the configured GitLab instances.
+
+| Property      | `ovsx.trusted-publishing.gitlab`
+|---------------|--------------------------------
+| Type          | map
+| Default       |
+| Compatibility | Unreleased
+
+The GitLab instances, keyed by provider id, each with a name, a URL and an OIDC issuer. The public instance is configured out of the box; any other one is added here and becomes usable once its id is listed in `active-providers`. Configuring the id of the default instance replaces it whole rather than patching single fields, so such an entry carries the name and URL itself.
+
+| Property      | `ovsx.trusted-publishing.audience`
+|---------------|----------------------------------
+| Type          | string
+| Default       | `${ovsx.webui.url}`
+| Compatibility | Unreleased
+
+The audience to expect in the OIDC ID token. Defaults to the web UI URL of this instance.
+
+| Property      | `ovsx.trusted-publishing.token-expiration`
+|---------------|------------------------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT5M`
+| Compatibility | Unreleased
+
+How long an issued publishing token is valid. Must be positive: a token that never expires is the long-lived credential trusted publishing exists to avoid. Ordinary personal access tokens use `ovsx.access-token.expiration` instead.
+
+| Property      | `ovsx.trusted-publishing.forbidden-jwt-headers`
+|---------------|-----------------------------------------------
+| Type          | string[]
+| Default       | `x5u,x5c,jku,jwk`
+| Compatibility | Unreleased
+
+JWT headers rejected in an ID token, comma separated. Each of these points at a key the token itself supplies, which would let a token vouch for its own signature.
+
 ## Personal Access Token
 
 | Property      | `ovsx.token-prefix`
@@ -1064,6 +1390,38 @@ The cron schedule of the job to expire access tokens.
 | Compatibility | Since 0.33.0
 
 The cron schedule of the job to notify about expiring access tokens.
+
+| Property      | `ovsx.access-token.token-hash-algorithm`
+|---------------|----------------------------------------
+| Type          | string
+| Default       | `SHA-256`
+| Compatibility | Unreleased
+
+The hash algorithm personal access tokens are stored under.
+
+| Property      | `ovsx.access-token.token-hash-pepper`
+|---------------|-------------------------------------
+| Type          | string
+| Default       |
+| Compatibility | Unreleased
+
+A secret mixed into the token hash, so that a leaked `personal_access_token.value` column is useless on its own. It is a secret, not a salt - the token values are 256 random bits each - so keep it out of anywhere a non-secret would go, and generate it with something like `openssl rand -base64 32`. The same pepper covers every token, so changing it invalidates all of them at once unless the old one is kept in `token-hash-previous-peppers`. Empty by default, which mixes in nothing and is not recommended in production.
+
+| Property      | `ovsx.access-token.token-hash-previous-peppers`
+|---------------|-----------------------------------------------
+| Type          | string[]
+| Default       |
+| Compatibility | Unreleased
+
+Peppers to fall back to, in order, when a token does not match under the current one, so that rotating a pepper does not invalidate every existing token. A token migrates to the current pepper as it is used; when to drop an old one is the operator's call, since a token that is never used never migrates. Comma separated, so a pepper must not contain a comma.
+
+| Property      | `ovsx.access-token.token-hash-accept-unpeppered`
+|---------------|------------------------------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Unreleased
+
+Whether a token hashed without any pepper is still accepted. This is what lets a pepper be introduced for the first time without invalidating every existing token; it is the unpeppered member of `token-hash-previous-peppers`, kept separate because an empty entry in a comma separated list cannot be written unambiguously.
 
 ## Email
 
