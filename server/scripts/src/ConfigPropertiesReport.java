@@ -52,6 +52,12 @@ void main(String[] args) throws IOException {
         }
     }
 
+    // One key per line, for scripts/config-properties-check.sh - the report below is for reading.
+    if (List.of(args).contains("--keys")) {
+        entries.keySet().forEach(System.out::println);
+        return;
+    }
+
     System.out.println("# Configuration properties");
     System.out.println();
     System.out.println(

@@ -1,0 +1,111 @@
+# Gaps this check tolerates, one per line as "<kind> <key>":
+#
+#   undocumented  the server binds it, doc/configuration.md does not document it
+#   unbound       doc/configuration.md documents it, the server binds nothing by that name
+#
+# The list may only shrink. Documenting a property, or correcting a stale entry in the reference,
+# means deleting its line here; the check fails while a line claims a gap that no longer exists.
+#
+# The ovsx.oauth2.attribute-names entries are the standing exception: the key names a login
+# provider chosen by the operator, so the reference documents the family with a [provider-name]
+# placeholder that no scan of the source can produce. Those lines stay.
+
+unbound ovsx.caching.extensionquery-ids.max-size
+unbound ovsx.caching.extensionquery-ids.ttl
+unbound ovsx.caching.extensionquery-results.max-size
+unbound ovsx.caching.extensionquery-results.ttl
+unbound ovsx.eclipse.publisher-agreement.timezone
+unbound ovsx.elasticsearch.relevance.downloads
+unbound ovsx.elasticsearch.relevance.rating
+unbound ovsx.elasticsearch.relevance.timestamp
+unbound ovsx.elasticsearch.relevance.unverified
+unbound ovsx.oauth2.attribute-names.[provider-name].avatar-url
+unbound ovsx.oauth2.attribute-names.[provider-name].email
+unbound ovsx.oauth2.attribute-names.[provider-name].full-name
+unbound ovsx.oauth2.attribute-names.[provider-name].login-name
+unbound ovsx.oauth2.attribute-names.[provider-name].provider-url
+unbound ovsx.redis.embedded
+
+undocumented ovsx.access-token.token-hash-accept-unpeppered
+undocumented ovsx.access-token.token-hash-algorithm
+undocumented ovsx.access-token.token-hash-pepper
+undocumented ovsx.access-token.token-hash-previous-peppers
+undocumented ovsx.caching.customer.max-size
+undocumented ovsx.caching.customer.tti
+undocumented ovsx.caching.files-webresource.max-file-size
+undocumented ovsx.caching.files-webresource.max-total-size
+undocumented ovsx.caching.rate-limit-token.max-size
+undocumented ovsx.caching.rate-limit-token.ttl
+undocumented ovsx.caching.setting.ttl
+undocumented ovsx.caching.tier.max-size
+undocumented ovsx.caching.tier.tti
+undocumented ovsx.caching.usage.ttl
+undocumented ovsx.changes-feed.lag
+undocumented ovsx.cors.public-origins
+undocumented ovsx.data.mirror.exclude-extensions
+undocumented ovsx.data.mirror.include-extensions
+undocumented ovsx.extension-control.delete-transitively
+undocumented ovsx.extension-query.max-pre-release-versions
+undocumented ovsx.logs.aws.max-keys
+undocumented ovsx.migrations.batch-size
+undocumented ovsx.migrations.cron
+undocumented ovsx.oauth2.attribute-names
+undocumented ovsx.publishing.max-internal-tags
+undocumented ovsx.publishing.max-tags
+undocumented ovsx.rate-limit.default-http-content-type
+undocumented ovsx.rate-limit.default-http-response-body
+undocumented ovsx.rate-limit.default-http-status-code
+undocumented ovsx.rate-limit.enabled
+undocumented ovsx.rate-limit.filters
+undocumented ovsx.rate-limit.ip-address-function
+undocumented ovsx.rate-limit.token-prefix
+undocumented ovsx.rate-limit.usage-stats
+undocumented ovsx.scanning.blocklist-check.enabled
+undocumented ovsx.scanning.blocklist-check.enforced
+undocumented ovsx.scanning.blocklist-check.required
+undocumented ovsx.scanning.blocklist-check.user-message
+undocumented ovsx.scanning.configured
+undocumented ovsx.scanning.enabled
+undocumented ovsx.scanning.max-archive-size-bytes
+undocumented ovsx.scanning.max-entry-count
+undocumented ovsx.scanning.max-single-file-bytes
+undocumented ovsx.scanning.namespace-ownership-check.check-active-extensions
+undocumented ovsx.scanning.namespace-ownership-check.enabled
+undocumented ovsx.scanning.namespace-ownership-check.enforced
+undocumented ovsx.scanning.namespace-ownership-check.gallery-url
+undocumented ovsx.scanning.namespace-ownership-check.required
+undocumented ovsx.scanning.secret-detection.debug-preview-chars
+undocumented ovsx.scanning.secret-detection.enabled
+undocumented ovsx.scanning.secret-detection.enforced
+undocumented ovsx.scanning.secret-detection.gitleaks.auto-fetch
+undocumented ovsx.scanning.secret-detection.gitleaks.force-refresh
+undocumented ovsx.scanning.secret-detection.gitleaks.output-path
+undocumented ovsx.scanning.secret-detection.gitleaks.refresh-cron
+undocumented ovsx.scanning.secret-detection.gitleaks.scheduled-refresh
+undocumented ovsx.scanning.secret-detection.gitleaks.skip-rule-ids
+undocumented ovsx.scanning.secret-detection.long-line-no-space-threshold
+undocumented ovsx.scanning.secret-detection.max-findings
+undocumented ovsx.scanning.secret-detection.minified-line-threshold
+undocumented ovsx.scanning.secret-detection.regex-context-chars
+undocumented ovsx.scanning.secret-detection.required
+undocumented ovsx.scanning.secret-detection.rules-path
+undocumented ovsx.scanning.secret-detection.suppression-markers
+undocumented ovsx.scanning.secret-detection.timeout-check-interval
+undocumented ovsx.scanning.secret-detection.timeout-seconds
+undocumented ovsx.scanning.similarity.allow-similarity-to-own-names
+undocumented ovsx.scanning.similarity.enabled
+undocumented ovsx.scanning.similarity.enforced
+undocumented ovsx.scanning.similarity.only-check-new-extensions
+undocumented ovsx.scanning.similarity.only-protect-verified-names
+undocumented ovsx.scanning.similarity.required
+undocumented ovsx.scanning.similarity.similarity-threshold
+undocumented ovsx.scanning.similarity.skip-if-publisher-verified
+undocumented ovsx.storage.file-cache-duration
+undocumented ovsx.trusted-publishing.active-providers
+undocumented ovsx.trusted-publishing.audience
+undocumented ovsx.trusted-publishing.enabled
+undocumented ovsx.trusted-publishing.forbidden-jwt-headers
+undocumented ovsx.trusted-publishing.gitlab
+undocumented ovsx.trusted-publishing.token-expiration
+undocumented ovsx.upstream.proxy.enabled
+undocumented ovsx.webui.additional-routes

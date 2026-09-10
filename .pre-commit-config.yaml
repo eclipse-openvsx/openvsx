@@ -43,6 +43,13 @@ repos:
       language: system
       require_serial: true
       files: ^server/src/(main|test)/java/.*\.java$
+    - id: config-properties-check
+      name: server -> configuration properties documented in doc/configuration.md
+      entry: server/scripts/config-properties-check.sh
+      language: system
+      require_serial: true
+      pass_filenames: false
+      files: ^(server/src/main/java/.*\.java|server/scripts/(config-properties-check\.sh|config-properties-baseline\.txt|src/ConfigPropertiesReport\.java)|doc/configuration\.md)$
     - id: formatter-version-check
       name: server -> formatter dependency versions (jdt.core, spotless-lib)
       entry: server/scripts/formatter-version-check.sh
