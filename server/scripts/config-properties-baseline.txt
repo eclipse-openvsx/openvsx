@@ -6,25 +6,18 @@
 # The list may only shrink. Documenting a property, or correcting a stale entry in the reference,
 # means deleting its line here; the check fails while a line claims a gap that no longer exists.
 #
-# The ovsx.oauth2.attribute-names entries are the standing exception: the key names a login
-# provider chosen by the operator, so the reference documents the family with a [provider-name]
-# placeholder that no scan of the source can produce. Those lines stay.
+# The remaining "unbound" lines are the standing exception rather than outstanding work: the key
+# names a login provider chosen by the operator, so the reference documents the family with a
+# [provider-name] placeholder that no scan of the source can produce. Those lines stay.
+#
+# A property the reference records as removed in some release needs no line here - the check reads
+# the Compatibility row and does not expect a tombstone to be bound.
 
-unbound ovsx.caching.extensionquery-ids.max-size
-unbound ovsx.caching.extensionquery-ids.ttl
-unbound ovsx.caching.extensionquery-results.max-size
-unbound ovsx.caching.extensionquery-results.ttl
-unbound ovsx.eclipse.publisher-agreement.timezone
-unbound ovsx.elasticsearch.relevance.downloads
-unbound ovsx.elasticsearch.relevance.rating
-unbound ovsx.elasticsearch.relevance.timestamp
-unbound ovsx.elasticsearch.relevance.unverified
 unbound ovsx.oauth2.attribute-names.[provider-name].avatar-url
 unbound ovsx.oauth2.attribute-names.[provider-name].email
 unbound ovsx.oauth2.attribute-names.[provider-name].full-name
 unbound ovsx.oauth2.attribute-names.[provider-name].login-name
 unbound ovsx.oauth2.attribute-names.[provider-name].provider-url
-unbound ovsx.redis.embedded
 
 undocumented ovsx.access-token.token-hash-accept-unpeppered
 undocumented ovsx.access-token.token-hash-algorithm

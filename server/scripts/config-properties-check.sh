@@ -27,10 +27,23 @@ jbang scripts/src/ConfigPropertiesReport.java --keys | grep '^ovsx\.' | sort -u 
 
 # Each property is introduced by a "| Property | `key`" row; a mention anywhere else in the prose
 # is a cross-reference, not a definition, and must not count as documenting it.
+#
+# A block whose Compatibility row says the property was removed is a tombstone, kept so that
+# someone upgrading from a config file that still sets it can find out what happened to it. It
+# describes a past release rather than this one, so it is not expected to be bound - and if it ever
+# is again, it shows up as undocumented, which is the right complaint.
 # shellcheck disable=SC2016  # the backticks are markdown, not command substitution
-grep -E '^\| Property +\| `' "${REFERENCE}" \
-    | sed -E 's/^\| Property +\| `([^`]+)`.*/\1/' \
-    | sort -u > "${WORK}/documented"
+awk '
+    /^\| Property +\| `/ {
+        if (key != "" && !removed) { print key }
+        match($0, /`[^`]+`/)
+        key = substr($0, RSTART + 1, RLENGTH - 2)
+        removed = 0
+        next
+    }
+    /^\| Compatibility +\|/ && /removed/ { removed = 1 }
+    END { if (key != "" && !removed) { print key } }
+' "${REFERENCE}" | sort -u > "${WORK}/documented"
 
 baseline() {
     { grep -E "^${1} " "${BASELINE}" || true; } | awk '{ print $2 }' | sort -u

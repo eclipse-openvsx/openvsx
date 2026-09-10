@@ -996,38 +996,6 @@ Rate-limiting time to idle duration. Does not apply to Redis cache manager.
 
 Maximum amount of rate-limiting entries to keep in cache. Does not apply to Redis cache manager.
 
-| Property      | `ovsx.caching.extensionquery-ids.ttl`
-|---------------|-------------------------
-| Type          | ISO 8601 duration
-| Default       | `PT1H`
-| Compatibility | Since 0.31.0
-
-VS Code adapter extensionquery public ids time to live duration. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.extensionquery-ids.max-size`
-|---------------|-------------------------
-| Type          | long
-| Default       | `1024`
-| Compatibility | Since 0.31.0
-
-Maximum amount of VS Code adapter extensionquery public ids to keep in cache. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.extensionquery-results.ttl`
-|---------------|-------------------------
-| Type          | ISO 8601 duration
-| Default       | `PT1H`
-| Compatibility | Since 0.31.0
-
-VS Code adapter extensionquery results time to live duration. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.extensionquery-results.max-size`
-|---------------|-------------------------
-| Type          | long
-| Default       | `1024`
-| Compatibility | Since 0.31.0
-
-Maximum amount of VS Code adapter extensionquery results to keep in cache. Does not apply to Redis cache manager.
-
 ## Personal Access Token
 
 | Property      | `ovsx.token-prefix`
