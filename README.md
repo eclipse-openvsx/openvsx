@@ -38,7 +38,7 @@ the [EclipseFdn/open-vsx.org wiki](https://github.com/EclipseFdn/open-vsx.org/wi
 
 See the [openvsx Wiki](https://github.com/eclipse-openvsx/openvsx/wiki) for documentation of general concepts and usage of this project.
 
-To run your own registry, see [Deploying Open VSX](doc/deployment.md), which covers the configuration properties, the reverse proxy setup and the deployment options.
+To run your own registry, see [Deploying Open VSX](doc/deployment.md) for the deployment options and the reverse proxy setup, and [Open VSX Configuration Properties](doc/configuration.md) for the properties the server understands.
 
 ## Development
 
