@@ -91,6 +91,9 @@ const CardFooterRating: FunctionComponent<{ children?: ReactNode; placeholder?: 
             display: 'flex',
             alignItems: 'center',
             gap: '0.1875rem',
+            // Taller than a star or a line of the score, so the footer's rule sits at the same
+            // height whether the cell has a score in it or not.
+            height: '1.25rem',
             minWidth: 0,
             flexShrink: 1,
             overflow: 'hidden',
@@ -105,8 +108,7 @@ const CardFooterRating: FunctionComponent<{ children?: ReactNode; placeholder?: 
 );
 
 // Only the unknown parts are skeletons. The rating cell keeps a greyed star beside a placeholder
-// bar so the footer reserves the footprint a rated card will need; a card that turns out to have
-// no reviews shows no rating at all, so for those the row does still settle once loaded.
+// bar so the footer shows the shape a rated card will have.
 const SkeletonContent: FunctionComponent = () => (
     <>
         <Skeleton variant='rounded' width={54} height={54} sx={{ flexShrink: 0, mb: '0.75rem' }} />
