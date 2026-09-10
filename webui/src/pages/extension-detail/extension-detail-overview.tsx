@@ -16,7 +16,7 @@ import GitHubIcon from '@mui/icons-material/GitHub';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import { MainContext } from '../../context';
-import { addQuery, createRoute, getTargetPlatformDisplayName, getEngineDisplayName } from '../../utils';
+import { addQuery, createRoute, formatFileSize, getTargetPlatformDisplayName, getEngineDisplayName } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { SanitizedMarkdown } from '../../components/sanitized-markdown';
 import { Timestamp } from '../../components/timestamp';
@@ -159,6 +159,19 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
                 <Typography variant='body2'>
                     <code>{`${extension.namespace}.${extension.name}`}</code>
                 </Typography>
+            </>
+        );
+    };
+
+    // The size of the .vsix, which is what the download costs - not what the extension takes up once
+    // installed, which is larger by however well the package happened to compress. Rendered only when the
+    // registry knows it: extensions published before it started recording sizes have none until the
+    // backfill reaches them, and a missing size is not a zero-byte one.
+    const renderSizeSection = (downloadSize: number): ReactNode => {
+        return (
+            <>
+                <Typography variant='h6'>Size</Typography>
+                <Typography variant='body2'>{formatFileSize(downloadSize)}</Typography>
             </>
         );
     };
@@ -361,6 +374,9 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
 
                 <Box sx={resourcesGroup}>
                     <Box>{renderIdentifierSection()}</Box>
+                    {extension.downloadSize !== undefined ? (
+                        <Box mt={2}>{renderSizeSection(extension.downloadSize)}</Box>
+                    ) : null}
                 </Box>
 
                 <Box sx={resourcesGroup}>
