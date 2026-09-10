@@ -37,6 +37,7 @@ import { ButtonWithProgress } from '../../components/button-with-progress';
 import { Timestamp } from '../../components/timestamp';
 import { ExtensionRatingStars } from './extension-rating-stars';
 import { ExtensionReviewDialog } from './extension-review-dialog';
+import { LoginComponent } from '../../default/login';
 
 export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsProps> = props => {
     const [reviewList, setReviewList] = useState<ExtensionReviewList>();
@@ -97,7 +98,30 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
     };
 
     const renderButton = (): ReactNode => {
-        if (!context.user || !reviewList) {
+        // Nothing here tells an anonymous visitor that reviewing needs an account, so offer the
+        // login in place of the review button rather than rendering an empty slot. Doesn't wait
+        // on reviewList (unlike the logged-in cases below, which need to know whether this user
+        // already reviewed) - there's nothing about the prompt that depends on it. Suppressed
+        // entirely on a registry with no login providers configured, where there's nothing to
+        // offer; same guard the header and publish page use.
+        if (!context.user) {
+            if (!context.loginProviders) {
+                return '';
+            }
+            return (
+                <Box>
+                    <LoginComponent
+                        loginProviders={context.loginProviders}
+                        renderButton={(href, onClick) => (
+                            <Button variant='contained' color='secondary' href={href} onClick={onClick}>
+                                Log in to Review
+                            </Button>
+                        )}
+                    />
+                </Box>
+            );
+        }
+        if (!reviewList) {
             return '';
         }
         const existingReview = reviewList.reviews.find(r => isEqualUser(r.user, context.user as UserData));
