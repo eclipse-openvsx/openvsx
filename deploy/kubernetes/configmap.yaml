@@ -114,6 +114,10 @@ data:
       elasticsearch:
         clear-on-start: true
         host: elasticsearch:9200
+      # Set this in any deployment reachable from the open web, or the URLs in a response are derived
+      # from headers the client sends. See doc/configuration.md, Server URL.
+      #  server:
+      #    url: https://openvsx.example
       eclipse:
         base-url: https://api.eclipse.org
         publisher-agreement:

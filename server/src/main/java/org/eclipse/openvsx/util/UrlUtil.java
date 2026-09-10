@@ -298,7 +298,14 @@ public final class UrlUtil {
             if (forwardedHosts.length > 1) {
                 forwardedHost = forwardedHosts[0];
             }
+            // An IPv6 literal is bracketed and made of colons, so only a colon after the closing
+            // bracket separates a port - without this, `[2001:db8::1]` parses as the host
+            // `[2001:db8:` on a port that is not a number.
             int colonIndex = forwardedHost.lastIndexOf(':');
+            if (forwardedHost.startsWith("[")) {
+                var closingBracket = forwardedHost.indexOf(']');
+                colonIndex = closingBracket >= 0 && colonIndex > closingBracket ? colonIndex : -1;
+            }
             if (colonIndex > 0) {
                 int port;
                 try {

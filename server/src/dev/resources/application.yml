@@ -141,6 +141,10 @@ ovsx:
     key-pair: create # create, renew, delete, 'undefined'
   registry:
     version: 'v1.2.0-dev'
+  # Set this in any deployment reachable from the open web, or the URLs in a response are derived
+  # from headers the client sends. See doc/configuration.md, Server URL.
+  #  server:
+  #    url: https://openvsx.example
   storage:
     # an example config using minio (use docker compose --profile minio up)
     # and login to localhost:9000 and create a bucket with name test

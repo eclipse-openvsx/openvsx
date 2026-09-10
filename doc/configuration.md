@@ -65,6 +65,53 @@ Maximum number of author-declared tags to keep from a published package. Tags be
 
 Maximum number of internal tags - the ones the packaging tool generates, such as `__ext_yml` - to keep from a published package. Counted separately from the author's own tags; a negative value keeps all of them.
 
+## Server URL
+
+Where this registry is reachable, which is what the absolute URLs in a response - download
+links, icons, an extension's API URLs - are built from.
+
+Distinct from `ovsx.webui.url` below: that is where the web UI is served, which is the same host
+in the usual deployment but need not be, and is the upstream registry rather than this one in a
+mirror.
+
+| Deployment | What to set |
+|---|---|
+| One public hostname, TLS terminated by a reverse proxy | `ovsx.server.url`, e.g. `https://openvsx.example` |
+| Served under a path, e.g. `https://example.com/openvsx` | `ovsx.server.url`, including the path |
+| No proxy, the server itself is on the internet | `ovsx.server.url`; `ovsx.server.trusted-proxies` may be emptied to ignore the forwarded headers outright |
+| The proxy reaches the server from a public address, e.g. a cloud load balancer | `ovsx.server.url`; or add that address to `ovsx.server.trusted-proxies` |
+| A mirror | `ovsx.server.url` is the mirror's own URL, not `ovsx.upstream.url` or `ovsx.webui.url` |
+| Several hostnames answered by one registry | Leave `ovsx.server.url` unset, and make sure the proxy *overwrites* `X-Forwarded-Host` rather than passing on what the client sent |
+| Local development | Nothing: the server is reached over loopback, which is trusted by default |
+
+If the URLs in a response name an **internal host or port**, the proxy is not in
+`ovsx.server.trusted-proxies` and its headers are being ignored; the server logs a warning naming
+both properties the first time that happens. If they name a **host nobody configured**, the proxy is
+passing on the client's `X-Forwarded-Host` instead of overwriting it, and `ovsx.server.url` is the
+answer. Either way the wrong URLs are cached, so flush the caches after fixing it.
+
+| Property      | `ovsx.server.url`
+|---------------|---------------------
+| Type          | string
+| Default       |
+| Compatibility | Unreleased
+
+The absolute URL this registry is served at, e.g. `https://openvsx.example`, or `https://example.com/openvsx` when it is served under a path. Setting it takes the base URL out of the request altogether: the `X-Forwarded-*` headers are ignored, whoever sends them and however the proxies in front are configured, every node in a cluster agrees on what it emits, and the response cache holds one entry per extension rather than one per host that was asked for. Set it on any deployment reachable from the open web.
+
+Empty by default, which derives the base URL from each request and is only as trustworthy as `ovsx.server.trusted-proxies` is correct for the deployment.
+
+| Property      | `ovsx.server.trusted-proxies`
+|---------------|-----------------------------
+| Type          | string[]
+| Default       | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10`
+| Compatibility | Unreleased
+
+The peers whose `X-Forwarded-Host`, `X-Forwarded-Proto` and `X-Forwarded-Prefix` headers are read at all, as IP addresses or CIDR ranges, comma separated. Only consulted when `ovsx.server.url` is empty. The default is the loopback and private ranges, the same set Tomcat's `RemoteIpValve` trusts, because that is where a reverse proxy sits in a container or cluster deployment; a request from anywhere else is a client talking to this server directly and its forwarded headers are ignored.
+
+Needs extending for a proxy that reaches this server from a public address - a cloud load balancer not on the same private network is the usual case - or the registry starts emitting internal-host URLs, and logs a warning naming both properties when it does. `*` reads the headers from every peer.
+
+This decides whose headers are read, not whether their contents can be believed: a proxy that relays the client's `X-Forwarded-Host` instead of overwriting it is trusted here and still forwarding a value the client chose, so prefer `ovsx.server.url`.
+
 ## Web UI
 
 | Property      | `ovsx.webui.url`
