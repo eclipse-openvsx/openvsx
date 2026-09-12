@@ -12,6 +12,7 @@ package org.eclipse.openvsx.entities;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.persistence.*;
 
@@ -81,6 +82,7 @@ public class NamespaceMembership implements Serializable {
         this.role = role;
     }
 
+    // namespace and user uses id comparison to prevent infinite recursion
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -91,13 +93,21 @@ public class NamespaceMembership implements Serializable {
         }
         NamespaceMembership that = (NamespaceMembership) o;
         return id == that.id
-                && Objects.equals(namespace, that.namespace)
-                && Objects.equals(user, that.user)
+                && Objects.equals(getId(namespace), getId(that.namespace))
+                && Objects.equals(getId(user), getId(that.user))
                 && Objects.equals(role, that.role);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, namespace, user, role);
+        return Objects.hash(id, getId(namespace), getId(user), role);
+    }
+
+    private Long getId(Namespace namespace) {
+        return Optional.ofNullable(namespace).map(Namespace::getId).orElse(null);
+    }
+
+    private Long getId(UserData user) {
+        return Optional.ofNullable(user).map(UserData::getId).orElse(null);
     }
 }

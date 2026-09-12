@@ -71,7 +71,8 @@ public class CustomerService {
     }
 
     public Optional<Customer> getCustomerByIpAddress(String ipAddress) {
-        var ip = new IPAddressString(ipAddress).getAddress().toIPv4();
+        var address = new IPAddressString(ipAddress).getAddress();
+        var ip = address != null ? address.toIPv4() : null;
         if (ip == null) {
             logger.warn("Could not determine IP address from string {}", ipAddress);
             return Optional.empty();
@@ -106,7 +107,15 @@ public class CustomerService {
 
         for (Customer customer : repositories.findAllCustomers()) {
             for (String cidrBlock : customer.getCidrBlocks()) {
-                var ipAddress = new IPAddressString(cidrBlock).getAddress().toIPv4();
+                var address = new IPAddressString(cidrBlock).getAddress();
+                var ipAddress = address != null ? address.toIPv4() : null;
+                if (ipAddress == null) {
+                    logger.warn(
+                            "Could not determine IP address from CIDR block {} for customer {}",
+                            cidrBlock,
+                            customer.getName());
+                    continue;
+                }
                 trie.put(ipAddress, customer);
             }
         }

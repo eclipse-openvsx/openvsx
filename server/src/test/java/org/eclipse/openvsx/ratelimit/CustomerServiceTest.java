@@ -62,6 +62,31 @@ public class CustomerServiceTest {
         assertNull(service.getCustomerByIpAddress("2.2.2.2").orElse(null));
     }
 
+    @Test
+    public void testGetCustomerByIpAddress_malformedAddressReturnsEmptyInsteadOfThrowing() {
+        Mockito.when(repositories.findAllCustomers()).thenReturn(List.of());
+
+        service.refreshCache(null);
+
+        assertNull(service.getCustomerByIpAddress("unknown").orElse(null));
+        assertNull(service.getCustomerByIpAddress("").orElse(null));
+    }
+
+    @Test
+    public void testRefreshCache_skipsCustomerWithMalformedCidrBlockInsteadOfThrowing() {
+        var malformed = new Customer();
+        malformed.setName("malformed");
+        malformed.setCidrBlocks(List.of("not-a-cidr-block"));
+
+        var valid = mockCustomer();
+
+        Mockito.when(repositories.findAllCustomers()).thenReturn(List.of(malformed, valid));
+
+        service.refreshCache(null);
+
+        assertSame(valid, service.getCustomerByIpAddress("1.1.1.1").orElse(null));
+    }
+
     private Customer mockCustomer() {
         var c = new Customer();
         c.setName("test");

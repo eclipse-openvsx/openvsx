@@ -14,6 +14,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.DynamicUpdate;
@@ -237,6 +238,7 @@ public class PersonalAccessToken implements Serializable {
         this.trustedPublisher = trustedPublisher;
     }
 
+    // user uses id comparison to prevent infinite recursion
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -248,7 +250,7 @@ public class PersonalAccessToken implements Serializable {
         PersonalAccessToken that = (PersonalAccessToken) o;
         return id == that.id
                 && active == that.active
-                && Objects.equals(user, that.user)
+                && Objects.equals(getId(user), getId(that.user))
                 && Objects.equals(value, that.value)
                 && Objects.equals(createdTimestamp, that.createdTimestamp)
                 && Objects.equals(accessedTimestamp, that.accessedTimestamp)
@@ -265,7 +267,7 @@ public class PersonalAccessToken implements Serializable {
     public int hashCode() {
         return Objects.hash(
                 id,
-                user,
+                getId(user),
                 value,
                 active,
                 createdTimestamp,
@@ -277,5 +279,9 @@ public class PersonalAccessToken implements Serializable {
                 scopeExtension,
                 scopeNamespace,
                 trustedPublisher);
+    }
+
+    private Long getId(UserData user) {
+        return Optional.ofNullable(user).map(UserData::getId).orElse(null);
     }
 }
