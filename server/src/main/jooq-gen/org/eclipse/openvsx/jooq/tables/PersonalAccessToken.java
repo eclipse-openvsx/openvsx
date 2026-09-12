@@ -101,12 +101,12 @@ public class PersonalAccessToken extends TableImpl<PersonalAccessTokenRecord> {
     /**
      * The column <code>public.personal_access_token.version</code>.
      */
-    public final TableField<PersonalAccessTokenRecord, Short> VERSION = createField(DSL.name("version"), SQLDataType.SMALLINT.nullable(false), this, "");
+    public final TableField<PersonalAccessTokenRecord, Short> VERSION = createField(DSL.name("version"), SQLDataType.SMALLINT.nullable(false).defaultValue(DSL.field(DSL.raw("0"), SQLDataType.SMALLINT)), this, "");
 
     /**
      * The column <code>public.personal_access_token.type</code>.
      */
-    public final TableField<PersonalAccessTokenRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR(32).nullable(false), this, "");
+    public final TableField<PersonalAccessTokenRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR(32).nullable(false).defaultValue(DSL.field(DSL.raw("'LLT'::character varying"), SQLDataType.VARCHAR)), this, "");
 
     /**
      * The column <code>public.personal_access_token.scope_extension_id</code>.
