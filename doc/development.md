@@ -37,7 +37,7 @@ To run the Open VSX registry in a development environment, you can use `docker c
    * `commandline`: Starts a container with the OpenVSX CLI tools.
    * `openvsx`: Combines `backend`, `frontend`, and `commandline` profiles to start all related services.
    * `kibana`: Starts a kibana instance for easier access to the Elasticsearch service.
-   * `minio`: Starts a MinIO instance as S3-compatible object storage, for exercising external file storage locally. A companion container creates the `test` bucket and makes it publicly downloadable on every start, since MinIO here keeps no volume and loses both when the container is recreated.
+   * `silo`: Starts a [Silo](https://hub.docker.com/r/pgsty/silo) instance as S3-compatible object storage, for exercising external file storage locally. Silo is a MinIO fork, used here because the `minio/minio` image is no longer available on Docker Hub; it keeps MinIO's defaults, so the credentials below are unchanged. A companion container creates the `test` bucket and makes it publicly downloadable on every start, since it keeps no volume and loses both when the container is recreated.
    * `valkey`: Starts a six-node Valkey cluster (three primaries and three replicas), for exercising the cache locally. A companion container forms the cluster on first start and leaves it alone afterwards.
    * `valkey-admin`: Starts the Valkey cluster as above, plus a web UI for inspecting it.
  * In the project root, initiate Docker Compose:
@@ -49,7 +49,7 @@ To run the Open VSX registry in a development environment, you can use `docker c
    * registry backend is available at [http://localhost:8080/](http://localhost:8080/) if the `backend` or `openvsx` profile was selected.
    * web ui is available at [http://localhost:3000/](http://localhost:3000/) if the `frontend` or `openvsx` profile was selected.
    * kibana is exposed at [http://localhost:5601/](http://localhost:5601/) if the `kibana` profile was selected.
-   * MinIO is at [http://localhost:9000/](http://localhost:9000/) with its console at [http://localhost:9001/](http://localhost:9001/) (`minioadmin`/`minioadmin`) if the `minio` profile was selected.
+   * Silo is at [http://localhost:9000/](http://localhost:9000/) with its console at [http://localhost:9001/](http://localhost:9001/) (`minioadmin`/`minioadmin`) if the `silo` profile was selected.
    * the Valkey nodes are on ports 7001-7006 (user `openvsx`, password `openvsx`) if the `valkey` or `valkey-admin` profile was selected, and the Valkey UI is at [http://localhost:8090/](http://localhost:8090/) for `valkey-admin`.
  * Open VSX CLI commands can be run via `docker compose exec cli lib/ovsx` if the `commandline` or `openvsx` profile was selected.
  * To load some extensions from the main registry (openvsx.org), run `docker compose exec cli yarn load-extensions <N>`, where N is the number of extensions you would like to publish in your local registry.

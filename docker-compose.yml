@@ -300,38 +300,42 @@ services:
       - openvsx
       - commandline
 
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  # Silo rather than MinIO: minio/minio is gone from Docker Hub, so the old image cannot be pulled
+  # any more. Silo is a MinIO fork and a drop-in for everything used here - the same entrypoint
+  # contract, the same minioadmin defaults, the same bundled mc, and it still answers the MinIO
+  # health path as well as its own.
+  silo:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     command: server --console-address ":9001" /data
     ports:
       - "9000:9000"
       - "9001:9001"
     healthcheck:
-      test: curl -s http://localhost:9000/minio/health/live >/dev/null || exit 1
+      test: curl -s http://localhost:9000/silo/health/live >/dev/null || exit 1
       interval: 10s
       timeout: 5s
       retries: 50
       start_period: 5s
     profiles:
-      - minio
+      - silo
 
-  # No persistent volume on `minio` above, so its bucket and access policy are wiped every time
+  # No persistent volume on `silo` above, so its bucket and access policy are wiped every time
   # the container is recreated (not just re-started). Re-creates both on every `up` instead of
   # requiring a manual `mc` setup each time - `mc` is bundled in the same image, so this reuses
-  # it rather than pulling minio/mc as a separate image.
-  minio-init:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  # it rather than pulling a client as a separate image.
+  silo-init:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     depends_on:
-      minio:
+      silo:
         condition: service_healthy
     entrypoint: >
       sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc alias set local http://silo:9000 minioadmin minioadmin &&
       mc mb --ignore-existing local/test &&
       mc anonymous set download local/test
       "
     profiles:
-      - minio
+      - silo
 
 volumes:
   postgres-timeseries-data:

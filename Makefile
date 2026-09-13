@@ -4,9 +4,9 @@
 # containers the other two talk to, and both `make server` and `make webui` stay in the foreground
 # so that they pick up code changes.
 
-# Postgres, the Valkey cluster with its admin UI, and MinIO. Elasticsearch is deliberately absent:
+# Postgres, the Valkey cluster with its admin UI, and Silo. Elasticsearch is deliberately absent:
 # the dev profile searches the database instead (ovsx.databasesearch.enabled).
-DEV_PROFILES := db valkey valkey-admin minio
+DEV_PROFILES := db valkey valkey-admin silo
 
 .DEFAULT_GOAL := help
 .PHONY: help dev-env dev-env-down server webui

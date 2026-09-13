@@ -146,7 +146,7 @@ ovsx:
   #  server:
   #    url: https://openvsx.example
   storage:
-    # an example config using minio (use docker compose --profile minio up)
+    # an example config using silo (use docker compose --profile silo up)
     # and login to localhost:9000 and create a bucket with name test
 #    aws:
 #      access-key-id: "minioadmin"
