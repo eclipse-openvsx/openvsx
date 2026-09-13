@@ -344,6 +344,9 @@ public class CacheConfig {
                                         sharedMapper.getTypeFactory()
                                                 .constructParametricType(List.class, String.class)),
                                 maliciousExtensionsTtl))
+                // Counted by the cache writer rather than by Redis, and off unless asked for, which
+                // is how CacheInfoService reads hits and misses for the admin dashboard.
+                .enableStatistics()
                 .build();
     }
 

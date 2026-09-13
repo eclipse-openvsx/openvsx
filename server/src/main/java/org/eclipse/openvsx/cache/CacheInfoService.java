@@ -29,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.cache.jcache.JCacheCache;
+import org.springframework.data.redis.cache.CacheStatistics;
+import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.stereotype.Component;
 
 /**
@@ -183,6 +185,10 @@ public class CacheInfoService {
             return describeJCache(managers, cacheName, cache);
         }
 
+        if (cache instanceof RedisCache redisCache) {
+            return describeRedis(managers, cacheName, redisCache);
+        }
+
         return new CacheInfo(managers, cacheName, implementationOf(cache), null, null, null, null, null);
     }
 
@@ -217,6 +223,37 @@ public class CacheInfoService {
                 // the rate instead so an untouched cache reports no rate at all.
                 hits + misses == 0 ? null : (double) hits / (hits + misses),
                 stats.getCacheEvictions());
+    }
+
+    /**
+     * A Redis-backed cache. Its size is left out on purpose: counting the entries means scanning the
+     * keyspace, which is not something to do behind a dashboard refresh on a shared Redis.
+     * <p>
+     * Statistics are counted by the cache writer, not by Redis, and only when the manager was built
+     * with {@code enableStatistics()}. There is no eviction count because Redis expires keys by TTL
+     * rather than evicting under pressure, so there is nothing to report rather than zero.
+     */
+    private CacheInfo describeRedis(List<String> managers, String cacheName, RedisCache cache) {
+        CacheStatistics stats;
+        try {
+            stats = cache.getStatistics();
+        } catch (RuntimeException e) {
+            // Throws when the writer was created without a statistics collector.
+            logger.debug("cache {} is not collecting statistics", cacheName, e);
+            return new CacheInfo(managers, cacheName, "redis", null, null, null, null, null);
+        }
+
+        var hits = stats.getHits();
+        var misses = stats.getMisses();
+        return new CacheInfo(
+                managers,
+                cacheName,
+                "redis",
+                null,
+                hits,
+                misses,
+                hits + misses == 0 ? null : (double) hits / (hits + misses),
+                null);
     }
 
     /**

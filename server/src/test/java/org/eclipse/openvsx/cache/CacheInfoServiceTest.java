@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.cache.jcache.JCacheCacheManager;
+import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -156,6 +158,55 @@ class CacheInfoServiceTest {
 
         service.clear("fileCacheManager", "settings");
         assertThat(localManager.getCache("settings").get("a")).isNull();
+    }
+
+    @Test
+    void readsStatisticsFromARedisBackedCacheButNotItsSize() {
+        // Redis counts in the cache writer, not in Redis, and only when the manager was built with
+        // enableStatistics. Size stays absent on purpose: counting entries means scanning the
+        // keyspace.
+        // Only the transport is faked: the hit and miss counting under test is Spring's own, in the
+        // statistics-collecting writer that enableStatistics() installs.
+        var stored = new java.util.HashMap<String, byte[]>();
+        var connection = org.mockito.Mockito.mock(
+                org.springframework.data.redis.connection.RedisConnection.class,
+                org.mockito.Mockito.RETURNS_DEEP_STUBS);
+        var factory = org.mockito.Mockito
+                .mock(org.springframework.data.redis.connection.RedisConnectionFactory.class);
+        org.mockito.Mockito.when(factory.getConnection()).thenReturn(connection);
+        org.mockito.Mockito.when(connection.stringCommands().get(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> stored.get(new String((byte[]) invocation.getArgument(0))));
+        // This cache carries no TTL, so the writer uses the two-argument set rather than the one
+        // that takes an expiration.
+        org.mockito.Mockito
+                .when(
+                        connection.stringCommands()
+                                .set(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    stored.put(new String((byte[]) invocation.getArgument(0)), invocation.getArgument(1));
+                    return true;
+                });
+
+        var manager = RedisCacheManager.builder(RedisCacheWriter.nonLockingRedisCacheWriter(factory))
+                .initialCacheNames(java.util.Set.of("sitemap"))
+                .enableStatistics()
+                .build();
+        manager.afterPropertiesSet();
+        var cache = manager.getCache("sitemap");
+        cache.put("a", "1");
+        cache.get("a");
+        cache.get("a");
+        cache.get("absent");
+
+        var info = only(new CacheInfoService(Map.of("redisCacheManager", manager)).getCaches());
+
+        assertThat(info.implementation()).isEqualTo("redis");
+        assertThat(info.entries()).isNull();
+        assertThat(info.hits()).isEqualTo(2);
+        assertThat(info.misses()).isEqualTo(1);
+        assertThat(info.hitRate()).isCloseTo(2.0 / 3, org.assertj.core.data.Offset.offset(0.0001));
+        // Redis expires by TTL rather than evicting under pressure, so there is nothing to report.
+        assertThat(info.evictions()).isNull();
     }
 
     @Test
