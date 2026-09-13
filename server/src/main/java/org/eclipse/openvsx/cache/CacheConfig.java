@@ -119,11 +119,6 @@ public class CacheConfig {
         caffeineCacheManager.registerCustomCache(CACHE_EXTENSION_FILES, extensionCache);
         caffeineCacheManager.registerCustomCache(CACHE_WEB_RESOURCE_FILES, webResourceCache);
         caffeineCacheManager.registerCustomCache(CACHE_BROWSE_EXTENSION_FILES, browseCache);
-        // No settings cache here: SettingsCache is annotated
-        // @CacheConfig(cacheManager = "localCacheManager"), so the settings cache is reached through
-        // the local manager. Registering the same instance here as well gave one cache two ways in
-        // and nothing ever used this one.
-
         return caffeineCacheManager;
     }
 
