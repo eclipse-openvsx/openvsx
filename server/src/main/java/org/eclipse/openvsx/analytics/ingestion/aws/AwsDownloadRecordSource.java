@@ -114,7 +114,7 @@ public class AwsDownloadRecordSource implements DownloadRecordSource {
 
     @Override
     public boolean covers(FileResource resource) {
-        return FileResource.STORAGE_AWS.equals(resource.getStorageType()) && isEnabled();
+        return FileResource.STORAGE_AWS.equals(resource.getStorageType());
     }
 
     @Override

@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
@@ -32,6 +33,7 @@ import tools.jackson.databind.node.ArrayNode;
 
 import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
 import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSourceIndex;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
@@ -60,6 +62,8 @@ public class StorageUtilService implements IStorageService {
     private final AwsStorageService awsStorage;
     private final ObjectProvider<DownloadRecordSource> ingestionSources;
     private final DownloadIngestionProcessor ingestionProcessor;
+    /** The enabled ingestion sources, indexed by storage type once at startup. */
+    private DownloadRecordSourceIndex ingestionSourceIndex;
     private final ExtensionDownloadMetrics downloadMetrics;
     private final SearchUtilService search;
     private final CacheService cache;
@@ -105,6 +109,11 @@ public class StorageUtilService implements IStorageService {
         this.fileCacheDurationConfig = fileCacheDurationConfig;
         this.cdnServiceConfig = cdnServiceConfig;
         this.jsonMapper = JsonMapper.shared();
+    }
+
+    @PostConstruct
+    void initIngestionSources() {
+        ingestionSourceIndex = new DownloadRecordSourceIndex(ingestionSources);
     }
 
     public boolean shouldStoreExternally(FileResource resource) {
@@ -331,7 +340,7 @@ public class StorageUtilService implements IStorageService {
     public void increaseDownloadCount(FileResource resource) {
         downloadMetrics.recordDownload(resource);
 
-        if (ingestionSources.stream().anyMatch(source -> source.covers(resource))) {
+        if (ingestionSourceIndex.covers(resource)) {
             // don't count downloads twice
             return;
         }

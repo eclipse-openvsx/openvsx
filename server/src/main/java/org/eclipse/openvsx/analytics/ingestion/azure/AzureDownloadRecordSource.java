@@ -111,7 +111,7 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
 
     @Override
     public boolean covers(FileResource resource) {
-        return FileResource.STORAGE_AZURE.equals(resource.getStorageType()) && isEnabled();
+        return FileResource.STORAGE_AZURE.equals(resource.getStorageType());
     }
 
     @Override

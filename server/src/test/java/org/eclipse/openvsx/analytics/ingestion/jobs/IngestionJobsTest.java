@@ -92,11 +92,15 @@ class IngestionJobsTest {
     }
 
     @Test
-    void testAwsSourceDoesNotCoverWhenStorageServiceIsDisabled() {
+    void testAwsSourceIsNotEnabledWhenStorageServiceIsDisabled() {
+        // covers() answers coverage only; a source configured with a log bucket still covers AWS
+        // downloads. It is isEnabled() that says it cannot ingest them, and that is what callers
+        // resolve on - see StorageUtilServiceTest#increaseDownloadCount_countsWhenTheSourceIsDisabled.
         when(awsStorage.isEnabled()).thenReturn(false);
         runner().withPropertyValues("ovsx.logs.aws.bucket=my-logs").run(context -> {
             var source = context.getBean(DownloadRecordSource.class);
-            assertFalse(source.covers(resource(FileResource.STORAGE_AWS)));
+            assertFalse(source.isEnabled());
+            assertTrue(source.covers(resource(FileResource.STORAGE_AWS)));
         });
     }
 

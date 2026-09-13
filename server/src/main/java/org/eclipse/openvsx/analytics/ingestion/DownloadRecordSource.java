@@ -48,6 +48,11 @@ public interface DownloadRecordSource {
      * Returns whether downloads of the given file are counted by this source. Download requests
      * for covered files are not counted on the request path, otherwise they would be counted
      * twice.
+     * <p>
+     * This answers coverage only, not enablement: callers resolve sources through
+     * {@link #isEnabled()} first, so a disabled source is never asked. Implementations narrower
+     * than their whole storage type decide here; the rest need only compare
+     * {@link #getStorageType()}.
      */
     boolean covers(FileResource resource);
 

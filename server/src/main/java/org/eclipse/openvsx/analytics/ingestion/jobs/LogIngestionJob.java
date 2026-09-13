@@ -15,6 +15,7 @@ package org.eclipse.openvsx.analytics.ingestion.jobs;
 import java.time.ZoneId;
 import java.util.List;
 
+import jakarta.annotation.PostConstruct;
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionRunner;
 import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSourceIndex;
 import org.eclipse.openvsx.entities.FileResource;
 
 /**
@@ -47,6 +49,8 @@ public class LogIngestionJob implements JobRequestHandler<IngestionJobRequest<?>
     private final ObjectProvider<DownloadRecordSource> sources;
     private final DownloadIngestionRunner runner;
     private final JobRequestScheduler scheduler;
+    /** The enabled sources, indexed by storage type once at startup. */
+    private DownloadRecordSourceIndex sourceIndex;
 
     public LogIngestionJob(
             ObjectProvider<DownloadRecordSource> sources,
@@ -58,11 +62,16 @@ public class LogIngestionJob implements JobRequestHandler<IngestionJobRequest<?>
         this.scheduler = scheduler;
     }
 
+    @PostConstruct
+    void initSources() {
+        sourceIndex = new DownloadRecordSourceIndex(sources);
+    }
+
     @EventListener
     public void scheduleJobs(ApplicationStartedEvent event) {
         for (var storageType : KNOWN_STORAGE_TYPES) {
             var jobId = recurringJobId(storageType);
-            var source = findEnabledSource(storageType);
+            var source = sourceIndex.find(storageType);
             if (source == null) {
                 scheduler.deleteRecurringJob(jobId);
             } else {
@@ -79,7 +88,7 @@ public class LogIngestionJob implements JobRequestHandler<IngestionJobRequest<?>
     @Override
     @Job(name = "Ingest download logs", retries = 0)
     public void run(IngestionJobRequest<?> jobRequest) {
-        var source = findEnabledSource(jobRequest.getStorageType());
+        var source = sourceIndex.find(jobRequest.getStorageType());
         if (source == null) {
             logger.warn(
                     "no enabled download record source for storage type {}, skipping",
@@ -88,13 +97,6 @@ public class LogIngestionJob implements JobRequestHandler<IngestionJobRequest<?>
         }
 
         runner.run(source);
-    }
-
-    private DownloadRecordSource findEnabledSource(String storageType) {
-        return sources.stream()
-                .filter(source -> source.getStorageType().equals(storageType) && source.isEnabled())
-                .findFirst()
-                .orElse(null);
     }
 
     private String recurringJobId(String storageType) {
