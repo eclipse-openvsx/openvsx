@@ -41,9 +41,9 @@ public class Sequences {
     public static final Sequence<Long> DAILY_USAGE_STATS_SEQ = Internal.createSequence("daily_usage_stats_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
 
     /**
-     * The sequence <code>public.download_count_processed_item_seq</code>
+     * The sequence <code>public.download_ingestion_seq</code>
      */
-    public static final Sequence<Long> DOWNLOAD_COUNT_PROCESSED_ITEM_SEQ = Internal.createSequence("download_count_processed_item_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
+    public static final Sequence<Long> DOWNLOAD_INGESTION_SEQ = Internal.createSequence("download_ingestion_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
      * The sequence <code>public.extension_review_seq</code>

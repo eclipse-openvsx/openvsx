@@ -14,20 +14,23 @@ import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-import org.eclipse.openvsx.entities.DownloadCountProcessedItem;
+import org.eclipse.openvsx.entities.DownloadIngestion;
 
-public interface DownloadCountProcessedItemRepository extends Repository<DownloadCountProcessedItem, Long> {
+public interface DownloadIngestionRepository extends Repository<DownloadIngestion, Long> {
 
     @Query(
-        "select dc.name from DownloadCountProcessedItem dc where dc.success = true and dc.storageType = ?1 and dc.name in(?2)"
+        "select dc.name from DownloadIngestion dc where dc.success = true and dc.storageType = ?1 and dc.name in(?2)"
     )
-    List<String> findAllSucceededDownloadCountProcessedItemsByStorageTypeAndNameIn(
+    List<String> findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(
             String storageType,
             List<String> names
     );
 
     @Query(
-        "select dc.name from DownloadCountProcessedItem dc where dc.success = false and dc.storageType = ?1 and dc.name in(?2)"
+        "select dc.name from DownloadIngestion dc where dc.success = false and dc.storageType = ?1 and dc.name in(?2)"
     )
-    List<String> findAllFailedDownloadCountProcessedItemsByStorageTypeAndNameIn(String storageType, List<String> names);
+    List<String> findAllFailedDownloadIngestionsByStorageTypeAndNameIn(String storageType, List<String> names);
+
+    @Query("select count(dc) from DownloadIngestion dc where dc.success = false")
+    long countFailedDownloadIngestions();
 }

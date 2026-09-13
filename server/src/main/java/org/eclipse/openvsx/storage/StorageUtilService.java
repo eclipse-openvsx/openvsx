@@ -17,9 +17,11 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.http.*;
@@ -29,7 +31,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
 
-import org.eclipse.openvsx.analytics.ingestion.DownloadCountService;
+import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSourceIndex;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
@@ -56,7 +60,10 @@ public class StorageUtilService implements IStorageService {
     private final AzureBlobStorageService azureStorage;
     private final LocalStorageService localStorage;
     private final AwsStorageService awsStorage;
-    private final DownloadCountService downloadCountService;
+    private final ObjectProvider<DownloadRecordSource> ingestionSources;
+    private final DownloadIngestionProcessor ingestionProcessor;
+    /** The enabled ingestion sources, indexed by storage type once at startup. */
+    private DownloadRecordSourceIndex ingestionSourceIndex;
     private final ExtensionDownloadMetrics downloadMetrics;
     private final SearchUtilService search;
     private final CacheService cache;
@@ -79,7 +86,8 @@ public class StorageUtilService implements IStorageService {
             AzureBlobStorageService azureStorage,
             LocalStorageService localStorage,
             AwsStorageService awsStorage,
-            DownloadCountService downloadCountService,
+            ObjectProvider<DownloadRecordSource> ingestionSources,
+            DownloadIngestionProcessor ingestionProcessor,
             ExtensionDownloadMetrics downloadMetrics,
             SearchUtilService search,
             CacheService cache,
@@ -92,7 +100,8 @@ public class StorageUtilService implements IStorageService {
         this.azureStorage = azureStorage;
         this.localStorage = localStorage;
         this.awsStorage = awsStorage;
-        this.downloadCountService = downloadCountService;
+        this.ingestionSources = ingestionSources;
+        this.ingestionProcessor = ingestionProcessor;
         this.downloadMetrics = downloadMetrics;
         this.search = search;
         this.cache = cache;
@@ -100,6 +109,11 @@ public class StorageUtilService implements IStorageService {
         this.fileCacheDurationConfig = fileCacheDurationConfig;
         this.cdnServiceConfig = cdnServiceConfig;
         this.jsonMapper = JsonMapper.shared();
+    }
+
+    @PostConstruct
+    void initIngestionSources() {
+        ingestionSourceIndex = new DownloadRecordSourceIndex(ingestionSources);
     }
 
     public boolean shouldStoreExternally(FileResource resource) {
@@ -326,7 +340,7 @@ public class StorageUtilService implements IStorageService {
     public void increaseDownloadCount(FileResource resource) {
         downloadMetrics.recordDownload(resource);
 
-        if (downloadCountService.isEnabled(resource)) {
+        if (ingestionSourceIndex.covers(resource)) {
             // don't count downloads twice
             return;
         }
@@ -334,6 +348,7 @@ public class StorageUtilService implements IStorageService {
         var managedResource = entityManager.find(FileResource.class, resource.getId());
         var extension = managedResource.getExtension().getExtension();
         extension.setDownloadCount(extension.getDownloadCount() + 1);
+        ingestionProcessor.captureDownload(managedResource);
 
         cache.evictNamespaceDetails(extension);
         cache.evictExtensionJsons(extension);

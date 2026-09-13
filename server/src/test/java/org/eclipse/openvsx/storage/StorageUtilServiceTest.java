@@ -17,6 +17,7 @@ import java.util.List;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -25,7 +26,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import org.eclipse.openvsx.UserService;
-import org.eclipse.openvsx.analytics.ingestion.DownloadCountService;
+import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.FilesCacheKeyGenerator;
 import org.eclipse.openvsx.entities.*;
@@ -44,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
         SearchUtilService.class,
         SearchExplainService.class,
         GoogleCloudStorageService.class,
-        DownloadCountService.class,
+        DownloadIngestionProcessor.class,
         ExtensionDownloadMetrics.class,
         CacheService.class,
         UserService.class,
@@ -221,7 +223,8 @@ public class StorageUtilServiceTest {
                 AzureBlobStorageService azureStorage,
                 LocalStorageService localStorage,
                 AwsStorageService awsStorage,
-                DownloadCountService downloadCountService,
+                ObjectProvider<DownloadRecordSource> ingestionSources,
+                DownloadIngestionProcessor ingestionProcessor,
                 ExtensionDownloadMetrics downloadMetrics,
                 SearchUtilService search,
                 CacheService cache,
@@ -235,7 +238,8 @@ public class StorageUtilServiceTest {
                     azureStorage,
                     localStorage,
                     awsStorage,
-                    downloadCountService,
+                    ingestionSources,
+                    ingestionProcessor,
                     downloadMetrics,
                     search,
                     cache,

@@ -14,7 +14,7 @@ package org.eclipse.openvsx.analytics.ingestion.aws;
 
 import org.jspecify.annotations.Nullable;
 
-public interface LogFileParser {
+interface LogFileParser {
     @Nullable
-    LogRecord parse(String line);
+    AccessLogRecord parse(String line);
 }

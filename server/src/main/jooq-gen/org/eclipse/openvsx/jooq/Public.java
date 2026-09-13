@@ -18,7 +18,7 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
 import org.eclipse.openvsx.jooq.tables.Customer;
 import org.eclipse.openvsx.jooq.tables.CustomerMembership;
 import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
-import org.eclipse.openvsx.jooq.tables.DownloadCountProcessedItem;
+import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
@@ -124,9 +124,9 @@ public class Public extends SchemaImpl {
     public final DailyUsageStats DAILY_USAGE_STATS = DailyUsageStats.DAILY_USAGE_STATS;
 
     /**
-     * The table <code>public.download_count_processed_item</code>.
+     * The table <code>public.download_ingestion</code>.
      */
-    public final DownloadCountProcessedItem DOWNLOAD_COUNT_PROCESSED_ITEM = DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM;
+    public final DownloadIngestion DOWNLOAD_INGESTION = DownloadIngestion.DOWNLOAD_INGESTION;
 
     /**
      * The table <code>public.extension</code>.
@@ -279,7 +279,7 @@ public class Public extends SchemaImpl {
             Sequences.CUSTOMER_MEMBERSHIP_SEQ,
             Sequences.CUSTOMER_SEQ,
             Sequences.DAILY_USAGE_STATS_SEQ,
-            Sequences.DOWNLOAD_COUNT_PROCESSED_ITEM_SEQ,
+            Sequences.DOWNLOAD_INGESTION_SEQ,
             Sequences.EXTENSION_REVIEW_SEQ,
             Sequences.EXTENSION_SCAN_SEQ,
             Sequences.EXTENSION_SEQ,
@@ -321,7 +321,7 @@ public class Public extends SchemaImpl {
             Customer.CUSTOMER,
             CustomerMembership.CUSTOMER_MEMBERSHIP,
             DailyUsageStats.DAILY_USAGE_STATS,
-            DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM,
+            DownloadIngestion.DOWNLOAD_INGESTION,
             Extension.EXTENSION,
             ExtensionReview.EXTENSION_REVIEW,
             ExtensionScan.EXTENSION_SCAN,
