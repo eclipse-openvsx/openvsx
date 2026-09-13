@@ -57,6 +57,7 @@ import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.adapter.VSCodeIdService;
 import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
 import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
+import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
 import org.eclipse.openvsx.eclipse.EclipseService;
@@ -151,6 +152,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         PublishExtensionVersionHandler.class,
         SearchUtilService.class,
         SearchExplainService.class,
+        CacheInfoService.class,
         EclipseService.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,

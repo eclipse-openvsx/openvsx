@@ -260,6 +260,9 @@ public class CacheConfig {
     ) {
         var configuration = new CaffeineConfiguration<>();
         configuration.setMaximumSize(OptionalLong.of(maxSize));
+        // Counted in the JCache layer rather than in the Caffeine cache underneath, and only
+        // reachable over JMX, which is how CacheInfoService reads it for the admin dashboard.
+        configuration.setStatisticsEnabled(true);
         if (tti) {
             configuration.setExpireAfterAccess(OptionalLong.of(duration.toNanos()));
         } else {
