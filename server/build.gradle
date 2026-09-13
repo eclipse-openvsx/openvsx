@@ -200,7 +200,11 @@ jooq {
                 name = 'org.jooq.meta.postgres.PostgresDatabase'
                 inputSchema = 'public'
                 includes = '.*'
-                excludes = 'jobrunr.*'
+                // jobrunr's and flyway's own bookkeeping tables. They are owned by those tools,
+                // nothing here queries them, and flyway_schema_history in particular only exists in
+                // a database flyway has already migrated - so generating it makes the committed
+                // output depend on how the schema was built rather than on the migrations.
+                excludes = 'jobrunr.*|flyway_schema_history'
                 includeRoutines = false
             }
             target {

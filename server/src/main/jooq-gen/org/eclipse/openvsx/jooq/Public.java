@@ -28,7 +28,6 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
-import org.eclipse.openvsx.jooq.tables.FlywaySchemaHistory;
 import org.eclipse.openvsx.jooq.tables.MigrationItem;
 import org.eclipse.openvsx.jooq.tables.Namespace;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
@@ -173,11 +172,6 @@ public class Public extends SchemaImpl {
      * The table <code>public.file_resource</code>.
      */
     public final FileResource FILE_RESOURCE = FileResource.FILE_RESOURCE;
-
-    /**
-     * The table <code>public.flyway_schema_history</code>.
-     */
-    public final FlywaySchemaHistory FLYWAY_SCHEMA_HISTORY = FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY;
 
     /**
      * The table <code>public.migration_item</code>.
@@ -337,7 +331,6 @@ public class Public extends SchemaImpl {
             ExtensionVersionChange.EXTENSION_VERSION_CHANGE,
             FileDecision.FILE_DECISION,
             FileResource.FILE_RESOURCE,
-            FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY,
             MigrationItem.MIGRATION_ITEM,
             Namespace.NAMESPACE,
             NamespaceMembership.NAMESPACE_MEMBERSHIP,

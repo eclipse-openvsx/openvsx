@@ -17,7 +17,6 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
-import org.eclipse.openvsx.jooq.tables.FlywaySchemaHistory;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.RateLimitToken;
@@ -62,7 +61,6 @@ public class Indexes {
     public static final Index EXTENSION_VERSION_VERSION_MAP_ORDER_BY_IDX = Internal.createIndex(DSL.name("extension_version_version_map_order_by_idx"), ExtensionVersion.EXTENSION_VERSION, new OrderField[] { ExtensionVersion.EXTENSION_VERSION.EXTENSION_ID, ExtensionVersion.EXTENSION_VERSION.SEMVER_MAJOR.desc(), ExtensionVersion.EXTENSION_VERSION.SEMVER_MINOR.desc(), ExtensionVersion.EXTENSION_VERSION.SEMVER_PATCH.desc(), ExtensionVersion.EXTENSION_VERSION.SEMVER_IS_PRE_RELEASE, ExtensionVersion.EXTENSION_VERSION.VERSION }, false);
     public static final Index FILE_RESOURCE_EXTENSION_IDX = Internal.createIndex(DSL.name("file_resource_extension_idx"), FileResource.FILE_RESOURCE, new OrderField[] { FileResource.FILE_RESOURCE.EXTENSION_ID }, false);
     public static final Index FILE_RESOURCE_TYPE_IDX = Internal.createIndex(DSL.name("file_resource_type_idx"), FileResource.FILE_RESOURCE, new OrderField[] { FileResource.FILE_RESOURCE.TYPE }, false);
-    public static final Index FLYWAY_SCHEMA_HISTORY_S_IDX = Internal.createIndex(DSL.name("flyway_schema_history_s_idx"), FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY, new OrderField[] { FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY.SUCCESS }, false);
     public static final Index IDX_EXTENSION_SCAN_COMPLETED_AT = Internal.createIndex(DSL.name("idx_extension_scan_completed_at"), ExtensionScan.EXTENSION_SCAN, new OrderField[] { ExtensionScan.EXTENSION_SCAN.COMPLETED_AT }, false);
     public static final Index IDX_EXTENSION_SCAN_STARTED_AT = Internal.createIndex(DSL.name("idx_extension_scan_started_at"), ExtensionScan.EXTENSION_SCAN, new OrderField[] { ExtensionScan.EXTENSION_SCAN.STARTED_AT.desc() }, false);
     public static final Index IDX_EXTENSION_SCAN_STATUS = Internal.createIndex(DSL.name("idx_extension_scan_status"), ExtensionScan.EXTENSION_SCAN, new OrderField[] { ExtensionScan.EXTENSION_SCAN.STATUS }, false);
