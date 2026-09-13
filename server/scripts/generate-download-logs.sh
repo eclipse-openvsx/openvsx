@@ -83,10 +83,16 @@ FROM file_resource fr
 JOIN extension_version ev ON ev.id = fr.extension_id
 JOIN extension e ON e.id = ev.extension_id
 JOIN namespace n ON n.id = e.namespace_id
-WHERE fr.type = 'download' AND fr.storage_type = '${STORAGE_TYPE}'
+WHERE fr.type = 'download' AND fr.storage_type = :'storage_type'
 ORDER BY fr.name;"
 
-mapfile -t ROWS < <(compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -c "$QUERY")
+# :'storage_type' rather than the value inline: psql quotes and escapes it, so a storage type
+# carrying a quote cannot close the literal and run as SQL. The query goes in on stdin because psql
+# only interpolates variables there and with -f, never in a -c argument.
+mapfile -t ROWS < <(
+    printf '%s\n' "$QUERY" |
+        compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}"
+)
 
 if [ "${#ROWS[@]}" -eq 0 ]; then
     cat >&2 <<EOF
@@ -161,10 +167,14 @@ if [ -z "$OUT" ] || [ "$OUT" != /dev/stdout ]; then
 fi
 
 if [ "$UPLOAD" -eq 1 ]; then
-    # Only .gz keys under the prefix are listed by AwsDownloadRecordSource.
-    key="${PREFIX}$(date -u +%Y%m%d-%H%M%S)-${FORMAT}.gz"
-    gzip -c "$LOG_FILE" | compose exec -T minio sh -c "
+    # Only .gz keys under the prefix are listed by AwsDownloadRecordSource. The pid keeps two runs
+    # in the same second from writing the same key, which would silently drop the first batch.
+    key="${PREFIX}$(date -u +%Y%m%d-%H%M%S)-$$-${FORMAT}.gz"
+    # The inner program is single-quoted and takes the bucket and key as arguments, so neither can
+    # be read as shell syntax inside the container.
+    # shellcheck disable=SC2016  # $1/$2 are the inner shell's arguments, and must not expand here
+    gzip -c "$LOG_FILE" | compose exec -T minio sh -c '
         mc alias set local http://localhost:9000 minioadmin minioadmin >/dev/null &&
-        mc pipe 'local/${BUCKET}/${key}'" >/dev/null
+        mc pipe "local/$1/$2"' sh "$BUCKET" "$key" >/dev/null
     echo "uploaded s3://${BUCKET}/${key}" >&2
 fi
