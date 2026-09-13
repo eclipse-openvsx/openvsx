@@ -25,7 +25,6 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
-import org.eclipse.openvsx.jooq.tables.FlywaySchemaHistory;
 import org.eclipse.openvsx.jooq.tables.MigrationItem;
 import org.eclipse.openvsx.jooq.tables.Namespace;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
@@ -159,11 +158,6 @@ public class Tables {
      * The table <code>public.file_resource</code>.
      */
     public static final FileResource FILE_RESOURCE = FileResource.FILE_RESOURCE;
-
-    /**
-     * The table <code>public.flyway_schema_history</code>.
-     */
-    public static final FlywaySchemaHistory FLYWAY_SCHEMA_HISTORY = FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY;
 
     /**
      * The table <code>public.migration_item</code>.
