@@ -57,7 +57,7 @@ class CacheInfoServiceTest {
         cache.get("a");
         cache.get("absent");
 
-        var info = only(new CacheInfoService(Map.of("fileCacheManager", manager)).getCaches());
+        var info = only(service(Map.of("fileCacheManager", manager)).getCaches());
 
         assertThat(info.managers()).containsExactly("fileCacheManager");
         assertThat(info.name()).isEqualTo("files.browse");
@@ -76,7 +76,7 @@ class CacheInfoServiceTest {
         manager.registerCustomCache("quiet", Caffeine.newBuilder().build());
         manager.getCache("quiet").put("a", 1);
 
-        var info = only(new CacheInfoService(Map.of("localCacheManager", manager)).getCaches());
+        var info = only(service(Map.of("localCacheManager", manager)).getCaches());
 
         assertThat(info.entries()).isEqualTo(1);
         assertThat(info.hits()).isNull();
@@ -96,7 +96,7 @@ class CacheInfoServiceTest {
         cache.get("a");
         cache.get("absent");
 
-        var info = only(new CacheInfoService(Map.of("caffeineCacheManager", manager)).getCaches());
+        var info = only(service(Map.of("caffeineCacheManager", manager)).getCaches());
 
         assertThat(info.implementation()).isEqualTo("jcache");
         assertThat(info.entries()).isEqualTo(1);
@@ -110,7 +110,7 @@ class CacheInfoServiceTest {
         var manager = jcache("unstatted.cache", false);
         manager.getCache("unstatted.cache").put("a", 1);
 
-        var info = only(new CacheInfoService(Map.of("caffeineCacheManager", manager)).getCaches());
+        var info = only(service(Map.of("caffeineCacheManager", manager)).getCaches());
 
         assertThat(info.entries()).isEqualTo(1);
         assertThat(info.hits()).isNull();
@@ -130,7 +130,7 @@ class CacheInfoServiceTest {
         theirs.get("a");
         theirs.get("a");
 
-        var info = only(new CacheInfoService(Map.of("caffeineCacheManager", mine)).getCaches());
+        var info = only(service(Map.of("caffeineCacheManager", mine)).getCaches());
 
         // Untouched, so its own statistics are zero rather than the other manager's three hits.
         assertThat(info.hits()).isZero();
@@ -149,7 +149,7 @@ class CacheInfoServiceTest {
 
         assertThat(localManager.getCache("settings").get("a")).isNotNull();
 
-        var service = new CacheInfoService(Map.of("fileCacheManager", fileManager, "localCacheManager", localManager));
+        var service = service(Map.of("fileCacheManager", fileManager, "localCacheManager", localManager));
 
         // Reported once, naming both ways in, rather than as two caches with the same numbers.
         var info = only(service.getCaches());
@@ -198,7 +198,7 @@ class CacheInfoServiceTest {
         cache.get("a");
         cache.get("absent");
 
-        var info = only(new CacheInfoService(Map.of("redisCacheManager", manager)).getCaches());
+        var info = only(service(Map.of("redisCacheManager", manager)).getCaches());
 
         assertThat(info.implementation()).isEqualTo("redis");
         assertThat(info.entries()).isNull();
@@ -210,13 +210,34 @@ class CacheInfoServiceTest {
     }
 
     @Test
+    void reportsNoStatisticsAtAllWhenCollectionIsDisabled() {
+        // Off is the default, and the dashboard has to be able to say so: a Redis cache with no
+        // collector answers getStatistics with zeros rather than failing, which would otherwise show
+        // as a cache that is never hit.
+        var manager = new CaffeineCacheManager();
+        manager.registerCustomCache("files.browse", Caffeine.newBuilder().recordStats().build());
+        manager.getCache("files.browse").put("a", 1);
+        manager.getCache("files.browse").get("a");
+        var disabled = new CacheInfoService(Map.of("fileCacheManager", manager), false);
+
+        var info = only(disabled.getCaches());
+
+        assertThat(disabled.isStatisticsEnabled()).isFalse();
+        assertThat(info.entries()).isEqualTo(1);
+        assertThat(info.hits()).isNull();
+        assertThat(info.misses()).isNull();
+        assertThat(info.hitRate()).isNull();
+        assertThat(info.evictions()).isNull();
+    }
+
+    @Test
     void clearingOneCacheLeavesTheOthersAlone() {
         var manager = new CaffeineCacheManager();
         manager.registerCustomCache("one", Caffeine.newBuilder().recordStats().build());
         manager.registerCustomCache("two", Caffeine.newBuilder().recordStats().build());
         manager.getCache("one").put("a", 1);
         manager.getCache("two").put("b", 2);
-        var service = new CacheInfoService(Map.of("fileCacheManager", manager));
+        var service = service(Map.of("fileCacheManager", manager));
 
         assertThat(service.clear("fileCacheManager", "one")).isTrue();
 
@@ -228,7 +249,7 @@ class CacheInfoServiceTest {
     void clearingRejectsAnUnknownManagerOrCache() {
         var manager = new CaffeineCacheManager();
         manager.registerCustomCache("one", Caffeine.newBuilder().build());
-        var service = new CacheInfoService(Map.of("fileCacheManager", manager));
+        var service = service(Map.of("fileCacheManager", manager));
 
         assertThat(service.clear("noSuchManager", "one")).isFalse();
         assertThat(service.clear("fileCacheManager", "noSuchCache")).isFalse();
@@ -243,7 +264,7 @@ class CacheInfoServiceTest {
         second.registerCustomCache("three", Caffeine.newBuilder().build());
         first.getCache("one").put("a", 1);
         second.getCache("three").put("c", 3);
-        var service = new CacheInfoService(Map.of("fileCacheManager", first, "localCacheManager", second));
+        var service = service(Map.of("fileCacheManager", first, "localCacheManager", second));
 
         assertThat(service.clearAll()).isEqualTo(3);
 
@@ -259,7 +280,7 @@ class CacheInfoServiceTest {
         var second = new CaffeineCacheManager();
         second.registerCustomCache("middle", Caffeine.newBuilder().build());
 
-        var caches = new CacheInfoService(Map.of("bManager", first, "aManager", second)).getCaches();
+        var caches = service(Map.of("bManager", first, "aManager", second)).getCaches();
 
         // ordered by cache name, since a cache is no longer filed under a single manager
         assertThat(caches).extracting(CacheInfo::name).containsExactly("aardvark", "middle", "zebra");
@@ -292,6 +313,11 @@ class CacheInfoServiceTest {
         var springManager = new JCacheCacheManager(manager);
         springManager.afterPropertiesSet();
         return springManager;
+    }
+
+    /** Statistics on, which is what every test here but one is about. */
+    private CacheInfoService service(Map<String, CacheManager> managers) {
+        return new CacheInfoService(managers, true);
     }
 
     private CacheInfo only(List<CacheInfo> caches) {

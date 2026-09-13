@@ -67,6 +67,10 @@ export const CachesAdmin: FC = () => {
     };
 
     const caches = data?.caches ?? [];
+    const statisticsEnabled = data?.statisticsEnabled ?? false;
+    // Why a dash is a dash: the implementation cannot report it, or nothing is counting at all.
+    const sizeReason = 'This cache implementation does not report it';
+    const statsReason = statisticsEnabled ? sizeReason : 'Statistics collection is off';
 
     return (
         <Box sx={{ p: 3 }}>
@@ -113,6 +117,14 @@ export const CachesAdmin: FC = () => {
                 </Alert>
             )}
 
+            {!error && !isLoading && !statisticsEnabled && (
+                <Alert severity='info' sx={{ mb: 2 }}>
+                    Hit and miss counting is off, so those columns are empty. Set{' '}
+                    <code>ovsx.caching.statistics.enabled=true</code> and restart to collect them; it costs a counter on
+                    every cache lookup, which is why it is not on by default.
+                </Alert>
+            )}
+
             {!error && !isLoading && (
                 <TableContainer component={Paper}>
                     <Table size='small' aria-label='Caches'>
@@ -151,11 +163,11 @@ export const CachesAdmin: FC = () => {
                                             {cache.managers.join(', ')}
                                         </Typography>
                                     </TableCell>
-                                    <MeasurementCell value={formatCount(cache.entries)} />
-                                    <MeasurementCell value={formatCount(cache.hits)} />
-                                    <MeasurementCell value={formatCount(cache.misses)} />
-                                    <MeasurementCell value={formatHitRate(cache.hitRate)} />
-                                    <MeasurementCell value={formatCount(cache.evictions)} />
+                                    <MeasurementCell value={formatCount(cache.entries)} reason={sizeReason} />
+                                    <MeasurementCell value={formatCount(cache.hits)} reason={statsReason} />
+                                    <MeasurementCell value={formatCount(cache.misses)} reason={statsReason} />
+                                    <MeasurementCell value={formatHitRate(cache.hitRate)} reason={statsReason} />
+                                    <MeasurementCell value={formatCount(cache.evictions)} reason={statsReason} />
                                     <TableCell align='right'>
                                         <Button
                                             size='small'
@@ -176,14 +188,14 @@ export const CachesAdmin: FC = () => {
 };
 
 /** Says why a number is missing, so a dash is not read as a zero. */
-const MeasurementCell: FC<{ value: string }> = ({ value }) => {
+const MeasurementCell: FC<{ value: string; reason: string }> = ({ value, reason }) => {
     if (value !== NOT_MEASURED) {
         return <TableCell align='right'>{value}</TableCell>;
     }
 
     return (
         <TableCell align='right'>
-            <Tooltip title='This cache implementation does not report it'>
+            <Tooltip title={reason}>
                 <Typography variant='body2' component='span' color='text.disabled'>
                     {NOT_MEASURED}
                 </Typography>

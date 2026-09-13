@@ -26,6 +26,7 @@ import javax.management.ObjectName;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.cache.jcache.JCacheCache;
@@ -56,9 +57,23 @@ public class CacheInfoService {
     protected final Logger logger = LoggerFactory.getLogger(CacheInfoService.class);
 
     private final Map<String, CacheManager> cacheManagers;
+    private final boolean statisticsEnabled;
 
-    public CacheInfoService(Map<String, CacheManager> cacheManagers) {
+    public CacheInfoService(
+            Map<String, CacheManager> cacheManagers,
+            @Value("${ovsx.caching.statistics.enabled:false}") boolean statisticsEnabled
+    ) {
         this.cacheManagers = cacheManagers;
+        this.statisticsEnabled = statisticsEnabled;
+    }
+
+    /**
+     * Whether the caches were built to count hits and misses at all. Reported alongside the caches so
+     * the dashboard can say why every statistic is missing, rather than leaving it to be read as a
+     * registry that nothing ever hits.
+     */
+    public boolean isStatisticsEnabled() {
+        return statisticsEnabled;
     }
 
     /**
@@ -169,7 +184,7 @@ public class CacheInfoService {
             var stats = native_.stats();
             // Caffeine hands back a zeroed CacheStats when the cache was built without recordStats,
             // which would read as a cache that is never hit rather than one that is not counting.
-            var recording = native_.policy().isRecordingStats();
+            var recording = statisticsEnabled && native_.policy().isRecordingStats();
             return new CacheInfo(
                     managers,
                     cacheName,
@@ -205,7 +220,7 @@ public class CacheInfoService {
             }
         }
 
-        var stats = jcacheStatistics(cacheName, managerUri(native_));
+        var stats = statisticsEnabled ? jcacheStatistics(cacheName, managerUri(native_)) : null;
         if (stats == null) {
             return new CacheInfo(managers, cacheName, "jcache", entries, null, null, null, null);
         }
@@ -234,11 +249,16 @@ public class CacheInfoService {
      * rather than evicting under pressure, so there is nothing to report rather than zero.
      */
     private CacheInfo describeRedis(List<String> managers, String cacheName, RedisCache cache) {
+        if (!statisticsEnabled) {
+            // Unlike the others, a Redis cache with no collector answers getStatistics with zeros
+            // rather than failing, so without this the page would show a cache that is never hit.
+            return new CacheInfo(managers, cacheName, "redis", null, null, null, null, null);
+        }
+
         CacheStatistics stats;
         try {
             stats = cache.getStatistics();
         } catch (RuntimeException e) {
-            // Throws when the writer was created without a statistics collector.
             logger.debug("cache {} is not collecting statistics", cacheName, e);
             return new CacheInfo(managers, cacheName, "redis", null, null, null, null, null);
         }

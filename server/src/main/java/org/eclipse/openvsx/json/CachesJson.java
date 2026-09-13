@@ -31,8 +31,23 @@ public class CachesJson extends ResultJson {
         return result;
     }
 
-    @Schema(description = "Every cache of every cache manager, ordered by manager then name")
+    @Schema(
+        description = "Whether the caches were built to count hits and misses. When false every"
+                + " statistic below is absent, because nothing is counting rather than because"
+                + " nothing is happening."
+    )
+    private boolean statisticsEnabled;
+
+    @Schema(description = "Every cache of every cache manager, ordered by name")
     private List<CacheJson> caches;
+
+    public boolean isStatisticsEnabled() {
+        return statisticsEnabled;
+    }
+
+    public void setStatisticsEnabled(boolean statisticsEnabled) {
+        this.statisticsEnabled = statisticsEnabled;
+    }
 
     public List<CacheJson> getCaches() {
         return caches;

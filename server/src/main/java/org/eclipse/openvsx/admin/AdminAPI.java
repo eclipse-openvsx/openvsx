@@ -432,6 +432,7 @@ public class AdminAPI {
             admins.checkAdminUser();
 
             var json = new CachesJson();
+            json.setStatisticsEnabled(caches.isStatisticsEnabled());
             json.setCaches(caches.getCaches().stream().map(AdminAPI::toJson).toList());
             return ResponseEntity.ok(json);
         } catch (ErrorResultException exc) {

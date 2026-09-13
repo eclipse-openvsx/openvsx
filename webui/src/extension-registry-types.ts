@@ -664,6 +664,11 @@ export interface CacheInfo {
 }
 
 export interface CacheList {
+    /**
+     * Whether the caches count hits and misses at all. When false every statistic is absent because
+     * nothing is counting, not because nothing is happening.
+     */
+    statisticsEnabled: boolean;
     caches: CacheInfo[];
 }
 

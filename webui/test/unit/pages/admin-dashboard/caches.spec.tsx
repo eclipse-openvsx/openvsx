@@ -38,9 +38,13 @@ const unmeasurable: CacheInfo = {
 
 // not named render*, so the testing-library naming rule does not treat the service stub it returns
 // as a render result
-const mountPage = (caches: CacheInfo[], clearCaches = vi.fn().mockResolvedValue({ success: 'ok' })) => {
+const mountPage = (
+    caches: CacheInfo[],
+    clearCaches = vi.fn().mockResolvedValue({ success: 'ok' }),
+    statisticsEnabled = true
+) => {
     const admin = {
-        getCaches: vi.fn().mockResolvedValue({ caches }),
+        getCaches: vi.fn().mockResolvedValue({ caches, statisticsEnabled }),
         clearCaches
     };
     renderWithProviders(<CachesAdmin />, {
@@ -100,6 +104,21 @@ describe('CachesAdmin', () => {
         await userEvent.click(await screen.findByRole('button', { name: 'Clear extension.json' }));
 
         expect(await screen.findByText(/nope/)).toBeInTheDocument();
+    });
+
+    it('says why the statistics are empty when counting is off', async () => {
+        // Without this the empty columns read as caches that are never hit, which is the mistake the
+        // whole absent-not-zero treatment exists to prevent.
+        mountPage([{ ...measured, hits: undefined, misses: undefined, hitRate: undefined }], undefined, false);
+
+        expect(await screen.findByText(/ovsx.caching.statistics.enabled/)).toBeInTheDocument();
+    });
+
+    it('does not nag about statistics when they are being collected', async () => {
+        mountPage([measured]);
+
+        await screen.findByText('extension.json');
+        expect(screen.queryByText(/ovsx.caching.statistics.enabled/)).not.toBeInTheDocument();
     });
 
     it('says so when nothing is registered', async () => {

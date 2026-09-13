@@ -58,17 +58,25 @@ public class CacheConfig {
 
     protected final Logger logger = LoggerFactory.getLogger(CacheConfig.class);
 
+    /**
+     * Whether the caches count hits, misses and evictions for the admin dashboard. Off by default:
+     * every implementation here counts on the lookup path, so this is paid on every cache read for
+     * numbers nothing consults unless somebody is looking at the dashboard.
+     */
+    @Value("${ovsx.caching.statistics.enabled:false}")
+    boolean statisticsEnabled;
+
     @Bean
     public Cache<Object, Object> extensionCache(
             @Value("${ovsx.caching.files-extension.tti:PT1H}") Duration timeToIdle,
             @Value("${ovsx.caching.files-extension.max-size:20}") long maxSize
     ) {
-        return Caffeine.newBuilder()
-                .removalListener(new ExpiredFileListener())
-                .expireAfterAccess(timeToIdle)
-                .maximumSize(maxSize)
-                .scheduler(Scheduler.systemScheduler())
-                .recordStats()
+        return recordStatsIfEnabled(
+                Caffeine.newBuilder()
+                        .removalListener(new ExpiredFileListener())
+                        .expireAfterAccess(timeToIdle)
+                        .maximumSize(maxSize)
+                        .scheduler(Scheduler.systemScheduler()))
                 .build();
     }
 
@@ -85,13 +93,13 @@ public class CacheConfig {
         // total bytes stay within maxTotalSize (a file's real size still counts when it's the larger
         // of the two), and the entry count stays within maxEntries (its floor share of the budget).
         var floorWeight = maxEntries > 0 ? Math.ceilDiv(maxTotalSize, maxEntries) : 0;
-        return Caffeine.newBuilder()
-                .removalListener(new ExpiredFileListener())
-                .expireAfterAccess(timeToIdle)
-                .maximumWeight(maxTotalSize)
-                .weigher(new FileSizeWeigher(floorWeight))
-                .scheduler(Scheduler.systemScheduler())
-                .recordStats()
+        return recordStatsIfEnabled(
+                Caffeine.newBuilder()
+                        .removalListener(new ExpiredFileListener())
+                        .expireAfterAccess(timeToIdle)
+                        .maximumWeight(maxTotalSize)
+                        .weigher(new FileSizeWeigher(floorWeight))
+                        .scheduler(Scheduler.systemScheduler()))
                 .build();
     }
 
@@ -100,11 +108,11 @@ public class CacheConfig {
             @Value("${ovsx.caching.files-browse.tti:PT1H}") Duration timeToIdle,
             @Value("${ovsx.caching.files-browse.max-size:50}") long maxSize
     ) {
-        return Caffeine.newBuilder()
-                .expireAfterAccess(timeToIdle)
-                .maximumSize(maxSize)
-                .scheduler(Scheduler.systemScheduler())
-                .recordStats()
+        return recordStatsIfEnabled(
+                Caffeine.newBuilder()
+                        .expireAfterAccess(timeToIdle)
+                        .maximumSize(maxSize)
+                        .scheduler(Scheduler.systemScheduler()))
                 .build();
     }
 
@@ -126,10 +134,10 @@ public class CacheConfig {
     public Cache<Object, Object> settingCache(
             @Value("${ovsx.caching.setting.ttl:PT1M}") Duration timeToIdle
     ) {
-        return Caffeine.newBuilder()
-                .expireAfterWrite(timeToIdle)
-                .scheduler(Scheduler.systemScheduler())
-                .recordStats()
+        return recordStatsIfEnabled(
+                Caffeine.newBuilder()
+                        .expireAfterWrite(timeToIdle)
+                        .scheduler(Scheduler.systemScheduler()))
                 .build();
     }
 
@@ -250,6 +258,13 @@ public class CacheConfig {
         return new JCacheCacheManager(cacheManager);
     }
 
+    @SuppressWarnings("unchecked")
+    private Caffeine<Object, Object> recordStatsIfEnabled(Caffeine<?, ?> builder) {
+        // Caffeine's builder mutates in place and returns itself, so this is the same instance either
+        // way; the generics only move because recordStats returns the builder's own type.
+        return (Caffeine<Object, Object>) (statisticsEnabled ? builder.recordStats() : builder);
+    }
+
     private CaffeineConfiguration<Object, Object> createCaffeineConfiguration(
             Duration duration,
             long maxSize,
@@ -259,7 +274,7 @@ public class CacheConfig {
         configuration.setMaximumSize(OptionalLong.of(maxSize));
         // Counted in the JCache layer rather than in the Caffeine cache underneath, and only
         // reachable over JMX, which is how CacheInfoService reads it for the admin dashboard.
-        configuration.setStatisticsEnabled(true);
+        configuration.setStatisticsEnabled(statisticsEnabled);
         if (tti) {
             configuration.setExpireAfterAccess(OptionalLong.of(duration.toNanos()));
         } else {
@@ -295,7 +310,7 @@ public class CacheConfig {
 
         var sharedMapper = JsonMapper.shared();
 
-        return RedisCacheManager.builder(redisConnectionFactory)
+        var builder = RedisCacheManager.builder(redisConnectionFactory)
                 .withCacheConfiguration(
                         CACHE_AVERAGE_REVIEW_RATING,
                         redisCacheConfig(new JacksonJsonRedisSerializer<>(Double.class), averageReviewRatingTtl))
@@ -338,11 +353,14 @@ public class CacheConfig {
                                         sharedMapper,
                                         sharedMapper.getTypeFactory()
                                                 .constructParametricType(List.class, String.class)),
-                                maliciousExtensionsTtl))
-                // Counted by the cache writer rather than by Redis, and off unless asked for, which
-                // is how CacheInfoService reads hits and misses for the admin dashboard.
-                .enableStatistics()
-                .build();
+                                maliciousExtensionsTtl));
+        if (statisticsEnabled) {
+            // Counted by the cache writer rather than by Redis, and off unless asked for, which is
+            // how CacheInfoService reads hits and misses for the admin dashboard.
+            builder.enableStatistics();
+        }
+
+        return builder.build();
     }
 
     private <T> RedisCacheConfiguration redisCacheConfig(RedisSerializer<T> serializer, Duration ttl) {
