@@ -15,7 +15,7 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
 import org.eclipse.openvsx.jooq.tables.Customer;
 import org.eclipse.openvsx.jooq.tables.CustomerMembership;
 import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
-import org.eclipse.openvsx.jooq.tables.DownloadCountProcessedItem;
+import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
@@ -110,9 +110,9 @@ public class Tables {
     public static final DailyUsageStats DAILY_USAGE_STATS = DailyUsageStats.DAILY_USAGE_STATS;
 
     /**
-     * The table <code>public.download_count_processed_item</code>.
+     * The table <code>public.download_ingestion</code>.
      */
-    public static final DownloadCountProcessedItem DOWNLOAD_COUNT_PROCESSED_ITEM = DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM;
+    public static final DownloadIngestion DOWNLOAD_INGESTION = DownloadIngestion.DOWNLOAD_INGESTION;
 
     /**
      * The table <code>public.extension</code>.

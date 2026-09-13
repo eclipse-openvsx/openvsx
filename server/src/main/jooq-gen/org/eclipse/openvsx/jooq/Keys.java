@@ -15,7 +15,7 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
 import org.eclipse.openvsx.jooq.tables.Customer;
 import org.eclipse.openvsx.jooq.tables.CustomerMembership;
 import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
-import org.eclipse.openvsx.jooq.tables.DownloadCountProcessedItem;
+import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
@@ -53,7 +53,7 @@ import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsTopNamespaceExtens
 import org.eclipse.openvsx.jooq.tables.records.CustomerMembershipRecord;
 import org.eclipse.openvsx.jooq.tables.records.CustomerRecord;
 import org.eclipse.openvsx.jooq.tables.records.DailyUsageStatsRecord;
-import org.eclipse.openvsx.jooq.tables.records.DownloadCountProcessedItemRecord;
+import org.eclipse.openvsx.jooq.tables.records.DownloadIngestionRecord;
 import org.eclipse.openvsx.jooq.tables.records.ExtensionRecord;
 import org.eclipse.openvsx.jooq.tables.records.ExtensionReviewRecord;
 import org.eclipse.openvsx.jooq.tables.records.ExtensionScanRecord;
@@ -106,7 +106,7 @@ public class Keys {
     public static final UniqueKey<CustomerMembershipRecord> CUSTOMER_MEMBERSHIP_PKEY = Internal.createUniqueKey(CustomerMembership.CUSTOMER_MEMBERSHIP, DSL.name("customer_membership_pkey"), new TableField[] { CustomerMembership.CUSTOMER_MEMBERSHIP.ID }, true);
     public static final UniqueKey<DailyUsageStatsRecord> DAILY_USAGE_STATS_PKEY = Internal.createUniqueKey(DailyUsageStats.DAILY_USAGE_STATS, DSL.name("daily_usage_stats_pkey"), new TableField[] { DailyUsageStats.DAILY_USAGE_STATS.ID }, true);
     public static final UniqueKey<DailyUsageStatsRecord> DAILY_USAGE_STATS_UNIQUE_CUSTOMER_DATE = Internal.createUniqueKey(DailyUsageStats.DAILY_USAGE_STATS, DSL.name("daily_usage_stats_unique_customer_date"), new TableField[] { DailyUsageStats.DAILY_USAGE_STATS.CUSTOMER_ID, DailyUsageStats.DAILY_USAGE_STATS.DATE }, true);
-    public static final UniqueKey<DownloadCountProcessedItemRecord> DOWNLOAD_COUNT_PROCESSED_ITEM_PKEY = Internal.createUniqueKey(DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM, DSL.name("download_count_processed_item_pkey"), new TableField[] { DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM.ID }, true);
+    public static final UniqueKey<DownloadIngestionRecord> DOWNLOAD_INGESTION_PKEY = Internal.createUniqueKey(DownloadIngestion.DOWNLOAD_INGESTION, DSL.name("download_ingestion_pkey"), new TableField[] { DownloadIngestion.DOWNLOAD_INGESTION.ID }, true);
     public static final UniqueKey<ExtensionRecord> EXTENSION_PKEY = Internal.createUniqueKey(Extension.EXTENSION, DSL.name("extension_pkey"), new TableField[] { Extension.EXTENSION.ID }, true);
     public static final UniqueKey<ExtensionRecord> UNIQUE_EXTENSION_PUBLIC_ID = Internal.createUniqueKey(Extension.EXTENSION, DSL.name("unique_extension_public_id"), new TableField[] { Extension.EXTENSION.PUBLIC_ID }, true);
     public static final UniqueKey<ExtensionReviewRecord> EXTENSION_REVIEW_PKEY = Internal.createUniqueKey(ExtensionReview.EXTENSION_REVIEW, DSL.name("extension_review_pkey"), new TableField[] { ExtensionReview.EXTENSION_REVIEW.ID }, true);

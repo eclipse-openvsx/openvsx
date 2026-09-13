@@ -17,14 +17,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
-// The table keeps its historical name; only the Java class was renamed.
 @Entity
-@Table(name = "download_count_processed_item")
+@Table(name = "download_ingestion")
 public class DownloadIngestion {
 
     @Id
-    @GeneratedValue(generator = "downloadCountProcessedItemSeq")
-    @SequenceGenerator(name = "downloadCountProcessedItemSeq", sequenceName = "download_count_processed_item_seq")
+    @GeneratedValue(generator = "downloadIngestionSeq")
+    @SequenceGenerator(name = "downloadIngestionSeq", sequenceName = "download_ingestion_seq")
     private long id;
 
     private String name;
