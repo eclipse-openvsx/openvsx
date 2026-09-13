@@ -187,3 +187,36 @@ or
   find server/build/test-extensions-builtin -name '*.vsix' -exec cli/lib/ovsx publish '{}' \;
   find server/build/test-extensions -name '*.vsix' -exec cli/lib/ovsx publish '{}' \;
   ```
+
+### Optional: Generate download logs for the ingestion pipeline
+
+Download counts are ingested from CDN or storage access logs rather than counted on the request
+path, so exercising that locally needs log files to ingest. `./server/scripts/generate-download-logs.sh`
+writes them in either supported format and can upload them to the MinIO bucket the AWS source reads.
+
+It draws its `.vsix` filenames from the registry database, because a download only counts when the
+filename resolves to a `file_resource` row of type `download` **whose `storage_type` matches the
+source's**. Invented filenames ingest nothing. In practice that means the extensions have to be
+stored on S3 rather than on disk, so alongside the `minio` profile uncomment the `ovsx.storage.aws`
+block in `server/src/dev/resources/application.yml` and add the log source:
+
+```yaml
+ovsx:
+  logs:
+    aws:
+      bucket: test          # the source bean only exists when this is set
+      format: cloudfront    # or fastly
+      cron: "0 * * * * *"   # every minute, rather than the hourly default
+```
+
+Then, with the `db` and `minio` profiles up, the server running and at least one extension
+published:
+
+```bash
+./server/scripts/generate-download-logs.sh --count 500 --days 14 --upload
+```
+
+Use `--help` for the rest. The next scheduled run picks the file up; `download_ingestion` records
+which files have been processed, and a processed file is deleted from the bucket unless
+`ovsx.logs.aws.archive-prefix` is set. None of this needs `ovsx.analytics.enabled` — ingestion
+drives the download counters on its own, and analytics only adds the time-series events on top.
