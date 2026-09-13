@@ -22,7 +22,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
@@ -35,12 +34,11 @@ import static org.eclipse.openvsx.cache.CacheService.CACHE_SITEMAP;
 public class SitemapService {
 
     private final RepositoryService repositories;
+    private final WebUiProperties webUi;
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    public SitemapService(RepositoryService repositories) {
+    public SitemapService(RepositoryService repositories, WebUiProperties webUi) {
         this.repositories = repositories;
+        this.webUi = webUi;
     }
 
     @Cacheable(CACHE_SITEMAP)
@@ -78,13 +76,14 @@ public class SitemapService {
     }
 
     private String getBaseUrl() {
+        var webuiUrl = webUi.getWebuiUrl();
         String url;
         if (StringUtils.isEmpty(webuiUrl)) {
-            url = UrlUtil.getBaseUrl();
+            url = UrlUtil.getBaseUrl(webUi.getApiUrl());
         } else if (URI.create(webuiUrl).isAbsolute()) {
             url = webuiUrl;
         } else {
-            url = UrlUtil.createApiUrl(UrlUtil.getBaseUrl(), webuiUrl.split("/"));
+            url = UrlUtil.createApiUrl(UrlUtil.getBaseUrl(webUi.getApiUrl()), webuiUrl.split("/"));
         }
         if (!url.endsWith("/")) {
             url += "/";

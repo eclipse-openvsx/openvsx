@@ -26,6 +26,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.log.DownloadCountService;
 import org.eclipse.openvsx.util.TempFile;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,6 +63,8 @@ class StorageUtilServiceUploadFileTest {
     FileCacheDurationConfig fileCacheDurationConfig;
     @Mock
     CdnServiceConfig cdnServiceConfig;
+    @Mock
+    WebUiProperties webUi;
 
     @Test
     void uploadFile_recordsTheSizeOfTheUploadedBytes() throws Exception {
@@ -110,6 +113,7 @@ class StorageUtilServiceUploadFileTest {
                 cache,
                 entityManager,
                 fileCacheDurationConfig,
-                cdnServiceConfig);
+                cdnServiceConfig,
+                webUi);
     }
 }

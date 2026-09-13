@@ -27,6 +27,8 @@ import org.springframework.web.client.RestTemplate;
 import org.eclipse.openvsx.UrlConfigService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
+import org.eclipse.openvsx.migration.MigrationsProperties;
+import org.eclipse.openvsx.mirror.MirrorConfig;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
@@ -39,36 +41,36 @@ public class VSCodeIdService {
     private final UrlConfigService urlConfigService;
     private final JobRequestScheduler scheduler;
     private final UUIDService uuidService;
-
-    @Value("${ovsx.data.mirror.enabled:false}")
-    boolean mirrorEnabled;
+    private final MirrorConfig mirrorConfig;
+    private final MigrationsProperties migrationsProperties;
 
     @Value("${ovsx.vscode.upstream.update-on-start:false}")
     boolean updateOnStart;
-
-    @Value("${ovsx.migrations.delay.seconds:0}")
-    long delay;
 
     public VSCodeIdService(
             RestTemplate vsCodeIdRestTemplate,
             UrlConfigService urlConfigService,
             JobRequestScheduler scheduler,
-            UUIDService uuidService
+            UUIDService uuidService,
+            MirrorConfig mirrorConfig,
+            MigrationsProperties migrationsProperties
     ) {
         this.vsCodeIdRestTemplate = vsCodeIdRestTemplate;
         this.urlConfigService = urlConfigService;
         this.scheduler = scheduler;
         this.uuidService = uuidService;
+        this.mirrorConfig = mirrorConfig;
+        this.migrationsProperties = migrationsProperties;
     }
 
     @EventListener
     public void applicationStarted(ApplicationStartedEvent event) {
-        if (mirrorEnabled) {
+        if (mirrorConfig.isEnabled()) {
             return;
         }
         if (updateOnStart) {
             scheduler.schedule(
-                    TimeUtil.getCurrentUTC().plusSeconds(delay),
+                    TimeUtil.getCurrentUTC().plusSeconds(migrationsProperties.getDelaySeconds()),
                     new HandlerJobRequest<>(VSCodeIdDailyUpdateJobRequestHandler.class));
         }
 

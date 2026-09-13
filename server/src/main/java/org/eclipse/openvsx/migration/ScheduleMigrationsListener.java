@@ -26,32 +26,32 @@ import org.eclipse.openvsx.util.UUIDService;
 public class ScheduleMigrationsListener {
     protected final Logger logger = LoggerFactory.getLogger(ScheduleMigrationsListener.class);
 
-    @Value("${ovsx.migrations.delay.seconds:0}")
-    long delay;
-
     @Value("${ovsx.migrations.once-per-version:false}")
     boolean runMigrationsOncePerVersion;
 
-    @Value("${ovsx.registry.version:}")
-    String registryVersion;
-
     private final JobRequestScheduler scheduler;
     private final UUIDService uuidService;
+    private final MigrationsProperties migrationsProperties;
 
-    public ScheduleMigrationsListener(JobRequestScheduler scheduler, UUIDService uuidService) {
+    public ScheduleMigrationsListener(
+            JobRequestScheduler scheduler,
+            UUIDService uuidService,
+            MigrationsProperties migrationsProperties
+    ) {
         this.scheduler = scheduler;
         this.uuidService = uuidService;
+        this.migrationsProperties = migrationsProperties;
     }
 
     @EventListener
     public void applicationStarted(ApplicationStartedEvent event) {
         UUID jobId = null;
         if (runMigrationsOncePerVersion) {
-            var jobIdText = "MigrationScheduler::" + registryVersion;
+            var jobIdText = "MigrationScheduler::" + migrationsProperties.getRegistryVersion();
             jobId = uuidService.generateFromName(jobIdText);
         }
 
-        var instant = Instant.now().plusSeconds(delay);
+        var instant = Instant.now().plusSeconds(migrationsProperties.getDelaySeconds());
         scheduler.schedule(jobId, instant, new HandlerJobRequest<>(MigrationScheduler.class));
     }
 }

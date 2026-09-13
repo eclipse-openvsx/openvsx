@@ -32,12 +32,19 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.util.HttpHeadersUtil;
 import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.UrlUtil;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 @Component
 public class LocalStorageService implements IStorageService {
 
     @Value("${ovsx.storage.local.directory:}")
     String storageDirectory;
+
+    private final WebUiProperties webUi;
+
+    public LocalStorageService(WebUiProperties webUi) {
+        this.webUi = webUi;
+    }
 
     @Override
     public boolean isEnabled() {
@@ -100,7 +107,11 @@ public class LocalStorageService implements IStorageService {
 
     @Override
     public URI getLocation(FileResource resource) {
-        return URI.create(UrlUtil.createApiFileUrl(UrlUtil.getBaseUrl(), resource.getExtension(), resource.getName()));
+        return URI.create(
+                UrlUtil.createApiFileUrl(
+                        UrlUtil.getBaseUrl(webUi.getApiUrl()),
+                        resource.getExtension(),
+                        resource.getName()));
     }
 
     public ResponseEntity<StreamingResponseBody> getNamespaceLogo(Namespace namespace) {
@@ -122,7 +133,7 @@ public class LocalStorageService implements IStorageService {
     public URI getNamespaceLogoLocation(Namespace namespace) {
         return URI.create(
                 UrlUtil.createApiUrl(
-                        UrlUtil.getBaseUrl(),
+                        UrlUtil.getBaseUrl(webUi.getApiUrl()),
                         "api",
                         namespace.getName(),
                         "logo",

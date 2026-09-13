@@ -38,6 +38,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,7 +53,8 @@ import static org.mockito.Mockito.verify;
         EntityManager.class,
         StorageUtilService.class,
         CacheService.class,
-        OAuth2AttributesConfig.class
+        OAuth2AttributesConfig.class,
+        WebUiProperties.class
     }
 )
 class UserServiceTest {
@@ -276,7 +278,8 @@ class UserServiceTest {
                 CacheService cache,
                 ExtensionValidator validator,
                 @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository,
-                OAuth2AttributesConfig attributesConfig
+                OAuth2AttributesConfig attributesConfig,
+                WebUiProperties webUi
         ) {
             return new UserService(
                     entityManager,
@@ -285,7 +288,8 @@ class UserServiceTest {
                     cache,
                     validator,
                     clientRegistrationRepository,
-                    attributesConfig);
+                    attributesConfig,
+                    webUi);
         }
     }
 }

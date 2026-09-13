@@ -20,6 +20,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -34,6 +35,7 @@ import org.eclipse.openvsx.search.SearchExplainService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.*;
@@ -128,6 +130,7 @@ public class LocalVSCodeServiceTest {
     }
 
     @TestConfiguration
+    @Import(WebUiProperties.class)
     static class TestConfig {
         @Bean
         LocalVSCodeService vsCodeService(
@@ -137,7 +140,8 @@ public class LocalVSCodeServiceTest {
                 StorageUtilService storageUtil,
                 ExtensionVersionIntegrityService integrityService,
                 WebResourceService webResources,
-                CacheService cache
+                CacheService cache,
+                WebUiProperties webUi
         ) {
             return new LocalVSCodeService(
                     repositories,
@@ -146,7 +150,8 @@ public class LocalVSCodeServiceTest {
                     storageUtil,
                     integrityService,
                     webResources,
-                    cache);
+                    cache,
+                    webUi);
         }
     }
 

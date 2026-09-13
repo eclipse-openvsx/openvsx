@@ -21,6 +21,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import org.eclipse.openvsx.mirror.MirrorConfig;
+import org.eclipse.openvsx.web.WebUiProperties;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -38,7 +41,7 @@ class AccessTokenConfigTest {
             .withInitializer(
                     context -> context.getBeanFactory()
                             .setConversionService(ApplicationConversionService.getSharedInstance()))
-            .withUserConfiguration(AccessTokenConfig.class);
+            .withUserConfiguration(AccessTokenConfig.class, MirrorConfig.class);
 
     @Test
     void hasNoKeyringByDefault() {

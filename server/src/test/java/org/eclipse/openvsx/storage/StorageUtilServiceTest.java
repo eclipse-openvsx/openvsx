@@ -33,6 +33,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchExplainService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.log.DownloadCountService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.entities.FileResource.README;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -51,7 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
         FileCacheDurationConfig.class,
         FilesCacheKeyGenerator.class,
         RepositoryService.class,
-        LocalStorageService.class
+        LocalStorageService.class,
+        WebUiProperties.class
     }
 )
 @ContextConfiguration(classes = StorageUtilServiceTest.TestConfig.class)
@@ -227,7 +229,8 @@ public class StorageUtilServiceTest {
                 CacheService cache,
                 EntityManager entityManager,
                 FileCacheDurationConfig fileCacheDurationConfig,
-                CdnServiceConfig cdnServiceConfig
+                CdnServiceConfig cdnServiceConfig,
+                WebUiProperties webUi
         ) {
             return new StorageUtilService(
                     repositories,
@@ -241,7 +244,8 @@ public class StorageUtilServiceTest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig);
+                    cdnServiceConfig,
+                    webUi);
         }
     }
 }

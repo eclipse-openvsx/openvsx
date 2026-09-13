@@ -66,6 +66,8 @@ import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
+import org.eclipse.openvsx.migration.MigrationsProperties;
+import org.eclipse.openvsx.mirror.MirrorConfig;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
@@ -90,6 +92,7 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionAlias;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -3696,7 +3699,7 @@ class RegistryAPITest {
     }
 
     @TestConfiguration
-    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class })
+    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         TransactionTemplate transactionTemplate() {
@@ -3711,7 +3714,8 @@ class RegistryAPITest {
                 CacheService cache,
                 ExtensionValidator validator,
                 @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository,
-                OAuth2AttributesConfig attributesConfig
+                OAuth2AttributesConfig attributesConfig,
+                WebUiProperties webUi
         ) {
             return new UserService(
                     entityManager,
@@ -3720,7 +3724,8 @@ class RegistryAPITest {
                     cache,
                     validator,
                     clientRegistrationRepository,
-                    attributesConfig);
+                    attributesConfig,
+                    webUi);
         }
 
         @Bean
@@ -3730,7 +3735,7 @@ class RegistryAPITest {
 
         @Bean
         AccessTokenConfig tokenConfig() {
-            return new AccessTokenConfig();
+            return new AccessTokenConfig(new MirrorConfig());
         }
 
         @Bean
@@ -3739,9 +3744,10 @@ class RegistryAPITest {
                 EntityManager entityManager,
                 RepositoryService repositories,
                 MailService mailService,
-                DSLContext dsl
+                DSLContext dsl,
+                WebUiProperties webUi
         ) {
-            return new AccessTokenService(config, entityManager, repositories, mailService, dsl);
+            return new AccessTokenService(config, entityManager, repositories, mailService, dsl, webUi);
         }
 
         @Bean
@@ -3798,6 +3804,8 @@ class RegistryAPITest {
                     similarityCheckService,
                     publishingConfig,
                     trustedPublishingConfig,
+                    new MigrationsProperties(),
+                    new WebUiProperties(),
                     CHANGES_FEED_LAG);
         }
 
@@ -3881,7 +3889,8 @@ class RegistryAPITest {
                 CacheService cache,
                 EntityManager entityManager,
                 FileCacheDurationConfig fileCacheDurationConfig,
-                CdnServiceConfig cdnServiceConfig
+                CdnServiceConfig cdnServiceConfig,
+                WebUiProperties webUi
         ) {
             return new StorageUtilService(
                     repositories,
@@ -3895,12 +3904,13 @@ class RegistryAPITest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig);
+                    cdnServiceConfig,
+                    webUi);
         }
 
         @Bean
-        LocalStorageService localStorageService() {
-            return new LocalStorageService();
+        LocalStorageService localStorageService(WebUiProperties webUi) {
+            return new LocalStorageService(webUi);
         }
 
         @Bean
