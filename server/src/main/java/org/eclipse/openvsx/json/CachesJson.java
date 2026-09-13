@@ -49,8 +49,12 @@ public class CachesJson extends ResultJson {
     @JsonInclude(Include.NON_NULL)
     public static class CacheJson {
 
-        @Schema(description = "Bean name of the cache manager holding this cache")
-        private String manager;
+        @Schema(
+            description = "Bean names of the cache managers this cache is reachable through. More than one"
+                    + " means the same cache instance is registered with each of them, so clearing it through"
+                    + " any one of them empties it for all."
+        )
+        private List<String> managers;
 
         @Schema(description = "Cache name, unique only within its manager")
         private String name;
@@ -81,12 +85,12 @@ public class CachesJson extends ResultJson {
         @Nullable
         private Long evictions;
 
-        public String getManager() {
-            return manager;
+        public List<String> getManagers() {
+            return managers;
         }
 
-        public void setManager(String manager) {
-            this.manager = manager;
+        public void setManagers(List<String> managers) {
+            this.managers = managers;
         }
 
         public String getName() {

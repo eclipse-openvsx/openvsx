@@ -57,7 +57,8 @@ export const CachesAdmin: FC = () => {
 
     const clearOne = (cache: CacheInfo) => {
         setCleared(`${cache.name}`);
-        clear.mutate({ manager: cache.manager, name: cache.name });
+        // Any manager will do when a cache has more than one: they are ways in to the same instance.
+        clear.mutate({ manager: cache.managers[0], name: cache.name });
     };
 
     const clearEverything = () => {
@@ -118,7 +119,7 @@ export const CachesAdmin: FC = () => {
                         <TableHead>
                             <TableRow>
                                 <TableCell>Cache</TableCell>
-                                <TableCell>Manager</TableCell>
+                                <TableCell>Managers</TableCell>
                                 <TableCell align='right'>Entries</TableCell>
                                 <TableCell align='right'>Hits</TableCell>
                                 <TableCell align='right'>Misses</TableCell>
@@ -138,7 +139,7 @@ export const CachesAdmin: FC = () => {
                                 </TableRow>
                             )}
                             {caches.map(cache => (
-                                <TableRow key={`${cache.manager}/${cache.name}`} hover>
+                                <TableRow key={`${cache.managers.join(',')}/${cache.name}`} hover>
                                     <TableCell>
                                         <Typography variant='body2' component='span' sx={{ fontFamily: 'monospace' }}>
                                             {cache.name}
@@ -147,7 +148,7 @@ export const CachesAdmin: FC = () => {
                                     </TableCell>
                                     <TableCell>
                                         <Typography variant='body2' color='text.secondary'>
-                                            {cache.manager}
+                                            {cache.managers.join(', ')}
                                         </Typography>
                                     </TableCell>
                                     <MeasurementCell value={formatCount(cache.entries)} />

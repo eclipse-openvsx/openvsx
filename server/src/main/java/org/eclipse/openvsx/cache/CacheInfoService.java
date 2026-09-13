@@ -64,21 +64,55 @@ public class CacheInfoService {
      * refreshes.
      */
     public List<CacheInfo> getCaches() {
-        var caches = new ArrayList<CacheInfo>();
+        // Collected before describing, because the same cache can be registered with more than one
+        // manager and reporting it twice would show one cache as two and double its numbers.
+        var found = new ArrayList<FoundCache>();
         for (var managerEntry : cacheManagers.entrySet()) {
             var managerName = managerEntry.getKey();
             var manager = managerEntry.getValue();
             for (var cacheName : manager.getCacheNames()) {
                 var cache = manager.getCache(cacheName);
                 if (cache != null) {
-                    caches.add(describe(managerName, cacheName, cache));
+                    merge(found, managerName, cacheName, cache);
                 }
             }
         }
 
-        caches.sort(Comparator.comparing(CacheInfo::manager).thenComparing(CacheInfo::name));
+        var caches = found.stream()
+                .map(entry -> describe(entry.managers().stream().sorted().toList(), entry.name(), entry.cache()))
+                .sorted(Comparator.comparing(CacheInfo::name).thenComparing(info -> String.join(",", info.managers())))
+                .toList();
         return caches;
     }
+
+    /**
+     * Adds a cache to the collection, or records another way in to one already there.
+     * <p>
+     * Two entries are the same cache only when the name and the native cache instance both match.
+     * Identity alone would not do: some implementations hand out a shared object as their native
+     * cache - a Redis cache's writer belongs to its manager rather than to the cache - which would
+     * collapse unrelated caches into one row. Requiring the name to match as well keeps that safe,
+     * since distinct caches of one manager have distinct names by construction.
+     */
+    private void merge(
+            List<FoundCache> found,
+            String managerName,
+            String cacheName,
+            org.springframework.cache.Cache cache
+    ) {
+        for (var entry : found) {
+            if (entry.name().equals(cacheName) && entry.cache().getNativeCache() == cache.getNativeCache()) {
+                entry.managers().add(managerName);
+                return;
+            }
+        }
+
+        var managers = new ArrayList<String>();
+        managers.add(managerName);
+        found.add(new FoundCache(cacheName, cache, managers));
+    }
+
+    private record FoundCache(String name, org.springframework.cache.Cache cache, List<String> managers) {}
 
     /**
      * Clears one cache. Returns false when no such cache is registered with that manager, which the
@@ -127,7 +161,7 @@ public class CacheInfoService {
         return cleared;
     }
 
-    private CacheInfo describe(String managerName, String cacheName, org.springframework.cache.Cache cache) {
+    private CacheInfo describe(List<String> managers, String cacheName, org.springframework.cache.Cache cache) {
         if (cache instanceof CaffeineCache caffeineCache) {
             var native_ = caffeineCache.getNativeCache();
             var stats = native_.stats();
@@ -135,7 +169,7 @@ public class CacheInfoService {
             // which would read as a cache that is never hit rather than one that is not counting.
             var recording = native_.policy().isRecordingStats();
             return new CacheInfo(
-                    managerName,
+                    managers,
                     cacheName,
                     "caffeine",
                     native_.estimatedSize(),
@@ -146,13 +180,13 @@ public class CacheInfoService {
         }
 
         if (cache instanceof JCacheCache) {
-            return describeJCache(managerName, cacheName, cache);
+            return describeJCache(managers, cacheName, cache);
         }
 
-        return new CacheInfo(managerName, cacheName, implementationOf(cache), null, null, null, null, null);
+        return new CacheInfo(managers, cacheName, implementationOf(cache), null, null, null, null, null);
     }
 
-    private CacheInfo describeJCache(String managerName, String cacheName, org.springframework.cache.Cache cache) {
+    private CacheInfo describeJCache(List<String> managers, String cacheName, org.springframework.cache.Cache cache) {
         Long entries = null;
         var native_ = cache.getNativeCache();
         if (native_ instanceof javax.cache.Cache<?, ?> jcache) {
@@ -167,13 +201,13 @@ public class CacheInfoService {
 
         var stats = jcacheStatistics(cacheName, managerUri(native_));
         if (stats == null) {
-            return new CacheInfo(managerName, cacheName, "jcache", entries, null, null, null, null);
+            return new CacheInfo(managers, cacheName, "jcache", entries, null, null, null, null);
         }
 
         var hits = stats.getCacheHits();
         var misses = stats.getCacheMisses();
         return new CacheInfo(
-                managerName,
+                managers,
                 cacheName,
                 "jcache",
                 entries,

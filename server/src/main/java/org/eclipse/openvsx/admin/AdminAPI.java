@@ -490,7 +490,7 @@ public class AdminAPI {
 
     private static CachesJson.CacheJson toJson(CacheInfo info) {
         var json = new CachesJson.CacheJson();
-        json.setManager(info.manager());
+        json.setManagers(info.managers());
         json.setName(info.name());
         json.setImplementation(info.implementation());
         json.setEntries(info.entries());

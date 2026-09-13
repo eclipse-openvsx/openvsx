@@ -646,8 +646,11 @@ export interface SearchIndex {
  * "nothing cached".
  */
 export interface CacheInfo {
-    /** Bean name of the cache manager holding it; a cache name is only unique within its manager. */
-    manager: string;
+    /**
+     * Cache managers this cache is reachable through. More than one means the same cache instance is
+     * registered with each, so clearing it through any one of them empties it for all.
+     */
+    managers: string[];
     name: string;
     implementation: 'caffeine' | 'jcache' | 'redis' | string;
     /** Absent for implementations that cannot be counted without scanning, such as Redis. */

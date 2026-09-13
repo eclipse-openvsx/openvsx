@@ -57,7 +57,7 @@ class CacheInfoServiceTest {
 
         var info = only(new CacheInfoService(Map.of("fileCacheManager", manager)).getCaches());
 
-        assertThat(info.manager()).isEqualTo("fileCacheManager");
+        assertThat(info.managers()).containsExactly("fileCacheManager");
         assertThat(info.name()).isEqualTo("files.browse");
         assertThat(info.implementation()).isEqualTo("caffeine");
         assertThat(info.entries()).isEqualTo(1);
@@ -135,6 +135,30 @@ class CacheInfoServiceTest {
     }
 
     @Test
+    void aSharedCacheIsOneCacheBehindTwoManagers() {
+        // CacheConfig registers the same settingCache bean with both the file and the local cache
+        // manager, so `settings` is not two caches: clearing either empties the other.
+        var shared = Caffeine.newBuilder().recordStats().build();
+        var fileManager = new CaffeineCacheManager();
+        var localManager = new CaffeineCacheManager();
+        fileManager.registerCustomCache("settings", shared);
+        localManager.registerCustomCache("settings", shared);
+        fileManager.getCache("settings").put("a", 1);
+
+        assertThat(localManager.getCache("settings").get("a")).isNotNull();
+
+        var service = new CacheInfoService(Map.of("fileCacheManager", fileManager, "localCacheManager", localManager));
+
+        // Reported once, naming both ways in, rather than as two caches with the same numbers.
+        var info = only(service.getCaches());
+        assertThat(info.name()).isEqualTo("settings");
+        assertThat(info.managers()).containsExactly("fileCacheManager", "localCacheManager");
+
+        service.clear("fileCacheManager", "settings");
+        assertThat(localManager.getCache("settings").get("a")).isNull();
+    }
+
+    @Test
     void clearingOneCacheLeavesTheOthersAlone() {
         var manager = new CaffeineCacheManager();
         manager.registerCustomCache("one", Caffeine.newBuilder().recordStats().build());
@@ -177,7 +201,7 @@ class CacheInfoServiceTest {
     }
 
     @Test
-    void ordersByManagerThenName() {
+    void ordersByCacheName() {
         var first = new CaffeineCacheManager();
         first.registerCustomCache("zebra", Caffeine.newBuilder().build());
         first.registerCustomCache("aardvark", Caffeine.newBuilder().build());
@@ -186,11 +210,8 @@ class CacheInfoServiceTest {
 
         var caches = new CacheInfoService(Map.of("bManager", first, "aManager", second)).getCaches();
 
-        assertThat(caches).extracting(CacheInfo::manager, CacheInfo::name)
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("aManager", "middle"),
-                        org.assertj.core.groups.Tuple.tuple("bManager", "aardvark"),
-                        org.assertj.core.groups.Tuple.tuple("bManager", "zebra"));
+        // ordered by cache name, since a cache is no longer filed under a single manager
+        assertThat(caches).extracting(CacheInfo::name).containsExactly("aardvark", "middle", "zebra");
     }
 
     /**

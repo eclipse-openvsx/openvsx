@@ -20,7 +20,7 @@ import { CacheInfo } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
 
 const measured: CacheInfo = {
-    manager: 'caffeineCacheManager',
+    managers: ['caffeineCacheManager'],
     name: 'extension.json',
     implementation: 'jcache',
     entries: 1234,
@@ -31,7 +31,7 @@ const measured: CacheInfo = {
 };
 
 const unmeasurable: CacheInfo = {
-    manager: 'redisCacheManager',
+    managers: ['redisCacheManager'],
     name: 'sitemap',
     implementation: 'redis'
 };
