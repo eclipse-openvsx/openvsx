@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
-package org.eclipse.openvsx.storage.log;
+package org.eclipse.openvsx.analytics.ingestion.azure;
 
 import java.io.IOException;
 import java.net.URI;
@@ -42,6 +42,7 @@ import org.springframework.web.util.UriUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import org.eclipse.openvsx.analytics.ingestion.DownloadCountProcessor;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.settings.SettingsService;
