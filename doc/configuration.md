@@ -1537,3 +1537,55 @@ The `Subject` header for the access token expired email. This email is sent to a
 | Compatibility | Since 0.33.0
 
 Name of the [Thymeleaf](https://www.thymeleaf.org) template to use for the access token expired email. Templates should be put into the `mail-templates` classpath directory.
+
+## Download Analytics
+
+Download analytics keeps its time-series data in a **separate** database from the registry, migrated on its own and requiring the [TimescaleDB](https://www.timescale.com) extension. Disabled by default; when disabled, none of its beans are created and the registry database is untouched.
+
+| Property      | `ovsx.analytics.enabled`
+|---------------|-------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Unreleased
+
+Whether to enable download analytics. When `false`, the time-series datasource, its migrations and its jOOQ context are not created at all, and none of the settings below are read.
+
+| Property      | `ovsx.analytics.datasource.url`
+|---------------|-------------------------
+| Type          | string
+| Default       |
+| Compatibility | Unreleased
+
+JDBC URL of the time-series database, e.g. `jdbc:postgresql://localhost:5433/openvsx_timeseries`. Required when analytics are enabled: startup fails if it is not set, because reaching that point means analytics were asked for and a missing URL is a mistake rather than a way to opt out. It must not point at the registry database, whose schema is migrated separately and does not need the `timescaledb` extension.
+
+| Property      | `ovsx.analytics.datasource.username`
+|---------------|-------------------------
+| Type          | string
+| Default       |
+| Compatibility | Unreleased
+
+User name for the time-series database. Optional: when unset, nothing is passed to the pool and the driver resolves it its own way, from a URL parameter, `.pgpass` or IAM.
+
+| Property      | `ovsx.analytics.datasource.password`
+|---------------|-------------------------
+| Type          | string
+| Default       |
+| Compatibility | Unreleased
+
+Password for the time-series database. Optional, on the same terms as the user name above.
+
+| Property      | `ovsx.analytics.datasource.maximum-pool-size`
+|---------------|-------------------------
+| Type          | int
+| Default       | `5`
+| Compatibility | Unreleased
+
+Maximum size of the time-series connection pool. Must be at least 1. Enabling analytics gives a deployment a **second** pool, so size this against the time-series server's `max_connections` together with the registry pool rather than in isolation.
+
+| Property      | `ovsx.analytics.datasource.connection-timeout`
+|---------------|-------------------------
+| Type          | long
+| Default       | `2000`
+| Compatibility | Unreleased
+
+How long to wait for a connection from the time-series pool, in milliseconds. Deliberately far below Hikari's own 30 seconds: analytics writes happen on the download-serving path, so an unreachable time-series database has to fail fast enough for the caller to swallow the error rather than holding a request thread. Must be greater than 250ms — the validation timeout is derived at half this value with a 250ms floor, and Hikari rejects a validation timeout that is not below the connection timeout.

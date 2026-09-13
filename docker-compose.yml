@@ -38,6 +38,33 @@ services:
       - db
       - debug
 
+  postgres-timeseries:
+    # download analytics only: PostgreSQL plus the timescaledb extension, kept apart from the
+    # registry database so the registry never needs the extension
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      - POSTGRES_USER=openvsx
+      - POSTGRES_PASSWORD=openvsx
+      - POSTGRES_DB=openvsx_timeseries
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres-timeseries-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openvsx -d openvsx_timeseries"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Its own profile, not `db` or `debug`: download analytics are off by default, so the ordinary
+    # local setup should not pay for a second database it will never connect to. Select `analytics`
+    # alongside the rest, and set ovsx.analytics.enabled, when working on them.
+    profiles:
+      - analytics
+
   elasticsearch:
     image: elasticsearch:9.2.8
     environment:
@@ -214,6 +241,9 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      postgres-timeseries:
+        condition: service_healthy
+        required: false
       elasticsearch:
         condition: service_healthy
         required: false
@@ -302,3 +332,6 @@ services:
       "
     profiles:
       - minio
+
+volumes:
+  postgres-timeseries-data:

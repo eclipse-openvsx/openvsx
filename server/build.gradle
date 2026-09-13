@@ -285,6 +285,14 @@ test {
     // observed as an OutOfMemoryError during unrelated context bootstrapping on CI.
     jvmArgs = ['--enable-native-access=ALL-UNNAMED', '-Xmx6144m', '-Xshare:off'] // due to https://github.com/netty/netty/issues/15161
     useJUnitPlatform()
+
+    // registry tests run on plain postgres, analytics tests on timescale/timescaledb; override
+    // either image with -Dovsx.test.postgres.image=... / -Dovsx.test.timeseries.image=...
+    ['ovsx.test.postgres.image', 'ovsx.test.timeseries.image'].each { property ->
+        if (System.getProperty(property) != null) {
+            systemProperty property, System.getProperty(property)
+        }
+    }
 }
 
 tasks.register('unitTests', Test) {

@@ -23,6 +23,13 @@ spring:
     url: jdbc:postgresql://postgresql:5432/openvsx
     username: openvsx
     password: openvsx
+  # Download analytics is disabled by default. When enabled it keeps its time-series schema in a
+  # separate database, migrated on its own and requiring the timescaledb extension:
+  #   ovsx.analytics.enabled: true
+  #   ovsx.analytics.datasource.url: jdbc:postgresql://postgresql-timeseries:5432/openvsx_timeseries
+  #   ovsx.analytics.datasource.username: openvsx
+  #   ovsx.analytics.datasource.password: openvsx
+  #   ovsx.analytics.datasource.maximum-pool-size: 5
   flyway:
     baseline-on-migrate: true
     baseline-version: 0.1.0

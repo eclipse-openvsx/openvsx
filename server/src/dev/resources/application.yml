@@ -157,6 +157,16 @@ ovsx:
 #      path-style-access: true
     local:
       directory: /tmp/ovsx
+  analytics:
+    # Off by default, matching every other deployment. Set this to true and start the `analytics`
+    # docker-compose profile together to work on download analytics locally; enabling it without
+    # that database reachable fails startup rather than degrading quietly.
+    enabled: false
+    # the postgres-timeseries service of docker-compose.yml
+    datasource:
+      url: jdbc:postgresql://localhost:5433/openvsx_timeseries
+      username: openvsx
+      password: openvsx
   access-token:
     prefix: dev_ovsx # use a token prefix that clearly indicates that it's for development; the kind of
                      # token (at_, tp_) is appended by the code, so no trailing separator here

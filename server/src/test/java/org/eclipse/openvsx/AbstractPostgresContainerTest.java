@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 /**
  * Base class for tests that need a PostgreSQL database.
@@ -34,7 +35,9 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Tag("integration")
 public abstract class AbstractPostgresContainerTest {
 
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16.2");
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
+            DockerImageName.parse(System.getProperty("ovsx.test.postgres.image", "postgres:16.2"))
+                    .asCompatibleSubstituteFor("postgres"));
 
     static {
         POSTGRES.start();

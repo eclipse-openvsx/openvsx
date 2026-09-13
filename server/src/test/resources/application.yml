@@ -37,6 +37,10 @@ jobrunr:
     allow-anonymous-data-usage: false
 
 ovsx:
+  analytics:
+    # the timeseries container is shared the same way, so its pool needs the same treatment
+    datasource:
+      maximum-pool-size: 2
   elasticsearch:
     # Disabled by default for tests: the Elasticsearch container is expensive, so only tests that
     # activate the "test_search" profile (which also provisions the container) enable it, via
