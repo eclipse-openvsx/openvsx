@@ -1550,6 +1550,30 @@ Download analytics keeps its time-series data in a **separate** database from th
 
 Whether to enable download analytics. When `false`, the time-series datasource, its migrations and its jOOQ context are not created at all, and none of the settings below are read.
 
+| Property      | `ovsx.analytics.settled-cache.ttl`
+|---------------|-------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT1H`
+| Compatibility | Unreleased
+
+How long the settled part of a download series is held in memory before being read again. Settled ranges are older than `ovsx.analytics.settling-margin` and so do not normally change, which is what makes caching them safe.
+
+Nothing invalidates this cache. A backfill, a replayed log file or a manual refresh of the time-series aggregate therefore stays invisible for up to this long, on the node that cached it — the data is right in the database and stale in the response. Set it to `PT0S` to bypass the cache entirely, which is what a development setup wants and what the bundled dev configuration does. Zero is the smallest value it accepts: a negative duration is rejected at startup.
+
+It is a per-node, in-memory cache, so in a cluster each node expires on its own schedule.
+
+| Property      | `ovsx.analytics.settling-margin`
+|---------------|-------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT2H`
+| Compatibility | Unreleased
+
+How far back from now a download series is treated as settled. Buckets older than this are answered from a cached query and buckets newer than it are read live, so the margin is the point at which the series stops being re-read on every request.
+
+It exists because the time-series aggregate is materialized on a delay: its refresh policy leaves the most recent hour unmaterialized, and the margin keeps the series from settling on a bucket that has not caught up yet. Raising it holds more of the recent range on the live path; lowering it settles sooner. It must not be negative, which would place the boundary in the future, and startup fails if it is.
+
+Note that the buckets on either side of the boundary carry the same counts — the margin decides how a range is read, not what it contains.
+
 | Property      | `ovsx.analytics.datasource.url`
 |---------------|-------------------------
 | Type          | string

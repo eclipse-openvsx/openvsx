@@ -158,6 +158,11 @@ ovsx:
     local:
       directory: /tmp/ovsx
   analytics:
+    settled-cache:
+      # No caching of settled ranges locally. Nothing invalidates that cache, so with the default
+      # hour a re-ingested or backfilled day stays invisible until it expires or the server is
+      # restarted - which is exactly what you are testing here.
+      ttl: PT0S
     # Off by default, matching every other deployment. Set this to true and start the `analytics`
     # docker-compose profile together to work on download analytics locally; enabling it without
     # that database reachable fails startup rather than degrading quietly.

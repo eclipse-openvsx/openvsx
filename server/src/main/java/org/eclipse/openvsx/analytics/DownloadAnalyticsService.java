@@ -44,15 +44,37 @@ public class DownloadAnalyticsService {
     private final Duration settlingMargin;
     private final Clock clock;
 
-    private final Cache<DownloadSeriesRequest, List<DownloadSeriesRow>> settledCache = Caffeine.newBuilder()
-            .maximumSize(10_000)
-            .expireAfterWrite(Duration.ofHours(1))
-            .build();
+    /**
+     * Settled ranges, which by definition no longer change - except when the time-series aggregate is
+     * refreshed out of band, which is why the ttl is configurable and zero means no cache at all.
+     * Null when caching is off, rather than a cache with a zero ttl: an explicit bypass says what is
+     * happening, where a degenerate duration leaves it to Caffeine's behaviour at the boundary.
+     */
+    private final @Nullable Cache<DownloadSeriesRequest, List<DownloadSeriesRow>> settledCache;
 
-    public DownloadAnalyticsService(DownloadAnalyticsRepository repository, Duration settlingMargin, Clock clock) {
+    public DownloadAnalyticsService(
+            DownloadAnalyticsRepository repository,
+            Duration settlingMargin,
+            Duration settledCacheTtl,
+            Clock clock
+    ) {
         this.repository = repository;
         this.settlingMargin = settlingMargin;
         this.clock = clock;
+        this.settledCache = settledCacheTtl.isZero()
+                ? null
+                : Caffeine.newBuilder().maximumSize(10_000).expireAfterWrite(settledCacheTtl).build();
+    }
+
+    /**
+     * The settled half of a range, from the cache when there is one. Nothing invalidates it, so a
+     * backfill or a manual refresh of the aggregate stays invisible for up to its ttl - which is the
+     * reason a deployment can turn it off.
+     */
+    private List<DownloadSeriesRow> settledRows(DownloadSeriesRequest request) {
+        return settledCache == null
+                ? repository.findSeries(request)
+                : settledCache.get(request, repository::findSeries);
     }
 
     /**
@@ -69,7 +91,7 @@ public class DownloadAnalyticsService {
         var settledEnd = truncate(now.minus(settlingMargin), interval).toInstant();
         List<DownloadSeriesRow> rows;
         if (!to.isAfter(settledEnd)) {
-            rows = settledCache.get(aligned, repository::findSeries);
+            rows = settledRows(aligned);
         } else if (from.isBefore(settledEnd)) {
             var settled = new DownloadSeriesRequest(
                     request.extensionIds(),
@@ -80,7 +102,7 @@ public class DownloadAnalyticsService {
             var live = new DownloadSeriesRequest(request.extensionIds(), settledEnd, to, interval, request.groupBy());
             rows = Stream
                     .concat(
-                            settledCache.get(settled, repository::findSeries).stream(),
+                            settledRows(settled).stream(),
                             repository.findSeries(live).stream())
                     .toList();
         } else {
