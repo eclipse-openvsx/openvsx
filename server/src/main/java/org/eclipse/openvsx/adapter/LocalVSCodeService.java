@@ -510,24 +510,37 @@ public class LocalVSCodeService implements IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     ) {
         if (BuiltInExtensionUtil.isBuiltIn(namespaceName)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(builtinExtensionResponse());
         }
 
-        var extensionDownloadPath = webResources.getExtensionDownload(namespaceName, extensionName, null, version);
+        var extensionDownloadPath = webResources
+                .getExtensionDownload(namespaceName, extensionName, targetPlatform, version);
         if (extensionDownloadPath == null) {
             throw new NotFoundException();
         }
 
-        var file = getWebResource(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var file = getWebResource(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (file != null) {
             return storageUtil.getFileResponse(file);
         }
 
-        var node = webResources
-                .browseExtensionPackage(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var node = webResources.browseExtensionPackage(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (node != null) {
             return storageUtil.getFileResponse(node);
         }
