@@ -402,7 +402,7 @@ Whether to use a path-style endpoint where the bucket name is part of the path.
 | Default       |
 | Compatibility | Since 0.1.0
 
-External storage service to use if multiple are active (`azure-blob` or `google-cloud`). All files that are not in the primary service are automatically migrated on application startup.
+External storage service to use if multiple are active (`azure-blob`, `aws` or `google-cloud`). All files that are not in the primary service are automatically migrated on application startup.
 
 | Property      | `ovsx.storage.external-resource-types`
 |---------------|----------------------------------------

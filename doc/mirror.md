@@ -1,9 +1,14 @@
 # Mirror Mode
 
 Open VSX can run as a **mirror** of another registry, usually [open-vsx.org](https://open-vsx.org). A
-scheduled job copies metadata and extension files from the upstream registry, and this instance
-serves them as its own. It is a live pull rather than a one-off export: the job needs to reach the
-upstream registry every time it runs.
+scheduled job copies the upstream registry's *metadata* — namespaces, extensions, versions and the
+records describing their files — and this instance then answers for them as its own.
+
+The packages themselves are **not** copied. The job downloads each one to read and verify it, records
+what it found, and throws the file away; [Storage](#storage) below is about the consequence, which is
+that a mirror has to be pointed at object storage that already holds the upstream's files.
+
+It is a live pull rather than a one-off export: the job reaches the upstream registry on every run.
 
 The properties are documented in
 [Open VSX Configuration Properties](configuration.md#mirror-mode); this page is about how they fit
@@ -28,8 +33,10 @@ At a minimum a mirror sets:
   five fields (minute, hour, day, month, weekday), not Spring's six-field form with leading seconds.
 - `ovsx.upstream.url` — an **absolute** URL of the same registry. It is what API requests this
   instance cannot answer itself are forwarded to.
-- `ovsx.server.url` — this mirror's own public URL, not the upstream's. See
-  [Server URL](configuration.md#server-url).
+- `ovsx.server.url` — recommended rather than required: without it the absolute URLs in a response
+  are derived from the incoming request, which is correct behind a proxy that sets the forwarded
+  headers and wrong when it does not. Set it to this mirror's own public URL, never the upstream's.
+  See [Server URL](configuration.md#server-url).
 - `ovsx.storage.primary-service` — where the copied files are kept. **Not local storage**; see below.
 
 `ovsx.data.mirror.requests-per-second` bounds the load the job puts on the upstream registry, and the
@@ -62,39 +69,74 @@ Four things are worth knowing:
 - There is **no version selector**. Every version of a matched extension is mirrored, for every
   target platform.
 
+### A partial mirror deletes everything it does not match
+
+This is the part to get right before the first run. After walking the upstream sitemap, the job
+purges every extension in the local database that is not in the set it just matched:
+
+```java
+var extensionIds = processUrls(sitemap.getElementsByTagName("url"), mirrorUser);
+deleteOtherExtensions(extensionIds, mirrorUser);
+```
+
+So narrowing `include-extensions`, or adding to `exclude-extensions`, does not merely stop copying
+those extensions — the next run **removes the ones already mirrored**. Anything published locally is
+removed too, since it is not in the upstream sitemap either. A mirror is not a registry to publish
+your own extensions into.
+
+The one reassurance: if the sitemap cannot be fetched at all the job logs `failed to fetch sitemap`
+and returns before the purge, so an unreachable upstream does not empty the registry.
+
 ## Storage
 
-**Local file storage does not work in mirror mode.** Configure a blob store instead —
-`ovsx.storage.primary-service` set to `azure-blob`, `aws` (which also covers S3-compatible stores) or
-`google-cloud`. The properties are under [File Storage](configuration.md#file-storage), and the
-README has setup steps for
-[Google Cloud](../README.md#google-cloud-setup), [Azure](../README.md#azure-setup) and
-[Amazon S3](../README.md#amazon-s3-setup).
+A mirror stores no files. For each mirrored resource it records a row saying where the file would
+be, and builds the download URL from `ovsx.storage.*` and the object's key when someone asks for it:
 
-The failure is quiet, which is why it is worth stating plainly. The job downloads and stores the
-files successfully, and then every mirrored version stays **inactive**: before activating one, the
-job asks its own storage for the file's URL and makes a request to it, and with local storage that
-URL is built from the base URL of the current request. The job has no request, so the base URL is
-empty, the URL comes out relative, and the request fails. The log shows
+```java
+// the bytes were extracted from the mirrored package to build this TempFile, even though
+// they aren't uploaded to storage here (mirror mode serves resources on the fly), so the
+// size is still known and worth recording.
+```
+
+The mirror therefore has to be configured against **object storage that already holds the upstream's
+files**, under the same keys. That is what the bundled example does: its Azure endpoint is
+`https://openvsxorg.blob.core.windows.net/`, open-vsx.org's own blob storage, so the mirror serves
+the upstream's objects directly while owning the metadata itself. Set
+`ovsx.storage.primary-service` to `azure-blob`, `aws` (which also covers S3-compatible stores) or
+`google-cloud`; the properties are under [File Storage](configuration.md#file-storage), and the
+README has setup steps for [Google Cloud](../README.md#google-cloud-setup),
+[Azure](../README.md#azure-setup) and [Amazon S3](../README.md#amazon-s3-setup).
+
+**Local file storage does not work in mirror mode**, which follows from the same thing: there are no
+local bytes to serve. The failure is quiet, so it is worth recognising. Every mirrored version stays
+**inactive**, because before activating one the job asks its own storage for the file's URL and makes
+a request to it — and local storage builds that URL from the base URL of the *current request*. A
+background job has no request, the base URL is empty, and the URL comes out relative:
 
 ```
 failed to activate extension, vsix is invalid: /api/<namespace>/<extension>/...
 ```
 
-Setting `ovsx.server.url` does not help: it is applied by a servlet filter, so it shapes the URLs
+`ovsx.server.url` does not rescue it either: it is applied by a servlet filter, so it shapes URLs
 built while serving a request and is not available to a background job. This is a known limitation.
 
 ## Air-gapped machines
 
-Mirror mode cannot populate a registry that has no route to the upstream. The job fetches metadata
-and files over HTTP on every run, so an isolated machine has nothing to copy from.
+Mirror mode cannot populate a registry that has no route to the upstream. Every run fetches the
+sitemap and each matched extension's metadata; packages are downloaded only for extensions whose
+upstream timestamp is newer than what is held locally. Either way the upstream has to be reachable,
+so an isolated machine has nothing to copy from.
 
 What does work for an isolated VS Code installation:
 
 1. Run the mirror **on a networked machine**, narrowed with `include-extensions` to the extensions
    you need and backed by a blob store.
-2. Move that registry — database and blob store — to the isolated environment, and point VS Code at
-   it.
+2. Move that registry — database and object storage — to the isolated environment, and point VS Code
+   at it.
+3. **Turn mirror mode off on the copy**: clear `ovsx.data.mirror.enabled` and `ovsx.upstream.url`.
+   Left set, the recurring job and the upstream fallback paths keep reaching for a registry that is
+   not there. Nothing is deleted when they fail — the job returns as soon as the sitemap cannot be
+   fetched — but the errors are noise that hides real ones.
 
 If you already hold the `.vsix` files, publishing them into an ordinary (non-mirror) registry with
 the [`ovsx` CLI](https://github.com/eclipse-openvsx/openvsx/blob/main/cli/README.md) is the simpler
