@@ -402,7 +402,7 @@ Whether to use a path-style endpoint where the bucket name is part of the path.
 | Default       |
 | Compatibility | Since 0.1.0
 
-External storage service to use if multiple are active (`azure-blob` or `google-cloud`). All files that are not in the primary service are automatically migrated on application startup.
+External storage service to use if multiple are active (`azure-blob`, `aws` or `google-cloud`). All files that are not in the primary service are automatically migrated on application startup.
 
 | Property      | `ovsx.storage.external-resource-types`
 |---------------|----------------------------------------
@@ -741,7 +741,7 @@ Allowed server endpoints in mirror mode to override disallowed methods, e.g. dis
 | Default       |
 | Compatibility | Since 0.21.0
 
-The extensions to mirror, as `namespace.extension`, comma separated. Empty mirrors everything the upstream registry offers.
+The extensions to mirror, as `namespace.extension` or `namespace.*` for a whole namespace, comma separated. Empty mirrors everything the upstream registry offers. Every version of a matched extension is mirrored; there is no version selector. See [Mirror Mode](mirror.md).
 
 | Property      | `ovsx.data.mirror.exclude-extensions`
 |---------------|-------------------------------------
@@ -749,7 +749,7 @@ The extensions to mirror, as `namespace.extension`, comma separated. Empty mirro
 | Default       |
 | Compatibility | Since 0.21.0
 
-The extensions not to mirror, as `namespace.extension`, comma separated. Applied after `include-extensions`.
+The extensions not to mirror, as `namespace.extension` or `namespace.*` for a whole namespace, comma separated. Takes precedence over `include-extensions` wherever both match.
 
 ## Foreground HTTP Connection Pool
 
@@ -958,6 +958,16 @@ Whether to run an embedded Redis server. Useful for development and small deploy
 | Compatibility | Since 0.29.0
 
 Whether to use Redis for caching. Caffeine (in-memory cache) is used by default.
+
+| Property      | `ovsx.caching.statistics.enabled`
+|---------------|-------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Unreleased
+
+Whether the caches count hits, misses and evictions, which the admin dashboard's Caches page reports. Off by default: every cache implementation counts on the lookup path, so it is paid on every cache read for numbers nothing consults unless somebody is looking at that page. Changing it takes a restart, since the counting is configured when each cache is built.
+
+With it off, the page still shows each cache and its entry count and can still clear them; only the hit, miss, hit rate and eviction columns are empty. They are shown as absent rather than as zero, so a cache that is not counted cannot be mistaken for one that is never hit.
 
 | Property      | `ovsx.caching.files-extension.tti`
 |---------------|-------------------------

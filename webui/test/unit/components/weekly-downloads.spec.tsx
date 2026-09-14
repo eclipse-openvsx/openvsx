@@ -26,12 +26,21 @@ import { ExtensionRegistryService } from '../../../src/extension-registry-servic
 vi.mock('@mui/x-charts/SparkLineChart', () => ({
     SparkLineChart: ({
         data,
+        baseline,
+        yAxis,
         onHighlightedAxisChange
     }: {
         data: number[];
+        baseline?: number | 'min' | 'max';
+        yAxis?: { domainLimit?: (min: number, max: number) => { min: number; max: number } };
         onHighlightedAxisChange?: (items: { axisId: string; dataIndex: number }[]) => void;
     }) => (
-        <div data-testid='sparkline' data-length={data.length}>
+        <div
+            data-testid='sparkline'
+            data-length={data.length}
+            data-baseline={String(baseline)}
+            // exercised rather than echoed: the floor has to be zero whatever the busiest week is
+            data-domain-min={String(yAxis?.domainLimit?.(0, 1200).min)}>
             {data.map((_, index) => (
                 <button
                     key={index}
@@ -76,6 +85,40 @@ describe('WeeklyDownloads', () => {
             expect.anything(),
             expect.objectContaining({ namespace: 'redhat', name: 'java', interval: 'day' })
         );
+    });
+
+    it('frames the area from zero, so a steady series is not drawn as a climbing one', async () => {
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+        });
+
+        // filling from the quietest week instead would make any series climb out of nothing, which
+        // is what a cumulative chart looks like
+        const chart = await screen.findByTestId('sparkline');
+        expect(chart).toHaveAttribute('data-baseline', '0');
+        expect(chart).toHaveAttribute('data-domain-min', '0');
+    });
+
+    it('says what the figure counts, so the number is not one of two unlabelled download counts', async () => {
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+        });
+
+        expect(await screen.findByText((77).toLocaleString())).toBeInTheDocument();
+        expect(screen.getByText('downloads')).toBeInTheDocument();
+    });
+
+    it('describes the curve for anyone who cannot see it, naming the per-week unit', async () => {
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+        });
+        await screen.findByText((77).toLocaleString());
+
+        // week 0 is 28 and week 1 is 77; "per week" is in it because the shape of a filled curve
+        // is the thing that would otherwise be read as a running total
+        expect(
+            screen.getByRole('img', { name: 'Downloads per week over the last 2 weeks, between 28 and 77 per week' })
+        ).toBeInTheDocument();
     });
 
     it('headlines the last week and labels the period it covers', async () => {

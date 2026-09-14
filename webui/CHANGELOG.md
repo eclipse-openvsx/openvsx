@@ -6,7 +6,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
-- Add a weekly downloads card to the extension detail page, shown only when the registry reports download analytics as enabled: the last 7 days' downloads, a sparkline of the weekly totals for the year behind it, and the period the headline covers. Hovering moves a marker line and reads out that week instead, and the card shows a skeleton in the same shape while the series loads
+- Add a "Caches" page to the admin dashboard: every cache registered in the application with what it holds, how often it is hit and how much it has evicted, and a way to clear one or all of them without restarting the server. A measurement the cache implementation cannot report is shown as a dash rather than a zero, so "not measured" stays distinguishable from "nothing cached"
+- Add a weekly downloads card to the extension detail page, shown only when the registry reports download analytics as enabled: the last 7 days' downloads, a sparkline of the weekly totals for the year behind it, and the period the headline covers. Hovering moves a marker line and reads out that week instead, and the card shows a skeleton in the same shape while the series loads. The figure names its unit, the curve is filled from zero and carries a description naming the per-week unit, so it is not read as a running total
 
 ## [v1.2.0] (10/09/2026)
 

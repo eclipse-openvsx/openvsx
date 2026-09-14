@@ -125,6 +125,11 @@ bucket4j:
   enabled: false
 
 ovsx:
+  caching:
+    statistics:
+      # On for development, off everywhere else: the counting costs something on every cache lookup,
+      # but locally the admin dashboard's Caches page is more useful than that cost is expensive.
+      enabled: true
   databasesearch:
     enabled: true
   elasticsearch:

@@ -1,8 +1,6 @@
 {
-    "extends": "./base.tsconfig.json",
+    "extends": "./lib.tsconfig.json",
     "compilerOptions": {
         "noEmit": true
-    },
-    "include": ["../src/**/*"],
-    "exclude": ["../src/default/server.ts"]
+    }
 }
