@@ -111,7 +111,7 @@
     "scripts": {
         "clean": "rimraf lib && rimraf dist",
         "build": "tsc -p ./configs/lib.tsconfig.json && yarn run lint",
-        "typecheck": "tsc -p ./configs/app.tsconfig.json",
+        "tsc": "tsc -p ./configs/app.tsconfig.json",
         "test": "vitest run",
         "smoke-tests": "playwright install && playwright test --config=./configs/playwright.config.ts",
         "lint": "eslint -c eslint.config.mjs src configs test '*'",
