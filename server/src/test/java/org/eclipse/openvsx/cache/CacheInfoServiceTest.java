@@ -28,6 +28,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.cache.RedisCacheWriter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * Reads real cache managers rather than mocks, because what this service does is precisely to cope
@@ -59,7 +60,7 @@ class CacheInfoServiceTest {
 
         var info = only(service(Map.of("fileCacheManager", manager)).getCaches());
 
-        assertThat(info.managers()).containsExactly("fileCacheManager");
+        assertThat(info.manager()).isEqualTo("fileCacheManager");
         assertThat(info.name()).isEqualTo("files.browse");
         assertThat(info.implementation()).isEqualTo("caffeine");
         assertThat(info.entries()).isEqualTo(1);
@@ -67,6 +68,22 @@ class CacheInfoServiceTest {
         assertThat(info.misses()).isEqualTo(1);
         assertThat(info.hitRate()).isCloseTo(2.0 / 3, org.assertj.core.data.Offset.offset(0.0001));
         assertThat(info.evictions()).isZero();
+    }
+
+    @Test
+    void reportsNoHitRateUntilSomethingHasAskedTheCache() {
+        // Caffeine answers a hit rate of 1.0 while the request count is zero, so a cache that has
+        // only ever been written to would be shown as one that never misses.
+        var manager = new CaffeineCacheManager();
+        manager.registerCustomCache("quiet", Caffeine.newBuilder().recordStats().build());
+        manager.getCache("quiet").put("a", 1);
+
+        var info = only(service(Map.of("localCacheManager", manager)).getCaches());
+
+        assertThat(info.entries()).isEqualTo(1);
+        assertThat(info.hits()).isZero();
+        assertThat(info.misses()).isZero();
+        assertThat(info.hitRate()).isNull();
     }
 
     @Test
@@ -137,9 +154,10 @@ class CacheInfoServiceTest {
     }
 
     @Test
-    void aSharedCacheIsOneCacheBehindTwoManagers() {
-        // CacheConfig registers the same settingCache bean with both the file and the local cache
-        // manager, so `settings` is not two caches: clearing either empties the other.
+    void aCacheRegisteredWithTwoManagersIsReportedUnderEach() {
+        // A wiring bug rather than a supported shape: one instance behind two managers is listed
+        // twice with the same numbers, and clearing it through one empties what the other reports.
+        // It is reported as it is registered, and the service logs the duplicate.
         var shared = Caffeine.newBuilder().recordStats().build();
         var fileManager = new CaffeineCacheManager();
         var localManager = new CaffeineCacheManager();
@@ -147,17 +165,32 @@ class CacheInfoServiceTest {
         localManager.registerCustomCache("settings", shared);
         fileManager.getCache("settings").put("a", 1);
 
-        assertThat(localManager.getCache("settings").get("a")).isNotNull();
-
         var service = service(Map.of("fileCacheManager", fileManager, "localCacheManager", localManager));
 
-        // Reported once, naming both ways in, rather than as two caches with the same numbers.
-        var info = only(service.getCaches());
-        assertThat(info.name()).isEqualTo("settings");
-        assertThat(info.managers()).containsExactly("fileCacheManager", "localCacheManager");
+        assertThat(service.getCaches())
+                .extracting(CacheInfo::manager, CacheInfo::name)
+                .containsExactly(tuple("fileCacheManager", "settings"), tuple("localCacheManager", "settings"));
 
         service.clear("fileCacheManager", "settings");
         assertThat(localManager.getCache("settings").get("a")).isNull();
+    }
+
+    @Test
+    void twoManagersMayEachHoldADifferentCacheOfTheSameName() {
+        // The namesake case the duplicate check must not mistake for a duplicate: same name, but
+        // separate instances, which is what makes manager and name together identify a cache.
+        var first = new CaffeineCacheManager();
+        var second = new CaffeineCacheManager();
+        first.registerCustomCache("settings", Caffeine.newBuilder().build());
+        second.registerCustomCache("settings", Caffeine.newBuilder().build());
+        first.getCache("settings").put("a", 1);
+
+        var service = service(Map.of("aManager", first, "bManager", second));
+
+        assertThat(service.getCaches()).hasSize(2);
+
+        service.clear("bManager", "settings");
+        assertThat(first.getCache("settings").get("a")).isNotNull();
     }
 
     @Test

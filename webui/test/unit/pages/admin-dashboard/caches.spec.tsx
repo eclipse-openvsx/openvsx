@@ -20,7 +20,7 @@ import { CacheInfo } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
 
 const measured: CacheInfo = {
-    managers: ['caffeineCacheManager'],
+    manager: 'caffeineCacheManager',
     name: 'extension.json',
     implementation: 'jcache',
     entries: 1234,
@@ -31,7 +31,7 @@ const measured: CacheInfo = {
 };
 
 const unmeasurable: CacheInfo = {
-    managers: ['redisCacheManager'],
+    manager: 'redisCacheManager',
     name: 'sitemap',
     implementation: 'redis'
 };
@@ -75,7 +75,7 @@ describe('CachesAdmin', () => {
     });
 
     it('clears one cache by manager and name together', async () => {
-        // Name alone does not identify a cache - `settings` is registered on two managers.
+        // Name alone does not identify a cache: two managers may each hold one of that name.
         const clearCaches = vi.fn().mockResolvedValue({ success: 'ok' });
         const admin = mountPage([measured], clearCaches);
 

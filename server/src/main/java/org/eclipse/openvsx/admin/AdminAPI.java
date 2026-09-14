@@ -458,6 +458,11 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @ApiResponse(
+        responseCode = "404",
+        description = "No cache of that name is registered with that manager",
+        content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
     public ResponseEntity<ResultJson> clearCaches(
             @RequestParam(required = false) String manager,
             @RequestParam(required = false) String cache
@@ -465,9 +470,9 @@ public class AdminAPI {
         try {
             var adminUser = admins.checkAdminUser();
 
-            // A cache is only identified by manager and name together - `settings` is registered on
-            // two managers - so one without the other cannot name a cache, and clearing everything
-            // has to be asked for by naming neither rather than by half-naming one.
+            // A cache is only identified by manager and name together, since the same name can be
+            // registered with more than one manager, so one without the other cannot name a cache;
+            // clearing everything has to be asked for by naming neither rather than half-naming one.
             if (StringUtils.isEmpty(manager) != StringUtils.isEmpty(cache)) {
                 throw new ErrorResultException("Provide both 'manager' and 'cache', or neither to clear all caches.");
             }
@@ -479,7 +484,9 @@ public class AdminAPI {
             } else if (caches.clear(manager, cache)) {
                 result = ResultJson.success("Cleared cache '" + cache + "' of '" + manager + "'");
             } else {
-                throw new ErrorResultException("No cache '" + cache + "' is registered with '" + manager + "'.");
+                throw new ErrorResultException(
+                        "No cache '" + cache + "' is registered with '" + manager + "'.",
+                        HttpStatus.NOT_FOUND);
             }
 
             logs.logAction(adminUser, result);
@@ -491,7 +498,7 @@ public class AdminAPI {
 
     private static CachesJson.CacheJson toJson(CacheInfo info) {
         var json = new CachesJson.CacheJson();
-        json.setManagers(info.managers());
+        json.setManager(info.manager());
         json.setName(info.name());
         json.setImplementation(info.implementation());
         json.setEntries(info.entries());

@@ -12,24 +12,24 @@
  *****************************************************************************/
 package org.eclipse.openvsx.cache;
 
-import java.util.List;
-
 import org.jspecify.annotations.Nullable;
 
 /**
  * What could be read about one cache.
  * <p>
- * {@code managers} is a list because one cache can be reached through more than one manager:
- * {@code settings} is the same Caffeine instance registered with both the file and the local cache
- * manager, so it is one cache with two ways in, and clearing it through either empties both.
+ * A cache belongs to exactly one manager, and the two together are what name it: cache names are
+ * unique only within a manager, so two managers may each hold a different cache called the same
+ * thing. Registering one cache instance with two managers is a wiring bug - it would show up twice
+ * and clearing it through one would silently empty the other - and {@code CacheInfoService} logs it
+ * rather than presenting it as a cache with two ways in.
  * <p>
  * Every measurement is nullable because what is readable depends on the implementation behind the
- * cache: a Redis-backed cache reports neither size nor statistics, and statistics are only counted
- * where the cache was configured to record them. A null means "not available here", which is a
- * different statement from zero.
+ * cache: a Redis-backed cache cannot report its entry count, statistics are only counted where the
+ * cache was configured to record them, and a rate is left out until something has been asked of the
+ * cache. A null means "not available here", which is a different statement from zero.
  */
 public record CacheInfo(
-        List<String> managers,
+        String manager,
         String name,
         String implementation,
         @Nullable Long entries,

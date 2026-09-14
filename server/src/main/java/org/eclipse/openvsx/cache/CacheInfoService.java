@@ -15,6 +15,7 @@ package org.eclipse.openvsx.cache;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.cache.management.CacheStatisticsMXBean;
@@ -45,8 +46,9 @@ import org.springframework.stereotype.Component;
  * <li>a JCache-backed cache gives its size through the Caffeine cache it unwraps to, but counts
  * statistics in its own JCache layer, which is only reachable over JMX and only when the cache was
  * configured with {@code statisticsEnabled};</li>
- * <li>a Redis-backed cache answers neither without scanning the keyspace, which is not something to
- * do behind an admin page.</li>
+ * <li>a Redis-backed cache cannot answer its size without scanning the keyspace, which is not
+ * something to do behind an admin page, but its statistics are counted by the cache writer and are
+ * readable when the manager was built with {@code enableStatistics()}.</li>
  * </ul>
  * Anything unavailable is reported as null rather than as zero, so the dashboard can say "not
  * measured here" instead of claiming an empty cache that is not empty.
@@ -77,59 +79,60 @@ public class CacheInfoService {
     }
 
     /**
-     * Every cache of every manager, ordered by manager then name so the dashboard is stable across
+     * Every cache of every manager, ordered by name then manager so the dashboard is stable across
      * refreshes.
      */
     public List<CacheInfo> getCaches() {
-        // Collected before describing, because the same cache can be registered with more than one
-        // manager and reporting it twice would show one cache as two and double its numbers.
-        var found = new ArrayList<FoundCache>();
+        var caches = new ArrayList<CacheInfo>();
+        var registered = new HashMap<String, Registration>();
         for (var managerEntry : cacheManagers.entrySet()) {
             var managerName = managerEntry.getKey();
             var manager = managerEntry.getValue();
             for (var cacheName : manager.getCacheNames()) {
                 var cache = manager.getCache(cacheName);
                 if (cache != null) {
-                    merge(found, managerName, cacheName, cache);
+                    warnIfRegisteredTwice(registered, managerName, cacheName, cache);
+                    caches.add(describe(managerName, cacheName, cache));
                 }
             }
         }
 
-        var caches = found.stream()
-                .map(entry -> describe(entry.managers().stream().sorted().toList(), entry.name(), entry.cache()))
-                .sorted(Comparator.comparing(CacheInfo::name).thenComparing(info -> String.join(",", info.managers())))
+        return caches.stream()
+                .sorted(Comparator.comparing(CacheInfo::name).thenComparing(CacheInfo::manager))
                 .toList();
-        return caches;
     }
 
     /**
-     * Adds a cache to the collection, or records another way in to one already there.
+     * Complains when one cache instance is registered with a second manager.
      * <p>
-     * Two entries are the same cache only when the name and the native cache instance both match.
-     * Identity alone would not do: some implementations hand out a shared object as their native
-     * cache - a Redis cache's writer belongs to its manager rather than to the cache - which would
-     * collapse unrelated caches into one row. Requiring the name to match as well keeps that safe,
-     * since distinct caches of one manager have distinct names by construction.
+     * A cache belongs to one manager. Registering the same instance with another makes it appear
+     * twice on the dashboard with identical numbers, and clearing it through one manager silently
+     * empties what the other reports - so this is a wiring bug to fix in the configuration, not a
+     * shape to report faithfully.
+     * <p>
+     * The native cache has to match as well as the name: two managers may each hold a different
+     * cache of the same name, and some implementations hand out a shared object as their native
+     * cache - a Redis cache's writer belongs to its manager rather than to the cache - so neither
+     * test alone would tell a duplicate registration from an unrelated namesake.
      */
-    private void merge(
-            List<FoundCache> found,
+    private void warnIfRegisteredTwice(
+            Map<String, Registration> registered,
             String managerName,
             String cacheName,
             org.springframework.cache.Cache cache
     ) {
-        for (var entry : found) {
-            if (entry.name().equals(cacheName) && entry.cache().getNativeCache() == cache.getNativeCache()) {
-                entry.managers().add(managerName);
-                return;
-            }
+        var previous = registered.putIfAbsent(cacheName, new Registration(managerName, cache.getNativeCache()));
+        if (previous != null && previous.nativeCache() == cache.getNativeCache()) {
+            logger.warn(
+                    "cache {} is registered with both {} and {}: it will be listed twice, and clearing it "
+                            + "through one manager empties the other",
+                    cacheName,
+                    previous.manager(),
+                    managerName);
         }
-
-        var managers = new ArrayList<String>();
-        managers.add(managerName);
-        found.add(new FoundCache(cacheName, cache, managers));
     }
 
-    private record FoundCache(String name, org.springframework.cache.Cache cache, List<String> managers) {}
+    private record Registration(String manager, Object nativeCache) {}
 
     /**
      * Clears one cache. Returns false when no such cache is registered with that manager, which the
@@ -178,7 +181,7 @@ public class CacheInfoService {
         return cleared;
     }
 
-    private CacheInfo describe(List<String> managers, String cacheName, org.springframework.cache.Cache cache) {
+    private CacheInfo describe(String manager, String cacheName, org.springframework.cache.Cache cache) {
         if (cache instanceof CaffeineCache caffeineCache) {
             var native_ = caffeineCache.getNativeCache();
             var stats = native_.stats();
@@ -186,28 +189,30 @@ public class CacheInfoService {
             // which would read as a cache that is never hit rather than one that is not counting.
             var recording = statisticsEnabled && native_.policy().isRecordingStats();
             return new CacheInfo(
-                    managers,
+                    manager,
                     cacheName,
                     "caffeine",
                     native_.estimatedSize(),
                     recording ? stats.hitCount() : null,
                     recording ? stats.missCount() : null,
-                    recording ? stats.hitRate() : null,
+                    // hitRate answers 1.0 for a cache that was never asked anything, which would
+                    // show an untouched cache as one that never misses; report no rate instead.
+                    recording && stats.requestCount() > 0 ? stats.hitRate() : null,
                     recording ? stats.evictionCount() : null);
         }
 
         if (cache instanceof JCacheCache) {
-            return describeJCache(managers, cacheName, cache);
+            return describeJCache(manager, cacheName, cache);
         }
 
         if (cache instanceof RedisCache redisCache) {
-            return describeRedis(managers, cacheName, redisCache);
+            return describeRedis(manager, cacheName, redisCache);
         }
 
-        return new CacheInfo(managers, cacheName, implementationOf(cache), null, null, null, null, null);
+        return new CacheInfo(manager, cacheName, implementationOf(cache), null, null, null, null, null);
     }
 
-    private CacheInfo describeJCache(List<String> managers, String cacheName, org.springframework.cache.Cache cache) {
+    private CacheInfo describeJCache(String manager, String cacheName, org.springframework.cache.Cache cache) {
         Long entries = null;
         var native_ = cache.getNativeCache();
         if (native_ instanceof javax.cache.Cache<?, ?> jcache) {
@@ -222,13 +227,13 @@ public class CacheInfoService {
 
         var stats = statisticsEnabled ? jcacheStatistics(cacheName, managerUri(native_)) : null;
         if (stats == null) {
-            return new CacheInfo(managers, cacheName, "jcache", entries, null, null, null, null);
+            return new CacheInfo(manager, cacheName, "jcache", entries, null, null, null, null);
         }
 
         var hits = stats.getCacheHits();
         var misses = stats.getCacheMisses();
         return new CacheInfo(
-                managers,
+                manager,
                 cacheName,
                 "jcache",
                 entries,
@@ -248,11 +253,11 @@ public class CacheInfoService {
      * with {@code enableStatistics()}. There is no eviction count because Redis expires keys by TTL
      * rather than evicting under pressure, so there is nothing to report rather than zero.
      */
-    private CacheInfo describeRedis(List<String> managers, String cacheName, RedisCache cache) {
+    private CacheInfo describeRedis(String manager, String cacheName, RedisCache cache) {
         if (!statisticsEnabled) {
             // Unlike the others, a Redis cache with no collector answers getStatistics with zeros
             // rather than failing, so without this the page would show a cache that is never hit.
-            return new CacheInfo(managers, cacheName, "redis", null, null, null, null, null);
+            return new CacheInfo(manager, cacheName, "redis", null, null, null, null, null);
         }
 
         CacheStatistics stats;
@@ -260,13 +265,13 @@ public class CacheInfoService {
             stats = cache.getStatistics();
         } catch (RuntimeException e) {
             logger.debug("cache {} is not collecting statistics", cacheName, e);
-            return new CacheInfo(managers, cacheName, "redis", null, null, null, null, null);
+            return new CacheInfo(manager, cacheName, "redis", null, null, null, null, null);
         }
 
         var hits = stats.getHits();
         var misses = stats.getMisses();
         return new CacheInfo(
-                managers,
+                manager,
                 cacheName,
                 "redis",
                 null,
