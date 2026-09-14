@@ -78,6 +78,28 @@ describe('WeeklyDownloads', () => {
         );
     });
 
+    it('says what the figure counts, so the number is not one of two unlabelled download counts', async () => {
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+        });
+
+        expect(await screen.findByText((77).toLocaleString())).toBeInTheDocument();
+        expect(screen.getByText('downloads')).toBeInTheDocument();
+    });
+
+    it('describes the curve for anyone who cannot see it, naming the per-week unit', async () => {
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+        });
+        await screen.findByText((77).toLocaleString());
+
+        // week 0 is 28 and week 1 is 77; "per week" is in it because the shape of a filled curve
+        // is the thing that would otherwise be read as a running total
+        expect(
+            screen.getByRole('img', { name: 'Downloads per week over the last 2 weeks, between 28 and 77 per week' })
+        ).toBeInTheDocument();
+    });
+
     it('headlines the last week and labels the period it covers', async () => {
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
             mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }

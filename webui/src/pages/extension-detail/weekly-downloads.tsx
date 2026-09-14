@@ -38,6 +38,18 @@ const Period = styled(Typography)(({ theme }) => ({
     fontVariantNumeric: 'tabular-nums'
 })) as typeof Typography;
 
+/**
+ * The unit beside the figure. The page header carries a lifetime total of its own, so a bare number
+ * here is one of two download counts on the page with nothing at the point of reading to tell them
+ * apart - the eyebrow is two lines up.
+ */
+const Unit = styled(Typography)(({ theme }) => ({
+    fontSize: '0.75rem',
+    lineHeight: 1.4,
+    color: theme.palette.text.secondary,
+    whiteSpace: 'nowrap'
+})) as typeof Typography;
+
 const DAY_AND_MONTH = { month: 'short', day: 'numeric' } as const;
 
 const WEEK_DAYS = 7;
@@ -138,7 +150,16 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
     const period = formatPeriod(daily[first], daily[first + WEEK_DAYS - 1]);
     // Reserve room for the busiest week, so the headline's width does not track its digit count and
     // resize the sparkline beside it as the pointer moves. Data-derived, so it cannot be a class.
-    const reserved = `${Math.max(...counts).toLocaleString().length}ch`;
+    const busiest = Math.max(...counts);
+    const reserved = `${busiest.toLocaleString().length}ch`;
+
+    // The chart is an SVG with no text alternative, so without this a screen reader gets the
+    // eyebrow, the period and a single number, and nothing at all about the weeks behind them.
+    // It names the unit too: per week is exactly what the curve's shape might be read against.
+    const weeks = counts.length === 1 ? 'the last week' : `the last ${counts.length} weeks`;
+    const chartLabel =
+        `Downloads per week over ${weeks}, between ${Math.min(...counts).toLocaleString()}` +
+        ` and ${busiest.toLocaleString()} per week`;
 
     return (
         <Box sx={sectionSx}>
@@ -153,17 +174,22 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                     mt: 0.75,
                     borderBottom: `2px solid ${alpha(theme.palette.secondary.main, 0.2)}`
                 }}>
-                <DownloadsCount style={{ minWidth: reserved }}>{counts[selected].toLocaleString()}</DownloadsCount>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                    <DownloadsCount style={{ minWidth: reserved }}>{counts[selected].toLocaleString()}</DownloadsCount>
+                    <Unit>{counts[selected] === 1 ? 'download' : 'downloads'}</Unit>
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }} role='img' aria-label={chartLabel}>
                     <SparkLineChart
                         data={counts}
                         height={CHART_HEIGHT_PX}
                         area
-                        // Fill from the bottom of the plot with a little underhang, and trim the
-                        // default padding, so the curve uses the box instead of floating in it.
-                        baseline='min'
+                        // Filled from zero rather than from the quietest week: an area that never
+                        // returns to a zero line reads as a running total, which is the one thing
+                        // this chart is not. It costs the flattering framing of a low-variance
+                        // series, which now looks as flat as it is.
+                        baseline={0}
                         margin={{ top: 5, right: 0, bottom: 0, left: 4 }}
-                        yAxis={{ domainLimit: (_, maxValue) => ({ min: -maxValue / 6, max: maxValue }) }}
+                        yAxis={{ domainLimit: (_, maxValue) => ({ min: 0, max: maxValue }) }}
                         clipAreaOffset={{ top: 2, bottom: 2 }}
                         showHighlight
                         // A non-'none' axis highlight is also what enables the axis listener, so
