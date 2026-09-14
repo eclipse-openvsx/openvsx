@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Generates access-log files for the download ingestion pipeline and, optionally, uploads them to
-# the local MinIO bucket the AWS source reads.
+# the local Silo bucket the AWS source reads.
 #
 # A record is only counted when it survives two filters:
 #   1. AccessLogRecord#isVsixDownload - GET, status 200, URL ending in .vsix
@@ -41,7 +41,7 @@ Usage: generate-download-logs.sh [options]
   --prefix PREFIX             key prefix, must match ovsx.logs.aws.log-location-prefix (default: AWSLogs/)
   --storage-type TYPE         file_resource.storage_type to draw filenames from (default: aws)
   --out FILE                  write the (uncompressed) log here instead of a temp file
-  --upload                    gzip and upload to the bucket via the minio container
+  --upload                    gzip and upload to the bucket via the silo container
   -h, --help                  this text
 
 Examples:
@@ -100,7 +100,7 @@ No file_resource rows of type 'download' with storage_type '${STORAGE_TYPE}'.
 
 Publish at least one extension first, and make sure the server stores files under that backend -
 for '${STORAGE_TYPE}'=aws that means the ovsx.storage.aws.* block in src/dev/resources/application.yml
-(the commented MinIO example) and 'docker compose --profile minio up'.
+(the commented Silo example) and 'docker compose --profile silo up'.
 EOF
     exit 1
 fi
@@ -173,7 +173,7 @@ if [ "$UPLOAD" -eq 1 ]; then
     # The inner program is single-quoted and takes the bucket and key as arguments, so neither can
     # be read as shell syntax inside the container.
     # shellcheck disable=SC2016  # $1/$2 are the inner shell's arguments, and must not expand here
-    gzip -c "$LOG_FILE" | compose exec -T minio sh -c '
+    gzip -c "$LOG_FILE" | compose exec -T silo sh -c '
         mc alias set local http://localhost:9000 minioadmin minioadmin >/dev/null &&
         mc pipe "local/$1/$2"' sh "$BUCKET" "$key" >/dev/null
     echo "uploaded s3://${BUCKET}/${key}" >&2

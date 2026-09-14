@@ -192,12 +192,12 @@ or
 
 Download counts are ingested from CDN or storage access logs rather than counted on the request
 path, so exercising that locally needs log files to ingest. `./server/scripts/generate-download-logs.sh`
-writes them in either supported format and can upload them to the MinIO bucket the AWS source reads.
+writes them in either supported format and can upload them to the Silo bucket the AWS source reads.
 
 It draws its `.vsix` filenames from the registry database, because a download only counts when the
 filename resolves to a `file_resource` row of type `download` **whose `storage_type` matches the
 source's**. Invented filenames ingest nothing. In practice that means the extensions have to be
-stored on S3 rather than on disk, so alongside the `minio` profile uncomment the `ovsx.storage.aws`
+stored on S3 rather than on disk, so alongside the `silo` profile uncomment the `ovsx.storage.aws`
 block in `server/src/dev/resources/application.yml` and add the log source:
 
 ```yaml
@@ -209,7 +209,7 @@ ovsx:
       cron: "0 * * * * *"   # every minute, rather than the hourly default
 ```
 
-Then, with the `db` and `minio` profiles up, the server running and at least one extension
+Then, with the `db` and `silo` profiles up, the server running and at least one extension
 published:
 
 ```bash
