@@ -119,6 +119,18 @@ public class ExtensionVersion implements Serializable {
 
     private boolean active;
 
+    /**
+     * Why the last publish attempt for this version did not finish, or {@code null} when none failed.
+     * <p>
+     * The work that follows a successful upload - storing the files, signing, checksumming - runs after
+     * the response has gone out, so a failure in it reaches nobody. This is where it is written down, so
+     * that a version sitting at {@code active == false} can be asked why rather than guessed at. Cleared
+     * on activation, so it describes the latest attempt and not the history of them.
+     */
+    @Column(name = "publish_error", columnDefinition = "text")
+    @Nullable
+    private String publishError;
+
     private boolean potentiallyMalicious;
 
     /**
@@ -406,6 +418,14 @@ public class ExtensionVersion implements Serializable {
         this.active = active;
     }
 
+    public @Nullable String getPublishError() {
+        return publishError;
+    }
+
+    public void setPublishError(@Nullable String publishError) {
+        this.publishError = publishError;
+    }
+
     public boolean isPotentiallyMalicious() {
         return potentiallyMalicious;
     }
@@ -624,6 +644,7 @@ public class ExtensionVersion implements Serializable {
                 && preview == that.preview
                 && active == that.active
                 && potentiallyMalicious == that.potentiallyMalicious
+                && Objects.equals(publishError, that.publishError)
                 && removed == that.removed
                 && Objects.equals(removedTimestamp, that.removedTimestamp)
                 && Objects.equals(getId(removedBy), getId(that.removedBy)) // use id to prevent infinite recursion
@@ -670,6 +691,7 @@ public class ExtensionVersion implements Serializable {
                 publishedWithTt,
                 active,
                 potentiallyMalicious,
+                publishError,
                 removed,
                 removedTimestamp,
                 getId(removedBy),

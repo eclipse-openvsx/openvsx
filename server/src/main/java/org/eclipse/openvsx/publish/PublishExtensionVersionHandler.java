@@ -485,26 +485,70 @@ public class PublishExtensionVersionHandler {
     }
 
     @Async
+    @Retryable(includes = Exception.class)
     public void publishAsync(TempFile extensionFile, ExtensionService extensionService) {
-        doPublish(extensionFile, extensionService, null);
+        publishReportingFailure(extensionFile, extensionService, null);
     }
 
     @Async
+    @Retryable(includes = Exception.class)
     public void publishAsync(TempFile extensionFile, ExtensionService extensionService, ExtensionScan scan) {
+        publishReportingFailure(extensionFile, extensionService, scan);
+    }
+
+    /**
+     * Runs the publish and makes sure a failure leaves something behind that names the version it was
+     * working on.
+     * <p>
+     * Everything below this point runs after the request that started it has already been answered, so a
+     * failure here is invisible to whoever published: the row keeps {@code active = false} and the client
+     * has been told the upload succeeded. What did get logged was Spring's
+     * {@code SimpleAsyncUncaughtExceptionHandler} line, which names this method and not the extension, so
+     * the version had to be matched up to the stack trace by hand - see #1450.
+     * <p>
+     * {@code Throwable} rather than {@code Exception}, because the failure that prompted this was an
+     * {@link OutOfMemoryError}: an {@code Error} walked straight past the previous {@code catch}, so even
+     * an instance with scanning enabled recorded nothing at all. Rethrown either way, so that the advice
+     * around this still sees it and Spring's own handler keeps its account.
+     */
+    private void publishReportingFailure(
+            TempFile extensionFile,
+            ExtensionService extensionService,
+            ExtensionScan scan
+    ) {
         try {
             doPublish(extensionFile, extensionService, scan);
-        } catch (Exception e) {
-            if (scan != null) {
-                scanService.markScanAsErrored(scan, "Async processing failed: " + e.getMessage());
-            }
-            throw e;
+        } catch (Throwable failure) {
+            logger.atError()
+                    .setMessage("Publishing {} failed, the version stays inactive")
+                    .addArgument(() -> NamingUtil.toLogFormat(extensionFile.getResource().getExtension()))
+                    .setCause(failure)
+                    .log();
+            service.recordPublishError(extensionFile.getResource().getExtension(), describe(failure));
+            // Null-safe: markScanAsErrored returns immediately when there is no scan to mark. An instance
+            // that does not run scanning has only the column above.
+            scanService.markScanAsErrored(scan, "Async processing failed: " + failure);
+            throw failure;
         }
+    }
+
+    /**
+     * The recorded form of a failure: its type and message, and nothing deeper.
+     * <p>
+     * A cause chain would carry file system paths, host names and connection strings out of the server
+     * and into a column that admin tooling reads back, and none of it tells an operator more than the log
+     * already has - which is where the stack trace stays.
+     */
+    private static String describe(Throwable failure) {
+        var message = failure.getMessage();
+        return message == null || message.isBlank()
+                ? failure.getClass().getName()
+                : failure.getClass().getName() + ": " + message;
     }
 
     /**
      * Publish an extension - store files and optionally submit for scanning.
      */
-    @Retryable
     private void doPublish(TempFile extensionFile, ExtensionService extensionService, ExtensionScan scan) {
         var download = extensionFile.getResource();
         var extVersion = download.getExtension();

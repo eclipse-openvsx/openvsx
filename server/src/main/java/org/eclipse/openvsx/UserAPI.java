@@ -331,6 +331,20 @@ public class UserAPI {
             return;
         }
 
+        // A version whose publish never finished is not waiting on anything, whatever the scan says, so
+        // this is reported ahead of every state below: the work that would have activated it stopped, and
+        // a scan that was never reached leaves the row looking exactly like one still queued. "Rejected"
+        // is the closest of the three statuses this vocabulary has - the version will not become live
+        // without someone intervening - where "under review" would promise attention nothing is giving it.
+        // The recorded reason itself stays out of the response: it names server internals, and there is
+        // nothing in it the publisher could act on.
+        if (extVersion.getPublishError() != null) {
+            json.setReviewStatus("rejected");
+            json.setReviewMessage(
+                    "Publishing this version did not complete. Please contact the registry operator.");
+            return;
+        }
+
         if (scanResult == null) {
             // No scan result found - show as under review
             json.setReviewStatus("under_review");
