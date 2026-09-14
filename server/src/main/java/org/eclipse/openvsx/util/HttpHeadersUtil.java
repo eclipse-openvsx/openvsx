@@ -100,7 +100,10 @@ public class HttpHeadersUtil {
             }
         }
         var headerToken = request.getHeader(TOKEN_HEADER);
-        return (headerToken != null && !headerToken.isBlank()) ? headerToken.trim() : queryToken;
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+        return (queryToken != null && !queryToken.isBlank()) ? queryToken : null;
     }
 
     public static HttpHeaders getForwardedHeaders() {

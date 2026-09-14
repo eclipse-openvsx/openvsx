@@ -27,6 +27,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -148,12 +149,13 @@ public class RegistryAPI {
         description = "The specified namespace could not be found",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> verifyToken(
             HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace", example = "GitLab") String namespace,
             @RequestParam(required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token
     ) {
         var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {
@@ -1307,12 +1309,13 @@ public class RegistryAPI {
             examples = @ExampleObject(value = "{ \"error\": \"Invalid access token.\" }")
         )
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> createNamespace(
             HttpServletRequest request,
             @RequestBody
             @Parameter(description = "Describes the namespace to create") NamespaceJson namespace,
             @RequestParam(required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token
     ) {
         if (namespace == null) {
             return ResponseEntity.ok(ResultJson.error(NO_JSON_INPUT));
@@ -1452,11 +1455,12 @@ public class RegistryAPI {
                 + "or the user has not signed a Publisher Agreement",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ExtensionJson> publish(
             HttpServletRequest request,
             InputStream content,
             @RequestParam(required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token
     ) {
         var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {
@@ -1578,6 +1582,7 @@ public class RegistryAPI {
             examples = @ExampleObject(value = "{ \"error\": \"Extension not found: foo.bar\" }")
         )
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> deleteExtension(
             HttpServletRequest request,
             @PathVariable
@@ -1588,7 +1593,7 @@ public class RegistryAPI {
             @RequestParam(required = false, defaultValue = "false")
             @Parameter(description = "Delete all versions of the extension") boolean allVersions,
             @RequestParam(required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token
     ) {
         var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {

@@ -334,6 +334,21 @@ class AdminAPITest {
     }
 
     @Test
+    void testSearchExplainBlankQueryTokenFallsBackToSession() throws Exception {
+        // ?token= (present but empty) - e.g. a bookmarked/templated URL - must not be treated as a
+        // real token attempt; it has to fall back to the logged-in admin's session, same as omitting
+        // the parameter entirely.
+        mockAdminUser();
+        mockMvc.perform(
+                get("/admin/search-explain")
+                        .param("query", "markdown")
+                        .param("token", "")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void testSearchExplainWithNonAdminBearerToken() throws Exception {
         // SecurityConfig now lets the request through, but the controller's own admin check must
         // still reject a non-admin token.
@@ -2357,9 +2372,9 @@ class AdminAPITest {
                     "publishers": []
                 }
                 """;
-        // the token parameter is optional now that the token can also arrive via the
-        // X-OpenVSX-Token header, so a request with neither is a 403 (not an admin), not a
-        // missing-parameter 400 - and must not NPE (see AdminService.checkAdminUser)
+        // the token parameter is optional now that the token can also arrive via a header, so a
+        // request with neither is a 403 (not an admin), not a missing-parameter 400 - and must not
+        // NPE (see AdminService.checkAdminUser)
         mockMvc.perform(
                 post("/admin/api/publisher/bulk-revoke")
                         .content(baseRequest)

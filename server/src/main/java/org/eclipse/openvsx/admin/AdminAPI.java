@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -127,6 +128,7 @@ public class AdminAPI {
     )
     @CrossOrigin
     @Operation(summary = "Get the admin report for the given month and year")
+    @SecurityRequirement(name = "bearerAuth")
     @ApiResponse(
         responseCode = "200",
         description = "The report is returned",
@@ -146,7 +148,7 @@ public class AdminAPI {
     public ResponseEntity<AdminStatisticsJson> getReportJson(
             HttpServletRequest request,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue,
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestParam("year") int year,
             @RequestParam("month") int month
     ) {
@@ -631,6 +633,7 @@ public class AdminAPI {
         description = "Extension not found",
         content = @Content()
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> deleteExtension(
             HttpServletRequest request,
             @PathVariable
@@ -638,7 +641,7 @@ public class AdminAPI {
             @PathVariable
             @Parameter(description = "Extension name", example = "language-julia") String extensionName,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue,
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
@@ -724,6 +727,7 @@ public class AdminAPI {
         description = "Extension not found",
         content = @Content()
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> purgeExtension(
             HttpServletRequest request,
             @PathVariable
@@ -731,7 +735,7 @@ public class AdminAPI {
             @PathVariable
             @Parameter(description = "Extension name", example = "language-julia") String extensionName,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue,
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
@@ -1031,12 +1035,13 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = NamespaceMembershipListJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<NamespaceMembershipListJson> getNamespaceMembers(
             HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace name", example = "mtxr") String namespaceName,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
             admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
@@ -1099,6 +1104,7 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> editNamespaceMember(
             HttpServletRequest request,
             @PathVariable
@@ -1115,7 +1121,7 @@ public class AdminAPI {
                 )
             ) String role,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
             var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
@@ -1251,10 +1257,11 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<BulkPublisherRevokeResponseJson> revokeBulkPublishers(
             HttpServletRequest httpRequest,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue,
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestBody BulkPublisherRevokeRequestJson request
     ) {
         if (request.publishers().size() > 100) {
@@ -1341,6 +1348,7 @@ public class AdminAPI {
         description = "User not found",
         content = @Content()
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> forgetUser(
             HttpServletRequest request,
             @PathVariable
@@ -1348,7 +1356,7 @@ public class AdminAPI {
             @PathVariable
             @Parameter(description = "Provider-specific username") String username,
             @RequestParam(value = "token", required = false)
-            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String tokenValue
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
             var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));

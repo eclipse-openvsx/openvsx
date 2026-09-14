@@ -91,6 +91,16 @@ public class HttpHeadersUtilTest {
     }
 
     @Test
+    void testResolveAccessTokenTreatsBlankQueryTokenAsAbsent() {
+        // ?token= (present but empty) must resolve to null, not "" - callers such as
+        // AdminAPI.searchExplain fall back to session auth only on a genuine null.
+        var request = new MockHttpServletRequest();
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "")).isNull();
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "   ")).isNull();
+    }
+
+    @Test
     void testGetForwardedHeadersExcludesCredentials() {
         var request = new MockHttpServletRequest();
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer secret-token");
