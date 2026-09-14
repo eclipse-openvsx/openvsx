@@ -19,6 +19,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
+import StorageIcon from '@mui/icons-material/Storage';
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
 import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
@@ -48,6 +49,7 @@ import { Welcome } from './welcome';
 const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
 const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 const DataConsistency = lazy(() => import('./consistency/consistency').then(m => ({ default: m.DataConsistency })));
+const CachesAdmin = lazy(() => import('./caches/caches').then(m => ({ default: m.CachesAdmin })));
 const SearchIndexAdmin = lazy(() => import('./search-index/search-index').then(m => ({ default: m.SearchIndexAdmin })));
 const SearchExplainAdmin = lazy(() =>
     import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
@@ -115,6 +117,12 @@ const navConfig: NavEntry[] = [
         name: 'Data Consistency',
         icon: <FactCheckIcon />,
         description: 'Check the database for known inconsistencies and fix them'
+    },
+    {
+        path: AdminDashboardRoutes.CACHES,
+        name: 'Caches',
+        icon: <StorageIcon />,
+        description: 'Inspect the application caches and clear them'
     },
     {
         path: AdminDashboardRoutes.SEARCH_INDEX,
@@ -270,6 +278,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/settings' element={<RuntimeSettingsPage />} />
                                     <Route path='/logs' element={<Logs />} />
                                     <Route path='/consistency' element={<DataConsistency />} />
+                                    <Route path='/caches' element={<CachesAdmin />} />
                                     <Route path='/search-index' element={<SearchIndexAdmin />} />
                                     <Route path='/search-explain' element={<SearchExplainAdmin />} />
                                     {/* Splat so a contributed page can render nested routes; it also matches the bare path. */}

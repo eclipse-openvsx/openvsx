@@ -49,12 +49,15 @@ import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.LocalRegistryService;
+import org.eclipse.openvsx.cache.CacheInfo;
+import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersistedLog;
 import org.eclipse.openvsx.json.AdminStatisticsJson;
 import org.eclipse.openvsx.json.BulkPublisherRevokeRequestJson;
 import org.eclipse.openvsx.json.BulkPublisherRevokeResponseJson;
+import org.eclipse.openvsx.json.CachesJson;
 import org.eclipse.openvsx.json.ChangeNamespaceJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
@@ -95,6 +98,7 @@ public class AdminAPI {
     private final LocalRegistryService local;
     private final SearchUtilService search;
     private final SearchExplainService searchExplainService;
+    private final CacheInfoService caches;
 
     public AdminAPI(
             RepositoryService repositories,
@@ -104,7 +108,8 @@ public class AdminAPI {
             LogService logs,
             LocalRegistryService local,
             SearchUtilService search,
-            SearchExplainService searchExplainService
+            SearchExplainService searchExplainService,
+            CacheInfoService caches
     ) {
         this.repositories = repositories;
         this.admins = admins;
@@ -114,6 +119,7 @@ public class AdminAPI {
         this.local = local;
         this.search = search;
         this.searchExplainService = searchExplainService;
+        this.caches = caches;
     }
 
     @GetMapping(
@@ -406,6 +412,101 @@ public class AdminAPI {
     private String toString(PersistedLog log) {
         var timestamp = log.getTimestamp().minusNanos(log.getTimestamp().getNano());
         return timestamp + "\t" + log.getUser().getLoginName() + "\t" + log.getMessage();
+    }
+
+    @GetMapping(
+        path = "/caches",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "Report the caches registered in the application")
+    @ApiResponse(
+        responseCode = "200",
+        description = "The caches are returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = CachesJson.class)
+        )
+    )
+    public ResponseEntity<CachesJson> getCaches() {
+        try {
+            admins.checkAdminUser();
+
+            var json = new CachesJson();
+            json.setStatisticsEnabled(caches.isStatisticsEnabled());
+            json.setCaches(caches.getCaches().stream().map(AdminAPI::toJson).toList());
+            return ResponseEntity.ok(json);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(CachesJson.class);
+        }
+    }
+
+    @PostMapping(
+        path = "/caches/clear",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "Clear one cache, or every cache when none is named")
+    @ApiResponse(
+        responseCode = "200",
+        description = "A success message is returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = ResultJson.class)
+        )
+    )
+    @ApiResponse(
+        responseCode = "400",
+        description = "An error message is returned in JSON format",
+        content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    @ApiResponse(
+        responseCode = "404",
+        description = "No cache of that name is registered with that manager",
+        content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    public ResponseEntity<ResultJson> clearCaches(
+            @RequestParam(required = false) String manager,
+            @RequestParam(required = false) String cache
+    ) {
+        try {
+            var adminUser = admins.checkAdminUser();
+
+            // A cache is only identified by manager and name together, since the same name can be
+            // registered with more than one manager, so one without the other cannot name a cache;
+            // clearing everything has to be asked for by naming neither rather than half-naming one.
+            if (StringUtils.isEmpty(manager) != StringUtils.isEmpty(cache)) {
+                throw new ErrorResultException("Provide both 'manager' and 'cache', or neither to clear all caches.");
+            }
+
+            ResultJson result;
+            if (StringUtils.isEmpty(manager)) {
+                var cleared = caches.clearAll();
+                result = ResultJson.success("Cleared " + cleared + " cache(s)");
+            } else if (caches.clear(manager, cache)) {
+                result = ResultJson.success("Cleared cache '" + cache + "' of '" + manager + "'");
+            } else {
+                throw new ErrorResultException(
+                        "No cache '" + cache + "' is registered with '" + manager + "'.",
+                        HttpStatus.NOT_FOUND);
+            }
+
+            logs.logAction(adminUser, result);
+            return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        }
+    }
+
+    private static CachesJson.CacheJson toJson(CacheInfo info) {
+        var json = new CachesJson.CacheJson();
+        json.setManager(info.manager());
+        json.setName(info.name());
+        json.setImplementation(info.implementation());
+        json.setEntries(info.entries());
+        json.setHits(info.hits());
+        json.setMisses(info.misses());
+        json.setHitRate(info.hitRate());
+        json.setEvictions(info.evictions());
+        return json;
     }
 
     @GetMapping(

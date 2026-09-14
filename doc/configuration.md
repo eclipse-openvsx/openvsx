@@ -959,6 +959,16 @@ Whether to run an embedded Redis server. Useful for development and small deploy
 
 Whether to use Redis for caching. Caffeine (in-memory cache) is used by default.
 
+| Property      | `ovsx.caching.statistics.enabled`
+|---------------|-------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Unreleased
+
+Whether the caches count hits, misses and evictions, which the admin dashboard's Caches page reports. Off by default: every cache implementation counts on the lookup path, so it is paid on every cache read for numbers nothing consults unless somebody is looking at that page. Changing it takes a restart, since the counting is configured when each cache is built.
+
+With it off, the page still shows each cache and its entry count and can still clear them; only the hit, miss, hit rate and eviction columns are empty. They are shown as absent rather than as zero, so a cache that is not counted cannot be mistaken for one that is never hit.
+
 | Property      | `ovsx.caching.files-extension.tti`
 |---------------|-------------------------
 | Type          | ISO 8601 duration

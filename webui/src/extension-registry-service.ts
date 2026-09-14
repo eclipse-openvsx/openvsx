@@ -61,6 +61,7 @@ import {
     ConsistencyCheckList,
     ConsistencyFindingList,
     SearchExplain,
+    CacheList,
     SearchIndex,
     AdminStatistics
 } from './extension-registry-types';
@@ -813,6 +814,10 @@ export interface AdminService {
     ): Promise<Readonly<AdminStatistics>>;
     getAdminStatisticsCsvUrl(year: number, month: number): string;
     updateSearchIndex(): Promise<Readonly<SuccessResult>>;
+    /** Every cache of every cache manager, with whatever each implementation can report. */
+    getCaches(abortController: AbortController): Promise<Readonly<CacheList>>;
+    /** Clears one cache, or every cache when no cache is named. */
+    clearCaches(cache?: { manager: string; name: string }): Promise<Readonly<SuccessResult>>;
     getConsistencyChecks(abortController: AbortController): Promise<Readonly<ConsistencyCheckList>>;
     getConsistencyFindings(
         abortController: AbortController,
@@ -1684,6 +1689,32 @@ export class AdminServiceImpl implements AdminService {
             method: 'POST',
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'update-search-index']),
+            headers
+        });
+    }
+
+    async getCaches(abortController: AbortController): Promise<Readonly<CacheList>> {
+        return sendNonRetriableRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'caches'])
+        });
+    }
+
+    async clearCaches(cache?: { manager: string; name: string }): Promise<Readonly<SuccessResult>> {
+        const headers = await this.csrfHeaders();
+        // Manager and name travel together or not at all: a cache is only identified by both, and
+        // the server clears everything when neither is given.
+        const query = cache
+            ? [
+                  { key: 'manager', value: cache.manager },
+                  { key: 'cache', value: cache.name }
+              ]
+            : [];
+        return sendStrictRequest({
+            method: 'POST',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'caches', 'clear'], query),
             headers
         });
     }
