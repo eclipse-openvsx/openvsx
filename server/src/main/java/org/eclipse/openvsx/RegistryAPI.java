@@ -60,6 +60,8 @@ public class RegistryAPI {
     private static final String VERSION_PATH_PARAM_REGEX = "(?:" + SemanticVersion.VERSION_PATH_PARAM_REGEX
             + ")|latest|pre-release";
     private static final String NO_JSON_INPUT = "No JSON input.";
+    private static final String TOKEN_PARAM_DESCRIPTION = "A personal access token. Deprecated: send it via the "
+            + HttpHeadersUtil.TOKEN_HEADER + " header instead.";
 
     protected final Logger logger = LoggerFactory.getLogger(RegistryAPI.class);
 
@@ -146,13 +148,15 @@ public class RegistryAPI {
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
     public ResponseEntity<ResultJson> verifyToken(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace", example = "GitLab") String namespace,
-            @RequestParam
-            @Parameter(description = "A personal access token") String token
+            @RequestParam(required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
     ) {
+        var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {
-            return ResponseEntity.ok(local.verifyToken(namespace, token));
+            return ResponseEntity.ok(local.verifyToken(namespace, tokenValue));
         } catch (NotFoundException exc) {
             var json = ResultJson.error("Namespace not found: " + namespace);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(json);
@@ -1303,10 +1307,11 @@ public class RegistryAPI {
         )
     )
     public ResponseEntity<ResultJson> createNamespace(
+            HttpServletRequest request,
             @RequestBody
             @Parameter(description = "Describes the namespace to create") NamespaceJson namespace,
-            @RequestParam
-            @Parameter(description = "A personal access token") String token
+            @RequestParam(required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
     ) {
         if (namespace == null) {
             return ResponseEntity.ok(ResultJson.error(NO_JSON_INPUT));
@@ -1314,8 +1319,9 @@ public class RegistryAPI {
         if (StringUtils.isEmpty(namespace.getName())) {
             return ResponseEntity.ok(ResultJson.error("Missing required property 'name'."));
         }
+        var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {
-            var json = local.createNamespace(namespace, token);
+            var json = local.createNamespace(namespace, tokenValue);
             var serverUrl = UrlUtil.getBaseUrl();
             var url = UrlUtil.createApiUrl(serverUrl, "api", namespace.getName());
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -1446,12 +1452,14 @@ public class RegistryAPI {
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
     public ResponseEntity<ExtensionJson> publish(
+            HttpServletRequest request,
             InputStream content,
-            @RequestParam
-            @Parameter(description = "A personal access token") String token
+            @RequestParam(required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
     ) {
+        var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {
-            var json = local.publish(content, token);
+            var json = local.publish(content, tokenValue);
             var serverUrl = UrlUtil.getBaseUrl();
             var url = UrlUtil.createApiVersionUrl(serverUrl, json);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -1570,6 +1578,7 @@ public class RegistryAPI {
         )
     )
     public ResponseEntity<ResultJson> deleteExtension(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Extension namespace", example = "redhat") String namespace,
             @PathVariable
@@ -1577,9 +1586,10 @@ public class RegistryAPI {
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions,
             @RequestParam(required = false, defaultValue = "false")
             @Parameter(description = "Delete all versions of the extension") boolean allVersions,
-            @RequestParam
-            @Parameter(description = "A personal access token") String token
+            @RequestParam(required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION) String token
     ) {
+        var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
         try {
             if (allVersions && targetVersions != null && !targetVersions.isEmpty()) {
                 var json = ResultJson
@@ -1599,7 +1609,7 @@ public class RegistryAPI {
 
             // null tells the service to delete every version the token's user is allowed to delete
             var versions = allVersions ? null : targetVersions;
-            return ResponseEntity.ok(local.deleteExtension(namespace, extension, versions, token));
+            return ResponseEntity.ok(local.deleteExtension(namespace, extension, versions, tokenValue));
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity();
         }

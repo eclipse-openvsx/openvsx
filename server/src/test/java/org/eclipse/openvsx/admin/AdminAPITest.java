@@ -108,6 +108,7 @@ import org.eclipse.openvsx.storage.GoogleCloudStorageService;
 import org.eclipse.openvsx.storage.LocalStorageService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.HttpHeadersUtil;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
@@ -1540,6 +1541,27 @@ class AdminAPITest {
     }
 
     @Test
+    void testReportTokenHeader() throws Exception {
+        var token = mockNonAdminToken();
+        mockMvc.perform(
+                get("/admin/report?year=2021&month=3")
+                        .header(HttpHeadersUtil.TOKEN_HEADER, token.getValue())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testReportNoTokenAtAll() throws Exception {
+        // Neither a header nor a query parameter: must not NPE (AdminService.checkAdminUser used to
+        // do Optional.of(tokenValue), which throws on null once the query parameter became optional).
+        mockMvc.perform(
+                get("/admin/report?year=2021&month=3")
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
+    }
+
+    @Test
     void testReportNegativeYearCsv() throws Exception {
         var token = mockAdminToken();
         mockMvc.perform(
@@ -2281,11 +2303,15 @@ class AdminAPITest {
                     "publishers": []
                 }
                 """;
+        // the token parameter is optional now that the token can also arrive via the
+        // X-OpenVSX-Token header, so a request with neither is a 403 (not an admin), not a
+        // missing-parameter 400 - and must not NPE (see AdminService.checkAdminUser)
         mockMvc.perform(
                 post("/admin/api/publisher/bulk-revoke")
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
     }
 
     @Test
@@ -2299,7 +2325,8 @@ class AdminAPITest {
                 post("/admin/api/publisher/bulk-revoke")
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
     }
 
     @Test

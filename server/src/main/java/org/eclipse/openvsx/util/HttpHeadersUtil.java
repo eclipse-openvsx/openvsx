@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.tika.Tika;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -32,6 +33,16 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.eclipse.openvsx.storage.StorageUtil;
 
 public class HttpHeadersUtil {
+
+    /**
+     * OpenVSX-specific header for personal access tokens, preferred over the legacy {@code token}
+     * query parameter (which access logs and reverse proxies tend to record). Deliberately not
+     * {@code Authorization}: that header is already spoken for by standard auth schemes (e.g. the
+     * CLI's own Basic auth to a fronting reverse proxy), and this token should never have to compete
+     * or collide with those.
+     */
+    public static final String TOKEN_HEADER = "X-OpenVSX-Token";
+
     private static final MediaType APPLICATION_ZIP = MediaType.valueOf("application/zip");
     private static final MediaType TEXT_PLAIN_UTF8 = new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8);
 
@@ -72,6 +83,16 @@ public class HttpHeadersUtil {
     public static final String CSP_PREVENT_ALL = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; sandbox";
 
     private HttpHeadersUtil() {
+    }
+
+    /**
+     * Resolves a personal access token from the {@value #TOKEN_HEADER} header, falling back to
+     * {@code queryToken} (the legacy {@code token} query parameter) when the header is absent or
+     * blank.
+     */
+    public static @Nullable String resolveAccessToken(HttpServletRequest request, @Nullable String queryToken) {
+        var headerToken = request.getHeader(TOKEN_HEADER);
+        return (headerToken != null && !headerToken.isBlank()) ? headerToken.trim() : queryToken;
     }
 
     public static HttpHeaders getForwardedHeaders() {

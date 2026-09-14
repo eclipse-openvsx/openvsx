@@ -22,12 +22,16 @@ import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRe
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.JsonNode;
 
 import org.eclipse.openvsx.json.*;
+import org.eclipse.openvsx.util.HttpHeadersUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -142,8 +146,15 @@ class IntegrationTest extends AbstractPostgresContainerTest {
     }
 
     private void verifyToken() {
-        var response = restTemplate
-                .getForEntity(apiCall("/api/editorconfig/verify-pat?token=test_token"), ResultJson.class);
+        // Sent via the X-OpenVSX-Token header rather than the query parameter, exercising the header
+        // path end to end (real request parsing, real filter chain) rather than only the query one.
+        var headers = new HttpHeaders();
+        headers.set(HttpHeadersUtil.TOKEN_HEADER, "test_token");
+        var response = restTemplate.exchange(
+                apiCall("/api/editorconfig/verify-pat"),
+                HttpMethod.GET,
+                new HttpEntity<Void>(headers),
+                ResultJson.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         var json = response.getBody();
         assertThat(json).isNotNull();

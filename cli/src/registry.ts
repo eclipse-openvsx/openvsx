@@ -22,6 +22,11 @@ export { DEFAULT_TIMEOUT };
 export const DEFAULT_TOKEN_REQUEST_SIZE = 8 * 1024;
 export const DEFAULT_DELETE_SIZE = 64 * 1024;
 
+// OpenVSX-specific, rather than `Authorization`: the token must never compete with the registry's
+// own Basic auth (see getRequestOptions), and it keeps the same header working regardless of what
+// standard auth scheme, if any, a self-hosted registry also expects.
+const TOKEN_HEADER = 'X-OpenVSX-Token';
+
 export class Registry {
 
     readonly url: string;
@@ -53,10 +58,11 @@ export class Registry {
 
     createNamespace(name: string, pat: string): Promise<Response> {
         try {
-            const url = this.getUrl(['api', '-', 'namespace', 'create'], { token: pat });
+            const url = this.getUrl(['api', '-', 'namespace', 'create']);
             const namespace = { name };
             return this.post(JSON.stringify(namespace), url, {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                [TOKEN_HEADER]: pat
             }, this.maxNamespaceSize);
         } catch (err) {
             return rejectError(err);
@@ -65,7 +71,7 @@ export class Registry {
 
     verifyPat(namespace: string, pat: string): Promise<Response> {
         try {
-            return this.getJson(this.getUrl(['api', namespace, 'verify-pat'], { token: pat }));
+            return this.getJson(this.getUrl(['api', namespace, 'verify-pat']), { [TOKEN_HEADER]: pat });
         } catch (err) {
             return rejectError(err);
         }
@@ -81,9 +87,10 @@ export class Registry {
 
     publish(file: string, pat: string): Promise<Extension> {
         try {
-            const url = this.getUrl(['api', '-', 'publish'], { token: pat });
+            const url = this.getUrl(['api', '-', 'publish']);
             return this.postFile(file, url, {
-                'Content-Type': 'application/octet-stream'
+                'Content-Type': 'application/octet-stream',
+                [TOKEN_HEADER]: pat
             }, this.maxPublishSize);
         } catch (err) {
             return rejectError(err);
@@ -114,13 +121,14 @@ export class Registry {
     ): Promise<Response> {
         try {
             if (!targetVersions) {
-                const url = this.getUrl(['api', namespace, extension, 'delete'], { token: pat, allVersions: 'true' });
-                return this.post('', url, undefined, DEFAULT_DELETE_SIZE);
+                const url = this.getUrl(['api', namespace, extension, 'delete'], { allVersions: 'true' });
+                return this.post('', url, { [TOKEN_HEADER]: pat }, DEFAULT_DELETE_SIZE);
             }
 
-            const url = this.getUrl(['api', namespace, extension, 'delete'], { token: pat });
+            const url = this.getUrl(['api', namespace, extension, 'delete']);
             return this.post(JSON.stringify(targetVersions), url, {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                [TOKEN_HEADER]: pat
             }, DEFAULT_DELETE_SIZE);
         } catch (err) {
             return rejectError(err);
@@ -268,9 +276,9 @@ export class Registry {
         });
     }
 
-    getJson<T extends Response>(url: URL): Promise<T> {
+    getJson<T extends Response>(url: URL, headers?: http.OutgoingHttpHeaders): Promise<T> {
         return new Promise((resolve, reject) => {
-            const requestOptions = this.getRequestOptions();
+            const requestOptions = this.getRequestOptions('GET', headers);
             const request = this.getProtocol(url)
                                 .request(url, requestOptions, this.getJsonResponse<T>(resolve, reject));
             request.on('error', reject);

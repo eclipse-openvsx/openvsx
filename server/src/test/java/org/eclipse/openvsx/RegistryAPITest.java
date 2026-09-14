@@ -84,6 +84,7 @@ import org.eclipse.openvsx.security.SecurityConfig;
 import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
 import org.eclipse.openvsx.util.ChangesCursor;
+import org.eclipse.openvsx.util.HttpHeadersUtil;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -1728,6 +1729,23 @@ class RegistryAPITest {
     }
 
     @Test
+    void testCreateNamespaceTokenHeader() throws Exception {
+        var token = mockAccessToken();
+        Mockito.when(repositories.findMemberships(token.getUser()))
+                .thenReturn(Streamable.empty());
+        mockMvc.perform(
+                post("/api/-/namespace/create")
+                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(namespaceJson(n -> {
+                            n.setName("foobar");
+                        })))
+                .andExpect(status().isCreated())
+                .andExpect(redirectedUrl("http://localhost/api/foobar"))
+                .andExpect(content().json(successJson("Created namespace foobar")));
+    }
+
+    @Test
     void testCreateNamespaceNoName() throws Exception {
         mockAccessToken();
         mockMvc.perform(
@@ -1826,8 +1844,20 @@ class RegistryAPITest {
         mockAccessToken();
         mockNamespace();
 
+        // the token parameter is optional now that the token can also arrive via the
+        // X-OpenVSX-Token header, so a request with neither is an invalid-token 401, not a
+        // missing-parameter 400
         mockMvc.perform(get("/api/{namespace}/verify-pat", "foobar"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().json(errorJson("Invalid access token.")));
+    }
+
+    @Test
+    void testVerifyTokenHeader() throws Exception {
+        mockForPublish("owner");
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat", "foo").header(HttpHeadersUtil.TOKEN_HEADER, "my_token"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -2029,6 +2059,29 @@ class RegistryAPITest {
         var bytes = createExtensionPackage("bar", "1.0.0", null);
         mockMvc.perform(
                 post("/api/-/publish?token={token}", "my_token")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(bytes))
+                .andExpect(status().isCreated())
+                .andExpect(content().json(extensionJson(e -> {
+                    e.setNamespace("foo");
+                    e.setName("bar");
+                    e.setVersion("1.0.0");
+                    var u = new UserJson();
+                    u.setLoginName("test_user");
+                    e.setPublishedBy(u);
+                    e.setVerified(true);
+                    e.setDownloadable(true);
+                })));
+    }
+
+    @Test
+    void testPublishTokenHeader() throws Exception {
+        mockForPublish("owner");
+        mockActiveVersion();
+        var bytes = createExtensionPackage("bar", "1.0.0", null);
+        mockMvc.perform(
+                post("/api/-/publish")
+                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(bytes))
                 .andExpect(status().isCreated())
@@ -2248,6 +2301,16 @@ class RegistryAPITest {
         mockForDelete(true, true);
         mockMvc.perform(
                 post("/api/{namespace}/{extension}/delete?allVersions=true&token={token}", "foo", "bar", "my_token"))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("Deleted foo.bar 1.0.0\nDeleted foo.bar 2.0.0")));
+    }
+
+    @Test
+    void testDeleteExtensionTokenHeader() throws Exception {
+        mockForDelete(true, true);
+        mockMvc.perform(
+                post("/api/{namespace}/{extension}/delete?allVersions=true", "foo", "bar")
+                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token"))
                 .andExpect(status().isOk())
                 .andExpect(content().json(successJson("Deleted foo.bar 1.0.0\nDeleted foo.bar 2.0.0")));
     }

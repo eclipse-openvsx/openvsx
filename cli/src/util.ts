@@ -167,10 +167,11 @@ export function withStatus(error: Error, status?: number): StatusError {
 /**
  * A URL in the form it can safely be printed: no user info and no query string.
  *
- * `createNamespace`, `verifyPat`, `publish` and `delete` all put the personal access token in a
- * `token` query parameter, and an error message goes straight to stderr and from there into CI logs.
- * The query carries nothing an error needs, so it is dropped whole rather than filtered key by key -
- * a filter has to be kept in step with every parameter anyone ever adds.
+ * The personal access token now travels in a header rather than the query string, but an error
+ * message goes straight to stderr and from there into CI logs, and the query carries nothing an
+ * error needs - so it stays dropped whole rather than filtered key by key, both as a safety net for
+ * a registry that still expects the legacy `token` query parameter and against whatever else a
+ * self-hosted registry's own query parameters might carry.
  */
 export function redactUrl(url: URL | string): string {
     try {
