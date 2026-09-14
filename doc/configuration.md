@@ -741,7 +741,7 @@ Allowed server endpoints in mirror mode to override disallowed methods, e.g. dis
 | Default       |
 | Compatibility | Since 0.21.0
 
-The extensions to mirror, as `namespace.extension`, comma separated. Empty mirrors everything the upstream registry offers.
+The extensions to mirror, as `namespace.extension` or `namespace.*` for a whole namespace, comma separated. Empty mirrors everything the upstream registry offers. Every version of a matched extension is mirrored; there is no version selector. See [Mirror Mode](mirror.md).
 
 | Property      | `ovsx.data.mirror.exclude-extensions`
 |---------------|-------------------------------------
@@ -749,7 +749,7 @@ The extensions to mirror, as `namespace.extension`, comma separated. Empty mirro
 | Default       |
 | Compatibility | Since 0.21.0
 
-The extensions not to mirror, as `namespace.extension`, comma separated. Applied after `include-extensions`.
+The extensions not to mirror, as `namespace.extension` or `namespace.*` for a whole namespace, comma separated. Takes precedence over `include-extensions` wherever both match.
 
 ## Foreground HTTP Connection Pool
 

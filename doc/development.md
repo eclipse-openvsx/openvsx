@@ -220,3 +220,9 @@ Use `--help` for the rest. The next scheduled run picks the file up; `download_i
 which files have been processed, and a processed file is deleted from the bucket unless
 `ovsx.logs.aws.archive-prefix` is set. None of this needs `ovsx.analytics.enabled` — ingestion
 drives the download counters on its own, and analytics only adds the time-series events on top.
+
+### Optional: Run the server as a mirror
+
+`server/src/dev/resources/application-mirror.yml` configures this server as a mirror of
+open-vsx.org. Select it with `--spring.profiles.include=ovsx,mirror`; note that mirror mode needs a
+blob store, as local file storage does not work with it. See [Mirror Mode](mirror.md).
