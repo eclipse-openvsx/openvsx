@@ -89,7 +89,8 @@ import org.eclipse.openvsx.util.*;
 public class AdminAPI {
 
     private static final String TOKEN_PARAM_DESCRIPTION = "A personal access token. Deprecated: send it via the "
-            + HttpHeadersUtil.TOKEN_HEADER + " header instead.";
+            + "Authorization: Bearer header instead (or " + HttpHeadersUtil.TOKEN_HEADER
+            + " if Authorization is already in use).";
 
     private final RepositoryService repositories;
     private final AdminService admins;

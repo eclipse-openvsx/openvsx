@@ -44,6 +44,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -1729,13 +1730,13 @@ class RegistryAPITest {
     }
 
     @Test
-    void testCreateNamespaceTokenHeader() throws Exception {
+    void testCreateNamespaceBearerHeader() throws Exception {
         var token = mockAccessToken();
         Mockito.when(repositories.findMemberships(token.getUser()))
                 .thenReturn(Streamable.empty());
         mockMvc.perform(
                 post("/api/-/namespace/create")
-                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer my_token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(namespaceJson(n -> {
                             n.setName("foobar");
@@ -1844,19 +1845,60 @@ class RegistryAPITest {
         mockAccessToken();
         mockNamespace();
 
-        // the token parameter is optional now that the token can also arrive via the
-        // X-OpenVSX-Token header, so a request with neither is an invalid-token 401, not a
-        // missing-parameter 400
+        // the token parameter is optional now that the token can also arrive via a header, so a
+        // request with neither is an invalid-token 401, not a missing-parameter 400
         mockMvc.perform(get("/api/{namespace}/verify-pat", "foobar"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().json(errorJson("Invalid access token.")));
     }
 
     @Test
-    void testVerifyTokenHeader() throws Exception {
+    void testVerifyTokenBearerHeader() throws Exception {
+        mockForPublish("owner");
+
+        mockMvc.perform(
+                get("/api/{namespace}/verify-pat", "foo").header(HttpHeaders.AUTHORIZATION, "Bearer my_token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testVerifyTokenBearerHeaderCaseInsensitiveScheme() throws Exception {
+        mockForPublish("owner");
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat", "foo").header(HttpHeaders.AUTHORIZATION, "bearer my_token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testVerifyTokenOpenVsxHeaderFallback() throws Exception {
+        // The OpenVSX-Token header is the fallback for when Authorization is already in use
+        // (e.g. Basic auth to a fronting proxy) - it still has to work on its own.
         mockForPublish("owner");
 
         mockMvc.perform(get("/api/{namespace}/verify-pat", "foo").header(HttpHeadersUtil.TOKEN_HEADER, "my_token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testVerifyTokenAuthorizationTakesPriority() throws Exception {
+        // my_token is valid (mockForPublish sets it up); the other two are not, so this only
+        // succeeds if Authorization: Bearer is actually the one being resolved.
+        mockForPublish("owner");
+
+        mockMvc.perform(
+                get("/api/{namespace}/verify-pat?token={token}", "foo", "wrong-query-token")
+                        .header(HttpHeadersUtil.TOKEN_HEADER, "wrong-fallback-header-token")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer my_token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testVerifyTokenOpenVsxHeaderTakesPriorityOverQuery() throws Exception {
+        mockForPublish("owner");
+
+        mockMvc.perform(
+                get("/api/{namespace}/verify-pat?token={token}", "foo", "wrong-query-token")
+                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token"))
                 .andExpect(status().isOk());
     }
 
@@ -2075,13 +2117,13 @@ class RegistryAPITest {
     }
 
     @Test
-    void testPublishTokenHeader() throws Exception {
+    void testPublishBearerHeader() throws Exception {
         mockForPublish("owner");
         mockActiveVersion();
         var bytes = createExtensionPackage("bar", "1.0.0", null);
         mockMvc.perform(
                 post("/api/-/publish")
-                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer my_token")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(bytes))
                 .andExpect(status().isCreated())
@@ -2306,11 +2348,11 @@ class RegistryAPITest {
     }
 
     @Test
-    void testDeleteExtensionTokenHeader() throws Exception {
+    void testDeleteExtensionBearerHeader() throws Exception {
         mockForDelete(true, true);
         mockMvc.perform(
                 post("/api/{namespace}/{extension}/delete?allVersions=true", "foo", "bar")
-                        .header(HttpHeadersUtil.TOKEN_HEADER, "my_token"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer my_token"))
                 .andExpect(status().isOk())
                 .andExpect(content().json(successJson("Deleted foo.bar 1.0.0\nDeleted foo.bar 2.0.0")));
     }

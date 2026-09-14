@@ -321,6 +321,31 @@ class AdminAPITest {
     }
 
     @Test
+    void testSearchExplainWithBearerToken() throws Exception {
+        // No session/authority simulated: an anonymous, token-only request. SecurityConfig used to
+        // reject this before the controller (and its own token check) ever ran, because
+        // /admin/search-explain wasn't in the permitAll list alongside /admin/report.
+        var token = mockAdminToken();
+        mockMvc.perform(
+                get("/admin/search-explain")
+                        .param("query", "markdown")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testSearchExplainWithNonAdminBearerToken() throws Exception {
+        // SecurityConfig now lets the request through, but the controller's own admin check must
+        // still reject a non-admin token.
+        var token = mockNonAdminToken();
+        mockMvc.perform(
+                get("/admin/search-explain")
+                        .param("query", "markdown")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void testGetSearchIndexNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
@@ -1541,13 +1566,42 @@ class AdminAPITest {
     }
 
     @Test
-    void testReportTokenHeader() throws Exception {
-        var token = mockNonAdminToken();
+    void testReportBearerHeader() throws Exception {
+        // A non-admin token would 403 whether or not the header is actually consumed, so this uses
+        // a real admin token and asserts a genuine success response - the only outcome that proves
+        // the header was resolved rather than silently ignored.
+        var token = mockAdminToken();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
         mockMvc.perform(
-                get("/admin/report?year=2021&month=3")
+                get("/admin/report?year={year}&month={month}", year, month)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(year))
+                .andExpect(jsonPath("$.month").value(month));
+    }
+
+    @Test
+    void testReportOpenVsxHeaderFallback() throws Exception {
+        var token = mockAdminToken();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/report?year={year}&month={month}", year, month)
                         .header(HttpHeadersUtil.TOKEN_HEADER, token.getValue())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(year))
+                .andExpect(jsonPath("$.month").value(month));
     }
 
     @Test

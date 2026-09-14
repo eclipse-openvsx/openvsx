@@ -241,8 +241,8 @@ describe('publish', () => {
         expect(result.status).toBe('fulfilled');
         expect(registry.publishRequests).toHaveLength(2);
         // the retry carries the replacement, not the token that was just refused
-        expect(registry.publishRequests[0].headers['x-openvsx-token']).toBe('token-1');
-        expect(registry.publishRequests[1].headers['x-openvsx-token']).toBe('token-2');
+        expect(registry.publishRequests[0].headers.authorization).toBe('Bearer token-1');
+        expect(registry.publishRequests[1].headers.authorization).toBe('Bearer token-2');
         expect(registry.tokenRequests).toBe(2);
     });
 
@@ -304,7 +304,7 @@ describe('publish', () => {
         expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
         expect(registry.publishRequests).toHaveLength(3);
         expect(registry.tokenRequests).toBe(1);
-        expect(registry.publishRequests.map(request => request.headers['x-openvsx-token']))
-            .toEqual(['token-1', 'token-1', 'token-1']);
+        expect(registry.publishRequests.map(request => request.headers.authorization))
+            .toEqual(['Bearer token-1', 'Bearer token-1', 'Bearer token-1']);
     });
 });

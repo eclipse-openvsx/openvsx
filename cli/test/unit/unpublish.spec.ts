@@ -143,8 +143,8 @@ describe('unpublish', () => {
         const [request] = registry.requests;
         expect(request.method).toBe('POST');
         expect(request.pathname).toBe('/api/foo/bar/delete');
-        expect(request.headers['x-openvsx-token']).toBe('the.pat');
-        expect(request.query.has('token')).toBe(false);
+        expect(request.headers.authorization).toBe('Bearer the.pat');
+        expect(request.query.get('token')).toBe('the.pat');
         expect(request.query.get('allVersions')).toBe('true');
         expect(request.body).toBeUndefined();
         expect(log).toHaveBeenCalledWith(expect.stringContaining('Deleted namespace.foo, extension bar entirely'));
@@ -163,8 +163,8 @@ describe('unpublish', () => {
 
         expect(registry.requests).toHaveLength(1);
         const [request] = registry.requests;
-        expect(request.headers['x-openvsx-token']).toBe('the.pat');
-        expect(request.query.has('token')).toBe(false);
+        expect(request.headers.authorization).toBe('Bearer the.pat');
+        expect(request.query.get('token')).toBe('the.pat');
         expect(request.query.has('allVersions')).toBe(false);
         expect(request.body).toEqual([{ version: '1.0.0' }, { version: '1.0.1' }]);
     });

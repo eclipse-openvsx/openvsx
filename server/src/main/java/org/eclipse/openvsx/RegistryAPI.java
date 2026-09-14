@@ -61,7 +61,8 @@ public class RegistryAPI {
             + ")|latest|pre-release";
     private static final String NO_JSON_INPUT = "No JSON input.";
     private static final String TOKEN_PARAM_DESCRIPTION = "A personal access token. Deprecated: send it via the "
-            + HttpHeadersUtil.TOKEN_HEADER + " header instead.";
+            + "Authorization: Bearer header instead (or " + HttpHeadersUtil.TOKEN_HEADER
+            + " if Authorization is already in use).";
 
     protected final Logger logger = LoggerFactory.getLogger(RegistryAPI.class);
 

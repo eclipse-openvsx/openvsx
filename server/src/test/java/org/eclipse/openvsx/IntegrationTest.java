@@ -31,7 +31,6 @@ import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.JsonNode;
 
 import org.eclipse.openvsx.json.*;
-import org.eclipse.openvsx.util.HttpHeadersUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -146,10 +145,10 @@ class IntegrationTest extends AbstractPostgresContainerTest {
     }
 
     private void verifyToken() {
-        // Sent via the X-OpenVSX-Token header rather than the query parameter, exercising the header
+        // Sent via Authorization: Bearer rather than the query parameter, exercising the header
         // path end to end (real request parsing, real filter chain) rather than only the query one.
         var headers = new HttpHeaders();
-        headers.set(HttpHeadersUtil.TOKEN_HEADER, "test_token");
+        headers.set(HttpHeaders.AUTHORIZATION, "Bearer test_token");
         var response = restTemplate.exchange(
                 apiCall("/api/editorconfig/verify-pat"),
                 HttpMethod.GET,
