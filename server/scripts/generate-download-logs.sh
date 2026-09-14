@@ -37,7 +37,7 @@ Usage: generate-download-logs.sh [options]
   --format cloudfront|fastly  log format to emit (default: cloudfront)
   --count N                   number of download lines (default: 200)
   --days N                    spread timestamps over the last N days (default: 7)
-  --bucket NAME               MinIO bucket (default: test)
+  --bucket NAME               Silo bucket (default: test)
   --prefix PREFIX             key prefix, must match ovsx.logs.aws.log-location-prefix (default: AWSLogs/)
   --storage-type TYPE         file_resource.storage_type to draw filenames from (default: aws)
   --out FILE                  write the (uncompressed) log here instead of a temp file
