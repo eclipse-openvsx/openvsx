@@ -156,3 +156,55 @@ sudo ln -s /etc/nginx/sites-available/openvsx /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+## Backfilling Download Analytics
+
+Download analytics are read from the `download_stats_daily` aggregate in the time-series database,
+which starts empty. An instance that enables `ovsx.analytics.enabled` after running for a while
+therefore shows **zeros** for every day before its first ingested event — including on the "Weekly
+downloads" card, next to a lifetime total that is intact, because the total lives in
+`extension.download_count` in the registry database and is unrelated.
+
+If the access logs for that period are still available, `server/scripts/backfill-download-events.sh`
+turns them into events. It reads them from [Grafana Cloud Logs](https://grafana.com/products/cloud/logs/)
+(Loki), applies the same filter and filename resolution as the server, aggregates them per bucket and
+writes the result straight into `download_event`:
+
+```bash
+export GRAFANA_LOGS_URL=https://logs-prod-012.grafana.net
+export GRAFANA_LOGS_USER=123456
+export GRAFANA_LOGS_TOKEN=glc_...
+export OVSX_REGISTRY_URL=postgresql://user@registry-host/openvsx
+export OVSX_TIMESERIES_URL=postgresql://user@timeseries-host/openvsx_timeseries
+
+# writes a file and nothing else, so the result can be checked first
+server/scripts/backfill-download-events.sh --from 2026-01-01 --to 2026-04-01 \
+    --selector '{job="cloudfront"}'
+
+# load it and make it visible
+server/scripts/backfill-download-events.sh --from 2026-01-01 --to 2026-04-01 \
+    --selector '{job="cloudfront"}' --apply --refresh
+```
+
+Three things about it are deliberate:
+
+**It does not replay the logs through the ingestion pipeline.** `DownloadIngestionProcessor`
+increments `extension.download_count` in the same transaction as it writes the events, so replaying
+a period would add it to every lifetime total a second time. Writing `download_event` directly
+leaves the registry's counters alone. For the same reason, running the backfill twice over the same
+range double-counts the *analytics* — the events carry no idempotency key, so a repeat needs the
+range deleting from `download_event` first.
+
+**`--refresh` is not optional in practice.** The aggregate's refresh policy has a `start_offset` of
+90 days and never materializes anything older, while reads come from the aggregate rather than from
+`download_event` — so without a manual refresh a backfill beyond 90 days stays invisible. A fresh
+database hides this, because until the policy first runs everything is answered by real-time
+aggregation. Refresh before the retention policy next runs, too: it drops raw events after 90 days,
+and the aggregate is what survives.
+
+**Backfilled rows are coarser than live ones.** They carry no client IP or user agent, and are
+bucketed hourly (`--bucket day` for smaller output). That is all `download_stats_daily` needs — it
+groups by day, extension, version, target platform and country.
+
+Afterwards the series is still served from the per-node settled cache for up to
+`ovsx.analytics.settled-cache.ttl` (default one hour).
