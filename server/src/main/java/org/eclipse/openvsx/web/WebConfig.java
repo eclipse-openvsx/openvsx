@@ -16,7 +16,6 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.server.servlet.CookieSameSiteSupplier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,43 +29,15 @@ import org.eclipse.openvsx.mirror.MirrorExtensionHandlerInterceptor;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    private final WebUiProperties webUi;
+
     private MirrorExtensionHandlerInterceptor mirrorInterceptor;
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    @Value(
-        "${ovsx.webui.frontendRoutes:/extension/**,/namespace/**,/search,/user-settings/**,/publish,/admin-dashboard/**}"
-    )
-    String[] frontendRoutes;
-
-    /**
-     * The origins allowed to read the public, unauthenticated surface - the registry API, the VS Code
-     * gallery adapter and the static documents - from a browser. Comma separated; {@code *} for any.
-     * <p>
-     * Any by default, because that surface exists to be consumed: a public registry is read by clients
-     * that are not its own Web UI, and the ones running in a browser (VS Code for the Web, Gitpod, Theia,
-     * anything querying the gallery from page script) get nothing back without these headers. Clients
-     * that are not browsers - VS Code desktop fetches the gallery from its node extension host - never
-     * consult them and are unaffected by whatever this says.
-     * <p>
-     * Worth narrowing, or emptying, on a registry that is not meant to be read from the open web. The
-     * endpoints are unauthenticated, so this is not what keeps their contents private - anything that can
-     * reach them can read them - but on an instance reachable only from an internal network it does stop
-     * a page in an employee's browser being used to reach it from outside. Set to an empty value to
-     * register no public CORS mappings at all.
-     * <p>
-     * Deliberately not derived from {@code ovsx.webui.url}: where the Web UI is served from has nothing
-     * to do with which third parties may read the API, and tying the two together left a registry serving
-     * its UI from the same origin as its API emitting no CORS headers for the public surface at all.
-     * <p>
-     * Property: {@code ovsx.cors.public-origins}
-     * Default: {@code *}
-     */
-    @Value("${ovsx.cors.public-origins:*}")
-    String[] publicCorsOrigins;
-
-    public WebConfig(Optional<MirrorExtensionHandlerInterceptor> mirrorExtensionHandlerInterceptor) {
+    public WebConfig(
+            WebUiProperties webUi,
+            Optional<MirrorExtensionHandlerInterceptor> mirrorExtensionHandlerInterceptor
+    ) {
+        this.webUi = webUi;
         mirrorExtensionHandlerInterceptor.ifPresent(service -> this.mirrorInterceptor = service);
     }
 
@@ -125,12 +96,12 @@ public class WebConfig implements WebMvcConfigurer {
      * all-whitespace entry arrives blank too. Registering a mapping for a blank origin would match no
      * request and only obscure what the setting actually allows.
      */
-    private String[] publicCorsOrigins() {
-        if (publicCorsOrigins == null) {
+    String[] publicCorsOrigins() {
+        if (webUi.getPublicCorsOrigins() == null) {
             return new String[0];
         }
 
-        return Arrays.stream(publicCorsOrigins).filter(StringUtils::isNotBlank).toArray(String[]::new);
+        return Arrays.stream(webUi.getPublicCorsOrigins()).filter(StringUtils::isNotBlank).toArray(String[]::new);
     }
 
     /**
@@ -147,11 +118,11 @@ public class WebConfig implements WebMvcConfigurer {
      * A default port is dropped for the same reason: a browser leaves it out of the header it sends.
      */
     private @Nullable String webuiOrigin() {
-        if (StringUtils.isEmpty(webuiUrl)) {
+        if (StringUtils.isEmpty(webUi.getWebuiUrl())) {
             return null;
         }
 
-        var uri = URI.create(webuiUrl);
+        var uri = URI.create(webUi.getWebuiUrl());
         // Relative, or absolute but with no authority to take a host from - neither names an origin, so
         // there is no separate Web UI to allow.
         if (!uri.isAbsolute() || uri.getHost() == null) {
@@ -195,7 +166,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        for (var route : frontendRoutes) {
+        for (var route : webUi.getFrontendRoutes()) {
             registry.addViewController(route).setViewName("forward:/index.html");
         }
     }

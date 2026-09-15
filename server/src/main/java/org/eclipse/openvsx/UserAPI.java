@@ -66,6 +66,7 @@ import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.entities.FileResource.CHANGELOG;
 import static org.eclipse.openvsx.entities.FileResource.DOWNLOAD;
@@ -90,6 +91,7 @@ public class UserAPI {
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
     private final ExtensionService extensions;
+    private final WebUiProperties webUi;
 
     public UserAPI(
             RepositoryService repositories,
@@ -98,7 +100,8 @@ public class UserAPI {
             EclipseService eclipse,
             StorageUtilService storageUtil,
             LocalRegistryService local,
-            ExtensionService extensions
+            ExtensionService extensions,
+            WebUiProperties webUi
     ) {
         this.repositories = repositories;
         this.users = users;
@@ -107,6 +110,7 @@ public class UserAPI {
         this.storageUtil = storageUtil;
         this.local = local;
         this.extensions = extensions;
+        this.webUi = webUi;
     }
 
     @GetMapping(
@@ -158,7 +162,7 @@ public class UserAPI {
             return UserJson.error("Not logged in.");
         }
         var json = user.toUserJson();
-        var serverUrl = UrlUtil.getBaseUrl();
+        var serverUrl = UrlUtil.getBaseUrl(webUi.getApiUrl());
         json.setRole(user.getRoleAsString());
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
@@ -186,7 +190,7 @@ public class UserAPI {
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        var serverUrl = UrlUtil.getBaseUrl();
+        var serverUrl = UrlUtil.getBaseUrl(webUi.getApiUrl());
         return repositories.findActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT)
                 .map(token -> {
                     var json = token.toAccessTokenJson();
@@ -265,7 +269,7 @@ public class UserAPI {
                 .toList();
 
         var types = new String[] { DOWNLOAD, MANIFEST, ICON, README, LICENSE, CHANGELOG, VSIXMANIFEST };
-        var fileUrls = storageUtil.getFileUrls(extVersions, UrlUtil.getBaseUrl(), types);
+        var fileUrls = storageUtil.getFileUrls(extVersions, UrlUtil.getBaseUrl(webUi.getApiUrl()), types);
         return extVersions.stream()
                 .map(latest -> {
                     var json = latest.toExtensionJson();
@@ -506,7 +510,7 @@ public class UserAPI {
         return repositories.findMemberships(user).map(membership -> {
             var namespace = membership.getNamespace();
             var extensions = new LinkedHashMap<String, String>();
-            var serverUrl = UrlUtil.getBaseUrl();
+            var serverUrl = UrlUtil.getBaseUrl(webUi.getApiUrl());
             // return all extension of the namespace, include deleted ones
             repositories.findExtensionsForUrls(namespace).forEach(extension -> {
                 String url = createApiUrl(serverUrl, "api", namespace.getName(), extension.getName());
@@ -698,7 +702,7 @@ public class UserAPI {
         try {
             var agreement = eclipse.signPublisherAgreement(user);
             var json = user.toUserJson();
-            var serverUrl = UrlUtil.getBaseUrl();
+            var serverUrl = UrlUtil.getBaseUrl(webUi.getApiUrl());
             json.setRole(user.getRoleAsString());
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));

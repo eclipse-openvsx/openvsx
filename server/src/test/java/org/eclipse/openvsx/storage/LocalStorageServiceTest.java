@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.util.TempFile;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -27,7 +28,7 @@ class LocalStorageServiceTest {
     @Test
     void uploadNamespaceLogo_storesTheFileUnderTheNamespaceLogoDirectory(@TempDir Path storageDirectory)
             throws Exception {
-        var storageService = new LocalStorageService();
+        var storageService = new LocalStorageService(new WebUiProperties());
         ReflectionTestUtils.setField(storageService, "storageDirectory", storageDirectory.toString());
 
         var namespace = new Namespace();
@@ -47,7 +48,7 @@ class LocalStorageServiceTest {
     // Files.createDirectories(filePath) throws FileAlreadyExistsException on it.
     @Test
     void uploadNamespaceLogo_replacesAnExistingLogo(@TempDir Path storageDirectory) throws Exception {
-        var storageService = new LocalStorageService();
+        var storageService = new LocalStorageService(new WebUiProperties());
         ReflectionTestUtils.setField(storageService, "storageDirectory", storageDirectory.toString());
 
         var namespace = new Namespace();

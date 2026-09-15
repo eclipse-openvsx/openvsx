@@ -27,6 +27,7 @@ import org.eclipse.openvsx.analytics.ingestion.aws.AwsDownloadRecordSource;
 import org.eclipse.openvsx.analytics.ingestion.azure.AzureDownloadRecordSource;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.storage.AwsStorageService;
+import org.eclipse.openvsx.storage.AzureBlobStorageService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,6 +43,7 @@ class IngestionJobsTest {
     private static final String AZURE_JOB_ID = "update-azure-blob-download-counts";
 
     private final AwsStorageService awsStorage = Mockito.mock(AwsStorageService.class);
+    private final AzureBlobStorageService azureStorage = Mockito.mock(AzureBlobStorageService.class);
     private final DownloadIngestionRunner ingestionRunner = Mockito.mock(DownloadIngestionRunner.class);
     private final JobRequestScheduler scheduler = Mockito.mock(JobRequestScheduler.class);
     private final DownloadIngestionMetrics metrics = Mockito.mock(DownloadIngestionMetrics.class);
@@ -49,6 +51,7 @@ class IngestionJobsTest {
     private ApplicationContextRunner runner() {
         return new ApplicationContextRunner()
                 .withBean(AwsStorageService.class, () -> awsStorage)
+                .withBean(AzureBlobStorageService.class, () -> azureStorage)
                 .withBean(DownloadIngestionMetrics.class, () -> metrics)
                 .withBean(DownloadIngestionRunner.class, () -> ingestionRunner)
                 .withBean(JobRequestScheduler.class, () -> scheduler)

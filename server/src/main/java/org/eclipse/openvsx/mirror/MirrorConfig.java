@@ -12,12 +12,20 @@ package org.eclipse.openvsx.mirror;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MirrorConfig {
+
+    @Value("${ovsx.data.mirror.enabled:false}")
+    private boolean enabled;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
 
     @Bean
     @ConfigurationProperties(prefix = "ovsx.data.mirror.exclude-extensions")

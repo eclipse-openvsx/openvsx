@@ -57,6 +57,7 @@ import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -85,7 +86,8 @@ import static org.mockito.ArgumentMatchers.isNull;
         CdnServiceConfig.class,
         ExtensionScanService.class,
         ExtensionScanPersistenceService.class,
-        LogService.class
+        LogService.class,
+        WebUiProperties.class
     }
 )
 class EclipseServiceTest {
@@ -594,7 +596,8 @@ class EclipseServiceTest {
                 CacheService cache,
                 EntityManager entityManager,
                 FileCacheDurationConfig fileCacheDurationConfig,
-                CdnServiceConfig cdnServiceConfig
+                CdnServiceConfig cdnServiceConfig,
+                WebUiProperties webUi
         ) {
             return new StorageUtilService(
                     repositories,
@@ -609,12 +612,13 @@ class EclipseServiceTest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig);
+                    cdnServiceConfig,
+                    webUi);
         }
 
         @Bean
-        LocalStorageService localStorageService() {
-            return new LocalStorageService();
+        LocalStorageService localStorageService(WebUiProperties webUi) {
+            return new LocalStorageService(webUi);
         }
 
         @Bean

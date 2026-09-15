@@ -65,6 +65,7 @@ import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.web.JacksonConfig;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -1472,7 +1473,7 @@ class VSCodeAPITest {
     }
 
     @TestConfiguration
-    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class })
+    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         IExtensionQueryRequestHandler extensionQueryRequestHandler(
@@ -1525,7 +1526,8 @@ class VSCodeAPITest {
                 StorageUtilService storageUtil,
                 ExtensionVersionIntegrityService integrityService,
                 WebResourceService webResourceService,
-                CacheService cache
+                CacheService cache,
+                WebUiProperties webUi
         ) {
             return new LocalVSCodeService(
                     repositories,
@@ -1534,7 +1536,8 @@ class VSCodeAPITest {
                     storageUtil,
                     integrityService,
                     webResourceService,
-                    cache);
+                    cache,
+                    webUi);
         }
 
         @Bean
@@ -1545,7 +1548,8 @@ class VSCodeAPITest {
                 CacheService cache,
                 ExtensionValidator validator,
                 ClientRegistrationRepository clientRegistrationRepository,
-                OAuth2AttributesConfig attributesConfig
+                OAuth2AttributesConfig attributesConfig,
+                WebUiProperties webUi
         ) {
             return new UserService(
                     entityManager,
@@ -1554,7 +1558,8 @@ class VSCodeAPITest {
                     cache,
                     validator,
                     clientRegistrationRepository,
-                    attributesConfig);
+                    attributesConfig,
+                    webUi);
         }
 
         @Bean
@@ -1571,7 +1576,8 @@ class VSCodeAPITest {
                 CacheService cache,
                 EntityManager entityManager,
                 FileCacheDurationConfig fileCacheDurationConfig,
-                CdnServiceConfig cdnServiceConfig
+                CdnServiceConfig cdnServiceConfig,
+                WebUiProperties webUi
         ) {
             return new StorageUtilService(
                     repositories,
@@ -1586,12 +1592,13 @@ class VSCodeAPITest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig);
+                    cdnServiceConfig,
+                    webUi);
         }
 
         @Bean
-        LocalStorageService localStorage() {
-            return new LocalStorageService();
+        LocalStorageService localStorage(WebUiProperties webUi) {
+            return new LocalStorageService(webUi);
         }
 
         @Bean

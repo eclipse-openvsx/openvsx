@@ -73,7 +73,7 @@ class SitemapControllerTest {
     }
 
     @TestConfiguration
-    @Import(SecurityConfig.class)
+    @Import({ SecurityConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         OAuth2UserServices oauth2UserServices(
@@ -87,8 +87,8 @@ class SitemapControllerTest {
         }
 
         @Bean
-        SitemapService sitemapService(RepositoryService repositories) {
-            return new SitemapService(repositories);
+        SitemapService sitemapService(RepositoryService repositories, WebUiProperties webUi) {
+            return new SitemapService(repositories, webUi);
         }
     }
 }

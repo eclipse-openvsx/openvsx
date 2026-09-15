@@ -47,6 +47,7 @@ import org.eclipse.openvsx.security.IdPrincipal;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.*;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.cache.CacheService.CACHE_NAMESPACE_DETAILS_JSON;
 
@@ -62,6 +63,7 @@ public class UserService {
     private final ExtensionValidator validator;
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final OAuth2AttributesConfig attributesConfig;
+    private final WebUiProperties webUi;
 
     public UserService(
             EntityManager entityManager,
@@ -70,7 +72,8 @@ public class UserService {
             CacheService cache,
             ExtensionValidator validator,
             @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AttributesConfig attributesConfig
+            OAuth2AttributesConfig attributesConfig,
+            WebUiProperties webUi
     ) {
         this.entityManager = entityManager;
         this.repositories = repositories;
@@ -79,6 +82,7 @@ public class UserService {
         this.validator = validator;
         this.clientRegistrationRepository = clientRegistrationRepository;
         this.attributesConfig = attributesConfig;
+        this.webUi = webUi;
     }
 
     public UserData findLoggedInUser() {
@@ -393,7 +397,11 @@ public class UserService {
                 .map(
                         provider -> Map.entry(
                                 provider,
-                                UrlUtil.createApiUrl(UrlUtil.getBaseUrl(), "oauth2", "authorization", provider)))
+                                UrlUtil.createApiUrl(
+                                        UrlUtil.getBaseUrl(webUi.getApiUrl()),
+                                        "oauth2",
+                                        "authorization",
+                                        provider)))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

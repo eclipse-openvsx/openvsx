@@ -85,6 +85,8 @@ import org.eclipse.openvsx.json.UserJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
+import org.eclipse.openvsx.migration.MigrationsProperties;
+import org.eclipse.openvsx.mirror.MirrorConfig;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
 import org.eclipse.openvsx.publish.PublishingConfig;
@@ -116,6 +118,7 @@ import org.eclipse.openvsx.util.TargetPlatformVersion;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -2926,7 +2929,7 @@ class AdminAPITest {
     }
 
     @TestConfiguration
-    @Import(SecurityConfig.class)
+    @Import({ SecurityConfig.class, WebUiProperties.class })
     static class TestConfig {
         @Bean
         TransactionTemplate transactionTemplate() {
@@ -2941,7 +2944,8 @@ class AdminAPITest {
                 CacheService cache,
                 ExtensionValidator validator,
                 @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository,
-                OAuth2AttributesConfig attributesConfig
+                OAuth2AttributesConfig attributesConfig,
+                WebUiProperties webUi
         ) {
             return new UserService(
                     entityManager,
@@ -2950,7 +2954,8 @@ class AdminAPITest {
                     cache,
                     validator,
                     clientRegistrationRepository,
-                    attributesConfig);
+                    attributesConfig,
+                    webUi);
         }
 
         @Bean
@@ -2960,7 +2965,7 @@ class AdminAPITest {
 
         @Bean
         AccessTokenConfig tokenConfig() {
-            return new AccessTokenConfig();
+            return new AccessTokenConfig(new MirrorConfig());
         }
 
         @Bean
@@ -2969,9 +2974,10 @@ class AdminAPITest {
                 EntityManager entityManager,
                 RepositoryService repositories,
                 MailService mailService,
-                DSLContext dsl
+                DSLContext dsl,
+                WebUiProperties webUi
         ) {
-            return new AccessTokenService(config, entityManager, repositories, mailService, dsl);
+            return new AccessTokenService(config, entityManager, repositories, mailService, dsl, webUi);
         }
 
         @Bean
@@ -3009,6 +3015,7 @@ class AdminAPITest {
                 JobRequestScheduler scheduler,
                 MailService mail,
                 LogService logs,
+                WebUiProperties webUi,
                 AdminStatisticsService statistics
         ) {
             return new AdminService(
@@ -3025,6 +3032,7 @@ class AdminAPITest {
                     scheduler,
                     mail,
                     logs,
+                    webUi,
                     statistics);
         }
 
@@ -3060,6 +3068,8 @@ class AdminAPITest {
                     similarityCheckService,
                     new PublishingConfig(),
                     new TrustedPublishingConfig(),
+                    new MigrationsProperties(),
+                    new WebUiProperties(),
                     Duration.ofSeconds(30));
         }
 
@@ -3126,7 +3136,8 @@ class AdminAPITest {
                 CacheService cache,
                 EntityManager entityManager,
                 FileCacheDurationConfig fileCacheDurationConfig,
-                CdnServiceConfig cdnServiceConfig
+                CdnServiceConfig cdnServiceConfig,
+                WebUiProperties webUi
         ) {
             return new StorageUtilService(
                     repositories,
@@ -3141,12 +3152,13 @@ class AdminAPITest {
                     cache,
                     entityManager,
                     fileCacheDurationConfig,
-                    cdnServiceConfig);
+                    cdnServiceConfig,
+                    webUi);
         }
 
         @Bean
-        LocalStorageService localStorage() {
-            return new LocalStorageService();
+        LocalStorageService localStorage(WebUiProperties webUi) {
+            return new LocalStorageService(webUi);
         }
 
         @Bean

@@ -50,9 +50,10 @@ class WebConfigTest {
     }
 
     private static Map<String, CorsConfiguration> mappingsFor(String webuiUrl, String... publicOrigins) {
-        var config = new WebConfig(Optional.empty());
-        config.webuiUrl = webuiUrl;
-        config.publicCorsOrigins = publicOrigins;
+        var uiConfig = new WebUiProperties();
+        uiConfig.webuiUrl = webuiUrl;
+        uiConfig.publicCorsOrigins = publicOrigins;
+        var config = new WebConfig(uiConfig, Optional.empty());
         var registry = new ReadableCorsRegistry();
         config.addCorsMappings(registry);
         return registry.configurations();
@@ -69,9 +70,9 @@ class WebConfigTest {
                 .withInitializer(
                         context -> context.getBeanFactory()
                                 .setConversionService(ApplicationConversionService.getSharedInstance()))
-                .withUserConfiguration(WebConfig.class)
+                .withUserConfiguration(WebConfig.class, WebUiProperties.class)
                 .run(
-                        context -> assertThat(context.getBean(WebConfig.class).publicCorsOrigins)
+                        context -> assertThat(context.getBean(WebConfig.class).publicCorsOrigins())
                                 .containsExactly("*"));
     }
 
@@ -207,7 +208,7 @@ class WebConfigTest {
     // what stops a cross-site fetch from carrying the session, so it is stated rather than assumed.
     @Test
     void marksCookiesLaxRatherThanLeavingItToTheBrowser() {
-        var supplier = new WebConfig(Optional.empty()).laxCookieSameSiteSupplier();
+        var supplier = new WebConfig(new WebUiProperties(), Optional.empty()).laxCookieSameSiteSupplier();
 
         assertThat(supplier.getSameSite(new jakarta.servlet.http.Cookie("JSESSIONID", "value")))
                 .isEqualTo(Cookie.SameSite.LAX);

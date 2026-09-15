@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -42,6 +43,7 @@ import org.eclipse.openvsx.json.TrustedPublisherInputJson;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingService.TrustedPublishers;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NotFoundException;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -61,6 +63,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     excludeAutoConfiguration = { OAuth2ClientWebSecurityAutoConfiguration.class }
 )
 @AutoConfigureMockMvc(addFilters = false)
+@Import(WebUiProperties.class)
 class TrustedPublishingAPITest {
 
     private static final String NAMESPACE = "foo";

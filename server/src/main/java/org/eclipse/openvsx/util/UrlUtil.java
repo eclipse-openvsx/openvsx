@@ -239,7 +239,15 @@ public final class UrlUtil {
         }
     }
 
-    protected static String getBaseUrl(HttpServletRequest request) {
+    /**
+     * Get the base URL to use for API requests: the configured URL if present,
+     * otherwise falls back to the current servlet request.
+     */
+    public static String getBaseUrl(String configuredUrl) {
+        return StringUtils.isNotEmpty(configuredUrl) ? configuredUrl : getBaseUrl();
+    }
+
+    static String getBaseUrl(HttpServletRequest request) {
         var url = new StringBuilder();
 
         var scheme = getBaseUrlScheme(request);
@@ -346,23 +354,29 @@ public final class UrlUtil {
                 : "";
     }
 
-    public static String getPublicKeyUrl(ExtensionVersion extVersion) {
-        return getPublicKeyUrl(extVersion.getSignatureKeyPair().getPublicId());
+    public static String getPublicKeyUrl(ExtensionVersion extVersion, String configuredUrl) {
+        return getPublicKeyUrl(extVersion.getSignatureKeyPair().getPublicId(), configuredUrl);
     }
 
-    public static String getPublicKeyUrl(String publicId) {
-        return createApiUrl(getBaseUrl(), "api", "-", "public-key", publicId);
-    }
-
-    public static String createAllVersionsUrl(String namespaceName, String extensionName, String targetPlatform) {
-        return createAllVersionsUrl(namespaceName, extensionName, targetPlatform, "versions");
+    public static String getPublicKeyUrl(String publicId, String configuredUrl) {
+        return createApiUrl(getBaseUrl(configuredUrl), "api", "-", "public-key", publicId);
     }
 
     public static String createAllVersionsUrl(
             String namespaceName,
             String extensionName,
             String targetPlatform,
-            String versionsSegment
+            String configuredUrl
+    ) {
+        return createAllVersionsUrl(namespaceName, extensionName, targetPlatform, "versions", configuredUrl);
+    }
+
+    public static String createAllVersionsUrl(
+            String namespaceName,
+            String extensionName,
+            String targetPlatform,
+            String versionsSegment,
+            String configuredUrl
     ) {
         var segments = new String[] { "api", namespaceName, extensionName };
         if (targetPlatform != null) {
@@ -370,6 +384,6 @@ public final class UrlUtil {
         }
 
         segments = ArrayUtils.add(segments, versionsSegment);
-        return createApiUrl(getBaseUrl(), segments);
+        return createApiUrl(getBaseUrl(configuredUrl), segments);
     }
 }

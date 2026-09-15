@@ -130,6 +130,18 @@ class UrlUtilTest {
         assertThat(UrlUtil.getBaseUrl(request)).isEqualTo("https://open-vsx.org/openvsx/");
     }
 
+    @Test
+    void testGetBaseUrlWithConfiguredUrlPrefersIt() throws Exception {
+        assertThat(UrlUtil.getBaseUrl("https://api.example.org/")).isEqualTo("https://api.example.org/");
+    }
+
+    @Test
+    void testGetBaseUrlWithoutConfiguredUrlFallsBackToEmpty() throws Exception {
+        // called outside of a web request context, so the request-derived fallback is empty
+        assertThat(UrlUtil.getBaseUrl("")).isEmpty();
+        assertThat(UrlUtil.getBaseUrl((String) null)).isEmpty();
+    }
+
     // Check base URL is using comma separated X-Forwarded-Host headers
     @Test
     void testWithXForwardedHostCommaSeparated() throws Exception {

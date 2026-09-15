@@ -48,6 +48,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.*;
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.Criterion.*;
@@ -68,6 +69,7 @@ public class LocalVSCodeService implements IVSCodeService {
     private final ExtensionVersionIntegrityService integrityService;
     private final WebResourceService webResources;
     private final CacheService cache;
+    private final WebUiProperties webUi;
 
     private final Map<String, String> assets = Map.of(
             FILE_VSIX,
@@ -87,9 +89,6 @@ public class LocalVSCodeService implements IVSCodeService {
             FILE_SIGNATURE,
             DOWNLOAD_SIG);
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
     // See RepositoryService.findActiveExtensionVersions / ExtensionVersionJooqRepository -
     // caps how many of an extension's active pre-release versions the version listing below
     // fetches per extensionQuery request; regular releases are never capped. A negative value
@@ -105,7 +104,8 @@ public class LocalVSCodeService implements IVSCodeService {
             StorageUtilService storageUtil,
             ExtensionVersionIntegrityService integrityService,
             WebResourceService webResources,
-            CacheService cache
+            CacheService cache,
+            WebUiProperties webUi
     ) {
         this.repositories = repositories;
         this.versions = versions;
@@ -114,6 +114,7 @@ public class LocalVSCodeService implements IVSCodeService {
         this.integrityService = integrityService;
         this.webResources = webResources;
         this.cache = cache;
+        this.webUi = webUi;
     }
 
     @Override
@@ -398,7 +399,7 @@ public class LocalVSCodeService implements IVSCodeService {
             } else {
                 return ResponseEntity
                         .status(HttpStatus.FOUND)
-                        .location(URI.create(UrlUtil.getPublicKeyUrl(publicId)))
+                        .location(URI.create(UrlUtil.getPublicKeyUrl(publicId, webUi.getApiUrl())))
                         .build();
             }
         }
@@ -466,7 +467,11 @@ public class LocalVSCodeService implements IVSCodeService {
             throw new NotFoundException();
         }
 
-        return UrlUtil.createApiUrl(webuiUrl, "extension", extension.getNamespace().getName(), extension.getName());
+        return UrlUtil.createApiUrl(
+                webUi.getWebuiUrl(),
+                "extension",
+                extension.getNamespace().getName(),
+                extension.getName());
     }
 
     @Override
@@ -486,7 +491,7 @@ public class LocalVSCodeService implements IVSCodeService {
             var extension = extVersion.getExtension();
             var namespace = extension.getNamespace();
             var apiUrl = UrlUtil.createApiUrl(
-                    UrlUtil.getBaseUrl(),
+                    UrlUtil.getBaseUrl(webUi.getApiUrl()),
                     "vscode",
                     "asset",
                     namespace.getName(),
@@ -590,7 +595,7 @@ public class LocalVSCodeService implements IVSCodeService {
             Map<Long, List<FileResource>> fileResources,
             int flags
     ) {
-        var serverUrl = UrlUtil.getBaseUrl();
+        var serverUrl = UrlUtil.getBaseUrl(webUi.getApiUrl());
         var namespaceName = extVer.getExtension().getNamespace().getName();
         var extensionName = extVer.getExtension().getName();
 
@@ -656,7 +661,10 @@ public class LocalVSCodeService implements IVSCodeService {
                     FILE_SIGNATURE,
                     createFileUrl(resourcesByType.get(DOWNLOAD_SIG), fileBaseUrl));
             if (resourcesByType.containsKey(DOWNLOAD_SIG)) {
-                addQueryExtensionVersionFile(files, FILE_PUBLIC_KEY, UrlUtil.getPublicKeyUrl(extVer));
+                addQueryExtensionVersionFile(
+                        files,
+                        FILE_PUBLIC_KEY,
+                        UrlUtil.getPublicKeyUrl(extVer, webUi.getApiUrl()));
             }
         }
 

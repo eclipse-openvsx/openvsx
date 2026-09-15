@@ -26,6 +26,8 @@ import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
+import org.eclipse.openvsx.mirror.MirrorConfig;
+
 @Configuration
 public class RestTemplateConfig {
 
@@ -154,11 +156,11 @@ public class RestTemplateConfig {
 
     @Bean
     public RestTemplate vsCodeIdRestTemplate(
-            @Value("${ovsx.data.mirror.enabled:false}") boolean mirrorModeEnabled,
+            MirrorConfig mirrorConfig,
             RestTemplate restTemplate,
             RestTemplate backgroundRestTemplate
     ) {
-        return mirrorModeEnabled ? backgroundRestTemplate : restTemplate;
+        return mirrorConfig.isEnabled() ? backgroundRestTemplate : restTemplate;
     }
 
     private HttpClientBuilder createHttpClientBuilder(HttpConnPoolConfig httpConnPoolConfig) {

@@ -122,6 +122,14 @@ This decides whose headers are read, not whether their contents can be believed:
 
 Base URL of the web UI. This is required only if it's different from the server.
 
+| Property      | `ovsx.api.url`
+|---------------|------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 1.2.0
+
+Base URL of the Server API. This is required only if it's different from the frontend.
+
 | Property      | `ovsx.webui.frontendRoutes`
 |---------------|-----------------------------
 | Type          | string[]

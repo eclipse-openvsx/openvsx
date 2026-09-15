@@ -48,6 +48,7 @@ import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 import org.eclipse.openvsx.util.auth.AccessTokenAuthentication;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static jakarta.transaction.Transactional.TxType;
 import static java.util.Objects.requireNonNull;
@@ -100,6 +101,7 @@ public class AccessTokenService {
     private final RepositoryService repositories;
     private final MailService mail;
     private final DSLContext dsl;
+    private final WebUiProperties webUi;
     private final SecureRandom random = new SecureRandom();
 
     public AccessTokenService(
@@ -107,13 +109,15 @@ public class AccessTokenService {
             EntityManager entityManager,
             RepositoryService repositories,
             MailService mail,
-            DSLContext dsl
+            DSLContext dsl,
+            WebUiProperties webUi
     ) {
         this.config = config;
         this.entityManager = entityManager;
         this.repositories = repositories;
         this.mail = mail;
         this.dsl = dsl;
+        this.webUi = webUi;
     }
 
     /**
@@ -206,7 +210,12 @@ public class AccessTokenService {
         json.setValue(rawValue);
         if (!type.isEphemeral()) {
             json.setDeleteTokenUrl(
-                    createApiUrl(UrlUtil.getBaseUrl(), "user", "token", "delete", Long.toString(token.getId())));
+                    createApiUrl(
+                            UrlUtil.getBaseUrl(webUi.getApiUrl()),
+                            "user",
+                            "token",
+                            "delete",
+                            Long.toString(token.getId())));
         }
 
         return json;

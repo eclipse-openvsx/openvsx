@@ -28,12 +28,19 @@ import tools.jackson.databind.node.ArrayNode;
 import org.eclipse.openvsx.adapter.ExtensionQueryResult;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.util.UrlUtil;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 @Component
 @ConditionalOnProperty(value = "ovsx.upstream.proxy.enabled", havingValue = "true")
 public class UpstreamProxyService {
 
     protected final Logger logger = LoggerFactory.getLogger(UpstreamProxyService.class);
+
+    private final WebUiProperties webUi;
+
+    public UpstreamProxyService(WebUiProperties webUi) {
+        this.webUi = webUi;
+    }
 
     public NamespaceJson rewriteUrls(NamespaceJson json) {
         rewriteUrlMap(json.getExtensions());
@@ -185,7 +192,7 @@ public class UpstreamProxyService {
     }
 
     private String rewriteUrl(String url) {
-        var baseUri = URI.create(UrlUtil.getBaseUrl());
+        var baseUri = URI.create(UrlUtil.getBaseUrl(webUi.getApiUrl()));
         var uri = URI.create(url);
 
         var scheme = baseUri.getScheme();

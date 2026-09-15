@@ -43,6 +43,7 @@ import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionMetrics;
 import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.analytics.ingestion.RawDownloadRecord;
 import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.storage.AzureBlobStorageService;
 import org.eclipse.openvsx.util.TempFile;
 
 import static org.eclipse.openvsx.storage.AzureBlobStorageService.AZURE_USER_AGENT;
@@ -58,6 +59,7 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
 
     private final DownloadIngestionMetrics metrics;
     private final JsonMapper jsonMapper;
+    private final AzureBlobStorageService storageService;
     private BlobContainerClient containerClient;
     private Pattern blobItemNamePattern;
 
@@ -70,17 +72,12 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
     @Value("${ovsx.logs.azure.blob-container:insights-logs-storageread}")
     String logsBlobContainer;
 
-    @Value("${ovsx.storage.azure.service-endpoint:}")
-    String storageServiceEndpoint;
-
-    @Value("${ovsx.storage.azure.blob-container:openvsx-resources}")
-    String storageBlobContainer;
-
     @Value("${ovsx.logs.azure.cron:0 5 * * * *}")
     String cronSchedule;
 
-    public AzureDownloadRecordSource(DownloadIngestionMetrics metrics) {
+    public AzureDownloadRecordSource(DownloadIngestionMetrics metrics, AzureBlobStorageService storageService) {
         this.metrics = metrics;
+        this.storageService = storageService;
         this.jsonMapper = JsonMapper.shared();
     }
 
@@ -90,7 +87,7 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
     @Override
     public boolean isEnabled() {
         var logsEnabled = !StringUtils.isEmpty(logsServiceEndpoint);
-        var storageEnabled = !StringUtils.isEmpty(storageServiceEndpoint);
+        var storageEnabled = !StringUtils.isEmpty(storageService.getServiceEndpoint());
         if (logsEnabled && !storageEnabled) {
             logger.warn(
                     "The ovsx.storage.azure.service-endpoint value must be set to enable AzureDownloadRecordSource");
@@ -149,9 +146,9 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
                 if (isGetBlobOperation(node) && isStatusOk(node) && isExtensionPackageUri(node)
                         && isNotOpenVSXUserAgent(node)) {
                     var uri = node.get("uri").asString();
-                    pathParams = uri.substring(storageServiceEndpoint.length()).split("/");
+                    pathParams = uri.substring(storageService.getServiceEndpoint().length()).split("/");
                 }
-                if (pathParams != null && storageBlobContainer.equals(pathParams[1])) {
+                if (pathParams != null && storageService.getBlobContainer().equals(pathParams[1])) {
                     var fileName = UriUtils.decode(pathParams[pathParams.length - 1], StandardCharsets.UTF_8)
                             .toUpperCase();
                     // Azure Storage logs carry no country information
@@ -290,7 +287,7 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
 
     private Pattern getBlobItemNamePattern() {
         if (blobItemNamePattern == null) {
-            var host = URI.create(storageServiceEndpoint).getHost();
+            var host = URI.create(storageService.getServiceEndpoint()).getHost();
             var storageAccount = host.substring(0, host.indexOf('.'));
 
             var regex = "^resourceId=/subscriptions/.*/resourceGroups/.*/providers/Microsoft\\.Storage/storageAccounts/"

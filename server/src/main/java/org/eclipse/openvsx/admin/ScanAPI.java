@@ -48,6 +48,7 @@ import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 /**
  * REST API for extension scan management.
@@ -72,6 +73,7 @@ public class ScanAPI {
     private final org.eclipse.openvsx.scanning.ScannerRegistry scannerRegistry;
     private final org.eclipse.openvsx.repositories.ScannerJobRepository scanJobRepository;
     private final org.eclipse.openvsx.scanning.ExtensionScanService scanService;
+    private final WebUiProperties webUi;
 
     public ScanAPI(
             RepositoryService repositories,
@@ -81,7 +83,8 @@ public class ScanAPI {
             org.eclipse.openvsx.scanning.ExtensionScanCompletionService completionService,
             org.eclipse.openvsx.scanning.ScannerRegistry scannerRegistry,
             org.eclipse.openvsx.repositories.ScannerJobRepository scanJobRepository,
-            org.eclipse.openvsx.scanning.ExtensionScanService scanService
+            org.eclipse.openvsx.scanning.ExtensionScanService scanService,
+            WebUiProperties webUi
     ) {
         this.repositories = repositories;
         this.admins = admins;
@@ -91,6 +94,7 @@ public class ScanAPI {
         this.scannerRegistry = scannerRegistry;
         this.scanJobRepository = scanJobRepository;
         this.scanService = scanService;
+        this.webUi = webUi;
     }
 
     /**
@@ -1121,7 +1125,7 @@ public class ScanAPI {
 
         var fileUrls = storageUtil.getFileUrls(
                 List.of(version),
-                UrlUtil.getBaseUrl(),
+                UrlUtil.getBaseUrl(webUi.getApiUrl()),
                 fileTypes);
 
         var files = fileUrls.get(version.getId());

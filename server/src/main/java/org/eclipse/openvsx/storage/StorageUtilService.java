@@ -44,6 +44,7 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.HttpHeadersUtil;
 import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.UrlUtil;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.entities.FileResource.*;
 import static org.eclipse.openvsx.util.UrlUtil.createApiFileUrl;
@@ -70,6 +71,7 @@ public class StorageUtilService implements IStorageService {
     private final EntityManager entityManager;
     private final FileCacheDurationConfig fileCacheDurationConfig;
     private final CdnServiceConfig cdnServiceConfig;
+    private final WebUiProperties webUi;
     private final JsonMapper jsonMapper;
 
     /** Determines which external storage service to use in case multiple services are configured. */
@@ -93,7 +95,8 @@ public class StorageUtilService implements IStorageService {
             CacheService cache,
             EntityManager entityManager,
             FileCacheDurationConfig fileCacheDurationConfig,
-            CdnServiceConfig cdnServiceConfig
+            CdnServiceConfig cdnServiceConfig,
+            WebUiProperties webUi
     ) {
         this.repositories = repositories;
         this.googleStorage = googleStorage;
@@ -108,6 +111,7 @@ public class StorageUtilService implements IStorageService {
         this.entityManager = entityManager;
         this.fileCacheDurationConfig = fileCacheDurationConfig;
         this.cdnServiceConfig = cdnServiceConfig;
+        this.webUi = webUi;
         this.jsonMapper = JsonMapper.shared();
     }
 
@@ -380,7 +384,7 @@ public class StorageUtilService implements IStorageService {
     }
 
     public ResponseEntity<StreamingResponseBody> getFileResponse(ArrayNode node) {
-        var baseUrl = UrlUtil.getBaseUrl();
+        var baseUrl = UrlUtil.getBaseUrl(webUi.getApiUrl());
         var headers = HttpHeadersUtil.createJsonFileResponseHeaders();
         return ResponseEntity.ok()
                 .headers(headers)
