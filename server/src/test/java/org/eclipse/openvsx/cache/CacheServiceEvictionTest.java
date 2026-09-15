@@ -23,6 +23,7 @@ import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.repositories.RepositoryService;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_EXTENSION_JSON;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_LATEST_EXTENSION_VERSION;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,7 +72,7 @@ class CacheServiceEvictionTest {
         service().evictExtensionJsons(extension(200));
 
         // lower-cased, because that is how the keys are generated
-        verify(cache).clear("foo.bar*");
+        verify(cache).clear("foo.bar-*");
         verify(cache, never()).evictIfPresent(any());
     }
 
@@ -93,7 +94,7 @@ class CacheServiceEvictionTest {
 
         service().evictLatestExtensionVersion(extension(1));
 
-        verify(cache).clear("foo.bar*");
+        verify(cache).clear("foo.bar-*");
         verify(cache, never()).evictIfPresent(any());
     }
 
@@ -105,6 +106,48 @@ class CacheServiceEvictionTest {
 
         service().evictExtensionJsons(extension(0));
 
-        verify(cache).clear("foo.bar*");
+        verify(cache).clear("foo.bar-*");
+    }
+
+    /**
+     * What the pattern is allowed to sweep. Matched here rather than in Redis, so this is about the
+     * pattern we generate and not about what a particular server does with it.
+     */
+    @Test
+    void sweepsEveryKeyOfTheExtensionAndNotASiblingsKeys() {
+        var keys = new ExtensionJsonCacheKeyGenerator();
+        var pattern = keys.generateWildcard(extension(0));
+
+        // every shape the key-by-key fallback would evict
+        assertThat(matches(pattern, keys.generate("foo", "bar", "universal", "1.0.0"))).isTrue();
+        assertThat(matches(pattern, keys.generate("foo", "bar", "linux-x64", "1.0.0"))).isTrue();
+        assertThat(matches(pattern, keys.generate("foo", "bar", "universal", "latest"))).isTrue();
+        assertThat(matches(pattern, keys.generate("foo", "bar", "universal", "1.0.0-rc.1"))).isTrue();
+
+        // and not the extension next to it, which is what the separator is for
+        assertThat(matches(pattern, keys.generate("foo", "bar2", "universal", "1.0.0"))).isFalse();
+        assertThat(matches(pattern, keys.generate("other", "bar", "universal", "1.0.0"))).isFalse();
+    }
+
+    /**
+     * The limit of the pattern, recorded rather than fixed: a version may contain a {@code -} too, so
+     * nothing separates the id of {@code bar} from that of {@code bar-baz}. The result is that the two
+     * evict each other - a recomputation, not a wrong answer. Exactness needs a key separator that a
+     * name cannot contain; see #1767.
+     */
+    @Test
+    void alsoSweepsAHyphenatedSiblingItCannotTellApart() {
+        var keys = new ExtensionJsonCacheKeyGenerator();
+
+        assertThat(matches(keys.generateWildcard(extension(0)), keys.generate("foo", "bar-baz", "universal", "1.0.0")))
+                .isTrue();
+    }
+
+    /** Redis glob, as far as these patterns use it: {@code *} is anything, everything else is literal. */
+    private static boolean matches(String pattern, String key) {
+        var regex = java.util.Arrays.stream(pattern.split("\\*", -1))
+                .map(java.util.regex.Pattern::quote)
+                .collect(java.util.stream.Collectors.joining(".*"));
+        return key.matches(regex);
     }
 }
