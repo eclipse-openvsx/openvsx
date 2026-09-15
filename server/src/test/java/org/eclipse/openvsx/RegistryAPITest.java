@@ -269,6 +269,8 @@ class RegistryAPITest {
 
         mockMvc.perform(get("/api/{namespace}/{extension}", "foo", "bar"))
                 .andExpect(status().isOk())
+                // what a CDN in front of this registry would purge by; see SurrogateKeyInterceptor
+                .andExpect(header().string("Surrogate-Key", "ext/foo/bar ns/foo"))
                 .andExpect(content().json(extensionJson(e -> {
                     e.setNamespace("foo");
                     e.setName("bar");
@@ -290,6 +292,8 @@ class RegistryAPITest {
         extVersion.setSignatureKeyPair(keyPair);
         mockMvc.perform(get("/api/{namespace}/{extension}", "foo", "bar"))
                 .andExpect(status().isOk())
+                // what a CDN in front of this registry would purge by; see SurrogateKeyInterceptor
+                .andExpect(header().string("Surrogate-Key", "ext/foo/bar ns/foo"))
                 .andExpect(content().json(extensionJson(e -> {
                     e.setNamespace("foo");
                     e.setName("bar");
@@ -306,6 +310,8 @@ class RegistryAPITest {
 
         mockMvc.perform(get("/api/{namespace}/{extension}", "foo", "bar"))
                 .andExpect(status().isOk())
+                // what a CDN in front of this registry would purge by; see SurrogateKeyInterceptor
+                .andExpect(header().string("Surrogate-Key", "ext/foo/bar ns/foo"))
                 .andExpect(content().json(extensionJson(e -> {
                     e.setNamespace("foo");
                     e.setName("bar");
