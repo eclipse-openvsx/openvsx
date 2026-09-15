@@ -17,10 +17,14 @@ import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.util.NamingUtil;
+import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionAlias;
 
 @Component
 public class ExtensionJsonCacheKeyGenerator implements KeyGenerator {
+
+    /** Ends the extension id in a cache key. See {@link #generatePrefix} for why it is this character. */
+    static final String ID_TERMINATOR = ":";
 
     @Override
     public Object generate(Object target, Method method, Object... params) {
@@ -29,27 +33,40 @@ public class ExtensionJsonCacheKeyGenerator implements KeyGenerator {
     }
 
     public String generate(String namespaceName, String extensionName, String targetPlatform, String version) {
-        return NamingUtil.toFileFormat(
-                StringUtils.lowerCase(namespaceName),
-                StringUtils.lowerCase(extensionName),
-                targetPlatform,
-                version);
+        var key = new StringBuilder(prefix(namespaceName, extensionName)).append(version);
+        if (!TargetPlatform.isUniversal(targetPlatform)) {
+            key.append('@').append(targetPlatform);
+        }
+
+        return key.toString();
     }
 
     /**
-     * Matches every key of one extension: its id, the {@code -} that starts the version, then
-     * anything.
+     * What every key of one extension starts with, and nothing else does: its id, then a terminator.
      * <p>
-     * The separator matters. Without it {@code foo.bar*} also matches {@code foo.bar2-1.0.0}, and
-     * clearing one extension would drop a sibling's entries too. It does not make the pattern exact -
-     * {@code foo.bar-*} still matches the keys of an extension named {@code bar-baz}, because a
-     * version may itself contain a {@code -} and there is nothing to tell the two apart. What is left
-     * is over-eviction between same-prefix siblings of one namespace, which costs a recomputation
-     * rather than a wrong answer; making it exact needs a key separator that a name cannot contain.
+     * The terminator is what makes evicting by prefix exact, and it has to be a character a name
+     * cannot contain. Names are {@code [\w\-\+\$~]+} (see {@code ExtensionValidator}), so a
+     * {@code -} will not do: it is legal in a name and in a version alike, which left the keys of
+     * {@code foo.bar} indistinguishable from those of {@code foo.bar-baz}. A {@code :} cannot occur
+     * in either, so {@code foo.bar:} matches the one extension and no other.
+     * <p>
+     * A name is escaped rather than trusted, because the character set is what the validator enforces
+     * now and rows older than it, or mirrored from elsewhere, were never held to it.
      */
+    public String generatePrefix(String namespaceName, String extensionName) {
+        return prefix(namespaceName, extensionName);
+    }
+
+    private static String prefix(String namespaceName, String extensionName) {
+        return NamingUtil.toExtensionId(escape(namespaceName), escape(extensionName)) + ID_TERMINATOR;
+    }
+
+    private static String escape(String name) {
+        return StringUtils.lowerCase(name).replace("%", "%25").replace(ID_TERMINATOR, "%3A");
+    }
+
+    /** Every key of one extension and no other; see {@link #generatePrefix}. */
     public String generateWildcard(Extension extension) {
-        var extensionName = StringUtils.lowerCase(extension.getName());
-        var namespaceName = StringUtils.lowerCase(extension.getNamespace().getName());
-        return NamingUtil.toExtensionId(namespaceName, extensionName) + "-*";
+        return prefix(extension.getNamespace().getName(), extension.getName()) + "*";
     }
 }

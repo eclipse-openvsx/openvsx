@@ -24,6 +24,9 @@ import org.eclipse.openvsx.util.VersionAlias;
 @Component
 public class LatestExtensionVersionCacheKeyGenerator implements KeyGenerator {
 
+    /** The keys of both caches share the extension-id part, terminator included. */
+    private final ExtensionJsonCacheKeyGenerator extensionJsonCacheKey = new ExtensionJsonCacheKeyGenerator();
+
     @Override
     public Object generate(Object target, Method method, Object... params) {
         Extension extension;
@@ -59,16 +62,16 @@ public class LatestExtensionVersionCacheKeyGenerator implements KeyGenerator {
             boolean onlyActive,
             ExtensionVersion.Type type
     ) {
-        var extensionName = StringUtils.lowerCase(extension.getName());
-        var namespaceName = StringUtils.lowerCase(extension.getNamespace().getName());
-        return NamingUtil.toFileFormat(namespaceName, extensionName, targetPlatform, VersionAlias.LATEST) +
-                ",pre-release=" + preRelease + ",only-active=" + onlyActive + ",type=" + type;
+        return extensionJsonCacheKey.generate(
+                extension.getNamespace().getName(),
+                extension.getName(),
+                targetPlatform,
+                VersionAlias.LATEST)
+                + ",pre-release=" + preRelease + ",only-active=" + onlyActive + ",type=" + type;
     }
 
-    /** Every key of one extension; see {@link ExtensionJsonCacheKeyGenerator#generateWildcard(Extension)}. */
+    /** Every key of one extension and no other; see {@link ExtensionJsonCacheKeyGenerator#generatePrefix}. */
     public String generateWildcard(Extension extension) {
-        var extensionName = StringUtils.lowerCase(extension.getName());
-        var namespaceName = StringUtils.lowerCase(extension.getNamespace().getName());
-        return NamingUtil.toExtensionId(namespaceName, extensionName) + "-*";
+        return extensionJsonCacheKey.generatePrefix(extension.getNamespace().getName(), extension.getName()) + "*";
     }
 }

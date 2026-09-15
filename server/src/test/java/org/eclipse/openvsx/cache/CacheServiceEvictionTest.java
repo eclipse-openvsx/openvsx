@@ -72,7 +72,7 @@ class CacheServiceEvictionTest {
         service().evictExtensionJsons(extension(200));
 
         // lower-cased, because that is how the keys are generated
-        verify(cache).clear("foo.bar-*");
+        verify(cache).clear("foo.bar:*");
         verify(cache, never()).evictIfPresent(any());
     }
 
@@ -94,7 +94,7 @@ class CacheServiceEvictionTest {
 
         service().evictLatestExtensionVersion(extension(1));
 
-        verify(cache).clear("foo.bar-*");
+        verify(cache).clear("foo.bar:*");
         verify(cache, never()).evictIfPresent(any());
     }
 
@@ -106,7 +106,7 @@ class CacheServiceEvictionTest {
 
         service().evictExtensionJsons(extension(0));
 
-        verify(cache).clear("foo.bar-*");
+        verify(cache).clear("foo.bar:*");
     }
 
     /**
@@ -119,6 +119,8 @@ class CacheServiceEvictionTest {
         var pattern = keys.generateWildcard(extension(0));
 
         // every shape the key-by-key fallback would evict
+        assertThat(keys.generate("foo", "bar", "universal", "1.0.0")).isEqualTo("foo.bar:1.0.0");
+        assertThat(keys.generate("foo", "bar", "linux-x64", "1.0.0")).isEqualTo("foo.bar:1.0.0@linux-x64");
         assertThat(matches(pattern, keys.generate("foo", "bar", "universal", "1.0.0"))).isTrue();
         assertThat(matches(pattern, keys.generate("foo", "bar", "linux-x64", "1.0.0"))).isTrue();
         assertThat(matches(pattern, keys.generate("foo", "bar", "universal", "latest"))).isTrue();
@@ -129,18 +131,26 @@ class CacheServiceEvictionTest {
         assertThat(matches(pattern, keys.generate("other", "bar", "universal", "1.0.0"))).isFalse();
     }
 
-    /**
-     * The limit of the pattern, recorded rather than fixed: a version may contain a {@code -} too, so
-     * nothing separates the id of {@code bar} from that of {@code bar-baz}. The result is that the two
-     * evict each other - a recomputation, not a wrong answer. Exactness needs a key separator that a
-     * name cannot contain; see #1767.
-     */
+    // The case the terminator exists for: a name may contain a "-" and so may a version, so nothing
+    // separated the keys of "bar" from those of "bar-baz" while "-" ended the id.
     @Test
-    void alsoSweepsAHyphenatedSiblingItCannotTellApart() {
+    void leavesAHyphenatedSiblingAlone() {
         var keys = new ExtensionJsonCacheKeyGenerator();
 
         assertThat(matches(keys.generateWildcard(extension(0)), keys.generate("foo", "bar-baz", "universal", "1.0.0")))
-                .isTrue();
+                .isFalse();
+    }
+
+    // The character set is what the validator enforces now; rows older than it, or mirrored from
+    // elsewhere, were never held to it, and a name carrying the terminator would otherwise end the id
+    // early and take a sibling's keys with it.
+    @Test
+    void escapesATerminatorSmuggledIntoAName() {
+        var keys = new ExtensionJsonCacheKeyGenerator();
+
+        assertThat(keys.generatePrefix("foo", "bar:baz")).isEqualTo("foo.bar%3Abaz:");
+        assertThat(matches(keys.generateWildcard(extension(0)), keys.generate("foo", "bar:baz", "universal", "1.0.0")))
+                .isFalse();
     }
 
     /** Redis glob, as far as these patterns use it: {@code *} is anything, everything else is literal. */
