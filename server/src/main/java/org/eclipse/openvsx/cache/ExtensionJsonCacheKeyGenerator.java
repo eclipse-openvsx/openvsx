@@ -67,6 +67,14 @@ public class ExtensionJsonCacheKeyGenerator implements KeyGenerator {
 
     /** Every key of one extension and no other; see {@link #generatePrefix}. */
     public String generateWildcard(Extension extension) {
-        return prefix(extension.getNamespace().getName(), extension.getName()) + "*";
+        return generateWildcard(extension.getNamespace().getName(), extension.getName());
+    }
+
+    /**
+     * From names rather than the entity, for an eviction that runs after its transaction: by then the
+     * entity may be detached. See {@code AfterCommitExecutor}.
+     */
+    public String generateWildcard(String namespaceName, String extensionName) {
+        return generatePrefix(namespaceName, extensionName) + "*";
     }
 }
