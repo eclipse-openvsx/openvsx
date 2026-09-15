@@ -10,6 +10,7 @@
 package org.eclipse.openvsx.cache;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 import io.micrometer.observation.annotation.Observed;
@@ -137,9 +138,9 @@ public class CacheService {
         if (cache == null) {
             return; // cache is not created
         }
-        // Redis can drop every key for this extension in one scan, instead of the (versions x target
-        // platforms) guesses below - see clearByPattern.
-        if (clearByPattern(cache, extensionJsonCacheKey.generateWildcard(namespaceName, extensionName))) {
+        // one scan of the keys the cache holds, instead of the (versions x target platforms) guesses
+        // below - see clearByKeyPrefix
+        if (clearByKeyPrefix(cache, extensionJsonCacheKey.generatePrefix(namespaceName, extensionName))) {
             return;
         }
 
@@ -205,7 +206,7 @@ public class CacheService {
             return;
         }
 
-        if (clearByPattern(cache, latestExtensionVersionCacheKey.generateWildcard(namespaceName, extensionName))) {
+        if (clearByKeyPrefix(cache, latestExtensionVersionCacheKey.generatePrefix(namespaceName, extensionName))) {
             return;
         }
 
@@ -248,24 +249,54 @@ public class CacheService {
     }
 
     /**
-     * Drops every key matching {@code pattern}, where the cache can do that, and says whether it did.
+     * Drops the keys of one extension - those starting with {@code prefix} - and says whether it could.
      * <p>
-     * Only Redis can: it scans its own keyspace, so one round trip replaces the thousands of guesses
-     * the callers fall back to - an extension with 200 versions costs 2600 evictions of keys that
-     * mostly do not exist. It also cannot miss, where guessing can: a version that was just deleted
-     * is no longer among the ones a caller would enumerate.
-     * <p>
-     * {@link RedisCache#clear(String)} rather than the writer behind {@link Cache#getNativeCache()},
-     * because it runs the pattern through the cache's own key prefix first; a pattern built here
-     * would match nothing, since the stored keys are prefixed with the cache name.
+     * This is what replaces guessing. The fallback enumerates every key it can imagine, which is
+     * {@code (3 aliases + versions) x 13 target platforms} evictions of keys that mostly do not
+     * exist - 2600 of them for an extension with 200 versions - and it can still miss the ones it did
+     * not think of, such as a version that was just deleted and is no longer among those the caller
+     * can enumerate. Asking a cache what it actually holds is both cheaper and complete.
+     * <ul>
+     *     <li>Redis scans its own keyspace. {@link RedisCache#clear(String)} rather than the writer
+     *     behind {@link Cache#getNativeCache()}, because it runs the pattern through the cache's own
+     *     key prefix first; a pattern built here would match nothing.</li>
+     *     <li>The local caches are iterated instead, which is bounded by what the cache holds - a
+     *     few thousand entries at most - rather than by versions times target platforms.</li>
+     * </ul>
      */
-    private boolean clearByPattern(Cache cache, String pattern) {
+    private boolean clearByKeyPrefix(Cache cache, String prefix) {
         if (cache instanceof RedisCache redisCache) {
-            redisCache.clear(pattern);
+            redisCache.clear(prefix + "*");
+            return true;
+        }
+
+        var nativeCache = cache.getNativeCache();
+        if (nativeCache instanceof com.github.benmanes.caffeine.cache.Cache<?, ?> caffeineCache) {
+            caffeineCache.asMap().keySet().removeIf(key -> startsWith(key, prefix));
+            return true;
+        }
+        if (nativeCache instanceof javax.cache.Cache<?, ?> jCache) {
+            var keys = new HashSet<>();
+            // weakly consistent, which is all this needs: an entry written while it runs belongs to
+            // the state after the change, and one removed under it is already gone
+            jCache.forEach(entry -> {
+                if (startsWith(entry.getKey(), prefix)) {
+                    keys.add(entry.getKey());
+                }
+            });
+            if (!keys.isEmpty()) {
+                @SuppressWarnings("unchecked")
+                var typed = (javax.cache.Cache<Object, Object>) jCache;
+                typed.removeAll(keys);
+            }
             return true;
         }
 
         return false;
+    }
+
+    private static boolean startsWith(Object key, String prefix) {
+        return key instanceof String name && name.startsWith(prefix);
     }
 
     private void invalidateCache(String cacheName) {

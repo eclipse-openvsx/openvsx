@@ -98,6 +98,11 @@ public class LatestExtensionVersionCacheKeyGenerator implements KeyGenerator {
 
     /** From names, for an eviction that runs after its transaction; see {@code AfterCommitExecutor}. */
     public String generateWildcard(String namespaceName, String extensionName) {
-        return extensionJsonCacheKey.generatePrefix(namespaceName, extensionName) + "*";
+        return generatePrefix(namespaceName, extensionName) + "*";
+    }
+
+    /** What every key of one extension starts with; the caches share it. */
+    public String generatePrefix(String namespaceName, String extensionName) {
+        return extensionJsonCacheKey.generatePrefix(namespaceName, extensionName);
     }
 }
