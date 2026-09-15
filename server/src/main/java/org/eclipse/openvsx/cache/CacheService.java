@@ -14,9 +14,10 @@ import java.util.List;
 
 import io.micrometer.observation.annotation.Observed;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.interceptor.SimpleKey;
-import org.springframework.data.redis.cache.RedisCacheWriter;
+import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.*;
@@ -110,15 +111,9 @@ public class CacheService {
         if (cache == null) {
             return; // cache is not created
         }
-        if (extension.getVersions() == null) {
-            return;
-        }
-
-        // Special optimization in case of a redis cache: evict all keys that match the <namespace>.<extension>* pattern.
-        // This uses the redis KEYS command that might take a while but considering the typical size of the EXTENSION_JSON
-        // cache its acceptable.
-        if (cache instanceof RedisCacheWriter redisCache) {
-            redisCache.clear(CACHE_EXTENSION_JSON, extensionJsonCacheKey.generateWildcard(extension).getBytes());
+        // Redis can drop every key for this extension in one scan, instead of the (versions x target
+        // platforms) guesses below - see clearByPattern.
+        if (clearByPattern(cache, extensionJsonCacheKey.generateWildcard(extension))) {
             return;
         }
 
@@ -182,13 +177,7 @@ public class CacheService {
             return;
         }
 
-        // Special optimization in case of a redis cache: evict all keys that match the <namespace>.<extension>* pattern.
-        // This uses the redis KEYS command that might take a while but considering the typical size of the EXTENSION_JSON
-        // cache its acceptable.
-        if (cache instanceof RedisCacheWriter redisCache) {
-            redisCache.clear(
-                    CACHE_LATEST_EXTENSION_VERSION,
-                    latestExtensionVersionCacheKey.generateWildcard(extension).getBytes());
+        if (clearByPattern(cache, latestExtensionVersionCacheKey.generateWildcard(extension))) {
             return;
         }
 
@@ -227,6 +216,27 @@ public class CacheService {
 
         var key = new SimpleKey(extension.getNamespace().getName(), extension.getName());
         cache.evictIfPresent(key);
+    }
+
+    /**
+     * Drops every key matching {@code pattern}, where the cache can do that, and says whether it did.
+     * <p>
+     * Only Redis can: it scans its own keyspace, so one round trip replaces the thousands of guesses
+     * the callers fall back to - an extension with 200 versions costs 2600 evictions of keys that
+     * mostly do not exist. It also cannot miss, where guessing can: a version that was just deleted
+     * is no longer among the ones a caller would enumerate.
+     * <p>
+     * {@link RedisCache#clear(String)} rather than the writer behind {@link Cache#getNativeCache()},
+     * because it runs the pattern through the cache's own key prefix first; a pattern built here
+     * would match nothing, since the stored keys are prefixed with the cache name.
+     */
+    private boolean clearByPattern(Cache cache, String pattern) {
+        if (cache instanceof RedisCache redisCache) {
+            redisCache.clear(pattern);
+            return true;
+        }
+
+        return false;
     }
 
     private void invalidateCache(String cacheName) {
