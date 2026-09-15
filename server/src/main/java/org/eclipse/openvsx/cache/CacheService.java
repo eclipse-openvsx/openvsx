@@ -22,9 +22,21 @@ import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionAlias;
 
+/**
+ * Drops what the caches hold about rows that changed.
+ * <p>
+ * Every eviction here happens once the surrounding transaction has committed, and off the request
+ * thread - see {@link AfterCommitExecutor} for why an eviction sent before the commit can leave a
+ * cache staler than no eviction at all. Callers therefore hand over the names they are evicting by,
+ * not the entities: by the time the work runs, an entity may be detached.
+ * <p>
+ * The file caches below are the exception: they are keyed by the file just written rather than by a
+ * row, and their callers are not in a transaction.
+ */
 @Component
 public class CacheService {
 
@@ -54,6 +66,7 @@ public class CacheService {
     private final LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey;
     private final LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator;
     private final FilesCacheKeyGenerator filesCacheKeyGenerator;
+    private final AfterCommitExecutor afterCommit;
 
     public CacheService(
             CacheManager cacheManager,
@@ -62,7 +75,8 @@ public class CacheService {
             ExtensionJsonCacheKeyGenerator extensionJsonCacheKey,
             LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey,
             LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator,
-            FilesCacheKeyGenerator filesCacheKeyGenerator
+            FilesCacheKeyGenerator filesCacheKeyGenerator,
+            AfterCommitExecutor afterCommit
     ) {
         this.cacheManager = cacheManager;
         this.fileCacheManager = fileCacheManager;
@@ -71,22 +85,25 @@ public class CacheService {
         this.latestExtensionVersionCacheKey = latestExtensionVersionCacheKey;
         this.latestExtensionVersionsByPlatformCacheKeyGenerator = latestExtensionVersionsByPlatformCacheKeyGenerator;
         this.filesCacheKeyGenerator = filesCacheKeyGenerator;
+        this.afterCommit = afterCommit;
     }
 
     public void evictSitemap() {
-        invalidateCache(CACHE_SITEMAP);
+        afterCommit.execute(() -> invalidateCache(CACHE_SITEMAP));
     }
 
     public void evictNamespaceDetails() {
-        invalidateCache(CACHE_NAMESPACE_DETAILS_JSON);
+        afterCommit.execute(() -> invalidateCache(CACHE_NAMESPACE_DETAILS_JSON));
     }
 
     public void evictNamespaceDetails(Namespace namespace) {
-        evictNamespaceDetails(namespace.getName());
+        var namespaceName = namespace.getName();
+        afterCommit.execute(() -> evictNamespaceDetails(namespaceName));
     }
 
     public void evictNamespaceDetails(Extension extension) {
-        evictNamespaceDetails(extension.getNamespace().getName());
+        var namespaceName = extension.getNamespace().getName();
+        afterCommit.execute(() -> evictNamespaceDetails(namespaceName));
     }
 
     private void evictNamespaceDetails(String namespaceName) {
@@ -99,7 +116,7 @@ public class CacheService {
     }
 
     public void evictExtensionJsons() {
-        invalidateCache(CACHE_EXTENSION_JSON);
+        afterCommit.execute(() -> invalidateCache(CACHE_EXTENSION_JSON));
     }
 
     public void evictExtensionJsons(UserData user) {
@@ -107,23 +124,28 @@ public class CacheService {
     }
 
     public void evictExtensionJsons(Extension extension) {
+        // read now, evict later: the versions are a lazy association, and the task runs with no
+        // persistence context to load it from
+        var namespaceName = extension.getNamespace().getName();
+        var extensionName = extension.getName();
+        var versions = extension.getVersions().stream().map(ExtensionVersion::getVersion).toList();
+        afterCommit.execute(() -> evictExtensionJsons(namespaceName, extensionName, versions));
+    }
+
+    private void evictExtensionJsons(String namespaceName, String extensionName, List<String> extensionVersions) {
         var cache = cacheManager.getCache(CACHE_EXTENSION_JSON);
         if (cache == null) {
             return; // cache is not created
         }
         // Redis can drop every key for this extension in one scan, instead of the (versions x target
         // platforms) guesses below - see clearByPattern.
-        if (clearByPattern(cache, extensionJsonCacheKey.generateWildcard(extension))) {
+        if (clearByPattern(cache, extensionJsonCacheKey.generateWildcard(namespaceName, extensionName))) {
             return;
         }
 
         var versions = new ArrayList<>(VersionAlias.ALIAS_NAMES);
-        extension.getVersions().stream()
-                .map(ExtensionVersion::getVersion)
-                .forEach(versions::add);
+        versions.addAll(extensionVersions);
 
-        var namespaceName = extension.getNamespace().getName();
-        var extensionName = extension.getName();
         var targetPlatforms = new ArrayList<>(TargetPlatform.TARGET_PLATFORM_NAMES);
         targetPlatforms.add("null");
         for (var version : versions) {
@@ -135,13 +157,10 @@ public class CacheService {
     }
 
     public void evictExtensionJsons(ExtensionVersion extVersion) {
-        var cache = cacheManager.getCache(CACHE_EXTENSION_JSON);
-        if (cache == null) {
-            return; // cache is not created
-        }
-
         var extension = extVersion.getExtension();
-        var namespace = extension.getNamespace();
+        var namespaceName = extension.getNamespace().getName();
+        var extensionName = extension.getName();
+        var targetPlatform = extVersion.getTargetPlatform();
         var versions = new ArrayList<>(List.of(VersionAlias.LATEST, extVersion.getVersion()));
         if (extVersion.isPreRelease()) {
             versions.add(VersionAlias.PRE_RELEASE);
@@ -149,35 +168,44 @@ public class CacheService {
         if (extVersion.isPreview()) {
             versions.add(VersionAlias.PREVIEW);
         }
-        for (var version : versions) {
-            cache.evictIfPresent(
-                    extensionJsonCacheKey.generate(
-                            namespace.getName(),
-                            extension.getName(),
-                            extVersion.getTargetPlatform(),
-                            version));
-        }
+
+        afterCommit.execute(() -> {
+            var cache = cacheManager.getCache(CACHE_EXTENSION_JSON);
+            if (cache == null) {
+                return; // cache is not created
+            }
+            for (var version : versions) {
+                cache.evictIfPresent(
+                        extensionJsonCacheKey.generate(namespaceName, extensionName, targetPlatform, version));
+            }
+        });
     }
 
     public void evictLatestExtensionVersions() {
-        invalidateCache(CACHE_LATEST_EXTENSION_VERSION);
-        invalidateCache(CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM);
-        invalidateCache(CACHE_LATEST_EXTENSION_VERSION_VSCODE);
+        afterCommit.execute(() -> {
+            invalidateCache(CACHE_LATEST_EXTENSION_VERSION);
+            invalidateCache(CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM);
+            invalidateCache(CACHE_LATEST_EXTENSION_VERSION_VSCODE);
+        });
     }
 
     public void evictLatestExtensionVersion(Extension extension) {
-        evictInternalLatestExtensionVersion(extension);
-        evictInternalLatestExtensionVersionsByPlatform(extension);
-        evictInternalLatestExtensionVersionVSCode(extension);
+        var namespaceName = extension.getNamespace().getName();
+        var extensionName = extension.getName();
+        afterCommit.execute(() -> {
+            evictInternalLatestExtensionVersion(namespaceName, extensionName);
+            evictInternalLatestExtensionVersionsByPlatform(namespaceName, extensionName);
+            evictInternalLatestExtensionVersionVSCode(namespaceName, extensionName);
+        });
     }
 
-    private void evictInternalLatestExtensionVersion(Extension extension) {
+    private void evictInternalLatestExtensionVersion(String namespaceName, String extensionName) {
         var cache = cacheManager.getCache(CACHE_LATEST_EXTENSION_VERSION);
         if (cache == null) {
             return;
         }
 
-        if (clearByPattern(cache, latestExtensionVersionCacheKey.generateWildcard(extension))) {
+        if (clearByPattern(cache, latestExtensionVersionCacheKey.generateWildcard(namespaceName, extensionName))) {
             return;
         }
 
@@ -188,7 +216,7 @@ public class CacheService {
                 for (var onlyActive : List.of(true, false)) {
                     for (var type : ExtensionVersion.Type.values()) {
                         var key = latestExtensionVersionCacheKey
-                                .generate(extension, targetPlatform, preRelease, onlyActive, type);
+                                .generate(namespaceName, extensionName, targetPlatform, preRelease, onlyActive, type);
                         cache.evictIfPresent(key);
                     }
                 }
@@ -196,25 +224,26 @@ public class CacheService {
         }
     }
 
-    private void evictInternalLatestExtensionVersionsByPlatform(Extension extension) {
+    private void evictInternalLatestExtensionVersionsByPlatform(String namespaceName, String extensionName) {
         var cache = cacheManager.getCache(CACHE_LATEST_EXTENSION_VERSIONS_BY_PLATFORM);
         if (cache == null) {
             return;
         }
 
         for (var preRelease : List.of(true, false)) {
-            var key = latestExtensionVersionsByPlatformCacheKeyGenerator.generate(extension, preRelease);
+            var key = latestExtensionVersionsByPlatformCacheKeyGenerator
+                    .generate(namespaceName, extensionName, preRelease);
             cache.evictIfPresent(key);
         }
     }
 
-    private void evictInternalLatestExtensionVersionVSCode(Extension extension) {
+    private void evictInternalLatestExtensionVersionVSCode(String namespaceName, String extensionName) {
         var cache = cacheManager.getCache(CACHE_LATEST_EXTENSION_VERSION_VSCODE);
         if (cache == null) {
             return;
         }
 
-        var key = new SimpleKey(extension.getNamespace().getName(), extension.getName());
+        var key = new SimpleKey(namespaceName, extensionName);
         cache.evictIfPresent(key);
     }
 

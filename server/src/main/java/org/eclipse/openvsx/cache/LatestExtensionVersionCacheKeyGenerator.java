@@ -62,9 +62,30 @@ public class LatestExtensionVersionCacheKeyGenerator implements KeyGenerator {
             boolean onlyActive,
             ExtensionVersion.Type type
     ) {
-        return extensionJsonCacheKey.generate(
+        return generate(
                 extension.getNamespace().getName(),
                 extension.getName(),
+                targetPlatform,
+                preRelease,
+                onlyActive,
+                type);
+    }
+
+    /**
+     * From names rather than the entity, for an eviction that runs after its transaction: by then the
+     * entity may be detached. See {@code AfterCommitExecutor}.
+     */
+    public String generate(
+            String namespaceName,
+            String extensionName,
+            String targetPlatform,
+            boolean preRelease,
+            boolean onlyActive,
+            ExtensionVersion.Type type
+    ) {
+        return extensionJsonCacheKey.generate(
+                namespaceName,
+                extensionName,
                 targetPlatform,
                 VersionAlias.LATEST)
                 + ",pre-release=" + preRelease + ",only-active=" + onlyActive + ",type=" + type;
@@ -72,6 +93,11 @@ public class LatestExtensionVersionCacheKeyGenerator implements KeyGenerator {
 
     /** Every key of one extension and no other; see {@link ExtensionJsonCacheKeyGenerator#generatePrefix}. */
     public String generateWildcard(Extension extension) {
-        return extensionJsonCacheKey.generatePrefix(extension.getNamespace().getName(), extension.getName()) + "*";
+        return generateWildcard(extension.getNamespace().getName(), extension.getName());
+    }
+
+    /** From names, for an eviction that runs after its transaction; see {@code AfterCommitExecutor}. */
+    public String generateWildcard(String namespaceName, String extensionName) {
+        return extensionJsonCacheKey.generatePrefix(namespaceName, extensionName) + "*";
     }
 }
