@@ -26,4 +26,11 @@ public interface CdnPurgeClient {
      * until they expire on their own.
      */
     void purge(Collection<String> keys);
+
+    /**
+     * Drops everything this CDN holds for the registry. The blunt instrument, for when the CDN is
+     * known to be stale and what it is stale about is not: every reader's next request goes to the
+     * origin.
+     */
+    void purgeAll();
 }

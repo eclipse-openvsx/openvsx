@@ -29,10 +29,11 @@ import {
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import { ButtonWithProgress } from '../../../components/button-with-progress';
 import type { CacheInfo } from '../../../extension-registry-types';
 import { handleError } from '../../../utils';
-import { useCaches, useClearCaches, useRefreshCaches } from './use-caches';
+import { useCaches, useClearCaches, usePurgeCdn, useRefreshCaches } from './use-caches';
 
 /** A measurement the implementation cannot report, which is not the same as a zero. */
 const NOT_MEASURED = '—';
@@ -53,6 +54,7 @@ export const CachesAdmin: FC = () => {
     const { data, isLoading, error } = useCaches();
     const refresh = useRefreshCaches();
     const clear = useClearCaches();
+    const purgeCdn = usePurgeCdn();
     const [cleared, setCleared] = useState<string | undefined>();
 
     const clearOne = (cache: CacheInfo) => {
@@ -67,6 +69,7 @@ export const CachesAdmin: FC = () => {
 
     const caches = data?.caches ?? [];
     const statisticsEnabled = data?.statisticsEnabled ?? false;
+    const cdnPurgeEnabled = data?.cdnPurgeEnabled ?? false;
     // Why a dash is a dash: the implementation cannot report it, or nothing is counting at all.
     const sizeReason = 'This cache implementation does not report it';
     const statsReason = statisticsEnabled ? sizeReason : 'Statistics collection is off';
@@ -101,6 +104,16 @@ export const CachesAdmin: FC = () => {
                         onClick={clearEverything}>
                         Clear all
                     </ButtonWithProgress>
+                    {/* Only where there is a CDN to purge; the registry purges what it knows about
+                        by itself, so this is for a CDN holding something it does not know is wrong. */}
+                    {cdnPurgeEnabled && (
+                        <ButtonWithProgress
+                            working={purgeCdn.isPending}
+                            startIcon={<CloudSyncIcon />}
+                            onClick={() => purgeCdn.mutate()}>
+                            Purge CDN
+                        </ButtonWithProgress>
+                    )}
                 </Box>
             </Box>
 
@@ -108,6 +121,16 @@ export const CachesAdmin: FC = () => {
             {clear.error && (
                 <Alert severity='error' sx={{ mb: 2 }}>
                     {handleError(clear.error)}
+                </Alert>
+            )}
+            {purgeCdn.error && (
+                <Alert severity='error' sx={{ mb: 2 }}>
+                    {handleError(purgeCdn.error)}
+                </Alert>
+            )}
+            {purgeCdn.isSuccess && (
+                <Alert severity='success' sx={{ mb: 2 }}>
+                    Purged everything the CDN holds.
                 </Alert>
             )}
             {clear.isSuccess && (

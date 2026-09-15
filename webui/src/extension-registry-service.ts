@@ -818,6 +818,8 @@ export interface AdminService {
     getCaches(abortController: AbortController): Promise<Readonly<CacheList>>;
     /** Clears one cache, or every cache when no cache is named. */
     clearCaches(cache?: { manager: string; name: string }): Promise<Readonly<SuccessResult>>;
+    /** Drops everything the CDN in front of this registry holds. */
+    purgeCdn(): Promise<Readonly<SuccessResult>>;
     getConsistencyChecks(abortController: AbortController): Promise<Readonly<ConsistencyCheckList>>;
     getConsistencyFindings(
         abortController: AbortController,
@@ -1698,6 +1700,16 @@ export class AdminServiceImpl implements AdminService {
             abortController,
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'caches'])
+        });
+    }
+
+    async purgeCdn(): Promise<Readonly<SuccessResult>> {
+        const headers = await this.csrfHeaders();
+        return sendStrictRequest({
+            method: 'POST',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'caches', 'cdn-purge']),
+            headers
         });
     }
 

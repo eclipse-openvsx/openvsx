@@ -41,11 +41,14 @@ const unmeasurable: CacheInfo = {
 const mountPage = (
     caches: CacheInfo[],
     clearCaches = vi.fn().mockResolvedValue({ success: 'ok' }),
-    statisticsEnabled = true
+    statisticsEnabled = true,
+    cdnPurgeEnabled = false,
+    purgeCdn = vi.fn().mockResolvedValue({ success: 'ok' })
 ) => {
     const admin = {
-        getCaches: vi.fn().mockResolvedValue({ caches, statisticsEnabled }),
-        clearCaches
+        getCaches: vi.fn().mockResolvedValue({ caches, statisticsEnabled, cdnPurgeEnabled }),
+        clearCaches,
+        purgeCdn
     };
     renderWithProviders(<CachesAdmin />, {
         mainContext: { service: { admin } as unknown as ExtensionRegistryService }
@@ -125,5 +128,33 @@ describe('CachesAdmin', () => {
         mountPage([]);
 
         expect(await screen.findByText('No caches are registered.')).toBeInTheDocument();
+    });
+
+    // The registry purges the keys it knows about by itself; this is for a CDN holding something it
+    // does not know is wrong, and there is nothing to offer where no CDN is configured.
+    it('offers no CDN purge where no CDN is configured', async () => {
+        mountPage([measured]);
+
+        expect(await screen.findByText('extension.json')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Purge CDN' })).not.toBeInTheDocument();
+    });
+
+    it('drops everything the CDN holds when asked', async () => {
+        const purgeCdn = vi.fn().mockResolvedValue({ success: 'ok' });
+        mountPage([measured], undefined, true, true, purgeCdn);
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Purge CDN' }));
+
+        await waitFor(() => expect(purgeCdn).toHaveBeenCalledOnce());
+        expect(await screen.findByText('Purged everything the CDN holds.')).toBeInTheDocument();
+    });
+
+    it('says so when the CDN could not be purged', async () => {
+        const purgeCdn = vi.fn().mockRejectedValue(new Error('Could not purge the CDN: nope'));
+        mountPage([measured], undefined, true, true, purgeCdn);
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Purge CDN' }));
+
+        expect(await screen.findByText(/Could not purge the CDN/)).toBeInTheDocument();
     });
 });

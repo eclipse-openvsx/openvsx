@@ -18,8 +18,10 @@ import java.util.List;
 import java.util.Set;
 
 import org.jobrunr.scheduling.JobRequestScheduler;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -53,10 +55,37 @@ public class CdnPurgeService {
 
     private final CdnPurgeConfig config;
     private final JobRequestScheduler scheduler;
+    private final CdnPurgeClient client;
 
-    public CdnPurgeService(CdnPurgeConfig config, JobRequestScheduler scheduler) {
+    public CdnPurgeService(
+            CdnPurgeConfig config,
+            JobRequestScheduler scheduler,
+            @Autowired(required = false)
+            @Nullable CdnPurgeClient client
+    ) {
         this.config = config;
         this.scheduler = scheduler;
+        this.client = client;
+    }
+
+    /** Whether a CDN is configured to be purged at all. */
+    public boolean isEnabled() {
+        return config.isEnabled() && client != null;
+    }
+
+    /**
+     * Drops everything the CDN holds, now, reporting whether it worked.
+     * <p>
+     * Unlike the purges that follow an eviction this one is not a job: it is asked for by an
+     * administrator who is waiting for the answer, and "it has been queued" is not an answer when
+     * the reason for asking is that the CDN is not trusted.
+     */
+    public void purgeEverythingNow() {
+        if (!isEnabled()) {
+            throw new IllegalStateException("No CDN is configured to purge");
+        }
+        client.purgeAll();
+        logger.info("Purged everything the CDN holds");
     }
 
     /** Everything cached about one extension, and about the namespace it belongs to. */

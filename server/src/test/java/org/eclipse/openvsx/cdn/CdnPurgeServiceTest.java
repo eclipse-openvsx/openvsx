@@ -22,12 +22,14 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 class CdnPurgeServiceTest {
 
     private final JobRequestScheduler scheduler = Mockito.mock(JobRequestScheduler.class);
+    private final CdnPurgeClient client = Mockito.mock(CdnPurgeClient.class);
 
     private CdnPurgeService service(boolean enabled) {
         var config = new CdnPurgeConfig();
@@ -36,7 +38,7 @@ class CdnPurgeServiceTest {
             ReflectionTestUtils.setField(config, "fastlyServiceId", "svc-1");
             ReflectionTestUtils.setField(config, "fastlyApiToken", "token-1");
         }
-        return new CdnPurgeService(config, scheduler);
+        return new CdnPurgeService(config, scheduler, client);
     }
 
     @AfterEach
@@ -144,5 +146,29 @@ class CdnPurgeServiceTest {
         var captor = ArgumentCaptor.forClass(CdnPurgeJobRequest.class);
         verify(scheduler, Mockito.times(2)).enqueue(captor.capture());
         assertThat(captor.getAllValues().get(1).getKeys()).containsExactly("ns/other");
+    }
+
+    // The administrator asking is waiting for the answer, and "it has been queued" is not one when
+    // the reason for asking is that the CDN is not trusted.
+    @Test
+    void dropsEverythingTheCdnHoldsWithoutGoingThroughAJob() {
+        service(true).purgeEverythingNow();
+
+        verify(client).purgeAll();
+        verify(scheduler, never()).enqueue(Mockito.any(CdnPurgeJobRequest.class));
+    }
+
+    @Test
+    void refusesToDropEverythingWithoutAConfiguredProvider() {
+        var service = service(false);
+
+        assertThatThrownBy(service::purgeEverythingNow).isInstanceOf(IllegalStateException.class);
+        verify(client, never()).purgeAll();
+    }
+
+    @Test
+    void knowsWhetherThereIsACdnToPurge() {
+        assertThat(service(true).isEnabled()).isTrue();
+        assertThat(service(false).isEnabled()).isFalse();
     }
 }

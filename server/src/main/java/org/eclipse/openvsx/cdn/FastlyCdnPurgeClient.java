@@ -61,6 +61,18 @@ public class FastlyCdnPurgeClient implements CdnPurgeClient {
         }
     }
 
+    @Override
+    public void purgeAll() {
+        restClient.post()
+                .uri(config.getFastlyApiUrl() + "/service/{serviceId}/purge_all", config.getFastlyServiceId())
+                .header("Fastly-Key", config.getFastlyApiToken())
+                .accept(MediaType.APPLICATION_JSON)
+                // deliberately not soft: a purge_all is asked for when what the CDN holds is not
+                // trusted, and marking it stale would let it go on being served
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     private static List<List<String>> batches(Collection<String> keys) {
         var all = List.copyOf(keys);
         var batches = new ArrayList<List<String>>();

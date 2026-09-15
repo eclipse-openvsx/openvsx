@@ -51,6 +51,7 @@ import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.LocalRegistryService;
 import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
+import org.eclipse.openvsx.cdn.CdnPurgeService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersistedLog;
@@ -99,6 +100,7 @@ public class AdminAPI {
     private final SearchUtilService search;
     private final SearchExplainService searchExplainService;
     private final CacheInfoService caches;
+    private final CdnPurgeService cdnPurge;
 
     public AdminAPI(
             RepositoryService repositories,
@@ -109,7 +111,8 @@ public class AdminAPI {
             LocalRegistryService local,
             SearchUtilService search,
             SearchExplainService searchExplainService,
-            CacheInfoService caches
+            CacheInfoService caches,
+            CdnPurgeService cdnPurge
     ) {
         this.repositories = repositories;
         this.admins = admins;
@@ -120,6 +123,7 @@ public class AdminAPI {
         this.search = search;
         this.searchExplainService = searchExplainService;
         this.caches = caches;
+        this.cdnPurge = cdnPurge;
     }
 
     @GetMapping(
@@ -433,6 +437,7 @@ public class AdminAPI {
 
             var json = new CachesJson();
             json.setStatisticsEnabled(caches.isStatisticsEnabled());
+            json.setCdnPurgeEnabled(cdnPurge.isEnabled());
             json.setCaches(caches.getCaches().stream().map(AdminAPI::toJson).toList());
             return ResponseEntity.ok(json);
         } catch (ErrorResultException exc) {
@@ -493,6 +498,46 @@ public class AdminAPI {
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity();
+        }
+    }
+
+    @PostMapping(
+        path = "/caches/cdn-purge",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "Drop everything the CDN holds for this registry")
+    @ApiResponse(
+        responseCode = "200",
+        description = "A success message is returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = ResultJson.class)
+        )
+    )
+    @ApiResponse(
+        responseCode = "400",
+        description = "An error message is returned in JSON format",
+        content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    public ResponseEntity<ResultJson> purgeCdn() {
+        try {
+            var adminUser = admins.checkAdminUser();
+            if (!cdnPurge.isEnabled()) {
+                throw new ErrorResultException("No CDN is configured to purge.");
+            }
+
+            // Everything, not a key: the registry purges the keys it knows about by itself, so an
+            // administrator reaching for this has a CDN holding something the registry does not
+            // know is wrong. Synchronous, because they are waiting for the answer.
+            cdnPurge.purgeEverythingNow();
+
+            var result = ResultJson.success("Purged everything the CDN holds");
+            logs.logAction(adminUser, result);
+            return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        } catch (Exception exc) {
+            return new ErrorResultException("Could not purge the CDN: " + exc.getMessage()).toResponseEntity();
         }
     }
 

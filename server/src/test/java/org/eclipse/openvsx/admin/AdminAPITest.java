@@ -61,6 +61,7 @@ import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
+import org.eclipse.openvsx.cdn.CdnPurgeService;
 import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.AdminStatistics;
@@ -154,6 +155,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SearchUtilService.class,
         SearchExplainService.class,
         CacheInfoService.class,
+        CdnPurgeService.class,
         EclipseService.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,
@@ -204,6 +206,9 @@ class AdminAPITest {
 
     @Autowired
     CacheInfoService caches;
+
+    @Autowired
+    CdnPurgeService cdnPurge;
 
     // The document count next to the number of extensions it is built from is the point of this page:
     // an index that quietly lost entries looks exactly like a registry with nothing in it otherwise.
@@ -388,6 +393,52 @@ class AdminAPITest {
                 .andExpect(jsonPath("$.success").value("Cleared cache 'settings' of 'localCacheManager'"));
 
         Mockito.verify(caches).clear("localCacheManager", "settings");
+    }
+
+    @Test
+    void testPurgeCdn() throws Exception {
+        mockAdminUser();
+        Mockito.when(cdnPurge.isEnabled()).thenReturn(true);
+
+        mockMvc.perform(
+                post("/admin/caches/cdn-purge")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value("Purged everything the CDN holds"));
+
+        Mockito.verify(cdnPurge).purgeEverythingNow();
+    }
+
+    // Nothing to purge is a client error rather than a silent success: an administrator reaching
+    // for this has a reason to believe the CDN is stale, and would otherwise be told it is fixed.
+    @Test
+    void testPurgeCdnWithoutAProvider() throws Exception {
+        mockAdminUser();
+        Mockito.when(cdnPurge.isEnabled()).thenReturn(false);
+
+        mockMvc.perform(
+                post("/admin/caches/cdn-purge")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("No CDN is configured to purge."));
+
+        Mockito.verify(cdnPurge, Mockito.never()).purgeEverythingNow();
+    }
+
+    @Test
+    void testPurgeCdnThatRefuses() throws Exception {
+        mockAdminUser();
+        Mockito.when(cdnPurge.isEnabled()).thenReturn(true);
+        Mockito.doThrow(new IllegalStateException("nope")).when(cdnPurge).purgeEverythingNow();
+
+        mockMvc.perform(
+                post("/admin/caches/cdn-purge")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Could not purge the CDN: nope"));
     }
 
     // Not a 400: the request is well formed, it just names a cache that is not there - and a typo
