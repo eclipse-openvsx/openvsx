@@ -945,6 +945,16 @@ Responses about an extension or a namespace carry a `Surrogate-Key` header namin
 
 The header is emitted whether or not any of this is configured; without a provider nothing is purged.
 
+Where a provider is configured, the responses that carry a key and that their endpoint already marked `public` are also given a `Surrogate-Control` header, letting the CDN keep them until they are purged rather than until they expire. The header is read by the CDN and stripped before the response reaches anyone else, so `Cache-Control` is untouched: browsers keep revalidating as often as they did, and the revalidation is answered by the CDN instead of by the registry. A browser cache cannot be purged, which is why the two are kept apart.
+
+| Property      | `ovsx.cdn.surrogate-cache-duration`
+|---------------|-------------------------
+| Type          | ISO 8601 duration
+| Default       | `P7D`, 7 days
+| Compatibility | Since 1.3.0
+
+How long the CDN may keep a purgeable response. Since what it holds is dropped when it stops being true, this bounds how long a purge that never landed stays visible rather than how fresh the registry looks. Zero turns the header off, leaving the CDN to follow `Cache-Control` as before.
+
 | Property      | `ovsx.cdn.purge.provider`
 |---------------|-------------------------
 | Type          | string
