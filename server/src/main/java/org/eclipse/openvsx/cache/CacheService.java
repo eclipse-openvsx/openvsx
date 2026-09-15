@@ -19,6 +19,7 @@ import org.springframework.cache.interceptor.SimpleKey;
 import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.stereotype.Component;
 
+import org.eclipse.openvsx.cdn.CdnPurgeService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -53,6 +54,7 @@ public class CacheService {
     private final LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey;
     private final LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator;
     private final FilesCacheKeyGenerator filesCacheKeyGenerator;
+    private final CdnPurgeService cdnPurge;
 
     public CacheService(
             CacheManager cacheManager,
@@ -61,7 +63,8 @@ public class CacheService {
             ExtensionJsonCacheKeyGenerator extensionJsonCacheKey,
             LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey,
             LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator,
-            FilesCacheKeyGenerator filesCacheKeyGenerator
+            FilesCacheKeyGenerator filesCacheKeyGenerator,
+            CdnPurgeService cdnPurge
     ) {
         this.cacheManager = cacheManager;
         this.fileCacheManager = fileCacheManager;
@@ -70,6 +73,19 @@ public class CacheService {
         this.latestExtensionVersionCacheKey = latestExtensionVersionCacheKey;
         this.latestExtensionVersionsByPlatformCacheKeyGenerator = latestExtensionVersionsByPlatformCacheKeyGenerator;
         this.filesCacheKeyGenerator = filesCacheKeyGenerator;
+        this.cdnPurge = cdnPurge;
+    }
+
+    /**
+     * Tells a CDN in front of this registry that the extension changed, alongside evicting what this
+     * instance holds itself. Collected and sent once the surrounding transaction commits, so several
+     * evictions for one change cost one purge - see {@link CdnPurgeService}.
+     */
+    private void purgeFromCdn(Extension extension) {
+        var namespace = extension.getNamespace();
+        if (namespace != null && extension.getName() != null) {
+            cdnPurge.purgeExtension(namespace.getName(), extension.getName());
+        }
     }
 
     public void evictSitemap() {
@@ -89,6 +105,8 @@ public class CacheService {
     }
 
     private void evictNamespaceDetails(String namespaceName) {
+        cdnPurge.purgeNamespace(namespaceName);
+
         var cache = cacheManager.getCache(CACHE_NAMESPACE_DETAILS_JSON);
         if (cache == null) {
             return; // cache is not created
@@ -106,6 +124,8 @@ public class CacheService {
     }
 
     public void evictExtensionJsons(Extension extension) {
+        purgeFromCdn(extension);
+
         var cache = cacheManager.getCache(CACHE_EXTENSION_JSON);
         if (cache == null) {
             return; // cache is not created
@@ -140,6 +160,8 @@ public class CacheService {
     }
 
     public void evictExtensionJsons(ExtensionVersion extVersion) {
+        purgeFromCdn(extVersion.getExtension());
+
         var cache = cacheManager.getCache(CACHE_EXTENSION_JSON);
         if (cache == null) {
             return; // cache is not created
@@ -171,6 +193,8 @@ public class CacheService {
     }
 
     public void evictLatestExtensionVersion(Extension extension) {
+        purgeFromCdn(extension);
+
         evictInternalLatestExtensionVersion(extension);
         evictInternalLatestExtensionVersionsByPlatform(extension);
         evictInternalLatestExtensionVersionVSCode(extension);
