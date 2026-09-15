@@ -22,11 +22,15 @@ import { Extension, SearchEntry } from '../../extension-registry-types';
  * (`data` is `null` when the extension has no icon). The icon of a given version
  * is immutable, so it's cached and reused across remounts (no flash on back-nav);
  * the object URL is revoked when its query is evicted from the cache (see query-client).
+ *
+ * Pass `enabled: false` to hold the request back until the icon is worth loading; see
+ * {@link useInView}, which is how the icon components defer everything below the fold.
  */
-export const useExtensionIcon = (extension: Extension | SearchEntry) => {
+export const useExtensionIcon = (extension: Extension | SearchEntry, enabled = true) => {
     const { service } = useContext(MainContext);
     const targetPlatform = 'targetPlatform' in extension ? extension.targetPlatform : undefined;
     return useQuery({
+        enabled,
         queryKey: [
             'extension-icon',
             extension.namespace,
