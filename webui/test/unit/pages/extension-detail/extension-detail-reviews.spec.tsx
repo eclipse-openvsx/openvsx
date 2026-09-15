@@ -27,14 +27,15 @@ const emptyReviews: ExtensionReviewList = { postUrl: '/review', deleteUrl: '/rev
 // where the IDE's star-rating link drops a visitor, and where a login from here must return them
 const reviewsRoute = '/extension/foo/bar/reviews';
 
-function renderReviews(options?: { user?: UserData; loginProviders?: Record<string, string> }) {
+function renderReviews(options?: { user?: UserData; loginProviders?: Record<string, string>; userLoading?: boolean }) {
     const getExtensionReviews = vi.fn().mockResolvedValue(emptyReviews);
     renderWithProviders(<ExtensionDetailReviews extension={extension} reviewsDidUpdate={() => {}} />, {
         route: reviewsRoute,
         mainContext: {
             service: { getExtensionReviews } as unknown as ExtensionRegistryService,
             user: options?.user,
-            loginProviders: options?.loginProviders
+            loginProviders: options?.loginProviders,
+            userLoading: options?.userLoading ?? false
         }
     });
     return { getExtensionReviews };
@@ -71,6 +72,16 @@ describe('ExtensionDetailReviews', () => {
             'href',
             `https://open-vsx.org/oauth2/authorization/eclipse?redirect=%2Fextension%2Ffoo%2Fbar%2Freviews`
         );
+    });
+
+    it('waits for the user fetch before deciding a visitor is signed out', async () => {
+        const { getExtensionReviews } = renderReviews({
+            userLoading: true,
+            loginProviders: { github: 'https://open-vsx.org/oauth2/authorization/github' }
+        });
+
+        await waitFor(() => expect(getExtensionReviews).toHaveBeenCalled());
+        expect(screen.queryByText(/Log in to Review/)).not.toBeInTheDocument();
     });
 
     it('offers no login prompt on a registry with no login providers configured', async () => {

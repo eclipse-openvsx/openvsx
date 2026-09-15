@@ -101,7 +101,9 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
         // An anonymous visitor gets the login in place of the review button. It doesn't depend on
         // reviewList, so it comes before the check the signed-in branches below need.
         if (!context.user) {
-            if (!context.loginProviders) {
+            // userLoading: undefined user is not yet logged out, and prompting one who is signed in
+            // would send them through OAuth again
+            if (context.userLoading || !context.loginProviders) {
                 return '';
             }
             return (
