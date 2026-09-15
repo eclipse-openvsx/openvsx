@@ -24,9 +24,13 @@ const extension = { namespace: 'foo', name: 'bar', displayName: 'Bar' } as Exten
 
 const emptyReviews: ExtensionReviewList = { postUrl: '/review', deleteUrl: '/review/delete', reviews: [] };
 
+// where the IDE's star-rating link drops a visitor, and where a login from here must return them
+const reviewsRoute = '/extension/foo/bar/reviews';
+
 function renderReviews(options?: { user?: UserData; loginProviders?: Record<string, string> }) {
     const getExtensionReviews = vi.fn().mockResolvedValue(emptyReviews);
     renderWithProviders(<ExtensionDetailReviews extension={extension} reviewsDidUpdate={() => {}} />, {
+        route: reviewsRoute,
         mainContext: {
             service: { getExtensionReviews } as unknown as ExtensionRegistryService,
             user: options?.user,
@@ -41,7 +45,10 @@ describe('ExtensionDetailReviews', () => {
         renderReviews({ loginProviders: { github: 'https://open-vsx.org/oauth2/authorization/github' } });
 
         const login = await screen.findByRole('link', { name: 'Log in to Review' });
-        expect(login).toHaveAttribute('href', 'https://open-vsx.org/oauth2/authorization/github');
+        expect(login).toHaveAttribute(
+            'href',
+            'https://open-vsx.org/oauth2/authorization/github?redirect=%2Fextension%2Ffoo%2Fbar%2Freviews'
+        );
     });
 
     it('lets a signed-out visitor pick a provider when the registry has several', async () => {
@@ -58,11 +65,11 @@ describe('ExtensionDetailReviews', () => {
         expect(dialog).toHaveTextContent('Log In');
         expect(screen.getByRole('link', { name: 'github' })).toHaveAttribute(
             'href',
-            'https://open-vsx.org/oauth2/authorization/github'
+            `https://open-vsx.org/oauth2/authorization/github?redirect=%2Fextension%2Ffoo%2Fbar%2Freviews`
         );
         expect(screen.getByRole('link', { name: 'eclipse' })).toHaveAttribute(
             'href',
-            'https://open-vsx.org/oauth2/authorization/eclipse'
+            `https://open-vsx.org/oauth2/authorization/eclipse?redirect=%2Fextension%2Ffoo%2Fbar%2Freviews`
         );
     });
 
