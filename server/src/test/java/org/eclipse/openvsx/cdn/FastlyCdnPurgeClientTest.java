@@ -91,6 +91,22 @@ class FastlyCdnPurgeClientTest {
         server.verify();
     }
 
+    @Test
+    void asksFastlyToDropEverythingItHolds() {
+        var client = client(true);
+        server.expect(requestTo("https://api.fastly.test/service/svc-1/purge_all"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Fastly-Key", "token-1"))
+                // never soft: this is asked for when what the CDN holds is not trusted, and marking
+                // it stale would let it go on being served
+                .andExpect(headerDoesNotExist("Fastly-Soft-Purge"))
+                .andRespond(withSuccess());
+
+        client.purgeAll();
+
+        server.verify();
+    }
+
     // Thrown, not swallowed: the job retries, and a lost purge serves stale responses until they expire.
     @Test
     void failsWhenFastlyDoesNotAccept() {

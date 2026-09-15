@@ -38,8 +38,19 @@ public class CachesJson extends ResultJson {
     )
     private boolean statisticsEnabled;
 
+    @Schema(description = "Whether a CDN is configured that this registry can purge")
+    private boolean cdnPurgeEnabled;
+
     @Schema(description = "Every cache of every cache manager, ordered by name")
     private List<CacheJson> caches;
+
+    public boolean isCdnPurgeEnabled() {
+        return cdnPurgeEnabled;
+    }
+
+    public void setCdnPurgeEnabled(boolean cdnPurgeEnabled) {
+        this.cdnPurgeEnabled = cdnPurgeEnabled;
+    }
 
     public boolean isStatisticsEnabled() {
         return statisticsEnabled;

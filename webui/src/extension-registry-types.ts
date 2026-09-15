@@ -669,6 +669,8 @@ export interface CacheList {
      * nothing is counting, not because nothing is happening.
      */
     statisticsEnabled: boolean;
+    /** Whether a CDN is configured that this registry can purge. */
+    cdnPurgeEnabled?: boolean;
     caches: CacheInfo[];
 }
 

@@ -40,6 +40,15 @@ export const useClearCaches = () => {
     });
 };
 
+/**
+ * Drops everything the CDN holds. Nothing to refetch afterwards: what a CDN is holding is not
+ * something this page can see, which is also why the action exists.
+ */
+export const usePurgeCdn = () => {
+    const { service } = useContext(MainContext);
+    return useMutation({ mutationFn: () => service.admin.purgeCdn() });
+};
+
 export const useRefreshCaches = () => {
     const queryClient = useQueryClient();
     return () => queryClient.invalidateQueries({ queryKey: cachesQueryKey });
