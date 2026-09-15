@@ -100,13 +100,14 @@ describe('ExtensionIcon', () => {
         renderIcon({ icon: 'https://example.test/icon.png' });
 
         expect(observed).toHaveLength(1);
-        expect(observed[0].rootMargin).not.toBe('');
+        expect(observed[0].rootMargin).toBe('300px');
     });
 
-    it('shows the default icon without waiting when the extension has none', async () => {
+    // Synchronously, not findBy: there is nothing to fetch, so not even a frame of skeleton.
+    it('shows the default icon without waiting when the extension has none', () => {
         renderIcon({});
 
-        expect(await screen.findByRole('img')).toHaveAttribute('src', '/default-icon.png');
+        expect(screen.getByRole('img')).toHaveAttribute('src', '/default-icon.png');
         expect(observed).toHaveLength(0);
     });
 

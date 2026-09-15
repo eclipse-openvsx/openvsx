@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 /** Load a little before the element is actually on screen, so scrolling doesn't reveal placeholders. */
 const DEFAULT_ROOT_MARGIN = '300px';
@@ -31,12 +31,13 @@ export function useInView({ enabled = true, rootMargin = DEFAULT_ROOT_MARGIN }: 
     const [node, setNode] = useState<Element | null>(null);
     const [inView, setInView] = useState(typeof IntersectionObserver === 'undefined');
 
-    useEffect(() => {
+    // Layout effect so an element already on screen is seeded before the browser paints the
+    // placeholder it would otherwise show for a frame.
+    useLayoutEffect(() => {
         if (!enabled || inView || node == null) {
             return;
         }
-        // Seed synchronously: the observer's first callback is async, and an element already on
-        // screen would otherwise show its placeholder for a frame.
+        // The observer's own first callback is async, so measure directly.
         const rect = node.getBoundingClientRect();
         if (rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth) {
             setInView(true);
