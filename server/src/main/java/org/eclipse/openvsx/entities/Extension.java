@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.DynamicUpdate;
@@ -203,6 +204,7 @@ public class Extension implements Serializable {
         this.downloadable = downloadable;
     }
 
+    // extension uses id comparison to prevent infinite recursion
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -217,7 +219,7 @@ public class Extension implements Serializable {
                 && downloadCount == extension.downloadCount
                 && Objects.equals(publicId, extension.publicId)
                 && Objects.equals(name, extension.name)
-                && Objects.equals(namespace, extension.namespace)
+                && Objects.equals(getId(namespace), getId(extension.namespace))
                 && Objects.equals(versions, extension.versions)
                 && Objects.equals(averageRating, extension.averageRating)
                 && Objects.equals(reviewCount, extension.reviewCount)
@@ -234,7 +236,7 @@ public class Extension implements Serializable {
                 id,
                 publicId,
                 name,
-                namespace,
+                getId(namespace),
                 versions,
                 active,
                 averageRating,
@@ -245,5 +247,9 @@ public class Extension implements Serializable {
                 deprecated,
                 replacement,
                 downloadable);
+    }
+
+    private Long getId(Namespace namespace) {
+        return Optional.ofNullable(namespace).map(Namespace::getId).orElse(null);
     }
 }

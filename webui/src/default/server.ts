@@ -47,8 +47,9 @@ if (args.indexOf('-ratelimit') != -1) {
 const staticPath = path.join(__dirname, '..', '..', 'dist');
 app.use(express.static(staticPath));
 
-// Enable react-router by forwarding the main page to all paths that don't match a resource
-app.get('*', (req, res) => {
+// Enable react-router by forwarding the main page to all paths that don't match a resource.
+// The braces make the wildcard match the root path too, which a bare '/*splat' does not.
+app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(staticPath, 'index.html'));
 });
 

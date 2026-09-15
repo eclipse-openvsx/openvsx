@@ -10,6 +10,8 @@ npm install --global ovsx
 
 `ovsx` uses open-vsx.org as default instance for publishing and downloading extensions. If you are using a different instance, specify it via the `--registryUrl` (or `-r`) argument or an environment variable named `OVSX_REGISTRY_URL`.
 
+Requests give up if they stop making progress for 30 seconds, so a registry that accepts a connection and then goes quiet does not leave the command hanging. `OVSX_TIMEOUT` changes that, in milliseconds; `OVSX_TIMEOUT=0` disables it. It measures inactivity rather than total time, so a large extension downloading slowly is not cut off, and it covers the ID token request made for trusted publishing as well as the registry's own.
+
 ### Publish Extensions
 
 You can use `ovsx` for publishing [VS Code extensions](https://code.visualstudio.com/api) to an Open VSX instance. This is very similar to [vsce](https://github.com/microsoft/vscode-vsce), the publishing tool for the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/vscode).
@@ -25,6 +27,15 @@ Variants:
    publishes an already packaged file.
 
 Before uploading, `ovsx` checks the packaged extension's size against the limit the registry reports on `/api/version`, so an oversized package is rejected locally instead of failing after the whole file has been uploaded.
+
+#### Package managers
+
+Packaging is done by `vsce`, which walks your production dependencies to decide what goes into the `.vsix`. It knows how to do that for two package managers only - npm, and yarn v1 via `--yarn` - and [will not be adding more](https://github.com/microsoft/vscode-vsce/issues/421#issuecomment-1853665094). For anything else, pnpm included, there are two options:
+
+ * `ovsx publish --no-dependencies`
+   skips the dependency walk altogether. This is the right answer for a bundled extension - one built with esbuild, webpack or similar, where the bundle already contains everything the extension needs at runtime - regardless of which package manager installed the sources.
+ * `ovsx publish --follow-symlinks`
+   recurses into symlinked directories instead of packing each symlink as a file. A `node_modules` assembled out of symlinks, as pnpm's is, needs this for the walk to reach the real dependency files.
 
 ### Trusted Publishing
 

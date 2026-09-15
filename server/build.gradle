@@ -200,7 +200,11 @@ jooq {
                 name = 'org.jooq.meta.postgres.PostgresDatabase'
                 inputSchema = 'public'
                 includes = '.*'
-                excludes = 'jobrunr.*'
+                // jobrunr's and flyway's own bookkeeping tables. They are owned by those tools,
+                // nothing here queries them, and flyway_schema_history in particular only exists in
+                // a database flyway has already migrated - so generating it makes the committed
+                // output depend on how the schema was built rather than on the migrations.
+                excludes = 'jobrunr.*|flyway_schema_history'
                 includeRoutines = false
             }
             target {
@@ -281,6 +285,14 @@ test {
     // observed as an OutOfMemoryError during unrelated context bootstrapping on CI.
     jvmArgs = ['--enable-native-access=ALL-UNNAMED', '-Xmx6144m', '-Xshare:off'] // due to https://github.com/netty/netty/issues/15161
     useJUnitPlatform()
+
+    // registry tests run on plain postgres, analytics tests on timescale/timescaledb; override
+    // either image with -Dovsx.test.postgres.image=... / -Dovsx.test.timeseries.image=...
+    ['ovsx.test.postgres.image', 'ovsx.test.timeseries.image'].each { property ->
+        if (System.getProperty(property) != null) {
+            systemProperty property, System.getProperty(property)
+        }
+    }
 }
 
 tasks.register('unitTests', Test) {

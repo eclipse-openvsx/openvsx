@@ -43,7 +43,7 @@ import { useExtensionDetail } from './use-extension-details';
 import { KbdKey } from '../../components/kbd-key';
 import { useShortcut } from '../../hooks/use-shortcut';
 import { NAVBAR_HEIGHT, NAVBAR_HEIGHT_PX } from '../../default/theme';
-import { useSetExtensionTint } from '../../context/extension-tint-context';
+import { useSetExtensionTint } from '../../context/navbar-chrome-context';
 import { PageContainer } from '../../components/page-container';
 import { PillTab, PillTabs } from '../../components/pill-tabs';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
@@ -406,7 +406,7 @@ export const ExtensionDetail: FunctionComponent = () => {
     const effectiveVersion = isTabSegment(version) ? undefined : version;
     const activeTab = parseTab(version);
 
-    // Tab switches preserve scroll (see ScrollToTop); when scrolled deep, glide
+    // Tab switches preserve scroll (see ScrollRestoration); when scrolled deep, glide
     // up so the new panel starts under the pinned pills.
     const bandRef = useRef<HTMLDivElement>(null);
     const prevTab = useRef(activeTab);

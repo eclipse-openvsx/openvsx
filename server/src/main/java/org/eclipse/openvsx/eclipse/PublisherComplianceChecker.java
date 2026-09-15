@@ -12,7 +12,6 @@ package org.eclipse.openvsx.eclipse;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 
-import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,7 +34,6 @@ public class PublisherComplianceChecker {
     protected final Logger logger = LoggerFactory.getLogger(PublisherComplianceChecker.class);
 
     private final TransactionTemplate transactions;
-    private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final ExtensionService extensions;
     private final EclipseService eclipseService;
@@ -45,13 +43,11 @@ public class PublisherComplianceChecker {
 
     public PublisherComplianceChecker(
             TransactionTemplate transactions,
-            EntityManager entityManager,
             RepositoryService repositories,
             ExtensionService extensions,
             EclipseService eclipseService
     ) {
         this.transactions = transactions;
-        this.entityManager = entityManager;
         this.repositories = repositories;
         this.extensions = extensions;
         this.eclipseService = eclipseService;
@@ -102,7 +98,6 @@ public class PublisherComplianceChecker {
             // the version stops being publicly visible here, which the changes feed reports at
             // this instant rather than at the one it was published at
             repositories.recordExtensionVersionChange(version, ExtensionVersionState.INACTIVE, now);
-            entityManager.merge(version);
             var extension = version.getExtension();
             affectedExtensions.add(extension);
             logger.atInfo()
@@ -114,8 +109,10 @@ public class PublisherComplianceChecker {
 
         // Update affected extensions
         for (var extension : affectedExtensions) {
+            // findVersionsByUser runs inside checkPublishers' TransactionTemplate, so these
+            // entities (and the versions above) are already managed and merge only handed back the
+            // same instances; the setters are what persist.
             extensions.updateExtension(extension);
-            entityManager.merge(extension);
         }
     }
 }

@@ -18,7 +18,7 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
 import org.eclipse.openvsx.jooq.tables.Customer;
 import org.eclipse.openvsx.jooq.tables.CustomerMembership;
 import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
-import org.eclipse.openvsx.jooq.tables.DownloadCountProcessedItem;
+import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
@@ -28,7 +28,6 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
-import org.eclipse.openvsx.jooq.tables.FlywaySchemaHistory;
 import org.eclipse.openvsx.jooq.tables.MigrationItem;
 import org.eclipse.openvsx.jooq.tables.Namespace;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
@@ -125,9 +124,9 @@ public class Public extends SchemaImpl {
     public final DailyUsageStats DAILY_USAGE_STATS = DailyUsageStats.DAILY_USAGE_STATS;
 
     /**
-     * The table <code>public.download_count_processed_item</code>.
+     * The table <code>public.download_ingestion</code>.
      */
-    public final DownloadCountProcessedItem DOWNLOAD_COUNT_PROCESSED_ITEM = DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM;
+    public final DownloadIngestion DOWNLOAD_INGESTION = DownloadIngestion.DOWNLOAD_INGESTION;
 
     /**
      * The table <code>public.extension</code>.
@@ -173,11 +172,6 @@ public class Public extends SchemaImpl {
      * The table <code>public.file_resource</code>.
      */
     public final FileResource FILE_RESOURCE = FileResource.FILE_RESOURCE;
-
-    /**
-     * The table <code>public.flyway_schema_history</code>.
-     */
-    public final FlywaySchemaHistory FLYWAY_SCHEMA_HISTORY = FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY;
 
     /**
      * The table <code>public.migration_item</code>.
@@ -285,7 +279,7 @@ public class Public extends SchemaImpl {
             Sequences.CUSTOMER_MEMBERSHIP_SEQ,
             Sequences.CUSTOMER_SEQ,
             Sequences.DAILY_USAGE_STATS_SEQ,
-            Sequences.DOWNLOAD_COUNT_PROCESSED_ITEM_SEQ,
+            Sequences.DOWNLOAD_INGESTION_SEQ,
             Sequences.EXTENSION_REVIEW_SEQ,
             Sequences.EXTENSION_SCAN_SEQ,
             Sequences.EXTENSION_SEQ,
@@ -327,7 +321,7 @@ public class Public extends SchemaImpl {
             Customer.CUSTOMER,
             CustomerMembership.CUSTOMER_MEMBERSHIP,
             DailyUsageStats.DAILY_USAGE_STATS,
-            DownloadCountProcessedItem.DOWNLOAD_COUNT_PROCESSED_ITEM,
+            DownloadIngestion.DOWNLOAD_INGESTION,
             Extension.EXTENSION,
             ExtensionReview.EXTENSION_REVIEW,
             ExtensionScan.EXTENSION_SCAN,
@@ -337,7 +331,6 @@ public class Public extends SchemaImpl {
             ExtensionVersionChange.EXTENSION_VERSION_CHANGE,
             FileDecision.FILE_DECISION,
             FileResource.FILE_RESOURCE,
-            FlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY,
             MigrationItem.MIGRATION_ITEM,
             Namespace.NAMESPACE,
             NamespaceMembership.NAMESPACE_MEMBERSHIP,

@@ -44,11 +44,21 @@ public class SetPreReleaseJobService {
 
     @Transactional
     public void updatePreviewAndPreRelease(ExtensionVersion extVersion, TempFile extensionFile) {
+        boolean preRelease;
+        boolean preview;
         try (var extProcessor = new ExtensionProcessor(extensionFile)) {
-            extVersion.setPreRelease(extProcessor.isPreRelease());
-            extVersion.setPreview(extProcessor.isPreview());
+            preRelease = extProcessor.isPreRelease();
+            preview = extProcessor.isPreview();
         }
 
-        entityManager.merge(extVersion);
+        // find-then-set rather than merge: merge writes every column of the detached copy, so
+        // anything that changed on the row since it was loaded gets reverted. Only the field
+        // below is this method's to change - see #989.
+        var managedVersion = entityManager.find(ExtensionVersion.class, extVersion.getId());
+        if (managedVersion == null) {
+            return;
+        }
+        managedVersion.setPreRelease(preRelease);
+        managedVersion.setPreview(preview);
     }
 }

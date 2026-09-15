@@ -12,7 +12,8 @@
  *****************************************************************************/
 
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS org.apache.maven:maven-artifact:3.9.9
+//JAVA 25+
+//DEPS org.apache.maven:maven-artifact:3.9.16
 
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;

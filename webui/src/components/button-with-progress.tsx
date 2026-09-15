@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, MouseEventHandler, PropsWithChildren } from 'react';
+import { FunctionComponent, MouseEventHandler, PropsWithChildren, ReactNode } from 'react';
 import { Box, Button, CircularProgress, SxProps, Theme } from '@mui/material';
 
 export const ButtonWithProgress: FunctionComponent<PropsWithChildren<ButtonWithProgressProps>> = props => {
@@ -21,6 +21,7 @@ export const ButtonWithProgress: FunctionComponent<PropsWithChildren<ButtonWithP
                 autoFocus={props.autoFocus}
                 onClick={props.onClick}
                 title={props.title}
+                startIcon={props.startIcon}
                 disableTouchRipple={true}>
                 {props.children}
             </Button>
@@ -48,5 +49,6 @@ export interface ButtonWithProgressProps {
     autoFocus?: boolean;
     onClick: MouseEventHandler<HTMLButtonElement>;
     title?: string;
+    startIcon?: ReactNode;
     sx?: SxProps<Theme>;
 }

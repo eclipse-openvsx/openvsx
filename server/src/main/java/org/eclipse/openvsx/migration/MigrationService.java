@@ -86,7 +86,17 @@ public class MigrationService {
      */
     @Transactional
     public void scheduleMigration(MigrationItem item, Instant scheduledAt) {
-        item = entityManager.merge(item);
+        // find rather than merge: only migrationScheduled below is this method's to write, and
+        // merging the whole detached item reverted anything else that had moved - see #989.
+        var itemId = item.getId();
+        item = entityManager.find(MigrationItem.class, itemId);
+        if (item == null) {
+            // The row can be deleted between the caller reading its batch and this transaction
+            // (MigrationItemCleanupFilter, or one of the Delete_MigrationItems migrations). Skip it
+            // rather than dereferencing null, which would abort the rest of the batch.
+            logger.debug("Migration item {} is gone, nothing to schedule", itemId);
+            return;
+        }
         var jobIdText = item.getJobName() + "->itemId=" + item.getId();
         var jobId = uuidService.generateFromName(jobIdText);
         var handler = JOB_HANDLERS.get(item.getJobName());
@@ -116,9 +126,18 @@ public class MigrationService {
         return entityManager.find(FileResource.class, jobRequest.getEntityId());
     }
 
+    /**
+     * Persists the size its caller determined for {@code resource}, and nothing else. Named for the
+     * one field it writes: a generic "update this resource" could only be implemented by merging the
+     * whole detached copy, which reverts any column that changed since it was loaded (#989).
+     */
     @Transactional
-    public void updateResource(FileResource resource) {
-        entityManager.merge(resource);
+    public void updateResourceSize(FileResource resource) {
+        var managedResource = entityManager.find(FileResource.class, resource.getId());
+        if (managedResource == null) {
+            return;
+        }
+        managedResource.setSize(resource.getSize());
     }
 
     @Retryable
@@ -151,8 +170,10 @@ public class MigrationService {
 
     @Transactional
     public void deleteFileResource(FileResource resource) {
-        resource = entityManager.merge(resource);
-        entityManager.remove(resource);
+        var managedResource = entityManager.find(FileResource.class, resource.getId());
+        if (managedResource != null) {
+            entityManager.remove(managedResource);
+        }
     }
 
     public FileResource getFileResource(ExtensionVersion extVersion, String type) {

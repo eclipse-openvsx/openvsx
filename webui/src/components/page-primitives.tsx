@@ -13,6 +13,7 @@
 
 import { Box, Typography } from '@mui/material';
 import { alpha, CSSObject, styled, Theme } from '@mui/material/styles';
+import { MONO_FONT } from '../default/theme';
 
 /** Normalized gap between stacked sections; the owl selector skips the first (and any null) child. */
 export const SectionStack = styled(Box)(({ theme }) => ({
@@ -41,6 +42,16 @@ export const ExtensionGrid = styled(Box)({
         gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))'
     }
 });
+
+/** Leading '/' glyph of the search fields — the field's mark and the shortcut hint in one. */
+export const MonoSlash = styled('span')(({ theme }) => ({
+    fontFamily: MONO_FONT,
+    color: theme.palette.secondary.light,
+    fontSize: '1.0625rem',
+    lineHeight: 1,
+    flexShrink: 0,
+    userSelect: 'none'
+}));
 
 /** Small uppercase label used to head sections, columns and sidebars. */
 export const Eyebrow = styled(Typography)(({ theme }) => ({
@@ -106,6 +117,32 @@ export const TagChip = styled('span', { shouldForwardProp: prop => prop !== 'acc
         color: accent ? theme.palette.secondary.light : theme.palette.text.disabled
     })
 );
+
+/**
+ * Translucent glass fill for controls floating over scrolled content (pills, pinned toolbars).
+ * Backdrop filters re-blur on every scrolled frame, so keep the frosted surfaces small.
+ */
+export const glassSurface = (theme: Theme, opacity = 0.7) => ({
+    backgroundColor: alpha(theme.palette.surface2, opacity),
+    backdropFilter: 'blur(2px) saturate(1.8)'
+});
+
+/**
+ * Compact toolbar control (the "Sort by" select, filter autocompletes): one 30px text row on a
+ * paper fill. Selects take it directly via sx; composite inputs spread it into their outlined
+ * root. It carries nested selectors for the select's inner slots, so it belongs in sx (or another
+ * emotion context) and will not work in a plain style prop.
+ */
+export const compactControl = (theme: Theme) => ({
+    fontSize: '0.8125rem',
+    fontWeight: 500,
+    color: theme.palette.text.primary,
+    height: '1.875rem',
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: `${theme.shape.borderRadius}px`,
+    '& .MuiSelect-select': { padding: '0.25rem 2rem 0.25rem 0.625rem' },
+    '& .MuiSelect-icon': { color: theme.palette.text.disabled, fontSize: '1.125rem' }
+});
 
 /** Hover treatment for chips and pills: accent border and text color. Suppressed on touch devices. */
 export const accentHover = (theme: Theme) => ({

@@ -18,7 +18,7 @@ import { Link as RouteLink } from 'react-router';
 import { HeaderMenu } from '../header-menu';
 import { MainContext } from '../context';
 import { usePageSearchBar } from '../context/search/page-search-bar-context';
-import { useExtensionTint } from '../context/extension-tint-context';
+import { useExtensionTint, useNavbarBlurExtent } from '../context/navbar-chrome-context';
 import { OpenVsxMark } from '../components/openvsx-mark';
 import { NavSearchField } from './nav-search-field';
 import { NAVBAR_HEIGHT_PX } from '../default/theme';
@@ -101,8 +101,17 @@ export const AppNavbar: FunctionComponent = () => {
 
     const { navTint, washColor } = useNavTint();
 
-    const fanBottom = { xs: '-48px', sm: '-80px' };
-    const tintBottom = { xs: '-48px', sm: '-150px' };
+    // Pages with pinned sections can deepen the fan so it backs them too — desktop only:
+    // on mobile the stretched blur reads as a smear, so pinned rows bring their own glass.
+    // Only the lightest layer stretches (backdrop-filter cost scales with area and re-runs
+    // every scroll frame); the tint washes are plain gradients and stretch fully.
+    const extraBlurDepth = useNavbarBlurExtent();
+    const fanBottom = (stretched: boolean) => ({
+        xs: '-48px',
+        sm: '-80px',
+        md: `-${80 + (stretched ? extraBlurDepth : 0)}px`
+    });
+    const tintBottom = { xs: '-48px', sm: '-150px', md: `-${150 + extraBlurDepth}px` };
 
     // While a gallery band backs the nav, the chrome wears its color and the
     // content flips to the contrast color, so the two surfaces read as one.
@@ -150,7 +159,7 @@ export const AppNavbar: FunctionComponent = () => {
                         left: 0,
                         right: 0,
                         top: 0,
-                        bottom: fanBottom,
+                        bottom: fanBottom(i === BLUR_LAYERS.length - 1),
                         pointerEvents: 'none',
                         zIndex: 0,
                         opacity: showFan ? 1 : 0,

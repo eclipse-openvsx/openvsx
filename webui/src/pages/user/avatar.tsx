@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useRef, useState } from 'react';
+import { ComponentType, FunctionComponent, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Avatar, Box, IconButton, Link, Menu, MenuItem, Typography } from '@mui/material';
 import { Link as RouteLink } from 'react-router';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -17,6 +17,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { UserSettingsRoutes } from './user-settings-routes';
 import { AdminDashboardRoutes } from '../admin-dashboard/admin-dashboard-routes';
 import { MainContext } from '../../context';
+import { UserMenuEntryProps } from '../../page-settings';
 import { LogoutForm } from './logout';
 
 // Radius, font and min-height come from the MuiMenuItem theme override.
@@ -33,7 +34,21 @@ const iconSx = { fontSize: '1.0625rem', color: 'text.disabled', flexShrink: 0 };
 
 export const UserAvatar: FunctionComponent = () => {
     const [open, setOpen] = useState(false);
+    const close = useCallback(() => setOpen(false), []);
+    // Stable identity: a new component type each render would remount contributed entries,
+    // refetching whatever they load.
+    const MenuEntry = useMemo<ComponentType<UserMenuEntryProps>>(() => {
+        const Entry = ({ to, icon: Icon, children }: UserMenuEntryProps) => (
+            <MenuItem component={RouteLink} to={to} onClick={close} sx={{ ...menuItemSx, textDecoration: 'none' }}>
+                <Icon sx={iconSx} />
+                {children}
+            </MenuItem>
+        );
+        Entry.displayName = 'UserMenuEntry';
+        return Entry;
+    }, [close]);
     const context = useContext(MainContext);
+    const { userMenuContent: UserMenuContent } = context.pageSettings.elements;
     const anchorRef = useRef<HTMLButtonElement>(null);
     const logoutFormRef = useRef<HTMLFormElement>(null);
 
@@ -123,6 +138,7 @@ export const UserAvatar: FunctionComponent = () => {
                     <SettingsIcon sx={iconSx} />
                     Settings
                 </MenuItem>
+                {UserMenuContent ? <UserMenuContent close={close} MenuEntry={MenuEntry} /> : null}
                 {user.role === 'admin' && (
                     <MenuItem
                         component={RouteLink}

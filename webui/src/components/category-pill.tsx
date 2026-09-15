@@ -12,31 +12,8 @@
  ********************************************************************************/
 
 import { FunctionComponent, useEffect, useRef } from 'react';
-import { ButtonBase, SvgIconProps } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { accentHover, focusOutline } from './page-primitives';
-
-const Root = styled(ButtonBase, {
-    shouldForwardProp: prop => prop !== 'isSelected'
-})<{ isSelected?: boolean }>(({ theme, isSelected }) => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.4375rem',
-    flexShrink: 0,
-    overflow: 'hidden',
-    backgroundColor: isSelected ? theme.palette.accentSoft : theme.palette.surface2,
-    border: `1px solid ${isSelected ? theme.palette.secondary.main : theme.palette.divider}`,
-    color: isSelected ? theme.palette.secondary.light : theme.palette.text.secondary,
-    fontSize: '0.8125rem',
-    fontWeight: isSelected ? 600 : 500,
-    padding: '0.4375rem 0.8125rem',
-    borderRadius: theme.shape.borderRadiusPill,
-    whiteSpace: 'nowrap',
-    fontFamily: 'inherit',
-    transition: 'border-color 0.14s, color 0.14s',
-    ...(isSelected ? {} : accentHover(theme)),
-    ...focusOutline(theme)
-}));
+import { SvgIconProps } from '@mui/material';
+import { Pill } from './pill';
 
 export interface CategoryPillProps {
     label: string;
@@ -56,9 +33,9 @@ export const CategoryPill: FunctionComponent<CategoryPillProps> = ({ label, icon
     }, [isSelected]);
 
     return (
-        <Root ref={ref} isSelected={isSelected} aria-pressed={!!isSelected} onClick={onClick}>
-            <Icon sx={{ fontSize: '1rem', flexShrink: 0, color: 'secondary.main' }} />
+        <Pill ref={ref} isSelected={isSelected} aria-pressed={!!isSelected} onClick={onClick}>
+            <Icon sx={{ fontSize: '1rem', flexShrink: 0, color: isSelected ? 'inherit' : 'secondary.main' }} />
             {label}
-        </Root>
+        </Pill>
     );
 };

@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -44,6 +46,7 @@ import static org.eclipse.openvsx.adapter.ExtensionQueryResult.ExtensionFile.*;
 import static org.eclipse.openvsx.util.TargetPlatform.*;
 
 @RestController
+@Validated
 public class VSCodeAPI {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final Logger logger = LoggerFactory.getLogger(VSCodeAPI.class);
@@ -219,6 +222,10 @@ public class VSCodeAPI {
                 )
             ) String assetType,
             @RequestParam(defaultValue = TargetPlatform.NAME_UNIVERSAL)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
             @Parameter(
                 description = "Target platform",
                 example = TargetPlatform.NAME_LINUX_X64,
@@ -341,6 +348,10 @@ public class VSCodeAPI {
             @PathVariable
             @Parameter(description = "Extension version", example = "2.11.7") String version,
             @RequestParam(defaultValue = TargetPlatform.NAME_UNIVERSAL)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
             @Parameter(
                 description = "Target platform",
                 example = TargetPlatform.NAME_LINUX_X64,

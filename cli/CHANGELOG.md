@@ -2,14 +2,26 @@
 
 This change log covers only the command line interface (CLI) of Open VSX.
 
-### [next] (unreleased)
+### [v1.2.0] (10/09/2026)
 
 #### Added
 
+- Add `--follow-symlinks` to `publish`, forwarding `vsce`'s option of the same name so that the file walk recurses into symlinked directories instead of packing each symlink as a file. Needed for a `node_modules` assembled out of symlinks, as pnpm's is ([#368](https://github.com/eclipse-openvsx/openvsx/issues/368))
+- Add `search` command to search the registry for extensions, mirroring the web UI's search: `--category`, `--target`, `--sort-by` and `--sort-order` narrow the query, `--size` and `--offset` page through the results, and `--json` prints the registry's raw response ([#2154](https://github.com/eclipse-openvsx/openvsx/pull/2154))
+- Add `list` command to print the extensions a namespace holds, sorted by name so the output stays stable across registries, with `--json` for the raw namespace metadata ([#2154](https://github.com/eclipse-openvsx/openvsx/pull/2154))
+- Add `show` command to print an extension's metadata, mirroring `vsce show`: identity, publisher, rating, notices and a version history listing each version's target platforms ([#2149](https://github.com/eclipse-openvsx/openvsx/issues/2149)). `namespace.extension@version` reports a single version, `--target` scopes the report to one target platform, `--all-versions` lists every published version instead of the most recent few, and `--json` prints the registry's raw metadata
 - Add `unpublish` command to delete an extension or some of its versions, mirroring `vsce unpublish` ([#1958](https://github.com/eclipse-openvsx/openvsx/issues/1958)); requires a registry running version 1.2.0 or later, which `unpublish` checks for before deleting
 - `publish` checks the packaged extension's size against the limit reported by the registry's `/api/version` endpoint before uploading, instead of failing only after the upload completes ([#1953](https://github.com/eclipse-openvsx/openvsx/issues/1953))
 - Add `verify` command to check a downloaded `.vsix` package's signature against the registry's public key, mirroring `vsce verify-signature` ([#993](https://github.com/eclipse-openvsx/openvsx/issues/993))
 - Add `verify-signature` command, verifying an already-extracted package/manifest/signature file trio entirely offline (no registry involved), matching `vsce verify-signature`'s own command shape ([#993](https://github.com/eclipse-openvsx/openvsx/issues/993))
+
+#### Fixed
+
+- Error messages naming a URL no longer include its query string, which for `createNamespace`, `verifyPat`, `publish` and `delete` carried the personal access token straight to stderr and into CI logs ([#2186](https://github.com/eclipse-openvsx/openvsx/pull/2186))
+- A connection lost after a JSON response has started no longer leaves the command waiting on a body that is not coming: the response's own error is now what settles the request, so it fails with the reset rather than hanging ([#2186](https://github.com/eclipse-openvsx/openvsx/pull/2186))
+- Requests now give up after 30 seconds without progress instead of hanging indefinitely when a server accepts a connection and then says nothing. `OVSX_TIMEOUT` overrides the duration in milliseconds and `OVSX_TIMEOUT=0` disables it; it measures inactivity, so a large extension downloading slowly is unaffected, and it covers the trusted-publishing ID token request as well as the registry's own ([#2186](https://github.com/eclipse-openvsx/openvsx/pull/2186))
+
+- Fix downloads that could be read before they were written. `download` resolved when the response ended rather than when the file was closed, and a write stream opens and flushes asynchronously, so a caller reading the path immediately afterwards could find the file empty or absent - which `verify` did, intermittently failing to read the public key it had just fetched. A failed download no longer touches the target path: the body is written beside it and renamed into place only once it has arrived whole, so a 404 or a dropped connection leaves what was there alone. A connection dropped mid-download now rejects rather than leaving the caller waiting forever ([#2185](https://github.com/eclipse-openvsx/openvsx/pull/2185))
 
 #### Changed
 
@@ -22,6 +34,8 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump fast-uri from 3.1.5 to 3.1.7
 - Bump qs from 6.15.2 to 6.16.0
 - Bump @humanfs/node from 0.16.6 to 0.16.8
+- Bump js-yaml from 4.3.1 to 4.3.2
+- Bump nanoid from 3.3.16 to 3.3.18
 
 ### [v1.1.1] (09/08/2026)
 

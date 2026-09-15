@@ -133,7 +133,7 @@ public class LocalStorageService implements IStorageService {
     public void uploadNamespaceLogo(TempFile logoFile) {
         try {
             var filePath = getLogoPath(logoFile.getNamespace());
-            Files.createDirectories(filePath);
+            Files.createDirectories(filePath.getParent());
             Files.copy(logoFile.getPath(), filePath, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new ServerErrorException("Failed to upload namespace logo file", e);

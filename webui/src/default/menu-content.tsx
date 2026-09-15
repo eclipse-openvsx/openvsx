@@ -8,7 +8,16 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, PropsWithChildren, useContext, useRef, useState } from 'react';
+import {
+    ComponentType,
+    FunctionComponent,
+    PropsWithChildren,
+    useCallback,
+    useContext,
+    useMemo,
+    useRef,
+    useState
+} from 'react';
 import { Avatar, IconButton, Link, Menu, MenuItem, Typography } from '@mui/material';
 import { useLocation, Link as RouteLink } from 'react-router';
 import { UserAvatar } from '../pages/user/avatar';
@@ -16,6 +25,7 @@ import { UserSettingsRoutes } from '../pages/user/user-settings-routes';
 import { PublishRoutes } from '../pages/publish/publish-routes';
 import { styled, Theme } from '@mui/material/styles';
 import { MainContext } from '../context';
+import { UserMenuEntryProps } from '../page-settings';
 import { KbdKey } from '../components/kbd-key';
 import { PublishButton } from '../components/publish/publish-button';
 import { useShortcut } from '../hooks/use-shortcut';
@@ -57,11 +67,26 @@ export const MenuItemText: FunctionComponent<PropsWithChildren> = ({ children })
 };
 
 export const MobileUserAvatar: FunctionComponent = () => {
-    const { user } = useContext(MainContext);
+    const { user, pageSettings } = useContext(MainContext);
+    const { userMenuContent: UserMenuContent } = pageSettings.elements;
     const logoutFormRef = useRef<HTMLFormElement>(null);
     const anchorRef = useRef<HTMLLIElement | null>(null);
     const [open, setOpen] = useState(false);
-    const close = () => setOpen(false);
+    const close = useCallback(() => setOpen(false), []);
+    // Stable identity: a new component type each render would remount contributed entries,
+    // refetching whatever they load.
+    const MenuEntry = useMemo<ComponentType<UserMenuEntryProps>>(() => {
+        const Entry = ({ to, icon: Icon, children }: UserMenuEntryProps) => (
+            <MenuItem component={RouteLink} to={to} onClick={close}>
+                <MenuItemText>
+                    <Icon sx={itemIcon} />
+                    {children}
+                </MenuItemText>
+            </MenuItem>
+        );
+        Entry.displayName = 'MobileUserMenuEntry';
+        return Entry;
+    }, [close]);
     if (!user) {
         return null;
     }
@@ -93,6 +118,7 @@ export const MobileUserAvatar: FunctionComponent = () => {
                         Settings
                     </MenuItemText>
                 </MenuItem>
+                {UserMenuContent ? <UserMenuContent close={close} MenuEntry={MenuEntry} /> : null}
                 {user.role === 'admin' ? (
                     <MenuItem component={RouteLink} to={AdminDashboardRoutes.MAIN} onClick={close}>
                         <MenuItemText>

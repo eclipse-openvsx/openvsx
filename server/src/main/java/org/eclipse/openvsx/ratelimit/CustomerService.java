@@ -71,7 +71,8 @@ public class CustomerService {
     }
 
     public Optional<Customer> getCustomerByIpAddress(String ipAddress) {
-        var ip = new IPAddressString(ipAddress).getAddress().toIPv4();
+        var address = new IPAddressString(ipAddress).getAddress();
+        var ip = address != null ? address.toIPv4() : null;
         if (ip == null) {
             logger.warn("Could not determine IP address from string {}", ipAddress);
             return Optional.empty();
@@ -106,7 +107,15 @@ public class CustomerService {
 
         for (Customer customer : repositories.findAllCustomers()) {
             for (String cidrBlock : customer.getCidrBlocks()) {
-                var ipAddress = new IPAddressString(cidrBlock).getAddress().toIPv4();
+                var address = new IPAddressString(cidrBlock).getAddress();
+                var ipAddress = address != null ? address.toIPv4() : null;
+                if (ipAddress == null) {
+                    logger.warn(
+                            "Could not determine IP address from CIDR block {} for customer {}",
+                            cidrBlock,
+                            customer.getName());
+                    continue;
+                }
                 trie.put(ipAddress, customer);
             }
         }
@@ -193,8 +202,17 @@ public class CustomerService {
 
     @Transactional
     public ResultJson deactivateRateLimitToken(RateLimitToken token) {
-        token = entityManager.merge(token);
-        token.setActive(false);
-        return ResultJson.success("Deactivated rate limit token for customer " + token.getCustomer().getName() + ".");
+        // find-then-set rather than merge: merge writes every column of the detached copy, so
+        // anything that changed on the row since it was loaded gets reverted. Only the field
+        // below is this method's to change - see #989.
+        var managedToken = entityManager.find(RateLimitToken.class, token.getId());
+        if (managedToken == null) {
+            // RateLimitAPI already established the token exists before calling, so this only
+            // happens if the row went away in between; matches how this class reports a missing row.
+            throw new ErrorResultException("Rate limit token not found: " + token.getId());
+        }
+        managedToken.setActive(false);
+        return ResultJson
+                .success("Deactivated rate limit token for customer " + managedToken.getCustomer().getName() + ".");
     }
 }

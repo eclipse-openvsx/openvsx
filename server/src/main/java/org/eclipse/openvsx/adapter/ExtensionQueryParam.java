@@ -53,7 +53,7 @@ public record ExtensionQueryParam(
                 allowableValues = { "0", "1" },
                 description = "Query result sort order<br/><br/>values:<br/>* 0 Descending<br/>* 1 Ascending"
             ) int sortOrder
-    ){
+    ) {
 
         public String findCriterion(int type) {
             if (criteria == null || criteria.isEmpty()) {
@@ -93,7 +93,7 @@ public record ExtensionQueryParam(
                 description = "Filter type<br/><br/>values:<br/>* 1 TAG<br/>* 4 EXTENSION_ID<br/>* 5 CATEGORY<br/>* 7 EXTENSION_NAME<br/>* 8 TARGET<br/>* 9 FEATURED<br/>* 10 SEARCH_TEXT<br/>* 12 EXCLUDE_WITH_FLAGS"
             ) int filterType,
             @Schema(description = "Filter value") String value
-    ){
+    ) {
         public static final int FILTER_TAG = 1;
         public static final int FILTER_EXTENSION_ID = 4;
         public static final int FILTER_CATEGORY = 5;

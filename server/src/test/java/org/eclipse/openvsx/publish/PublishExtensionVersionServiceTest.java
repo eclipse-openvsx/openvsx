@@ -179,6 +179,51 @@ class PublishExtensionVersionServiceTest {
         verify(entityManager).persist(resource);
     }
 
+    // #989: markExtensionAsPotentiallyMalicious used to merge the whole detached extVersion to set
+    // one boolean, so any column that had moved since the caller loaded it was reverted - the same
+    // failure mode that once left published extensions inactive. It now writes the flag on the
+    // managed row, matching what activateExtension above already did.
+    @Test
+    void markExtensionAsPotentiallyMalicious_flagsTheManagedRow() {
+        var stale = version(1L, false);
+        var managed = version(1L, false);
+        when(entityManager.find(ExtensionVersion.class, 1L)).thenReturn(managed);
+
+        svc.markExtensionAsPotentiallyMalicious(stale);
+
+        assertThat(managed.isPotentiallyMalicious()).isTrue();
+        verify(entityManager, never()).merge(any());
+    }
+
+    @Test
+    void markExtensionAsPotentiallyMalicious_leavesConcurrentChangesAlone() {
+        // The caller's copy was loaded while the version was still inactive; it has since been
+        // activated. Merging that stale copy back would have deactivated it again.
+        var stale = version(1L, false);
+        stale.setActive(false);
+        var managed = version(1L, false);
+        managed.setActive(true);
+        when(entityManager.find(ExtensionVersion.class, 1L)).thenReturn(managed);
+
+        svc.markExtensionAsPotentiallyMalicious(stale);
+
+        assertThat(managed.isPotentiallyMalicious()).isTrue();
+        assertThat(managed.isActive()).as("a concurrent activation must survive the flag write").isTrue();
+    }
+
+    // The row can be purged between the caller loading it and this running; merge would have tried
+    // to resurrect it rather than doing nothing.
+    @Test
+    void markExtensionAsPotentiallyMalicious_ignoresAVersionThatIsGone() {
+        var stale = version(1L, false);
+        when(entityManager.find(ExtensionVersion.class, 1L)).thenReturn(null);
+
+        svc.markExtensionAsPotentiallyMalicious(stale);
+
+        verify(entityManager, never()).merge(any());
+        verify(entityManager, never()).persist(any());
+    }
+
     private ExtensionVersion version(long id, boolean removed) {
         var namespace = new Namespace();
         namespace.setName("redhat");

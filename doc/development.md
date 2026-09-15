@@ -27,26 +27,33 @@ To execute any of these commands within your workspace, navigate to Terminal -> 
 To run the Open VSX registry in a development environment, you can use `docker compose` by following these steps:
 
  * Verify Docker Compose is installed by running `docker compose version`. If an error occurs, you may need to [install docker compose](https://docs.docker.com/compose/install/) on your machine.
- * Decide which profile(s) to run based on your needs. The [docker-compose.yml] file defines profiles for specific components:
+ * Decide which profile(s) to run based on your needs. The [docker-compose.yml](../docker-compose.yml) file defines profiles for specific components:
    * `db`: Starts the PostgreSQL container.
    * `es`: Starts the Elasticsearch container.
+   * `analytics`: Starts the separate TimescaleDB container used by download analytics. Only needed when `ovsx.analytics.enabled` is set, which it is not by default.
    * `debug`: Starts the PostgreSQL and Elasticsearch containers, which suits running the OpenVSX server and web UI locally for easier debugging.
    * `backend`: Starts the OpenVSX server container (java).
    * `frontend`: Starts the web UI container.
    * `commandline`: Starts a container with the OpenVSX CLI tools.
    * `openvsx`: Combines `backend`, `frontend`, and `commandline` profiles to start all related services.
    * `kibana`: Starts a kibana instance for easier access to the Elasticsearch service.
+   * `silo`: Starts a [Silo](https://hub.docker.com/r/pgsty/silo) instance as S3-compatible object storage, for exercising external file storage locally. Silo is a MinIO fork, used here because the `minio/minio` image is no longer available on Docker Hub; it keeps MinIO's defaults, so the credentials below are unchanged. A companion container creates the `test` bucket and makes it publicly downloadable on every start, since it keeps no volume and loses both when the container is recreated.
+   * `valkey`: Starts a six-node Valkey cluster (three primaries and three replicas), for exercising the cache locally. A companion container forms the cluster on first start and leaves it alone afterwards.
+   * `valkey-admin`: Starts the Valkey cluster as above, plus a web UI for inspecting it.
  * In the project root, initiate Docker Compose:
-   * Without profiles: `docker compose up`.
    * With profiles: `docker compose --profile <profile_name> up`. Use multiple `--profile` flags for multiple profiles, e.g., `docker compose --profile openvsx --profile kibana up`.
+   * A profile is required: every service in the file belongs to one, so a plain `docker compose up` starts nothing.
+   * Each profile starts only its own services, so pick the infrastructure too: `docker compose --profile openvsx --profile debug up` runs the whole stack, while `--profile openvsx` alone starts the server, web UI and CLI against a database that is not there. The server waits for PostgreSQL and Elasticsearch to report healthy when they are part of the selection.
 
  * Depending on which profile(s) you selected, after some seconds, the respective services become available:
    * registry backend is available at [http://localhost:8080/](http://localhost:8080/) if the `backend` or `openvsx` profile was selected.
    * web ui is available at [http://localhost:3000/](http://localhost:3000/) if the `frontend` or `openvsx` profile was selected.
    * kibana is exposed at [http://localhost:5601/](http://localhost:5601/) if the `kibana` profile was selected.
+   * Silo is at [http://localhost:9000/](http://localhost:9000/) with its console at [http://localhost:9001/](http://localhost:9001/) (`minioadmin`/`minioadmin`) if the `silo` profile was selected.
+   * the Valkey nodes are on ports 7001-7006 (user `openvsx`, password `openvsx`) if the `valkey` or `valkey-admin` profile was selected, and the Valkey UI is at [http://localhost:8090/](http://localhost:8090/) for `valkey-admin`.
  * Open VSX CLI commands can be run via `docker compose exec cli lib/ovsx` if the `commandline` or `openvsx` profile was selected.
  * To load some extensions from the main registry (openvsx.org), run `docker compose exec cli yarn load-extensions <N>`, where N is the number of extensions you would like to publish in your local registry.
- * For troubleshooting or manual intervention, access a service's interactive shell with `docker compose run --rm <service> /bin/bash`. Service names are listed in the [docker-compose.yml](docker-compose.yml) file.
+ * For troubleshooting or manual intervention, access a service's interactive shell with `docker compose run --rm <service> /bin/bash`. Service names are listed in the [docker-compose.yml](../docker-compose.yml) file.
 
 ### Setup locally on WSL
 
@@ -180,3 +187,42 @@ or
   find server/build/test-extensions-builtin -name '*.vsix' -exec cli/lib/ovsx publish '{}' \;
   find server/build/test-extensions -name '*.vsix' -exec cli/lib/ovsx publish '{}' \;
   ```
+
+### Optional: Generate download logs for the ingestion pipeline
+
+Download counts are ingested from CDN or storage access logs rather than counted on the request
+path, so exercising that locally needs log files to ingest. `./server/scripts/generate-download-logs.sh`
+writes them in either supported format and can upload them to the Silo bucket the AWS source reads.
+
+It draws its `.vsix` filenames from the registry database, because a download only counts when the
+filename resolves to a `file_resource` row of type `download` **whose `storage_type` matches the
+source's**. Invented filenames ingest nothing. In practice that means the extensions have to be
+stored on S3 rather than on disk, so alongside the `silo` profile uncomment the `ovsx.storage.aws`
+block in `server/src/dev/resources/application.yml` and add the log source:
+
+```yaml
+ovsx:
+  logs:
+    aws:
+      bucket: test          # the source bean only exists when this is set
+      format: cloudfront    # or fastly
+      cron: "0 * * * * *"   # every minute, rather than the hourly default
+```
+
+Then, with the `db` and `silo` profiles up, the server running and at least one extension
+published:
+
+```bash
+./server/scripts/generate-download-logs.sh --count 500 --days 14 --upload
+```
+
+Use `--help` for the rest. The next scheduled run picks the file up; `download_ingestion` records
+which files have been processed, and a processed file is deleted from the bucket unless
+`ovsx.logs.aws.archive-prefix` is set. None of this needs `ovsx.analytics.enabled` — ingestion
+drives the download counters on its own, and analytics only adds the time-series events on top.
+
+### Optional: Run the server as a mirror
+
+`server/src/dev/resources/application-mirror.yml` configures this server as a mirror of
+open-vsx.org. Select it with `--spring.profiles.include=ovsx,mirror`; note that mirror mode needs a
+blob store, as local file storage does not work with it. See [Mirror Mode](mirror.md).

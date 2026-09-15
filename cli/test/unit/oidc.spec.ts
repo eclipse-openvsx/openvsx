@@ -51,6 +51,37 @@ async function startTokenService(status: number, body: unknown): Promise<TokenSe
     };
 }
 
+/** Stands in for a token service that accepts the connection and then says nothing at all. */
+async function startSilentTokenService(): Promise<TokenService> {
+    const server = http.createServer(() => { /* deliberately never responds */ });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    return {
+        url: `http://127.0.0.1:${port}/token?api-version=2.0`,
+        requests: [],
+        close: () => new Promise<void>(resolve => server.close(() => resolve()))
+    };
+}
+
+/**
+ * Stands in for a token service whose connection dies once it has started answering, which is the
+ * case where the response's own error is the only thing that can settle the promise.
+ */
+async function startStallingTokenService(): Promise<TokenService> {
+    const server = http.createServer((_, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.write('{"count":1');
+        setTimeout(() => res.socket?.destroy(), 30);
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    return {
+        url: `http://127.0.0.1:${port}/token?api-version=2.0`,
+        requests: [],
+        close: () => new Promise<void>(resolve => server.close(() => resolve()))
+    };
+}
+
 describe('OIDC ID token detection', () => {
 
     const environment = { ...process.env };
@@ -130,6 +161,43 @@ describe('OIDC ID token detection', () => {
         it('fails if the workflow runtime rejects the request', async () => {
             await givenTokenService(403, { message: 'no id-token permission' });
             await expect(getIdToken('https://open-vsx.org', {})).rejects.toThrow(/status 403/);
+        });
+
+        // The response had no error listener, so a token service that died part-way through answering
+        // left trusted publishing waiting on a body that was not coming rather than failing.
+        it('fails if the workflow runtime drops the connection mid-response', async () => {
+            const service = await startStallingTokenService();
+            services.push(service);
+            process.env[REQUEST_URL] = service.url;
+            process.env[REQUEST_TOKEN] = 'runner-token';
+
+            const outcome = await Promise.race([
+                getIdToken('https://open-vsx.org', {}).then(() => 'resolved', (err: Error) => `rejected: ${err.message}`),
+                new Promise<string>(resolve => setTimeout(() => resolve('never settled'), 3000))
+            ]);
+
+            expect(outcome).toContain('rejected');
+            expect(outcome).not.toBe('never settled');
+        });
+
+        // This is a second HTTP implementation, so the registry's timeout tests cannot cover it: a
+        // silent token service would hang trusted publishing with nothing to notice. Distinct from the
+        // mid-response test above, which the response's error handler settles either way and which
+        // therefore passes with this timeout removed.
+        it('fails if the workflow runtime accepts the connection and never responds', async () => {
+            const service = await startSilentTokenService();
+            services.push(service);
+            process.env[REQUEST_URL] = service.url;
+            process.env[REQUEST_TOKEN] = 'runner-token';
+            process.env['OVSX_TIMEOUT'] = '200';
+
+            const outcome = await Promise.race([
+                getIdToken('https://open-vsx.org', {}).then(() => 'resolved', (err: Error) => err.message),
+                new Promise<string>(resolve => setTimeout(() => resolve('never settled'), 3000))
+            ]);
+
+            expect(outcome).toContain('No response from');
+            expect(outcome).not.toContain('token=');
         });
 
         it('fails with an actionable message if no ID token is available', async () => {

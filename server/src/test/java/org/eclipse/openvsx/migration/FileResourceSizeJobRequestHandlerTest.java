@@ -58,8 +58,8 @@ class FileResourceSizeJobRequestHandlerTest {
 
         new FileResourceSizeJobRequestHandler(migrations).run(jobRequest);
 
-        verify(migrations).updateResource(unsized);
-        verify(migrations, never()).updateResource(alreadySized);
+        verify(migrations).updateResourceSize(unsized);
+        verify(migrations, never()).updateResourceSize(alreadySized);
         verify(migrations, never()).getFileSize(alreadySized);
     }
 
@@ -78,8 +78,8 @@ class FileResourceSizeJobRequestHandlerTest {
 
         assertThatCode(() -> handler.run(jobRequest)).doesNotThrowAnyException();
 
-        verify(migrations, never()).updateResource(missing);
-        verify(migrations).updateResource(present);
+        verify(migrations, never()).updateResourceSize(missing);
+        verify(migrations).updateResourceSize(present);
     }
 
     private ExtensionVersion extVersion() {

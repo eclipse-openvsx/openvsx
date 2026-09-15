@@ -34,6 +34,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -56,6 +57,8 @@ import tools.jackson.databind.json.JsonMapper;
 import org.eclipse.openvsx.accesstoken.AccessTokenConfig;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.adapter.VSCodeIdService;
+import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.ExtensionJsonCacheKeyGenerator;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
@@ -79,7 +82,6 @@ import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
 import org.eclipse.openvsx.storage.*;
-import org.eclipse.openvsx.storage.log.DownloadCountService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
 import org.eclipse.openvsx.util.ChangesCursor;
 import org.eclipse.openvsx.util.LogService;
@@ -117,7 +119,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         AzureBlobStorageService.class,
         AwsStorageService.class,
         VSCodeIdService.class,
-        DownloadCountService.class,
+        DownloadIngestionProcessor.class,
         ExtensionDownloadMetrics.class,
         CacheService.class,
         EclipseService.class,
@@ -166,6 +168,63 @@ class RegistryAPITest {
 
     @Autowired
     ExtensionService extensionService;
+
+    // targetPlatform documents an `allowableValues` enum on every endpoint that takes it, and until now
+    // enforced it only where it is a path segment. As a query parameter an unknown value was quietly
+    // rewritten to null, so the caller got the whole registry back instead of the slice it asked for -
+    // which answers a question nobody put, and is indistinguishable from success.
+    @Test
+    void testSearchRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(get("/api/-/search").param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        content()
+                                .json(errorJson("targetPlatform: parameter must be a supported target platform")));
+    }
+
+    @Test
+    void testQueryV2RejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(get("/api/v2/-/query").param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        content()
+                                .json(errorJson("targetPlatform: parameter must be a supported target platform")));
+    }
+
+    @Test
+    void testQueryRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(get("/api/-/query").param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        content()
+                                .json(errorJson("targetPlatform: parameter must be a supported target platform")));
+    }
+
+    @Test
+    void testPostQueryRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                post("/api/-/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetPlatform\":\"win32-bogus\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // A platform that is merely no longer publishable is still one that published versions carry, so it
+    // has to keep resolving - see #1074, where win32-ia32 has 983 of them.
+    @Test
+    void testSearchAcceptsEveryDocumentedTargetPlatform() throws Exception {
+        for (var targetPlatform : TargetPlatform.TARGET_PLATFORM_NAMES) {
+            mockMvc.perform(get("/api/-/search").param("targetPlatform", targetPlatform))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    // Absent and empty both mean "do not filter", and neither is a request for an unknown platform.
+    @Test
+    void testSearchAcceptsAnAbsentOrEmptyTargetPlatform() throws Exception {
+        mockMvc.perform(get("/api/-/search")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/-/search").param("targetPlatform", "")).andExpect(status().isOk());
+    }
 
     @Test
     void testPublicNamespace() throws Exception {
@@ -3818,7 +3877,8 @@ class RegistryAPITest {
                 AzureBlobStorageService azureStorage,
                 LocalStorageService localStorage,
                 AwsStorageService awsStorage,
-                DownloadCountService downloadCountService,
+                ObjectProvider<DownloadRecordSource> ingestionSources,
+                DownloadIngestionProcessor ingestionProcessor,
                 ExtensionDownloadMetrics downloadMetrics,
                 SearchUtilService search,
                 CacheService cache,
@@ -3832,7 +3892,8 @@ class RegistryAPITest {
                     azureStorage,
                     localStorage,
                     awsStorage,
-                    downloadCountService,
+                    ingestionSources,
+                    ingestionProcessor,
                     downloadMetrics,
                     search,
                     cache,

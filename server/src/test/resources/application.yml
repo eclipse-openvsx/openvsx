@@ -1,4 +1,9 @@
 spring:
+  # Every cached Spring context in the suite holds an idle pool against the one shared container,
+  # so the default of 10 exhausts its max_connections long before the tests are done.
+  datasource:
+    hikari:
+      maximum-pool-size: 4
   jpa:
     hibernate:
       ddl-auto: none
@@ -32,6 +37,10 @@ jobrunr:
     allow-anonymous-data-usage: false
 
 ovsx:
+  analytics:
+    # the timeseries container is shared the same way, so its pool needs the same treatment
+    datasource:
+      maximum-pool-size: 2
   elasticsearch:
     # Disabled by default for tests: the Elasticsearch container is expensive, so only tests that
     # activate the "test_search" profile (which also provisions the container) enable it, via

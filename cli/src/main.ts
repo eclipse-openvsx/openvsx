@@ -14,8 +14,11 @@ import { createNamespace } from './create-namespace';
 import { verifyPat } from './verify-pat';
 import { publish } from './publish';
 import { unpublish } from './unpublish';
-import { handleError } from './util';
+import { handleError, parseNonNegativeInt } from './util';
 import { getExtension } from './get';
+import { list } from './list';
+import { DEFAULT_SEARCH_SIZE, SORT_KEYS, SORT_ORDERS, search } from './search';
+import { show } from './show';
 import { verify } from './verify';
 import { verifySignature } from './verify-signature';
 import login from './login';
@@ -53,6 +56,7 @@ module.exports = function (argv: string[]): void {
         .option('--baseContentUrl <url>', 'Prepend all relative links in README.md with this URL.')
         .option('--baseImagesUrl <url>', 'Prepend all relative image links in README.md with this URL.')
         .option('--yarn', 'Use yarn instead of npm while packing extension files.')
+        .option('--follow-symlinks', 'Recurse into symlinked directories instead of packing each symlink as a file.')
         .option('--pre-release', 'Mark this package as a pre-release')
         .option('--allow-missing-repository', 'Allow packaging an extension whose package.json has no repository field')
         .option('--no-dependencies', 'Disable dependency detection via npm or yarn')
@@ -61,7 +65,7 @@ module.exports = function (argv: string[]): void {
         .option('--trusted-publishing', 'Exchange an OIDC ID token for a short-lived publishing token. Enabled automatically when a CI system provides an ID token and no access token is given.')
         .option('--idToken <token>', 'The OIDC ID token to exchange. Only needed on CI systems that provide the token directly, e.g. GitLab CI.')
         .option('--oidcAudience <audience>', 'Audience to request for the OIDC ID token. Defaults to the registry URL.')
-        .action((extensionFile: string, { target, packagePath, baseContentUrl, baseImagesUrl, yarn, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience }) => {
+        .action((extensionFile: string, { target, packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience }) => {
             if (extensionFile !== undefined && packagePath !== undefined) {
                 console.error('\u274c  Please specify either a package file or a package path, but not both.\n');
                 publishCmd.help();
@@ -76,12 +80,14 @@ module.exports = function (argv: string[]): void {
                 console.warn("Ignoring option '--baseImagesUrl' for prepackaged extension.");
             if (extensionFile !== undefined && yarn !== undefined)
                 console.warn("Ignoring option '--yarn' for prepackaged extension.");
+            if (extensionFile !== undefined && followSymlinks !== undefined)
+                console.warn("Ignoring option '--follow-symlinks' for prepackaged extension.");
             if (extensionFile !== undefined && packageVersion !== undefined)
                 console.warn("Ignoring option '--packageVersion' for prepackaged extension.");
             if (extensionFile !== undefined && allowMissingRepository !== undefined)
                 console.warn("Ignoring option '--allow-missing-repository' for prepackaged extension.");
             const { registryUrl, pat } = program.opts();
-            publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience })
+            publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience })
                 .then(results => {
                     const reasons = results.filter(result => result.status === 'rejected')
                         .map(rejectedResult => rejectedResult.reason);
@@ -114,6 +120,43 @@ module.exports = function (argv: string[]): void {
                 registryUrl,
                 pat
             }).catch(handleError(program.debug));
+        });
+
+    const searchCmd = program.command('search [text]');
+    searchCmd.description('Search the registry for extensions.')
+        .option('-c, --category <category>', 'Only return extensions in this category.')
+        .option('-t, --target <target>', 'Only return extensions built for this target architecture.')
+        .option(
+            '-s, --size <size>',
+            `Number of results to return (default ${DEFAULT_SEARCH_SIZE}).`,
+            parseNonNegativeInt
+        )
+        .option('-o, --offset <offset>', 'Index of the first result, for paging.', parseNonNegativeInt)
+        .option('--sort-by <key>', `Sort key: ${SORT_KEYS.join(', ')}.`)
+        .option('--sort-order <order>', `Sort order: ${SORT_ORDERS.join(', ')}.`)
+        .option('--json', 'Print the raw results as JSON.')
+        .action((text: string | undefined, { category, target, size, offset, sortBy, sortOrder, json }) => {
+            const { registryUrl } = program.opts();
+            search({ text, category, target, size, offset, sortBy, sortOrder, json, registryUrl })
+                .catch(handleError(program.debug));
+        });
+
+    const listCmd = program.command('list <namespace>');
+    listCmd.description('List the extensions published in a namespace.')
+        .option('--json', 'Print the raw namespace metadata as JSON.')
+        .action((namespace: string, { json }) => {
+            const { registryUrl } = program.opts();
+            list({ namespace, json, registryUrl }).catch(handleError(program.debug));
+        });
+
+    const showCmd = program.command('show <namespace.extension[@version]>');
+    showCmd.description('Show an extension\'s metadata.')
+        .option('-t, --target <target>', 'Only report on the given target architecture.')
+        .option('--all-versions', 'List every published version instead of the most recent few.')
+        .option('--json', 'Print the raw metadata as JSON.')
+        .action((extensionId: string, { target, allVersions, json }) => {
+            const { registryUrl } = program.opts();
+            show({ extensionId, target, allVersions, json, registryUrl }).catch(handleError(program.debug));
         });
 
     const getCmd = program.command('get <namespace.extension>');

@@ -20,9 +20,17 @@ dependencies {
     // must match the spotless-lib version pulled in transitively by the
     // com.diffplug.spotless plugin version applied in the main build (see build.gradle) -
     // check that plugin version's POM for its spotless-lib dependency if you bump either.
-    implementation 'com.diffplug.spotless:spotless-lib:3.3.1'
-    implementation 'com.diffplug.spotless:spotless-lib-extra:3.3.1'
+    implementation 'com.diffplug.spotless:spotless-lib:4.10.2'
+    implementation 'com.diffplug.spotless:spotless-lib-extra:4.10.2'
+    // must match both the jdt.core that spotless-lib-extra's
+    // eclipse_jdt_formatter/v<N>.lockfile pins for the eclipse('<N>') version used in
+    // build.gradle, and the //DEPS versions in scripts/src/{AddBracesFix,ClosingBraceFix}.java.
     implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.46.0'
     // must match the //DEPS version in scripts/src/DependencyOverrideCheck.java
-    implementation 'org.apache.maven:maven-artifact:3.9.9'
+    implementation 'org.apache.maven:maven-artifact:3.9.16'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }

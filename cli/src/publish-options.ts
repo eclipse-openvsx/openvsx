@@ -28,6 +28,12 @@ export interface PublishCommonOptions extends RegistryOptions, TrustedPublishing
      */
     yarn?: boolean;
     /**
+     * Recurse into symlinked directories when collecting the files to pack, instead of packing each
+     * symlink as a file. Needed for a `node_modules` built out of symlinks, as pnpm's is. Only valid
+     * with `packagePath`.
+     */
+    followSymlinks?: boolean;
+    /**
      * Mark this package as a pre-release. Only valid with `packagePath`.
      */
     preRelease?: boolean;

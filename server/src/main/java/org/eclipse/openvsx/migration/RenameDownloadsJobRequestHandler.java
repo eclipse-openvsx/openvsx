@@ -54,7 +54,7 @@ public class RenameDownloadsJobRequestHandler implements JobRequestHandler<Migra
             migrations.removeFile(download);
 
             download.setName(name);
-            service.updateResource(download);
+            service.updateResourceName(download);
         }
 
         logger.info("Updated download name to: {}", name);

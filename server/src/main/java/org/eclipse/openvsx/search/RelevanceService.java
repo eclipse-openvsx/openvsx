@@ -63,7 +63,7 @@ public class RelevanceService {
         var targetPlatforms = repositories.findExtensionTargetPlatforms(extension);
         var entry = extension.toSearch(latest, targetPlatforms);
         entry.setRating(calculateRating(extension, stats));
-        entry.setRelevance(calculateRelevance(extension, latest, stats, entry));
+        entry.setRelevance(calculateRelevance(extension, latest, stats));
 
         return entry;
     }
@@ -77,20 +77,68 @@ public class RelevanceService {
         return (averageRating * reviews + stats.averageReviewRating * padding) / (reviews + padding);
     }
 
-    private double calculateRelevance(
-            Extension extension,
-            ExtensionVersion latest,
-            SearchStats stats,
-            ExtensionSearch entry
-    ) {
+    /**
+     * What a relevance score is made of, term by term.
+     * <p>
+     * Returned by {@link #explainRelevance} so that the admin dashboard can show why a result sits where
+     * it does. It is the same object {@link #calculateRelevance} reduces to a single number, rather than a
+     * reconstruction of it: a debugging view that computes the score its own way is a view of something
+     * other than what the index holds, and the first thing it would hide is the two of them disagreeing.
+     *
+     * @param rating           the rating term, already weighted and clamped
+     * @param downloads        the downloads term, already weighted and clamped
+     * @param timestamp        the recency term, already weighted and clamped
+     * @param unverified       whether the unverified-publisher factor was applied
+     * @param unverifiedFactor what that factor is, which is configurable and so not to be assumed
+     * @param deprecated       whether the deprecated factor was applied
+     * @param deprecatedFactor what that factor is, likewise
+     * @param total            the relevance actually stored on the indexed document
+     */
+    public record RelevanceBreakdown(
+            double rating,
+            double downloads,
+            double timestamp,
+            boolean unverified,
+            double unverifiedFactor,
+            boolean deprecated,
+            double deprecatedFactor,
+            double total
+    ) {}
+
+    /**
+     * The relevance of an extension, broken into the terms it is the sum of.
+     * <p>
+     * Recomputed against the statistics of the moment rather than read off the document, so that a
+     * {@code total} differing from the stored value tells you the index is stale - which is a thing worth
+     * being able to see.
+     */
+    public @Nullable RelevanceBreakdown explainRelevance(Extension extension, SearchStats stats) {
+        var latest = repositories.findLatestVersion(extension, null, false, true);
+        if (latest == null) {
+            return null;
+        }
+
+        return breakdown(extension, latest, stats);
+    }
+
+    private double calculateRelevance(Extension extension, ExtensionVersion latest, SearchStats stats) {
+        return breakdown(extension, latest, stats).total();
+    }
+
+    private RelevanceBreakdown breakdown(Extension extension, ExtensionVersion latest, SearchStats stats) {
         var extensionId = NamingUtil.toExtensionId(extension);
         logger.debug(">> [{}] CALCULATE RELEVANCE", extensionId);
         var ratingValue = calculateRating(extension, stats) / 5.0;
-        var downloadsValue = entry.getDownloadCount() / stats.downloadRef;
+        // Log scale: download counts span several orders of magnitude, so measuring one against the
+        // largest in the registry leaves everything outside the top few percent indistinguishable
+        // from nothing. See EclipseFdn/open-vsx.org#13014.
+        var downloadsValue = Math.log1p(extension.getDownloadCount()) / stats.downloadRefLog;
         var timestamp = latest.getTimestamp();
         var timestampValue = Duration.between(stats.oldest, timestamp).toSeconds() / stats.timestampRef;
-        var relevance = ratingRelevance * limit(ratingValue) + downloadsRelevance * limit(downloadsValue)
-                + timestampRelevance * limit(timestampValue);
+        var ratingTerm = ratingRelevance * limit(ratingValue);
+        var downloadsTerm = downloadsRelevance * limit(downloadsValue);
+        var timestampTerm = timestampRelevance * limit(timestampValue);
+        var relevance = ratingTerm + downloadsTerm + timestampTerm;
         logger.debug(
                 "[{}] RELEVANCE: {} = {} * {} + {} * {} + {} * {}",
                 extensionId,
@@ -104,20 +152,22 @@ public class RelevanceService {
         logger.debug("[{}] VALUES: {} | {} | {}", extensionId, ratingValue, downloadsValue, timestampValue);
 
         // Reduce the relevance value of unverified extensions
-        if (!repositories.isVerifiedPublisher(latest)) {
+        var unverified = !repositories.isVerifiedPublisher(latest);
+        if (unverified) {
             relevance *= unverifiedRelevance;
             logger.debug("[{}] UNVERIFIED: {} * {}", extensionId, relevance, unverifiedRelevance);
         }
 
         // Reduce the relevance value of deprecated extensions
-        if (extension.isDeprecated()) {
+        var deprecated = extension.isDeprecated();
+        if (deprecated) {
             relevance *= deprecatedRelevance;
             logger.debug("[{}] DEPRECATED: {} * {}", extensionId, relevance, deprecatedRelevance);
         }
 
         if (Double.isNaN(relevance) || Double.isInfinite(relevance)) {
             logger.debug("[{}] INVALID RELEVANCE", extensionId);
-            var message = "Invalid relevance for entry " + NamingUtil.toExtensionId(entry);
+            var message = "Invalid relevance for entry " + extensionId;
             try {
                 message += " " + jsonMapper.writeValueAsString(stats);
             } catch (JacksonException exc) {
@@ -128,7 +178,15 @@ public class RelevanceService {
         }
 
         logger.debug("<< [{}] CALCULATE RELEVANCE: {}", extensionId, relevance);
-        return relevance;
+        return new RelevanceBreakdown(
+                ratingTerm,
+                downloadsTerm,
+                timestampTerm,
+                unverified,
+                unverifiedRelevance,
+                deprecated,
+                deprecatedRelevance,
+                relevance);
     }
 
     private double limit(double value) {
@@ -137,6 +195,14 @@ public class RelevanceService {
 
     public static class SearchStats {
         protected final double downloadRef;
+
+        /**
+         * The download reference on the scale the relevance formula compares against. Kept alongside the
+         * raw maximum rather than replacing it: the raw one is what appears in the diagnostics written
+         * when a relevance comes out invalid, where a log would say much less about the registry.
+         */
+        protected final double downloadRefLog;
+
         protected final double timestampRef;
         protected final LocalDateTime oldest;
         protected final double averageReviewRating;
@@ -145,6 +211,7 @@ public class RelevanceService {
             var now = TimeUtil.getCurrentUTC();
             var oldestTimestamp = repositories.getOldestExtensionTimestamp();
             this.downloadRef = Math.max(repositories.getMaxExtensionDownloadCount(), 1);
+            this.downloadRefLog = Math.log1p(this.downloadRef);
             this.oldest = oldestTimestamp == null ? now : oldestTimestamp;
             this.timestampRef = Duration.between(this.oldest, now).toSeconds() + 60;
             this.averageReviewRating = repositories.getAverageReviewRating();

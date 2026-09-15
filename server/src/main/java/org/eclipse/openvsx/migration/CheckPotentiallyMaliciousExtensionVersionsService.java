@@ -33,9 +33,9 @@ public class CheckPotentiallyMaliciousExtensionVersionsService {
 
     @Transactional
     public void checkPotentiallyMaliciousExtensionVersion(ExtensionVersion extVersion, TempFile extensionFile) {
+        boolean isMalicious;
         try (var extProcessor = new ExtensionProcessor(extensionFile)) {
-            boolean isMalicious = extProcessor.isPotentiallyMalicious();
-            extVersion.setPotentiallyMalicious(isMalicious);
+            isMalicious = extProcessor.isPotentiallyMalicious();
             if (isMalicious) {
                 logger.atWarn()
                         .setMessage("Extension version is potentially malicious: {}")
@@ -43,6 +43,14 @@ public class CheckPotentiallyMaliciousExtensionVersionsService {
                         .log();
             }
         }
-        entityManager.merge(extVersion);
+
+        // find-then-set rather than merge: merge writes every column of the detached copy, so
+        // anything that changed on the row since it was loaded gets reverted. Only the field
+        // below is this method's to change - see #989.
+        var managedVersion = entityManager.find(ExtensionVersion.class, extVersion.getId());
+        if (managedVersion == null) {
+            return;
+        }
+        managedVersion.setPotentiallyMalicious(isMalicious);
     }
 }

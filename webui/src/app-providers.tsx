@@ -33,7 +33,7 @@ interface AppProvidersProps {
  * bottom in one place. Ordered outer→inner; keyboard shortcuts and search wrap
  * every route (admin included). Router, theme, and Helmet stay at the app entry —
  * they're supplied by whoever mounts the library. Lower-tier, feature-scoped
- * providers (e.g. extension tint) stay with their feature.
+ * providers (e.g. the navbar chrome) stay with their feature.
  */
 export const AppProviders: FunctionComponent<AppProvidersProps> = ({
     mainContext,

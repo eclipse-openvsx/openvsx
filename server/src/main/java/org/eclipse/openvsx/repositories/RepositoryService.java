@@ -88,7 +88,7 @@ public class RepositoryService {
     private final NamespaceMembershipRepository membershipRepo;
     private final PersonalAccessTokenRepository personalAccessTokenRepo;
     private final PersistedLogRepository persistedLogRepo;
-    private final DownloadCountProcessedItemRepository downloadCountRepo;
+    private final DownloadIngestionRepository downloadIngestionRepo;
     private final ExtensionJooqRepository extensionJooqRepo;
     private final ExtensionVersionJooqRepository extensionVersionJooqRepo;
     private final FileResourceJooqRepository fileResourceJooqRepo;
@@ -126,7 +126,7 @@ public class RepositoryService {
             NamespaceMembershipRepository membershipRepo,
             PersonalAccessTokenRepository personalAccessTokenRepo,
             PersistedLogRepository persistedLogRepo,
-            DownloadCountProcessedItemRepository downloadCountRepo,
+            DownloadIngestionRepository downloadIngestionRepo,
             ExtensionJooqRepository extensionJooqRepo,
             ExtensionVersionJooqRepository extensionVersionJooqRepo,
             FileResourceJooqRepository fileResourceJooqRepo,
@@ -163,7 +163,7 @@ public class RepositoryService {
         this.membershipRepo = membershipRepo;
         this.personalAccessTokenRepo = personalAccessTokenRepo;
         this.persistedLogRepo = persistedLogRepo;
-        this.downloadCountRepo = downloadCountRepo;
+        this.downloadIngestionRepo = downloadIngestionRepo;
         this.extensionJooqRepo = extensionJooqRepo;
         this.extensionVersionJooqRepo = extensionVersionJooqRepo;
         this.fileResourceJooqRepo = fileResourceJooqRepo;
@@ -622,18 +622,22 @@ public class RepositoryService {
         return persistedLogRepo.countByUser(user);
     }
 
-    public List<String> findAllSucceededDownloadCountProcessedItemsByStorageTypeAndNameIn(
+    public List<String> findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(
             String storageType,
             List<String> names
     ) {
-        return downloadCountRepo.findAllSucceededDownloadCountProcessedItemsByStorageTypeAndNameIn(storageType, names);
+        return downloadIngestionRepo.findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(storageType, names);
     }
 
-    public List<String> findAllFailedDownloadCountProcessedItemsByStorageTypeAndNameIn(
+    public List<String> findAllFailedDownloadIngestionsByStorageTypeAndNameIn(
             String storageType,
             List<String> names
     ) {
-        return downloadCountRepo.findAllFailedDownloadCountProcessedItemsByStorageTypeAndNameIn(storageType, names);
+        return downloadIngestionRepo.findAllFailedDownloadIngestionsByStorageTypeAndNameIn(storageType, names);
+    }
+
+    public long countFailedDownloadIngestions() {
+        return downloadIngestionRepo.countFailedDownloadIngestions();
     }
 
     public List<Extension> findActiveExtensionsByPublicId(Collection<String> publicIds, String... namespacesToExclude) {

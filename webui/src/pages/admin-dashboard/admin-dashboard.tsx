@@ -8,16 +8,19 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, lazy, Suspense } from 'react';
+import { FunctionComponent, ReactNode, useContext, useMemo, lazy, Suspense } from 'react';
 import { Box, Container, CssBaseline, Typography, IconButton } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { Route, Routes, useNavigate } from 'react-router';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
+import StorageIcon from '@mui/icons-material/Storage';
+import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
 import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
@@ -27,10 +30,11 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
 import { LoginComponent } from '../../default/login';
 import { MainContext } from '../../context';
+import { createRoute } from '../../utils';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { AdminSidepanel } from './admin-sidepanel';
 import { AdminHeader } from './admin-header';
-import { isNavGroup, NavEntry } from './nav-types';
+import { AdminPage, isNavGroup, NavEntry, NavGroup, RouteEntry } from './nav-types';
 
 import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
@@ -45,7 +49,12 @@ import { Welcome } from './welcome';
 const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
 const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 const DataConsistency = lazy(() => import('./consistency/consistency').then(m => ({ default: m.DataConsistency })));
+const CachesAdmin = lazy(() => import('./caches/caches').then(m => ({ default: m.CachesAdmin })));
 const SearchIndexAdmin = lazy(() => import('./search-index/search-index').then(m => ({ default: m.SearchIndexAdmin })));
+const SearchExplainAdmin = lazy(() =>
+    import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
+);
+const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => ({ default: m.StatisticsAdmin })));
 
 const navConfig: NavEntry[] = [
     {
@@ -110,26 +119,87 @@ const navConfig: NavEntry[] = [
         description: 'Check the database for known inconsistencies and fix them'
     },
     {
+        path: AdminDashboardRoutes.CACHES,
+        name: 'Caches',
+        icon: <StorageIcon />,
+        description: 'Inspect the application caches and clear them'
+    },
+    {
         path: AdminDashboardRoutes.SEARCH_INDEX,
         name: 'Search Index',
         icon: <ManageSearchIcon />,
         description: 'Inspect the search index and rebuild it'
+    },
+    {
+        path: AdminDashboardRoutes.SEARCH_EXPLAIN,
+        name: 'Search Explain',
+        icon: <TroubleshootIcon />,
+        description: "Run a search and see what each result's score is made of"
+    },
+    {
+        path: AdminDashboardRoutes.STATISTICS,
+        name: 'Statistics',
+        icon: <AssessmentIcon />,
+        description: 'Registry statistics per month, with a CSV export'
     }
 ];
 
-const routeNames: { [key: string]: string } = {
-    [AdminDashboardRoutes.MAIN]: 'Admin Dashboard',
-    ...navConfig.reduce<{ [key: string]: string }>((acc, entry) => {
-        if (isNavGroup(entry)) {
-            entry.children.forEach(child => {
-                acc[child.path] = child.name;
-            });
-        } else {
-            acc[entry.path] = entry.name;
+/** First path segment of every built-in page, so a contributed page cannot shadow one. */
+const builtInSegments = new Set(
+    navConfig
+        .flatMap(entry => (isNavGroup(entry) ? entry.children : [entry]))
+        .map(entry => entry.path.slice(AdminDashboardRoutes.MAIN.length + 1).split('/')[0])
+);
+
+/**
+ * Contributed paths come from a consumer, so they are normalized before anything derives a route or a
+ * nav link from them. A leading slash would leave the shadowing check below inspecting an empty first
+ * segment - so '/customers' would pass it and sit in the nav next to the built-in page it names - and
+ * createRoute would join it into '/admin-dashboard//customers'.
+ */
+const normalizePagePath = (path: string) => path.replace(/^\/+/, '').replace(/\/+$/, '');
+
+const toRouteEntry = (page: AdminPage): RouteEntry => ({
+    path: createRoute([AdminDashboardRoutes.ROOT, page.path]),
+    name: page.name,
+    icon: page.icon,
+    description: page.description
+});
+
+/** Appends contributed pages, merging each category into a group of that name if one already exists. */
+function withContributedPages(pages: AdminPage[]): NavEntry[] {
+    const entries = navConfig.map(entry => (isNavGroup(entry) ? { ...entry, children: [...entry.children] } : entry));
+    for (const page of pages) {
+        const entry = toRouteEntry(page);
+        if (!page.category) {
+            entries.push(entry);
+            continue;
         }
-        return acc;
-    }, {})
-};
+        const group = entries.find((e): e is NavGroup => isNavGroup(e) && e.name === page.category!.name);
+        if (group) {
+            group.children.push(entry);
+        } else {
+            entries.push({ name: page.category.name, icon: page.category.icon, children: [entry] });
+        }
+    }
+    return entries;
+}
+
+function buildRouteNames(items: NavEntry[]): { [key: string]: string } {
+    return {
+        [AdminDashboardRoutes.MAIN]: 'Admin Dashboard',
+        ...items.reduce<{ [key: string]: string }>((acc, entry) => {
+            if (isNavGroup(entry)) {
+                entry.children.forEach(child => {
+                    acc[child.path] = child.name;
+                });
+            } else {
+                acc[entry.path] = entry.name;
+            }
+            return acc;
+        }, {})
+    };
+}
 
 const ScrollableContent = styled(Box)(({ theme }) => ({
     flex: 1,
@@ -164,7 +234,18 @@ const Message: FunctionComponent<{ message: string }> = ({ message }) => {
 };
 
 export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
-    const { user, loginProviders } = useContext(MainContext);
+    const { user, loginProviders, pageSettings } = useContext(MainContext);
+
+    const adminPages = pageSettings.elements.adminPages;
+    const contributed = useMemo(
+        () =>
+            (adminPages ?? [])
+                .map(page => ({ ...page, path: normalizePagePath(page.path) }))
+                .filter(page => page.path.length > 0 && !builtInSegments.has(page.path.split('/')[0])),
+        [adminPages]
+    );
+    const navItems = useMemo(() => withContributedPages(contributed), [contributed]);
+    const routeNames = useMemo(() => buildRouteNames(navItems), [navItems]);
 
     const navigate = useNavigate();
     const toMainPage = () => navigate('/');
@@ -174,7 +255,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
         content = (
             <Box sx={{ display: 'flex', width: '100%', height: '100%' }}>
                 <CssBaseline />
-                <AdminSidepanel items={navConfig} />
+                <AdminSidepanel items={navItems} />
                 <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                     <AdminHeader routeNames={routeNames} onClose={toMainPage} />
                     <ScrollableContent>
@@ -191,13 +272,20 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/tiers' element={<Tiers />} />
                                     <Route path='/customers' element={<Customers />} />
                                     <Route path='/customers/:customer' element={<CustomerDetails />} />
+                                    <Route path='/statistics' element={<StatisticsAdmin />} />
                                     <Route path='/usage' element={<UsageStatsView />} />
                                     <Route path='/usage/:customer' element={<UsageStatsView />} />
                                     <Route path='/settings' element={<RuntimeSettingsPage />} />
                                     <Route path='/logs' element={<Logs />} />
                                     <Route path='/consistency' element={<DataConsistency />} />
+                                    <Route path='/caches' element={<CachesAdmin />} />
                                     <Route path='/search-index' element={<SearchIndexAdmin />} />
-                                    <Route path='*' element={<Welcome items={navConfig} />} />
+                                    <Route path='/search-explain' element={<SearchExplainAdmin />} />
+                                    {/* Splat so a contributed page can render nested routes; it also matches the bare path. */}
+                                    {contributed.map(page => (
+                                        <Route key={page.path} path={`${page.path}/*`} element={page.element} />
+                                    ))}
+                                    <Route path='*' element={<Welcome items={navItems} />} />
                                 </Routes>
                             </Suspense>
                         </Container>

@@ -41,7 +41,7 @@ export async function unpublish(options: UnpublishOptions = {}): Promise<void> {
     const extensionId = options.extensionId ?? await readExtensionId();
     const match = matchExtensionId(extensionId);
     if (!match) {
-        throw new Error('The extension identifier must have the form `namespace.extension`.');
+        throw new Error('The extension identifier must have the form `namespace.extension` or `namespace/extension`.');
     }
 
     const [, namespace, extension] = match;

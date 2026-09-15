@@ -23,7 +23,7 @@ export async function getExtension(options: GetOptions): Promise<void> {
     const registry = new Registry(options);
     const match = matchExtensionId(options.extensionId);
     if (!match) {
-        throw new Error('The extension identifier must have the form `namespace.extension`.');
+        throw new Error('The extension identifier must have the form `namespace.extension` or `namespace/extension`.');
     }
 
     const extension = await registry.getMetadata(match[1], match[2], options.target);

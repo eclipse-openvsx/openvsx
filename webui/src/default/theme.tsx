@@ -372,6 +372,15 @@ export default function createDefaultTheme(themeType: 'light' | 'dark'): Theme {
                 }
             },
             MuiPopover: {
+                // no body scroll lock: toggling it jumps the scroll position on mobile and
+                // shifts the pinned chrome; dialogs (MuiModal directly) keep theirs
+                defaultProps: { disableScrollLock: true },
+                styleOverrides: {
+                    paper: ({ theme }) => floatingPaper(theme)
+                }
+            },
+            // Autocomplete popups (e.g. the publisher filter) render their own paper, not a popover.
+            MuiAutocomplete: {
                 styleOverrides: {
                     paper: ({ theme }) => floatingPaper(theme)
                 }

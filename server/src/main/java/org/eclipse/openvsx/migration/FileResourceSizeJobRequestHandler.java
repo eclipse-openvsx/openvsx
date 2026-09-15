@@ -73,7 +73,7 @@ public class FileResourceSizeJobRequestHandler implements JobRequestHandler<Migr
 
             try {
                 resource.setSize(migrations.getFileSize(resource));
-                migrations.updateResource(resource);
+                migrations.updateResourceSize(resource);
             } catch (FileNotFoundInStorageException e) {
                 // The object backing this resource is confirmed gone, not just temporarily
                 // unreachable -- there's nothing further this job can do about that

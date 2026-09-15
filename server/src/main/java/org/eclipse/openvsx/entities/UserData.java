@@ -197,6 +197,9 @@ public class UserData implements Serializable {
         this.eclipseToken = eclipseToken;
     }
 
+    // tokens and memberships are deliberately excluded below: each of their elements holds this
+    // user back (PersonalAccessToken#user, NamespaceMembership#user), so hashing them here would
+    // recurse into this user's hashCode again, unconditionally.
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -215,8 +218,6 @@ public class UserData implements Serializable {
                 && Objects.equals(provider, userData.provider)
                 && Objects.equals(authId, userData.authId)
                 && Objects.equals(providerUrl, userData.providerUrl)
-                && Objects.equals(tokens, userData.tokens)
-                && Objects.equals(memberships, userData.memberships)
                 && Objects.equals(eclipsePersonId, userData.eclipsePersonId)
                 && Objects.equals(eclipseToken, userData.eclipseToken);
     }
@@ -233,8 +234,6 @@ public class UserData implements Serializable {
                 provider,
                 authId,
                 providerUrl,
-                tokens,
-                memberships,
                 eclipsePersonId,
                 eclipseToken);
     }

@@ -184,6 +184,9 @@ public class Namespace implements Serializable {
         return details;
     }
 
+    // extensions and memberships are deliberately excluded below: each of their elements holds
+    // this namespace back (Extension#namespace, NamespaceMembership#namespace), so hashing them
+    // here would recurse into this namespace's hashCode again, unconditionally.
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -202,9 +205,7 @@ public class Namespace implements Serializable {
                 && Objects.equals(supportLink, namespace.supportLink)
                 && Objects.equals(logoName, namespace.logoName)
                 && Objects.equals(logoStorageType, namespace.logoStorageType)
-                && Objects.equals(socialLinks, namespace.socialLinks)
-                && Objects.equals(extensions, namespace.extensions)
-                && Objects.equals(memberships, namespace.memberships);
+                && Objects.equals(socialLinks, namespace.socialLinks);
     }
 
     @Override
@@ -219,8 +220,6 @@ public class Namespace implements Serializable {
                 supportLink,
                 logoName,
                 logoStorageType,
-                socialLinks,
-                extensions,
-                memberships);
+                socialLinks);
     }
 }

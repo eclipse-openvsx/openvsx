@@ -125,6 +125,11 @@ bucket4j:
   enabled: false
 
 ovsx:
+  caching:
+    statistics:
+      # On for development, off everywhere else: the counting costs something on every cache lookup,
+      # but locally the admin dashboard's Caches page is more useful than that cost is expensive.
+      enabled: true
   databasesearch:
     enabled: true
   elasticsearch:
@@ -141,8 +146,12 @@ ovsx:
     key-pair: create # create, renew, delete, 'undefined'
   registry:
     version: 'v1.2.0-dev'
+  # Set this in any deployment reachable from the open web, or the URLs in a response are derived
+  # from headers the client sends. See doc/configuration.md, Server URL.
+  #  server:
+  #    url: https://openvsx.example
   storage:
-    # an example config using minio (use docker compose --profile minio up)
+    # an example config using silo (use docker compose --profile silo up)
     # and login to localhost:9000 and create a bucket with name test
 #    aws:
 #      access-key-id: "minioadmin"
@@ -153,6 +162,21 @@ ovsx:
 #      path-style-access: true
     local:
       directory: /tmp/ovsx
+  analytics:
+    settled-cache:
+      # No caching of settled ranges locally. Nothing invalidates that cache, so with the default
+      # hour a re-ingested or backfilled day stays invisible until it expires or the server is
+      # restarted - which is exactly what you are testing here.
+      ttl: PT0S
+    # Off by default, matching every other deployment. Set this to true and start the `analytics`
+    # docker-compose profile together to work on download analytics locally; enabling it without
+    # that database reachable fails startup rather than degrading quietly.
+    enabled: false
+    # the postgres-timeseries service of docker-compose.yml
+    datasource:
+      url: jdbc:postgresql://localhost:5433/openvsx_timeseries
+      username: openvsx
+      password: openvsx
   access-token:
     prefix: dev_ovsx # use a token prefix that clearly indicates that it's for development; the kind of
                      # token (at_, tp_) is appended by the code, so no trailing separator here

@@ -29,9 +29,41 @@ services:
         max-file: "3"
     ports:
       - '5432:5432'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openvsx"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     profiles:
       - db
       - debug
+
+  postgres-timeseries:
+    # download analytics only: PostgreSQL plus the timescaledb extension, kept apart from the
+    # registry database so the registry never needs the extension
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      - POSTGRES_USER=openvsx
+      - POSTGRES_PASSWORD=openvsx
+      - POSTGRES_DB=openvsx_timeseries
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres-timeseries-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openvsx -d openvsx_timeseries"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Its own profile, not `db` or `debug`: download analytics are off by default, so the ordinary
+    # local setup should not pay for a second database it will never connect to. Select `analytics`
+    # alongside the rest, and set ovsx.analytics.enabled, when working on them.
+    profiles:
+      - analytics
 
   elasticsearch:
     image: elasticsearch:9.2.8
@@ -50,7 +82,9 @@ services:
         soft: -1
         hard: -1
     healthcheck:
-      test: curl -s http://elasticsearch01:9200 >/dev/null || exit 1
+      # localhost, not the service name: there is no `elasticsearch01` here, so this never resolved
+      # and the container sat "starting" for the full 50 retries while the cluster was green.
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 50
@@ -59,14 +93,20 @@ services:
       - es
       - debug
 
+  # Kibana has to match the Elasticsearch above: it refuses to talk to a cluster on a different
+  # major version, so the two versions move together.
   kibana:
-    image: kibana:8.7.1
+    image: kibana:9.2.8
     ports:
       - "5601:5601"
     environment:
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      # ELASTICSEARCH_HOSTS, not ELASTICSEARCH_URL: `elasticsearch.url` was removed in Kibana 7 and
+      # is not a setting any more, so the old name was quietly doing nothing.
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
+        required: false
     profiles:
       - kibana
 
@@ -192,11 +232,33 @@ services:
       - ./server:/app
     ports:
       - 8080:8080
+    # `required: false` states the dependency without claiming ownership: postgres and elasticsearch
+    # stay in their own profiles, and are waited on when the selected profiles include them. Without
+    # it, selecting a profile that holds a service but not its dependency is a hard error - "service
+    # X depends on undefined service Y: invalid compose project" - which is what `--profile openvsx`,
+    # `--profile frontend`, `--profile commandline` and `--profile kibana` all used to be.
     depends_on:
-      - postgres
-      - elasticsearch
+      postgres:
+        condition: service_healthy
+        required: false
+      postgres-timeseries:
+        condition: service_healthy
+        required: false
+      elasticsearch:
+        condition: service_healthy
+        required: false
     healthcheck:
-      test: "curl --fail --silent localhost:8081/actuator/health | grep UP || exit 1"
+      # eclipse-temurin ships no curl, wget or nc, so the previous curl-based check could only ever
+      # exit 127. bash is present, and its /dev/tcp is enough to ask the actuator the same question.
+      # bash explicitly, not CMD-SHELL: that runs /bin/sh, which on this image is dash, and dash has
+      # no /dev/tcp - it fails with "cannot create /dev/tcp/...: Directory nonexistent".
+      # Single-quoted so the \r\n reach bash as escapes for printf, rather than being turned into
+      # real control characters by YAML on the way.
+      test:
+        - CMD
+        - bash
+        - -c
+        - 'exec 3<>/dev/tcp/localhost/8081 && printf "GET /actuator/health HTTP/1.0\r\n\r\n" >&3 && grep -q UP <&3'
       interval: 10s
       timeout: 5s
       retries: 50
@@ -215,7 +277,9 @@ services:
     ports:
       - 3000:3000
     depends_on:
-      - server
+      server:
+        condition: service_started
+        required: false
     profiles:
       - openvsx
       - frontend
@@ -227,42 +291,51 @@ services:
     volumes:
       - ./cli:/app
     depends_on:
-      - server
+      server:
+        condition: service_started
+        required: false
     environment:
       - OVSX_REGISTRY_URL=http://server:8080
     profiles:
       - openvsx
       - commandline
 
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  # Silo rather than MinIO: minio/minio is gone from Docker Hub, so the old image cannot be pulled
+  # any more. Silo is a MinIO fork and a drop-in for everything used here - the same entrypoint
+  # contract, the same minioadmin defaults, the same bundled mc, and it still answers the MinIO
+  # health path as well as its own.
+  silo:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     command: server --console-address ":9001" /data
     ports:
       - "9000:9000"
       - "9001:9001"
     healthcheck:
-      test: curl -s http://localhost:9000/minio/health/live >/dev/null || exit 1
+      test: curl -s http://localhost:9000/silo/health/live >/dev/null || exit 1
       interval: 10s
       timeout: 5s
       retries: 50
       start_period: 5s
     profiles:
-      - minio
+      - silo
 
-  # No persistent volume on `minio` above, so its bucket and access policy are wiped every time
+  # No persistent volume on `silo` above, so its bucket and access policy are wiped every time
   # the container is recreated (not just re-started). Re-creates both on every `up` instead of
   # requiring a manual `mc` setup each time - `mc` is bundled in the same image, so this reuses
-  # it rather than pulling minio/mc as a separate image.
-  minio-init:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  # it rather than pulling a client as a separate image.
+  silo-init:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     depends_on:
-      minio:
+      silo:
         condition: service_healthy
     entrypoint: >
       sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc alias set local http://silo:9000 minioadmin minioadmin &&
       mc mb --ignore-existing local/test &&
       mc anonymous set download local/test
       "
     profiles:
-      - minio
+      - silo
+
+volumes:
+  postgres-timeseries-data:

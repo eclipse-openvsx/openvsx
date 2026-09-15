@@ -1,6 +1,6 @@
 {
     "name": "ovsx",
-    "version": "1.2.0-dev.0",
+    "version": "1.2.0",
     "description": "Command line interface for Eclipse Open VSX",
     "keywords": [
         "cli",
@@ -62,7 +62,7 @@
         "limiter": "^2.1.0",
         "rimraf": "^6.0.1",
         "typescript": "^5.6.3",
-        "vitest": "^4.1.10",
+        "vitest": "^4.1.11",
         "yazl": "^3.3.1"
     },
     "scripts": {

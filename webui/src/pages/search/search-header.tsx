@@ -16,6 +16,7 @@ import { Box, IconButton, Select, MenuItem, Typography, SelectChangeEvent } from
 import { SortBy, SortOrder } from '../../extension-registry-types';
 import { ExtensionCategory } from '../../extension-registry-types';
 import { Theme } from '@mui/material/styles';
+import { compactControl } from '../../components/page-primitives';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
@@ -81,16 +82,7 @@ export const SearchHeader: FunctionComponent<SearchHeaderProps> = props => {
                     onChange={handleSortByChange}
                     size='small'
                     inputProps={{ 'aria-label': 'Sort by' }}
-                    sx={{
-                        fontSize: '0.8125rem',
-                        fontWeight: 500,
-                        color: 'text.primary',
-                        height: '1.875rem',
-                        bgcolor: 'background.paper',
-                        borderRadius: 1,
-                        '& .MuiSelect-select': { py: '0.25rem', pl: '0.625rem' },
-                        '& .MuiSelect-icon': { color: 'text.disabled', fontSize: '1.125rem' }
-                    }}>
+                    sx={compactControl}>
                     <MenuItem value='relevance'>Relevance</MenuItem>
                     <MenuItem value='timestamp'>Date</MenuItem>
                     <MenuItem value='downloadCount'>Downloads</MenuItem>

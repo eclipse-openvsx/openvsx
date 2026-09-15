@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 import static org.eclipse.openvsx.util.TargetPlatform.*;
@@ -47,6 +48,7 @@ public class QueryParamJson {
     @Schema(description = "Whether to include all versions of an extension, ignored if extensionVersion is specified")
     private boolean includeAllVersions;
 
+    @Pattern(regexp = NAMES_PARAM_REGEX, message = "field must be a supported target platform")
     @Schema(
         description = "Name of the target platform",
         allowableValues = {

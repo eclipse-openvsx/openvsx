@@ -105,7 +105,7 @@ describe('unpublish', () => {
     it('rejects a malformed extension identifier', async () => {
         const registry = await givenRegistry();
         await expect(unpublish({ extensionId: 'not-an-id', pat: 'the.pat', force: true, registryUrl: registry.url }))
-            .rejects.toThrow('The extension identifier must have the form `namespace.extension`.');
+            .rejects.toThrow('The extension identifier must have the form `namespace.extension` or `namespace/extension`.');
         expect(registry.requests).toHaveLength(0);
     });
 

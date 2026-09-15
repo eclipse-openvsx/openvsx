@@ -17,8 +17,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { AddressInfo } from 'net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createVSIX } from '@vscode/vsce';
 import { publish } from '../../src/publish';
 import { buildZip } from './support/zip';
+
+// Only the tests below that publish from a source directory reach this; every other one passes an
+// already-packaged file and never packages anything.
+vi.mock('@vscode/vsce', () => ({ createVSIX: vi.fn() }));
 
 interface RecordedRequest {
     pathname: string;
@@ -136,6 +141,36 @@ describe('publish', () => {
         tmpFiles.push(file);
         return file;
     }
+
+    // The packaging options ovsx hands to vsce are the whole of its packaging behaviour, so the ones a
+    // caller sets have to arrive there intact - `--follow-symlinks` above all, which is what makes the
+    // file walk work for a symlinked node_modules such as pnpm's.
+    it('forwards the packaging options to vsce', async () => {
+        const registry = await givenRegistry({ body: { version: '1.2.0' } });
+        vi.mocked(createVSIX).mockImplementation(async (options) => {
+            fs.writeFileSync(options!.packagePath!, await buildZip({
+                'extension/package.json': Buffer.from(JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' }))
+            }));
+        });
+
+        const [result] = await publish({
+            packagePath: ['.'],
+            pat: 'the.pat',
+            registryUrl: registry.url,
+            yarn: true,
+            followSymlinks: true,
+            dependencies: false
+        });
+
+        expect(result.status).toBe('fulfilled');
+        expect(vi.mocked(createVSIX)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(createVSIX).mock.calls[0][0]).toMatchObject({
+            cwd: '.',
+            useYarn: true,
+            followSymlinks: true,
+            dependencies: false
+        });
+    });
 
     it('publishes a package that is within the registry size limit', async () => {
         const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 1024 } });

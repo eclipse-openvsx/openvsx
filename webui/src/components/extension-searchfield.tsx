@@ -17,7 +17,7 @@ import { alpha, styled } from '@mui/material/styles';
 import { MONO_FONT } from '../default/theme';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Close';
-import { focusRing } from './page-primitives';
+import { focusRing, MonoSlash } from './page-primitives';
 
 interface ExtensionSearchfieldProps {
     onSearchChanged: (s: string) => void;
@@ -47,15 +47,6 @@ const SearchWrap = styled(Box, {
     backdropFilter: 'blur(2px)',
     transition: 'border-color 0.18s, box-shadow 0.18s',
     '&:focus-within': focusRing(theme)
-}));
-
-const MonoSlash = styled('span')(({ theme }) => ({
-    fontFamily: MONO_FONT,
-    color: theme.palette.secondary.light,
-    fontSize: '1.0625rem',
-    lineHeight: 1,
-    flexShrink: 0,
-    userSelect: 'none'
 }));
 
 const SearchInput = styled(InputBase)(({ theme }) => ({

@@ -24,6 +24,7 @@ import { Extension, ExtensionReference, VERSION_ALIASES } from '../../extension-
 import { ExtensionListRoutes } from '../extension-list/extension-list-routes';
 import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { ExtensionDetailDownloadsMenu } from './extension-detail-downloads-menu';
+import { WeeklyDownloads } from './weekly-downloads';
 
 export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewProps> = props => {
     const [loading, setLoading] = useState(true);
@@ -350,6 +351,7 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
                     gap: 2,
                     flexDirection: 'column'
                 }}>
+                <WeeklyDownloads extension={extension} />
                 <Box sx={resourcesGroup}>
                     <Box>{renderVersionSection()}</Box>
                     {otherAliases.length || extension.versionAlias.length ? (

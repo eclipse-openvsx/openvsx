@@ -18,6 +18,8 @@ export interface MainContext {
     pageSettings: PageSettings;
     handleError: (err: unknown, options?: { onClose?: () => void }) => void;
     user?: UserData;
+    /** The initial user fetch is still in flight, so `user` being undefined doesn't yet mean logged out. */
+    userLoading: boolean;
     updateUser: () => void;
     loginProviders?: Record<string, string>;
     version?: RegistryVersion;

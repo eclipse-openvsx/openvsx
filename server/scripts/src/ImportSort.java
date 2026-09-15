@@ -12,7 +12,8 @@
  *****************************************************************************/
 
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS com.diffplug.spotless:spotless-lib:3.3.1
+//JAVA 25+
+//DEPS com.diffplug.spotless:spotless-lib:4.10.2
 
 import com.diffplug.spotless.java.ImportOrderStep;
 

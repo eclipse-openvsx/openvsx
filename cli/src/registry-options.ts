@@ -33,4 +33,12 @@ export interface RegistryOptions {
      * Maximal request body size for publishing.
      */
     maxPublishSize?: number;
+    /**
+     * How long to wait, in milliseconds, for a request to make progress before giving up.
+     *
+     * This is an inactivity timeout rather than a deadline: any byte sent or received resets it, so
+     * a large package downloading slowly is not cut off, while a connection that has gone quiet does
+     * not hold the command open indefinitely. Zero disables it.
+     */
+    timeout?: number;
 }

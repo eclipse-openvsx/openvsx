@@ -11,7 +11,25 @@
 import { ComponentType, ReactNode } from 'react';
 import { SxProps, Theme } from '@mui/material/styles';
 import { Extension, NamespaceDetails, SortBy } from './extension-registry-types';
+import { AdminPage } from './pages/admin-dashboard/nav-types';
 import { Cookie } from './utils';
+
+/** One entry contributed to the account menu, rendered by the menu's own styling. */
+export interface UserMenuEntryProps {
+    /** Route the entry navigates to; the menu closes on click. */
+    to: string;
+    /** Icon component (e.g. a MUI icon), sized and coloured by the menu. */
+    icon: ComponentType<{ sx?: SxProps<Theme> }>;
+    /** The entry's label. */
+    children: ReactNode;
+}
+
+export interface UserMenuContentProps {
+    /** Dismisses the menu. `MenuEntry` already does this on click. */
+    close: () => void;
+    /** Renders one entry styled to match the menu it appears in. */
+    MenuEntry: ComponentType<UserMenuEntryProps>;
+}
 
 export interface FooterLink {
     label: ReactNode;
@@ -116,6 +134,13 @@ export interface PageSettings {
         toolbarContent?: ComponentType;
         defaultMenuContent?: ComponentType;
         mobileMenuContent?: ComponentType;
+        /**
+         * Extra entries for the logged-in account menu, rendered above the admin entry. The same
+         * component is used by the desktop and the mobile menu, which style their entries
+         * differently, so build entries with the supplied {@link UserMenuContentProps.MenuEntry}
+         * rather than a `MenuItem` of your own.
+         */
+        userMenuContent?: ComponentType<UserMenuContentProps>;
         footer?: FooterSettings;
         home?: HomePageSettings;
         searchHeader?: ComponentType;
@@ -123,6 +148,11 @@ export interface PageSettings {
         claimNamespace?: ComponentType<{ namespace: string; extension?: Extension; sx?: SxProps<Theme> }>;
         downloadTerms?: ComponentType;
         additionalRoutes?: ReactNode;
+        /**
+         * Extra pages for the admin dashboard, each appearing in the side panel, as a card on the
+         * dashboard overview and as a route. Additive only — see {@link AdminPage}.
+         */
+        adminPages?: AdminPage[];
         banner?: {
             content: ComponentType;
             props?: {

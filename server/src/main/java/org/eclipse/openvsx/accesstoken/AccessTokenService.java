@@ -255,13 +255,16 @@ public class AccessTokenService {
             throw new NotFoundException();
         }
 
-        user = entityManager.merge(user);
-        if (!token.getUser().equals(user)) {
+        // Compare ids, not entities: UserData#equals compares every field - tokens and memberships
+        // included - so comparing entities rejects a caller whose user differs from the stored row in
+        // any way. Rejecting id 0 stops an entity that was never persisted from failing the check open.
+        var tokenUser = token.getUser();
+        if (tokenUser == null || tokenUser.getId() == 0 || tokenUser.getId() != user.getId()) {
             throw new NotFoundException();
         }
 
         token.setActive(false);
-        return ResultJson.success("Deactivated access token for user " + user.getLoginName() + ".");
+        return ResultJson.success("Deactivated access token for user " + tokenUser.getLoginName() + ".");
     }
 
     // REQUIRES_NEW: callers such as LocalRegistryService#createNamespace(NamespaceJson, String) wrap
@@ -273,6 +276,10 @@ public class AccessTokenService {
     @Transactional(TxType.REQUIRES_NEW)
     public AccessTokenAuthentication useAccessToken(String tokenValue, AccessTokenAction accessTokenAction) {
         var token = repositories.findPersonalAccessToken(hashTokenValue(tokenValue));
+        if (token == null) {
+            // the pepper may have changed since this token was issued; the row is rewritten if so
+            token = findTokenHashedWithPreviousPepper(tokenValue);
+        }
         if (token == null) {
             // assume DB contains token v0; fetch and upgrade if found active token
             token = repositories.findPersonalAccessToken(tokenValue);
@@ -331,6 +338,36 @@ public class AccessTokenService {
         return new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), token.getClaims());
     }
 
+    /**
+     * Looks a token up under each pepper this instance used before the current one, and rewrites the hash
+     * of the row it finds so that the next lookup matches on the first try.
+     * <p>
+     * This is the whole of pepper rotation. The raw value is never stored, so a row can only be moved to
+     * a new pepper while its holder is presenting the token - there is no set of rows a background job
+     * could rehash, the way {@link #upgradeTokens()} can rehash the v0 rows that still carry their raw
+     * value. A token that is never used again therefore keeps its old hash until it expires, which is
+     * what obliges an operator to keep a retired pepper configured; see
+     * {@code ovsx.access-token.token-hash-previous-peppers}.
+     * <p>
+     * The rewrite happens before the caller has decided whether the token is usable at all, matching what
+     * the v0 upgrade does: which pepper hashed a row says nothing about whether that token is active,
+     * expired or in scope, so there is no reason to make the migration wait on those checks.
+     * <p>
+     * Costs one query per configured previous pepper, and only for a token that has not been used since
+     * the rotation. An instance that is not mid-rotation has an empty keyring and does no extra work.
+     */
+    private @Nullable PersonalAccessToken findTokenHashedWithPreviousPepper(String tokenValue) {
+        for (var previousPepper : config.getTokenHashPepperKeyring()) {
+            var token = repositories.findPersonalAccessToken(hashTokenValue(tokenValue, previousPepper));
+            if (token != null) {
+                token.setValue(hashTokenValue(tokenValue));
+                logger.debug("Rehashed access token {} with the current pepper", token.getId());
+                return token;
+            }
+        }
+        return null;
+    }
+
     private AccessTokenScope getScope(PersonalAccessToken token) {
         AccessTokenScope scope;
         if (token.getScopeExtension() != null) {
@@ -374,12 +411,17 @@ public class AccessTokenService {
 
     @Transactional
     public void scheduleTokenExpirationNotification(PersonalAccessToken token) {
-        token = entityManager.merge(token);
-        if (token.getType().isNotify() && !token.isNotified()) {
+        // find, not merge: only `notified` is this method's to change, and merging the whole
+        // detached token reverted any column that moved since it was loaded - see #989.
+        var managedToken = entityManager.find(PersonalAccessToken.class, token.getId());
+        if (managedToken == null) {
+            return;
+        }
+        if (managedToken.getType().isNotify() && !managedToken.isNotified()) {
             try {
-                mail.scheduleAccessTokenExpiryNotification(token);
+                mail.scheduleAccessTokenExpiryNotification(managedToken);
             } finally {
-                token.setNotified(true);
+                managedToken.setNotified(true);
             }
         }
     }
@@ -444,9 +486,13 @@ public class AccessTokenService {
     }
 
     private String hashTokenValue(String tokenValue) {
+        return hashTokenValue(tokenValue, config.getTokenHashPepper());
+    }
+
+    private String hashTokenValue(String tokenValue, String pepper) {
         try {
-            // token hash salt must not be present in DB (is in config)
-            String payload = tokenValue + config.getTokenHashSalt();
+            // the pepper is instance wide and lives in the configuration only; it must never reach the DB
+            String payload = tokenValue + pepper;
             return Hex.encodeHexString(
                     DigestUtils.digest(
                             MessageDigest.getInstance(config.getTokenHashAlgorithm()),

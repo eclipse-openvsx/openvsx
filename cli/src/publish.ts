@@ -177,6 +177,7 @@ async function packageExtension(options: InternalPublishOptions, registry: Regis
         baseContentUrl: options.baseContentUrl,
         baseImagesUrl: options.baseImagesUrl,
         useYarn: options.yarn,
+        followSymlinks: options.followSymlinks,
         dependencies: options.dependencies,
         preRelease: options.preRelease,
         allowMissingRepository: options.allowMissingRepository,

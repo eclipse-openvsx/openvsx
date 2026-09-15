@@ -61,16 +61,24 @@ public class ChangeNamespaceService {
         if (createNewNamespace) {
             entityManager.persist(newNamespace);
         } else {
+            // Deliberately a merge, unlike the rest of #989's call sites: the caller mutates this
+            // detached namespace before handing it over (ChangeNamespaceJobRequestHandler sets
+            // logoName on it), so the update belongs to the caller and only merge can carry it.
+            // find-then-set would silently drop that rename.
             newNamespace = entityManager.merge(newNamespace);
         }
 
         changeExtensionNamespace(extensions, newNamespace);
         changeMembershipNamespace(oldNamespace, newNamespace, removeOldNamespace);
-        updatedResources.forEach(entityManager::merge);
+        renameResources(updatedResources);
 
         if (removeOldNamespace) {
-            oldNamespace = entityManager.merge(oldNamespace);
-            entityManager.remove(oldNamespace);
+            // find, not merge: this row is about to go, so merging every column of a detached copy
+            // first was a wasted UPDATE - and would have resurrected a row already deleted.
+            var managedOldNamespace = entityManager.find(Namespace.class, oldNamespace.getId());
+            if (managedOldNamespace != null) {
+                entityManager.remove(managedOldNamespace);
+            }
         }
 
         cache.evictSitemap();
@@ -78,9 +86,25 @@ public class ChangeNamespaceService {
         search.updateSearchEntries(extensions.filter(Extension::isActive).toList());
     }
 
+    /**
+     * Applies the names the caller computed for the copied resources. Only the name changes there
+     * (see {@code ChangeNamespaceJobRequestHandler}), so this writes that field rather than merging
+     * every column of each detached resource back - see #989.
+     */
+    private void renameResources(List<FileResource> updatedResources) {
+        for (var resource : updatedResources) {
+            var managedResource = entityManager.find(FileResource.class, resource.getId());
+            if (managedResource != null) {
+                managedResource.setName(resource.getName());
+            }
+        }
+    }
+
     private void changeExtensionNamespace(Streamable<Extension> extensions, Namespace newNamespace) {
         for (var extension : extensions) {
-            extension = entityManager.merge(extension);
+            // findExtensions ran inside changeNamespaceInDatabase's transaction, so these are
+            // already managed and merge just handed back the same instance; the setter is what
+            // persists the change.
             extension.setNamespace(newNamespace);
         }
     }

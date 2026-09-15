@@ -195,8 +195,14 @@ public class EclipseService {
      */
     @Transactional
     public void updateUserData(UserData user, EclipseProfile profile) {
-        user = entityManager.merge(user);
-        user.setEclipsePersonId(profile.getName());
+        // find-then-set rather than merge: merge writes every column of the detached copy, so
+        // anything that changed on the row since it was loaded gets reverted. Only the field
+        // below is this method's to change - see #989.
+        var managedUser = entityManager.find(UserData.class, user.getId());
+        if (managedUser == null) {
+            return;
+        }
+        managedUser.setEclipsePersonId(profile.getName());
     }
 
     public void enrichUserJsonWithPublisherAgreement(UserJson json, UserData user) {

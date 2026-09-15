@@ -31,6 +31,21 @@ export interface ErrorResponse {
     trace?: string;
 }
 
+/**
+ * RFC 9457 `application/problem+json`, which Spring returns for errors it handles itself rather
+ * than through our `ResultJson` shape - a failed `@Min`/`@NotBlank` on a request parameter, say.
+ * It carries none of {@link ErrorResponse}'s fields, so {@link handleError} has to read it too or
+ * every such response reads as an unexplained failure.
+ */
+export interface ProblemDetail {
+    type?: string;
+    title?: string;
+    detail?: string;
+    status?: number;
+    instance?: string;
+    errors?: string[];
+}
+
 export async function sendRequest<Res>(req: ServerAPIRequest, retry: boolean = true): Promise<Res> {
     req.method ??= 'GET';
     req.headers ??= {};

@@ -27,6 +27,7 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -45,6 +46,8 @@ import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.MockMvcAsyncConfig;
 import org.eclipse.openvsx.MockTransactionTemplate;
 import org.eclipse.openvsx.UserService;
+import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionProcessor;
+import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.FilesCacheKeyGenerator;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
@@ -59,7 +62,6 @@ import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
 import org.eclipse.openvsx.storage.*;
-import org.eclipse.openvsx.storage.log.DownloadCountService;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.web.JacksonConfig;
@@ -73,6 +75,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @WebMvcTest(VSCodeAPI.class)
 @MockitoBean(
@@ -81,7 +84,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         GoogleCloudStorageService.class,
         AzureBlobStorageService.class,
         AwsStorageService.class,
-        DownloadCountService.class,
+        DownloadIngestionProcessor.class,
         ExtensionDownloadMetrics.class,
         CacheService.class,
         UpstreamVSCodeService.class,
@@ -109,6 +112,39 @@ class VSCodeAPITest {
 
     @Autowired
     MockMvc mockMvc;
+
+    // Both of these take targetPlatform as a query parameter with a documented allowableValues enum, and
+    // neither enforced it: an unknown value fell through to a lookup for a platform that cannot exist.
+    // These return a stream and a redirect rather than a ResultJson, so the rejection is a problem
+    // detail rather than the {"error": ...} body the registry API uses.
+    @Test
+    void testAssetRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/asset/{namespace}/{extension}/{version}/{assetType}",
+                        "redhat",
+                        "java",
+                        "1.0.0",
+                        "Microsoft.VisualStudio.Code.Manifest")
+                        .param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.errors[0]").value("targetPlatform: parameter must be a supported target platform"));
+    }
+
+    @Test
+    void testVspackageRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/gallery/publishers/{namespace}/vsextensions/{extension}/{version}/vspackage",
+                        "redhat",
+                        "java",
+                        "1.0.0")
+                        .param("targetPlatform", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.errors[0]").value("targetPlatform: parameter must be a supported target platform"));
+    }
 
     @Test
     void testSearch() throws Exception {
@@ -1528,7 +1564,8 @@ class VSCodeAPITest {
                 AzureBlobStorageService azureStorage,
                 LocalStorageService localStorage,
                 AwsStorageService awsStorage,
-                DownloadCountService downloadCountService,
+                ObjectProvider<DownloadRecordSource> ingestionSources,
+                DownloadIngestionProcessor ingestionProcessor,
                 ExtensionDownloadMetrics downloadMetrics,
                 SearchUtilService search,
                 CacheService cache,
@@ -1542,7 +1579,8 @@ class VSCodeAPITest {
                     azureStorage,
                     localStorage,
                     awsStorage,
-                    downloadCountService,
+                    ingestionSources,
+                    ingestionProcessor,
                     downloadMetrics,
                     search,
                     cache,

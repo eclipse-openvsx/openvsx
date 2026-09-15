@@ -19,7 +19,7 @@ import { Banner } from '../components/banner';
 import { ShortcutsModal } from '../components/shortcuts-modal';
 import { MainContext } from '../context';
 import { useSearch } from '../hooks/use-search';
-import { ExtensionTintProvider } from '../context/extension-tint-context';
+import { NavbarChromeProvider } from '../context/navbar-chrome-context';
 import { useShortcut } from '../hooks/use-shortcut';
 import { getCookieValueByKey, setCookie } from '../utils';
 import { ExtensionListRoutes } from '../pages/extension-list/extension-list-routes';
@@ -36,7 +36,7 @@ import { NotFound } from '../not-found';
 import { NAVBAR_HEIGHT } from '../default/theme';
 import { AppNavbar } from './app-navbar';
 import { AppFooter } from './app-footer';
-import { ScrollToTop } from './scroll-to-top';
+import { ScrollRestoration } from './scroll-restoration';
 
 const UserSettings = lazy(() => import('../pages/user/user-settings').then(m => ({ default: m.UserSettings })));
 
@@ -94,7 +94,7 @@ const AppLayoutContent: FunctionComponent<AppLayoutProps> = props => {
 
     return (
         <Wrapper>
-            <ScrollToTop />
+            <ScrollRestoration />
             {BannerComponent ? (
                 <Banner
                     open={isBannerOpen}
@@ -151,11 +151,11 @@ const AppLayoutContent: FunctionComponent<AppLayoutProps> = props => {
 };
 
 // Keyboard shortcuts and search now live app-wide in AppProviders; this keeps
-// only the feature-scoped tint provider.
+// only the navbar-chrome channel the pages below declare into.
 export const AppLayout: FunctionComponent<AppLayoutProps> = props => (
-    <ExtensionTintProvider>
+    <NavbarChromeProvider>
         <AppLayoutContent {...props} />
-    </ExtensionTintProvider>
+    </NavbarChromeProvider>
 );
 
 export interface AppLayoutProps {

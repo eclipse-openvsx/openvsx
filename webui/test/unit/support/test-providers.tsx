@@ -66,9 +66,23 @@ function mainContextValue(overrides?: Partial<MainContext>): MainContext {
         // well-typed rather than relying on `as PageSettings` to paper over a missing required field.
         pageSettings: { elements: {} } as PageSettings,
         handleError: () => {},
+        userLoading: false,
         updateUser: () => {},
         ...overrides
     };
+}
+
+/**
+ * Only the entry-shell providers the library expects from whoever mounts it (theme,
+ * router). Use it for components that mount `AppProviders` themselves — `Main` above
+ * all; everything else wants `TestProviders`.
+ */
+export function TestEntryShell({ children, route = '/' }: { children: ReactNode; route?: string }) {
+    return (
+        <ThemeProvider theme={testTheme}>
+            <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+        </ThemeProvider>
+    );
 }
 
 export function TestProviders({
@@ -78,16 +92,26 @@ export function TestProviders({
     mainContext
 }: ProviderOptions & { children: ReactNode }) {
     return (
-        <ThemeProvider theme={testTheme}>
-            <MemoryRouter initialEntries={[route]}>
-                <AppProviders
-                    mainContext={mainContextValue(mainContext)}
-                    queryClient={queryClient ?? createTestQueryClient()}>
-                    {children}
-                </AppProviders>
-            </MemoryRouter>
-        </ThemeProvider>
+        <TestEntryShell route={route}>
+            <AppProviders
+                mainContext={mainContextValue(mainContext)}
+                queryClient={queryClient ?? createTestQueryClient()}>
+                {children}
+            </AppProviders>
+        </TestEntryShell>
     );
+}
+
+/** `render` with only the entry shell — the counterpart of {@link TestEntryShell}. */
+export function renderInEntryShell(
+    ui: ReactElement,
+    options: { route?: string } & Omit<RenderOptions, 'wrapper'> = {}
+) {
+    const { route, ...rtl } = options;
+    return render(ui, {
+        wrapper: ({ children }) => <TestEntryShell route={route}>{children}</TestEntryShell>,
+        ...rtl
+    });
 }
 
 /** `render` with the app providers around it. Extra RTL options pass through. */

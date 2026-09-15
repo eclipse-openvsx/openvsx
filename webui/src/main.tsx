@@ -147,6 +147,7 @@ export const Main: FunctionComponent<MainProps> = props => {
         service: props.service,
         pageSettings: props.pageSettings,
         user,
+        userLoading,
         updateUser,
         loginProviders,
         handleError: onError,

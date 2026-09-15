@@ -29,7 +29,13 @@ export default defineConfig(() => ({
         testTimeout: 15000,
         // Spawning a fork per CPU all at once (each booting jsdom + React) can itself blow past
         // vitest's own worker-startup timeout under load; capping concurrency avoids that pileup.
-        maxWorkers: '50%'
+        maxWorkers: '50%',
+        server: {
+            deps: {
+                // their ESM builds import directory paths Node's resolver rejects; let vite bundle them
+                inline: ['@mui/x-charts', '@mui/x-data-grid', '@mui/x-date-pickers']
+            }
+        }
     },
     // lightningcss (Vite 8's default CSS transformer) ships no prebuilt binary for ppc64le,
     // and its minifier isn't needed once postcss is handling transforms - see

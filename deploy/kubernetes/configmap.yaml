@@ -23,7 +23,7 @@ data:
         name: openvsx-server
       autoconfigure:
         exclude:
-         - org.springframework.boot.actuate.autoconfigure.tracing.zipkin.ZipkinAutoConfiguration
+         - org.springframework.boot.zipkin.autoconfigure.ZipkinAutoConfiguration
       profiles:
         include: ovsx
       cache:
@@ -33,6 +33,13 @@ data:
         url: jdbc:postgresql://postgresql:5432/openvsx
         username: ${DB_USERNAME}
         password: ${DB_PASSWORD}
+      # Download analytics is disabled by default. When enabled it keeps its time-series schema in a
+      # separate database, migrated on its own and requiring the timescaledb extension:
+      #   ovsx.analytics.enabled: true
+      #   ovsx.analytics.datasource.url: jdbc:postgresql://postgresql-timeseries:5432/openvsx_timeseries
+      #   ovsx.analytics.datasource.username: ${DB_USERNAME}
+      #   ovsx.analytics.datasource.password: ${DB_PASSWORD}
+      #   ovsx.analytics.datasource.maximum-pool-size: 5
       flyway:
         baseline-on-migrate: true
         baseline-version: 0.1.0
@@ -49,7 +56,7 @@ data:
         jdbc:
           initialize-schema: never
       thymeleaf:
-        enabled: false
+        check-template-location: false
       # Uncomment and configure to enable GitHub OAuth authentication
       # security:
       #   oauth2:
@@ -82,6 +89,9 @@ data:
                 requests: true
 
     springdoc:
+      model-and-view-allowed: true
+      api-docs:
+        version: openapi_3_0
       swagger-ui:
         path: /swagger-ui
         docExpansion: list
@@ -89,19 +99,18 @@ data:
         supportedSubmitMethods:
           - get
 
-    org:
-      jobrunr:
-        job-scheduler:
-          enabled: true
-        background-job-server:
-          enabled: true
-          worker-count: 2
-        dashboard:
-          enabled: false
-        database:
-          type: sql
-        miscellaneous:
-          allow-anonymous-data-usage: false
+    jobrunr:
+      job-scheduler:
+        enabled: true
+      background-job-server:
+        enabled: true
+        worker-count: 2
+      dashboard:
+        enabled: false
+      database:
+        type: sql
+      miscellaneous:
+        allow-anonymous-data-usage: false
 
     bucket4j:
       enabled: false
@@ -112,6 +121,10 @@ data:
       elasticsearch:
         clear-on-start: true
         host: elasticsearch:9200
+      # Set this in any deployment reachable from the open web, or the URLs in a response are derived
+      # from headers the client sends. See doc/configuration.md, Server URL.
+      #  server:
+      #    url: https://openvsx.example
       eclipse:
         base-url: https://api.eclipse.org
         publisher-agreement:

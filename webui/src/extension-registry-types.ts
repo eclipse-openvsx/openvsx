@@ -63,6 +63,31 @@ export interface SearchEntry {
     deprecated: boolean;
 }
 
+/**
+ * Registry-wide statistics for one month, as archived by the monthly job or computed on the fly for
+ * the month in progress. Mirrors the server's `AdminStatisticsJson`.
+ *
+ * Every figure except `downloads` is a point-in-time snapshot rather than a total over the month;
+ * `downloads` is the growth in `downloadsTotal` since the previous month.
+ */
+export interface AdminStatistics {
+    year: number;
+    month: number;
+    extensions: number;
+    downloads: number;
+    downloadsTotal: number;
+    publishers: number;
+    averageReviewsPerExtension: number;
+    namespaceOwners: number;
+    extensionsByRating: { rating: number; extensions: number }[];
+    publishersByExtensionsPublished: { extensionsPublished: number; publishers: number }[];
+    topMostActivePublishingUsers: { userLoginName: string; publishedExtensionVersions: number }[];
+    topNamespaceExtensions: { namespace: string; extensions: number }[];
+    topNamespaceExtensionVersions: { namespace: string; extensionVersions: number }[];
+    topMostDownloadedExtensions: { extensionIdentifier: string; downloads: number }[];
+    error?: string;
+}
+
 export const VERSION_ALIASES = ['latest', 'pre-release'];
 
 export interface Extension {
@@ -340,7 +365,20 @@ export interface TargetPlatformVersion {
 export interface RegistryVersion {
     version: string;
     maxExtensionSize?: number;
+    analyticsEnabled?: boolean;
 }
+
+/** One bucket of the download time series: `t` is the UTC bucket start (yyyy-MM-dd). */
+export interface DownloadSeriesPoint {
+    t: string;
+    count: number;
+}
+
+export interface DownloadSeries {
+    points: DownloadSeriesPoint[];
+}
+
+export type DownloadSeriesInterval = 'day' | 'week' | 'month';
 
 export interface LoginProviders {
     loginProviders: Record<string, string>;
@@ -600,6 +638,93 @@ export interface SearchIndex {
     indexedDocuments?: number;
     activeExtensions: number;
     maxResultWindow?: number;
+}
+
+/**
+ * One cache registered in the application. A measurement is absent rather than zero when the
+ * implementation behind the cache cannot report it, so "not measured" stays distinguishable from
+ * "nothing cached".
+ */
+export interface CacheInfo {
+    /**
+     * Bean name of the cache manager this cache belongs to. Cache names are unique only within a
+     * manager, so the manager and the name together are what identify a cache.
+     */
+    manager: string;
+    name: string;
+    implementation: 'caffeine' | 'jcache' | 'redis' | string;
+    /** Absent for implementations that cannot be counted without scanning, such as Redis. */
+    entries?: number;
+    /** Absent when the cache was not configured to record statistics. */
+    hits?: number;
+    misses?: number;
+    /** Hits over lookups, 0 to 1. Absent when nothing has been looked up yet. */
+    hitRate?: number;
+    evictions?: number;
+}
+
+export interface CacheList {
+    /**
+     * Whether the caches count hits and misses at all. When false every statistic is absent because
+     * nothing is counting, not because nothing is happening.
+     */
+    statisticsEnabled: boolean;
+    caches: CacheInfo[];
+}
+
+/** Why a search returned what it returned, in the order it returned it. */
+export interface SearchExplain {
+    query: string;
+    totalHits: number;
+    references: SearchExplainReferences;
+    entries: SearchExplainEntry[];
+}
+
+/**
+ * The registry-wide values the relevance terms are measured against. They belong to the registry rather
+ * than to any extension, and are the usual reason a term contributes nothing: a downloads term divided by
+ * a maximum in the tens of millions is near zero for almost everything.
+ */
+export interface SearchExplainReferences {
+    maxDownloadCount: number;
+    oldestTimestamp?: string;
+    averageReviewRating: number;
+}
+
+/** One step of the engine's account of a score: what it was worth, and the steps that produced it. */
+export interface SearchScoreDetail {
+    description: string;
+    value: number;
+    details: SearchScoreDetail[];
+    /** Children were dropped to keep the response readable; this is not a leaf. */
+    truncated: boolean;
+}
+
+export interface SearchExplainEntry {
+    position: number;
+    namespace: string;
+    name: string;
+    downloadCount: number;
+    averageRating?: number;
+    timestamp?: string;
+    /** What the search ranked on: the text score multiplied by the stored relevance. */
+    score: number;
+    /** How well the query matched this document's text, recovered from the product. */
+    textScore?: number;
+    /** The relevance held on the indexed document, which is what actually ranked it. */
+    storedRelevance: number;
+    /** Recomputed now; differing from `storedRelevance` means the index has not been rebuilt since. */
+    currentRelevance?: number;
+    rating?: number;
+    downloads?: number;
+    recency?: number;
+    unverified: boolean;
+    /** What the unverified factor is; configurable, so how much it costs is not a constant to assume. */
+    unverifiedFactor?: number;
+    deprecated: boolean;
+    deprecatedFactor?: number;
+    /** The engine's own account of the score, which is the only view of what the text half is made of. */
+    scoreDetail?: SearchScoreDetail;
 }
 
 export interface ConsistencyCheck {

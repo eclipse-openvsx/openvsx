@@ -48,4 +48,4 @@ public record TargetPlatformActiveJson(
         @Schema(
             description = "Whether this extension version for this target platform has been removed (soft-deleted)"
         ) boolean removed
-){}
+) {}

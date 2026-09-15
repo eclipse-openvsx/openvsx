@@ -1,0 +1,61 @@
+# Gaps this check tolerates, one per line as "<kind> <key>":
+#
+#   undocumented  the server binds it, doc/configuration.md does not document it
+#   unbound       doc/configuration.md documents it, the server binds nothing by that name
+#
+# The list may only shrink. Documenting a property, or correcting a stale entry in the reference,
+# means deleting its line here; the check fails while a line claims a gap that no longer exists.
+#
+# The remaining "unbound" lines are the standing exception rather than outstanding work: the key
+# names a login provider chosen by the operator, so the reference documents the family with a
+# [provider-name] placeholder that no scan of the source can produce. Those lines stay.
+#
+# A property the reference records as removed in some release needs no line here - the check reads
+# the Compatibility row and does not expect a tombstone to be bound.
+
+unbound ovsx.oauth2.attribute-names.[provider-name].avatar-url
+unbound ovsx.oauth2.attribute-names.[provider-name].email
+unbound ovsx.oauth2.attribute-names.[provider-name].full-name
+unbound ovsx.oauth2.attribute-names.[provider-name].login-name
+unbound ovsx.oauth2.attribute-names.[provider-name].provider-url
+
+undocumented ovsx.scanning.blocklist-check.enabled
+undocumented ovsx.scanning.blocklist-check.enforced
+undocumented ovsx.scanning.blocklist-check.required
+undocumented ovsx.scanning.blocklist-check.user-message
+undocumented ovsx.scanning.configured
+undocumented ovsx.scanning.enabled
+undocumented ovsx.scanning.max-archive-size-bytes
+undocumented ovsx.scanning.max-entry-count
+undocumented ovsx.scanning.max-single-file-bytes
+undocumented ovsx.scanning.namespace-ownership-check.check-active-extensions
+undocumented ovsx.scanning.namespace-ownership-check.enabled
+undocumented ovsx.scanning.namespace-ownership-check.enforced
+undocumented ovsx.scanning.namespace-ownership-check.gallery-url
+undocumented ovsx.scanning.namespace-ownership-check.required
+undocumented ovsx.scanning.secret-detection.debug-preview-chars
+undocumented ovsx.scanning.secret-detection.enabled
+undocumented ovsx.scanning.secret-detection.enforced
+undocumented ovsx.scanning.secret-detection.gitleaks.auto-fetch
+undocumented ovsx.scanning.secret-detection.gitleaks.force-refresh
+undocumented ovsx.scanning.secret-detection.gitleaks.output-path
+undocumented ovsx.scanning.secret-detection.gitleaks.refresh-cron
+undocumented ovsx.scanning.secret-detection.gitleaks.scheduled-refresh
+undocumented ovsx.scanning.secret-detection.gitleaks.skip-rule-ids
+undocumented ovsx.scanning.secret-detection.long-line-no-space-threshold
+undocumented ovsx.scanning.secret-detection.max-findings
+undocumented ovsx.scanning.secret-detection.minified-line-threshold
+undocumented ovsx.scanning.secret-detection.regex-context-chars
+undocumented ovsx.scanning.secret-detection.required
+undocumented ovsx.scanning.secret-detection.rules-path
+undocumented ovsx.scanning.secret-detection.suppression-markers
+undocumented ovsx.scanning.secret-detection.timeout-check-interval
+undocumented ovsx.scanning.secret-detection.timeout-seconds
+undocumented ovsx.scanning.similarity.allow-similarity-to-own-names
+undocumented ovsx.scanning.similarity.enabled
+undocumented ovsx.scanning.similarity.enforced
+undocumented ovsx.scanning.similarity.only-check-new-extensions
+undocumented ovsx.scanning.similarity.only-protect-verified-names
+undocumented ovsx.scanning.similarity.required
+undocumented ovsx.scanning.similarity.similarity-threshold
+undocumented ovsx.scanning.similarity.skip-if-publisher-verified

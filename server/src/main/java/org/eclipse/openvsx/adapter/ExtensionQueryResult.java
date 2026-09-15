@@ -56,7 +56,7 @@ public record ExtensionQueryResult(List<ResultItem> results) {
                 description = "Whether the publisher's web domain is verified, not implemented",
                 allowableValues = { "null" }
             ) Boolean isDomainVerified
-    ){}
+    ) {}
 
     public record ExtensionVersion(
             String version,
@@ -82,7 +82,7 @@ public record ExtensionQueryResult(List<ResultItem> results) {
                     NAME_UNIVERSAL
                 }
             ) String targetPlatform
-    ){}
+    ) {}
 
     public record ExtensionFile(
             @Schema(
@@ -101,7 +101,7 @@ public record ExtensionQueryResult(List<ResultItem> results) {
                 }
             ) String assetType,
             @Schema(description = "URL to get the extension file") String source
-    ){
+    ) {
         public static final String FILE_ICON = "Microsoft.VisualStudio.Services.Icons.Default";
         public static final String FILE_DETAILS = "Microsoft.VisualStudio.Services.Content.Details";
         public static final String FILE_CHANGELOG = "Microsoft.VisualStudio.Services.Content.Changelog";
@@ -131,7 +131,7 @@ public record ExtensionQueryResult(List<ResultItem> results) {
                 }
             ) String key,
             @Schema(description = "Value of the property") String value
-    ){
+    ) {
         public static final String PROP_REPOSITORY = "Microsoft.VisualStudio.Services.Links.Source";
         public static final String PROP_SPONSOR_LINK = "Microsoft.VisualStudio.Code.SponsorLink";
         public static final String PROP_DEPENDENCY = "Microsoft.VisualStudio.Code.ExtensionDependencies";
@@ -154,7 +154,7 @@ public record ExtensionQueryResult(List<ResultItem> results) {
                 }
             ) String statisticName,
             @Schema(description = "Value of the statistic") double value
-    ){
+    ) {
         public static final String STAT_INSTALL = "install";
         public static final String STAT_AVERAGE_RATING = "averagerating";
         public static final String STAT_RATING_COUNT = "ratingcount";

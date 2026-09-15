@@ -6,6 +6,13 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
+- Add a "Caches" page to the admin dashboard: every cache registered in the application with what it holds, how often it is hit and how much it has evicted, and a way to clear one or all of them without restarting the server. A measurement the cache implementation cannot report is shown as a dash rather than a zero, so "not measured" stays distinguishable from "nothing cached"
+- Add a weekly downloads card to the extension detail page, shown only when the registry reports download analytics as enabled: the last 7 days' downloads, a sparkline of the weekly totals for the year behind it, and the period the headline covers. Hovering moves a marker line and reads out that week instead, and the card shows a skeleton in the same shape while the series loads. The figure names its unit, the curve is filled from zero and carries a description naming the per-week unit, so it is not read as a running total
+
+## [v1.2.0] (10/09/2026)
+
+### Added
+
 - Add a `/publish` page and turn the navbar's Publish button into a drop target: a file drag anywhere in the app turns the button into a drop area, and every `.vsix` package dropped on it — or on the publish page's own drop area — is queued and uploaded straight away, with no confirmation dialog. The page shows the queue as a line of extension cards — a skeleton while a package uploads, the real card once the registry accepts it, labelled with whatever the registry did with it — and keeps polling anything left under review or still missing its icon
 - Export `PublishButton`, which carries the publish link, its `p` shortcut and the app's `.vsix` drop target in one component, so a deployment with its own menu content keeps drag-and-drop publishing
 - Add a "Data Consistency" page to the admin dashboard (#1622): a live overview of every registered consistency check's finding count, with actions to refresh it and to fix findings one at a time or all at once
@@ -25,6 +32,21 @@ This change log covers only the frontend library (webui) of Open VSX.
 - **Breaking:** `elements.claimNamespace` now receives `{ namespace, extension?, sx? }` instead of `{ extension, sx? }`. The namespace settings page offers the same claim action and has no extension to pass, so implementations must read the namespace from `namespace` rather than `extension.namespace`
 - Publishing goes through TanStack Query: `publishExtension` and `createNamespace` are mutation hooks (`usePublishExtension`, `useCreateNamespace`), and both service methods lose their `AbortController` parameter — writes are no longer aborted, and retries are the query client's to own. The user's extension list is a query too (`useUserExtensions`), read by the settings tab and by the publish queue as it follows a package, so a card appears in the list as soon as the registry has the package
 - `ExtensionCard` accepts an `Extension` as well as a `SearchEntry`, and takes optional `to`, `linkState`, `overlay`, `footerStart`, `dimmed`, `tone` and `iconPending` props so other surfaces can reuse it instead of copying it
+- Show an extension card's rating as one star and the score rather than five stars, and no rating at all on an extension nobody has reviewed. Five icons could not shrink, so beside a long download count the count spilled out of the card
+
+### Added
+
+- Add a `Pill` component — the clickable glass pill the category pills are built on, now usable on its own — and extract the `MonoSlash`, `glassSurface` and `compactControl` page primitives out of the search field, the pills and the search header
+- Add `userLoading` to `MainContext`, so custom pages can tell "not logged in" from "still resolving the user"
+- Add a `userMenuContent` slot to `PageSettings.elements`: extra entries for the logged-in account menu, rendered above the admin entry. The slot receives a `MenuEntry` component to build entries with, so each entry is styled by the menu it appears in — the desktop and mobile menus style theirs differently, and a consumer cannot match both on its own
+- Add an `adminPages` slot to `PageSettings.elements`: extra admin dashboard pages, each declaring a name, icon, optional description and optional category, and each appearing in the side panel, as a card on the dashboard overview and as a route. Contributions are additive — a category name matching a built-in group appends to it, and a page whose path would shadow a built-in one is ignored
+- Widen the published API for consumers building their own pages: the request layer (`sendRequest`, `sendNonRetriableRequest`, `ErrorResponse`, `controllerFromSignal`), `MainContext`, `AppProviders`, `NotFound`, `createDefaultTheme` with the `MONO_FONT`/`NAVBAR_HEIGHT` tokens, the `createRoute`/`createAbsoluteURL`/`addQuery`/`formatCompactNumber`/`toRelativeTime` utils, the `useDebouncedCallback` and `useGridCursor` hooks, the navbar-chrome, search-focus and page-search-bar hooks, the category icon helpers, `ExtensionDetailRoutes`, and the `itemIcon`/`MenuItemText` building blocks for `userMenuContent` entries
+
+### Changed
+
+- Rename `ScrollToTop` to `ScrollRestoration`, matching what it does on back/forward navigation
+- Rename the extension tint context to `navbar-chrome-context` and add a second channel to it: a page with sections pinned under the navbar can extend the navbar's blur fan down to back them (`useExtendNavbarBlur`)
+- Give Popover and Autocomplete popups the same floating-paper treatment as the other menus, and stop Popovers locking body scroll — the lock jumps the scroll position on mobile and shifts the pinned chrome
 
 ### Fixed
 
@@ -39,7 +61,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Dependencies
 
 - Remove the `react-dropzone` dependency; the publish page and the navbar's drop target handle their own drag events, and nothing else imports it
+- Remove nine dependencies that nothing imports: `clsx`, `prop-types` and `punycode` from the runtime dependencies, and `@types/d3-scale`, `@types/d3-shape`, `@types/prop-types`, `@types/punycode`, `@types/react-transition-group` and `ts-node` from the development ones. All but `@types/punycode` and `ts-node` stay in the tree through MUI or the URL parsers that actually use them, so only those two leave the install
+- Bump express from `4.22.1` to `5.2.1` and `@types/express` from `4.17` to `5.0`. Express 4 caps `qs` at `~6.14.0`, which is why a `qs` resolution was needed to move past it; Express 5 declares `^6.14.0`, so that resolution is gone and `qs` resolves to `6.16.0` on its own. The standalone frontend server's catch-all route is now `/{*splat}`, which is how Express 5 spells the `*` it no longer accepts
 - Bump @humanfs/node from 0.16.6 to 0.16.8
+- Bump js-yaml from 4.3.1 to 4.3.2
 
 ## [v1.1.2] (20/08/2026)
 
