@@ -98,12 +98,8 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
     };
 
     const renderButton = (): ReactNode => {
-        // Nothing here tells an anonymous visitor that reviewing needs an account, so offer the
-        // login in place of the review button rather than rendering an empty slot. Doesn't wait
-        // on reviewList (unlike the logged-in cases below, which need to know whether this user
-        // already reviewed) - there's nothing about the prompt that depends on it. Suppressed
-        // entirely on a registry with no login providers configured, where there's nothing to
-        // offer; same guard the header and publish page use.
+        // An anonymous visitor gets the login in place of the review button. It doesn't depend on
+        // reviewList, so it comes before the check the signed-in branches below need.
         if (!context.user) {
             if (!context.loginProviders) {
                 return '';
