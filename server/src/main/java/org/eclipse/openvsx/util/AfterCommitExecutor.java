@@ -12,53 +12,42 @@
  ********************************************************************************/
 package org.eclipse.openvsx.util;
 
-import java.util.concurrent.Executor;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Runs work once the surrounding transaction has committed, off the request thread.
+ * Runs work once the surrounding transaction has committed.
  * <p>
- * For work that follows from a change rather than being part of it - dropping what a cache holds
- * about a row that just changed, telling something outside the database about it. Two reasons not to
- * do that inline:
- * <ul>
- *     <li><b>Inside the transaction it can make things worse.</b> A cache evicted before the commit
- *     is a cache another request can refill from the row as it still is, and that stale entry then
- *     outlives the commit - staler than if nothing had been evicted at all.</li>
- *     <li><b>It is not what the caller is waiting for.</b> The response does not depend on it, so it
- *     has no business adding to the time the caller waits.</li>
- * </ul>
- * A transaction that rolls back runs nothing: whatever it was going to change did not happen.
+ * For work that follows from a change rather than being part of it: dropping what a cache holds
+ * about a row that just changed. Doing that inside the transaction can make things worse, which is
+ * the reason this exists - a cache evicted before the commit is a cache another request can refill
+ * from the row as it still is, and that stale entry then outlives the commit, staler than if nothing
+ * had been evicted at all. A transaction that rolls back runs nothing: whatever it was going to
+ * change did not happen.
  * <p>
- * The work is handed to an executor, so it is not retried and does not survive a restart. That
- * suits a cache - a missed eviction costs one stale entry until its TTL - and does not suit
- * anything that must happen exactly once; put that on a job instead.
+ * On the calling thread, deliberately. Handing the work to an executor would take it off the request
+ * path too, but an eviction now costs one pattern clear rather than thousands of guesses, so there
+ * is little left to save and a background task is one more thing that can be lost or go unnoticed.
  * <p>
- * Whatever the task needs must be read <em>before</em> it is handed over: it runs on another thread
- * with no persistence context, so an entity captured in the lambda may be detached and its lazy
- * associations unreadable by then.
+ * A task that throws is logged rather than raised: by the time it runs the transaction has committed,
+ * so the caller's work succeeded and a failure to drop a cache entry - which costs one stale entry
+ * until its TTL - is not a reason to report that work as failed.
+ * <p>
+ * Whatever the task needs should be read <em>before</em> it is handed over. It runs outside the
+ * transaction, where an entity may be detached and its lazy associations unreadable.
  */
 @Component
 public class AfterCommitExecutor {
 
     private static final Logger logger = LoggerFactory.getLogger(AfterCommitExecutor.class);
 
-    private final Executor executor;
-
-    public AfterCommitExecutor(@Qualifier("applicationTaskExecutor") Executor executor) {
-        this.executor = executor;
-    }
-
     public void execute(Runnable task) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            // nothing to wait for; still off this thread, so callers get the same behaviour either way
-            submit(task);
+            // nothing to wait for
+            run(task);
             return;
         }
 
@@ -66,20 +55,17 @@ public class AfterCommitExecutor {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_COMMITTED) {
-                    submit(task);
+                    run(task);
                 }
             }
         });
     }
 
-    private void submit(Runnable task) {
-        executor.execute(() -> {
-            try {
-                task.run();
-            } catch (RuntimeException exc) {
-                // nobody is waiting for this, so a failure would otherwise be swallowed by the executor
-                logger.error("Deferred task failed", exc);
-            }
-        });
+    private void run(Runnable task) {
+        try {
+            task.run();
+        } catch (RuntimeException exc) {
+            logger.error("Deferred task failed", exc);
+        }
     }
 }

@@ -52,7 +52,7 @@ class CacheServiceEvictionTest {
                 new LatestExtensionVersionsByPlatformCacheKeyGenerator(),
                 Mockito.mock(FilesCacheKeyGenerator.class),
                 // inline, so these tests stay about which way an eviction goes rather than when
-                new AfterCommitExecutor(Runnable::run) {
+                new AfterCommitExecutor() {
                     @Override
                     public void execute(Runnable task) {
                         task.run();

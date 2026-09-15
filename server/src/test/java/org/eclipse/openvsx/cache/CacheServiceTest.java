@@ -83,10 +83,9 @@ class CacheServiceTest extends AbstractPostgresContainerTest {
     RepositoryService repositories;
 
     /**
-     * Evictions are deferred to after the commit and run on another thread in production; these tests
-     * drive them inside a transaction that is rolled back, so they would never run at all. Running
-     * them inline keeps the assertions about <em>what</em> gets evicted; <em>when</em> it is evicted
-     * is {@code AfterCommitExecutorTest}'s.
+     * Evictions wait for the commit; these tests drive them inside a transaction that is rolled back,
+     * so they would never run at all. Running them straight away keeps the assertions about
+     * <em>what</em> gets evicted; <em>when</em> it is evicted is {@code AfterCommitExecutorTest}'s.
      */
     @TestConfiguration
     static class InlineEvictions {
@@ -94,7 +93,7 @@ class CacheServiceTest extends AbstractPostgresContainerTest {
         @Bean
         @Primary
         AfterCommitExecutor inlineAfterCommitExecutor() {
-            return new AfterCommitExecutor(Runnable::run) {
+            return new AfterCommitExecutor() {
                 @Override
                 public void execute(Runnable task) {
                     task.run();

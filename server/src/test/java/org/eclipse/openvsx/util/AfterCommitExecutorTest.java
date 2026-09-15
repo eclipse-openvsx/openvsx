@@ -24,8 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 class AfterCommitExecutorTest {
 
-    /** Runs the task on the calling thread, so the test asserts on ordering rather than on timing. */
-    private final AfterCommitExecutor executor = new AfterCommitExecutor(Runnable::run);
+    private final AfterCommitExecutor executor = new AfterCommitExecutor();
 
     private final AtomicInteger ran = new AtomicInteger();
 
