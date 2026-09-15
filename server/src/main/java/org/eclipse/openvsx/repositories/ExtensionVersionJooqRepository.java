@@ -1014,7 +1014,11 @@ public class ExtensionVersionJooqRepository {
     }
 
     public List<ExtensionVersion> findLatest(Collection<Long> extensionIds) {
-        var latestQuery = findLatestQuery(null, false, true);
+        return findLatest(extensionIds, null);
+    }
+
+    public List<ExtensionVersion> findLatest(Collection<Long> extensionIds, String targetPlatform) {
+        var latestQuery = findLatestQuery(targetPlatform, false, true);
         latestQuery.addSelect(
                 EXTENSION_VERSION.ID,
                 EXTENSION_VERSION.VERSION,
