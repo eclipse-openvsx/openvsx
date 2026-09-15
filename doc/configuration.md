@@ -939,6 +939,52 @@ Which browser origins may read this registry's public, unauthenticated surface.
 
 The origins allowed to read the registry API, the VS Code gallery adapter and the static documents from a browser, comma separated; `*` for any. Any by default, because that surface exists to be consumed by clients that are not this registry's own web UI. Clients that are not browsers never consult it. Worth narrowing, or emptying to register no public CORS mappings at all, on a registry that is not meant to be read from the open web. Never sent with credentials, whatever it names.
 
+## CDN Cache Purging
+
+Responses about an extension or a namespace carry a `Surrogate-Key` header naming what they are made of: `ext/<namespace>/<extension>` and `ns/<namespace>`. A CDN that understands surrogate keys (Fastly calls them that, Akamai and Cloudflare cache tags) can then be told what changed rather than which URLs to drop, and the registry does so whenever it evicts its own caches - when a version is published, an extension is deprecated or deleted, a namespace changes, and so on.
+
+The header is emitted whether or not any of this is configured; without a provider nothing is purged.
+
+| Property      | `ovsx.cdn.purge.provider`
+|---------------|-------------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 1.3.0
+
+The CDN to purge. Only `fastly` is implemented. Empty, the default, purges nothing.
+
+| Property      | `ovsx.cdn.purge.fastly.service-id`
+|---------------|-------------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 1.3.0
+
+The Fastly service whose cache is purged. Purging stays off until this and the API token are both set.
+
+| Property      | `ovsx.cdn.purge.fastly.api-token`
+|---------------|-------------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 1.3.0
+
+A Fastly API token with the `purge_select` scope.
+
+| Property      | `ovsx.cdn.purge.fastly.soft`
+|---------------|-------------------------
+| Type          | boolean
+| Default       | `true`
+| Compatibility | Since 1.3.0
+
+Whether to purge softly. A soft purge marks the cached responses stale instead of dropping them, so the CDN keeps serving while it fetches the new ones and publishing a popular extension does not send everyone asking for it to the origin at once.
+
+| Property      | `ovsx.cdn.purge.fastly.api-url`
+|---------------|-------------------------
+| Type          | string
+| Default       | `https://api.fastly.com`
+| Compatibility | Since 1.3.0
+
+The Fastly API endpoint. Configurable for testing.
+
 ## Caching
 Since v0.28.0 Open VSX uses Spring Data Redis for caching. Previous Open VSX versions used Ehcache.<br/>
 You can use the standard Spring Data Redis application properties to configure a connection.
