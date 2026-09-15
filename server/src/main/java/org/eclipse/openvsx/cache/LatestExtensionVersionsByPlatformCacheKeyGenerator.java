@@ -43,9 +43,17 @@ public class LatestExtensionVersionsByPlatformCacheKeyGenerator implements KeyGe
     }
 
     public String generate(Extension extension, boolean preReleases) {
+        return generate(extension.getNamespace().getName(), extension.getName(), preReleases);
+    }
+
+    /**
+     * From names rather than the entity, for an eviction that runs after its transaction: by then the
+     * entity may be detached. See {@code AfterCommitExecutor}.
+     */
+    public String generate(String namespaceName, String extensionName, boolean preReleases) {
         return extensionJsonCacheKey.generate(
-                extension.getNamespace().getName(),
-                extension.getName(),
+                namespaceName,
+                extensionName,
                 TargetPlatform.NAME_UNIVERSAL,
                 VersionAlias.LATEST)
                 + ",pre-releases=" + preReleases;

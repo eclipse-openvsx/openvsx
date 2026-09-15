@@ -24,6 +24,7 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_EXTENSION_JSON;
@@ -49,7 +50,14 @@ class CacheServiceEvictionTest {
                 new ExtensionJsonCacheKeyGenerator(),
                 new LatestExtensionVersionCacheKeyGenerator(),
                 new LatestExtensionVersionsByPlatformCacheKeyGenerator(),
-                Mockito.mock(FilesCacheKeyGenerator.class));
+                Mockito.mock(FilesCacheKeyGenerator.class),
+                // inline, so these tests stay about which way an eviction goes rather than when
+                new AfterCommitExecutor(Runnable::run) {
+                    @Override
+                    public void execute(Runnable task) {
+                        task.run();
+                    }
+                });
     }
 
     private static Extension extension(int versions) {
