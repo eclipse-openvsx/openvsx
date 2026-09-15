@@ -107,7 +107,13 @@ public class LoginReturnTo {
             return null;
         }
 
-        var pathContainer = PathContainer.parsePath(path);
+        PathContainer pathContainer;
+        try {
+            pathContainer = PathContainer.parsePath(path);
+        } catch (IllegalArgumentException exc) {
+            // a malformed escape, e.g. a trailing "%": unparseable is unusable, and must not fail the login
+            return null;
+        }
         return routes.stream().anyMatch(route -> route.matches(pathContainer)) ? target : null;
     }
 }

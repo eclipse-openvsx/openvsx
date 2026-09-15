@@ -47,7 +47,8 @@ class LoginReturnToTest {
     }
 
     // an absolute URL, the protocol-relative forms a browser reads as one (backslashes included),
-    // a path relative to wherever the callback lands, and paths that are not a Web UI route
+    // a path relative to wherever the callback lands, a malformed escape, and paths that are not a
+    // Web UI route - none of which may fail the login the target rode in on
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(
@@ -61,6 +62,8 @@ class LoginReturnToTest {
             "/search\r\nSet-Cookie: x=y",
             "/extension/../../admin-dashboard",
             "/extension/%2e%2e/admin",
+            "/extension/%",
+            "/extension/%zz/bar",
             "/admin-dashboard/extensions",
             "/api/user",
             "/"
