@@ -34,13 +34,17 @@ public class MirrorExtensionHandlerInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        var params = request.getRequestURI().equals("/vscode/item")
+        // getRequestURI() includes the servlet context path, so the literal has to be qualified with
+        // it too - a registry deployed under one would otherwise never match here.
+        var params = (request.getContextPath() + "/vscode/item").equals(request.getRequestURI())
                 ? extractQueryParams(request)
                 : extractPathParams(request);
         var namespaceName = params.get("namespaceName");
         var extensionName = params.get("extensionName");
         if (!dataMirror.match(namespaceName, extensionName)) {
-            response.reset();
+            // resetBuffer, not reset: this must not discard headers earlier interceptors already set,
+            // such as SurrogateKeyInterceptor's Surrogate-Key.
+            response.resetBuffer();
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             return false;
         }
