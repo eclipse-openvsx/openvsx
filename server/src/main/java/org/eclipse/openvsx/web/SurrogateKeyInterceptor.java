@@ -78,7 +78,9 @@ public class SurrogateKeyInterceptor implements HandlerInterceptor {
     }
 
     private static @Nullable ExtensionId itemNameExtension(HttpServletRequest request) {
-        if (!"/vscode/item".equals(request.getRequestURI())) {
+        // getRequestURI() includes the servlet context path, so the literal has to be qualified with
+        // it too - a registry deployed under one would otherwise never match here.
+        if (!(request.getContextPath() + "/vscode/item").equals(request.getRequestURI())) {
             return null;
         }
         var itemName = request.getParameter("itemName");

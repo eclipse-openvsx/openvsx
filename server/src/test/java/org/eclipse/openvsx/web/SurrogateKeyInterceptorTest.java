@@ -101,6 +101,17 @@ class SurrogateKeyInterceptorTest {
         mockMvc.perform(get("/vscode/item")).andExpect(header().doesNotExist(SurrogateKey.HEADER));
     }
 
+    // getRequestURI() includes the servlet context path, so a registry deployed under one must still
+    // be matched against /vscode/item rather than never matching at all.
+    @Test
+    void tagsVSCodeItemUnderAConfiguredContextPath() throws Exception {
+        mockMvc.perform(get("/openvsx-server/vscode/item")
+                        .contextPath("/openvsx-server")
+                        .param("itemName", "redhat.java"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(SurrogateKey.HEADER, "ext/redhat/java ns/redhat"));
+    }
+
     @Test
     void tagsNothingWhereThePathNamesNoExtensionOrNamespace() throws Exception {
         mockMvc.perform(get("/api/-/search"))

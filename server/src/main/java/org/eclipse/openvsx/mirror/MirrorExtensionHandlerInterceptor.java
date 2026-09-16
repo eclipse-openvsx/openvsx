@@ -34,7 +34,9 @@ public class MirrorExtensionHandlerInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        var params = request.getRequestURI().equals("/vscode/item")
+        // getRequestURI() includes the servlet context path, so the literal has to be qualified with
+        // it too - a registry deployed under one would otherwise never match here.
+        var params = (request.getContextPath() + "/vscode/item").equals(request.getRequestURI())
                 ? extractQueryParams(request)
                 : extractPathParams(request);
         var namespaceName = params.get("namespaceName");
