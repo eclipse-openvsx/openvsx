@@ -13,6 +13,8 @@
 package org.eclipse.openvsx.cache;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -151,6 +153,30 @@ class CacheServiceEvictionTest {
         assertThat(keys.generatePrefix("foo", "bar:baz")).isEqualTo("foo.bar%3Abaz:");
         assertThat(matches(keys.generateWildcard(extension(0)), keys.generate("foo", "bar:baz", "universal", "1.0.0")))
                 .isFalse();
+    }
+
+    /**
+     * A prefix becomes a Redis glob, where these characters are syntax rather than text: unescaped,
+     * a name like {@code bar*} would widen the pattern over its siblings.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = { "bar*", "bar?", "bar[a-z]", "bar\\baz", "bar.baz", "bar baz" })
+    void escapesEverythingAGlobWouldReadAsSyntax(String name) {
+        var keys = new ExtensionJsonCacheKeyGenerator();
+
+        var prefix = keys.generatePrefix("foo", name);
+
+        // only the safe set, the "." joining namespace and extension, and percent escapes
+        assertThat(prefix).matches("[a-z0-9_+$~.-]*(%[0-9A-F]{2}[a-z0-9_+$~.-]*)*:");
+        assertThat(matches(keys.generateWildcard(extension(0)), keys.generate("foo", name, "universal", "1.0.0")))
+                .isFalse();
+    }
+
+    @Test
+    void leavesAValidNameAsItIs() {
+        var keys = new ExtensionJsonCacheKeyGenerator();
+
+        assertThat(keys.generatePrefix("Foo-Bar", "baz_qux+1~2$3")).isEqualTo("foo-bar.baz_qux+1~2$3:");
     }
 
     /** Redis glob, as far as these patterns use it: {@code *} is anything, everything else is literal. */

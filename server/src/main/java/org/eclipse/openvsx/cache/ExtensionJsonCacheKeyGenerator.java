@@ -10,6 +10,7 @@
 package org.eclipse.openvsx.cache;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.cache.interceptor.KeyGenerator;
@@ -25,6 +26,9 @@ public class ExtensionJsonCacheKeyGenerator implements KeyGenerator {
 
     /** Ends the extension id in a cache key. See {@link #generatePrefix} for why it is this character. */
     static final String ID_TERMINATOR = ":";
+
+    /** What a name may contain besides letters and digits, from {@code ExtensionValidator}. */
+    private static final String SAFE_PUNCTUATION = "_-+$~";
 
     @Override
     public Object generate(Object target, Method method, Object... params) {
@@ -61,8 +65,28 @@ public class ExtensionJsonCacheKeyGenerator implements KeyGenerator {
         return NamingUtil.toExtensionId(escape(namespaceName), escape(extensionName)) + ID_TERMINATOR;
     }
 
+    /**
+     * Percent-encodes everything outside the character set a name is allowed to use, so that a name
+     * which was never held to it cannot change what a key means.
+     * <p>
+     * Escaping only the terminator would not be enough. A key prefix becomes a Redis glob, where
+     * {@code * ? [ ] \} are syntax: a name like {@code bar*} would turn {@code foo.bar*:*} into a
+     * pattern that also sweeps {@code foo.bar-baz}. Encoding every character that is not in
+     * {@code [a-z0-9_+$~-]} leaves every valid name untouched and makes the pattern literal whatever
+     * the stored name happens to be.
+     */
     private static String escape(String name) {
-        return StringUtils.lowerCase(name).replace("%", "%25").replace(ID_TERMINATOR, "%3A");
+        var escaped = new StringBuilder(name.length());
+        for (var b : StringUtils.lowerCase(name).getBytes(StandardCharsets.UTF_8)) {
+            var c = (char) (b & 0xFF);
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || SAFE_PUNCTUATION.indexOf(c) >= 0) {
+                escaped.append(c);
+            } else {
+                escaped.append('%').append(String.format("%02X", b & 0xFF));
+            }
+        }
+
+        return escaped.toString();
     }
 
     /** Every key of one extension and no other; see {@link #generatePrefix}. */
