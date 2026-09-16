@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.micrometer.observation.annotation.Observed;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -124,11 +125,15 @@ public class CacheService {
     }
 
     public void evictExtensionJsons(Extension extension) {
-        // read now, evict later: the versions are a lazy association, and the task runs with no
-        // persistence context to load it from
         var namespaceName = extension.getNamespace().getName();
         var extensionName = extension.getName();
-        var versions = extension.getVersions().stream().map(ExtensionVersion::getVersion).toList();
+        // Read now, evict later: what the eviction needs has to be read while there is still a
+        // persistence context, because the task runs without one. Only what it needs, though - a
+        // cache that clears by pattern is told the extension's name and nothing else, so the
+        // versions, a lazy association, are not loaded at all.
+        var versions = clearsByPattern(cacheManager.getCache(CACHE_EXTENSION_JSON))
+                ? List.<String>of()
+                : extension.getVersions().stream().map(ExtensionVersion::getVersion).toList();
         afterCommit.execute(() -> evictExtensionJsons(namespaceName, extensionName, versions));
     }
 
@@ -266,6 +271,14 @@ public class CacheService {
         }
 
         return false;
+    }
+
+    /**
+     * Whether {@link #clearByPattern} would take this cache - which decides what a caller has to read
+     * from the entity before handing the eviction over.
+     */
+    private static boolean clearsByPattern(@Nullable Cache cache) {
+        return cache instanceof RedisCache;
     }
 
     private void invalidateCache(String cacheName) {
