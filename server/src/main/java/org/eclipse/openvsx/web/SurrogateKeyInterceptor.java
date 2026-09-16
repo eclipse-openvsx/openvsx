@@ -21,6 +21,9 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
+import org.eclipse.openvsx.util.ExtensionId;
+import org.eclipse.openvsx.util.NamingUtil;
+
 /**
  * Tags every response about a namespace or an extension with its {@link SurrogateKey}s.
  * <p>
@@ -29,6 +32,11 @@ import org.springframework.web.servlet.HandlerMapping;
  * endpoints that say it. Doing it here also covers the responses an endpoint does not think of
  * itself as producing - a 404 for an extension that does not exist yet is tagged too, so publishing
  * it purges the cached 404 along with everything else.
+ * <p>
+ * {@code /vscode/item} is the one endpoint that names its extension in a query parameter
+ * ({@code ?itemName=publisher.name}) rather than the path, so it has no URI-template variable for
+ * this to key off; it is special-cased the same way {@code MirrorExtensionHandlerInterceptor} already
+ * does.
  * <p>
  * The header is inert until a CDN is configured to act on it, and nothing here decides whether a
  * response may be cached: that stays with the {@code Cache-Control} each endpoint sets.
@@ -52,16 +60,29 @@ public class SurrogateKeyInterceptor implements HandlerInterceptor {
         // further headers.
         var pathVariables = pathVariables(request);
         var namespace = variable(pathVariables, NAMESPACE_VARIABLES);
-        if (namespace == null) {
-            return true;
-        }
         var extension = variable(pathVariables, EXTENSION_VARIABLES);
+        if (namespace == null) {
+            var item = itemNameExtension(request);
+            if (item == null) {
+                return true;
+            }
+            namespace = item.namespace();
+            extension = item.extension();
+        }
         response.setHeader(
                 SurrogateKey.HEADER,
                 extension == null
                         ? SurrogateKey.namespace(namespace)
                         : SurrogateKey.extension(namespace, extension));
         return true;
+    }
+
+    private static @Nullable ExtensionId itemNameExtension(HttpServletRequest request) {
+        if (!"/vscode/item".equals(request.getRequestURI())) {
+            return null;
+        }
+        var itemName = request.getParameter("itemName");
+        return itemName == null ? null : NamingUtil.fromExtensionId(itemName);
     }
 
     @SuppressWarnings("unchecked")

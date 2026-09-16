@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -79,6 +80,27 @@ class SurrogateKeyInterceptorTest {
                 .andExpect(header().string(SurrogateKey.HEADER, "ext/redhat/java ns/redhat"));
     }
 
+    // /vscode/item names its extension in ?itemName=publisher.name, not the path, so it has no
+    // URI-template variable for the interceptor's usual lookup to find.
+    @Test
+    void tagsVSCodeItemFromItsQueryParameter() throws Exception {
+        mockMvc.perform(get("/vscode/item").param("itemName", "redhat.java"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(SurrogateKey.HEADER, "ext/redhat/java ns/redhat"));
+    }
+
+    @Test
+    void tagsNothingForAMalformedItemName() throws Exception {
+        mockMvc.perform(get("/vscode/item").param("itemName", "not-an-extension-id"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist(SurrogateKey.HEADER));
+    }
+
+    @Test
+    void tagsNothingWhenItemNameIsMissing() throws Exception {
+        mockMvc.perform(get("/vscode/item")).andExpect(header().doesNotExist(SurrogateKey.HEADER));
+    }
+
     @Test
     void tagsNothingWhereThePathNamesNoExtensionOrNamespace() throws Exception {
         mockMvc.perform(get("/api/-/search"))
@@ -123,6 +145,11 @@ class SurrogateKeyInterceptorTest {
         @GetMapping("/api/-/search")
         ResponseEntity<String> search() {
             return ResponseEntity.ok("[]");
+        }
+
+        @GetMapping("/vscode/item")
+        ResponseEntity<String> item(@RequestParam(required = false) String itemName) {
+            return ResponseEntity.ok(itemName);
         }
     }
 }
