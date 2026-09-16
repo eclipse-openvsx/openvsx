@@ -202,7 +202,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new SurrogateKeyInterceptor()).addPathPatterns("/api/**", "/vscode/**");
+        registry.addInterceptor(new SurrogateKeyInterceptor())
+                .addPathPatterns("/", "/index.html", "/api/**", "/vscode/**");
         if (mirrorInterceptor != null) {
             registry.addInterceptor(mirrorInterceptor)
                     .addPathPatterns(

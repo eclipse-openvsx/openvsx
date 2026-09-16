@@ -51,6 +51,7 @@ import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.LocalRegistryService;
 import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
+import org.eclipse.openvsx.cdn.CdnPurgeService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersistedLog;
@@ -99,6 +100,7 @@ public class AdminAPI {
     private final SearchUtilService search;
     private final SearchExplainService searchExplainService;
     private final CacheInfoService caches;
+    private final CdnPurgeService cdnPurge;
 
     public AdminAPI(
             RepositoryService repositories,
@@ -109,7 +111,8 @@ public class AdminAPI {
             LocalRegistryService local,
             SearchUtilService search,
             SearchExplainService searchExplainService,
-            CacheInfoService caches
+            CacheInfoService caches,
+            CdnPurgeService cdnPurge
     ) {
         this.repositories = repositories;
         this.admins = admins;
@@ -120,6 +123,7 @@ public class AdminAPI {
         this.search = search;
         this.searchExplainService = searchExplainService;
         this.caches = caches;
+        this.cdnPurge = cdnPurge;
     }
 
     @GetMapping(
@@ -489,6 +493,36 @@ public class AdminAPI {
                         HttpStatus.NOT_FOUND);
             }
 
+            logs.logAction(adminUser, result);
+            return ResponseEntity.ok(result);
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        }
+    }
+
+    @PostMapping(
+        path = "/purge-webui-cache",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(
+        hidden = true,
+        summary = "Purge the CDN's cached copy of the Web UI's entry HTML"
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "A success message is returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = ResultJson.class)
+        )
+    )
+    public ResponseEntity<ResultJson> purgeWebuiCache() {
+        try {
+            var adminUser = admins.checkAdminUser();
+
+            cdnPurge.purgeWebui();
+
+            var result = ResultJson.success("Purged the Web UI's entry HTML from the CDN");
             logs.logAction(adminUser, result);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {

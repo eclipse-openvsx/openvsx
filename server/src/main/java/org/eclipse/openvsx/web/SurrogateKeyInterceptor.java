@@ -18,11 +18,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 /**
- * Tags every response about a namespace or an extension with its {@link SurrogateKey}s.
+ * Tags every response about a namespace, an extension, or the Web UI's own entry HTML with its
+ * {@link SurrogateKey}s.
  * <p>
  * Derived from the request's path variables rather than written out at each endpoint: which
  * extension a response is about is exactly what the URL template says, and there are two dozen
@@ -31,7 +34,13 @@ import org.springframework.web.servlet.HandlerMapping;
  * it purges the cached 404 along with everything else.
  * <p>
  * The header is inert until a CDN is configured to act on it, and nothing here decides whether a
- * response may be cached: that stays with the {@code Cache-Control} each endpoint sets.
+ * response may be cached: that stays with the {@code Cache-Control} each endpoint sets - except for
+ * the entry HTML, which is served by Spring's static resource handler rather than a controller and
+ * so has no endpoint of its own to set one. Left alone, a browser is free to hold onto it by
+ * heuristics and keep requesting chunks a new deploy already removed, the same bug a CDN purge
+ * exists to fix, just one layer closer to the reader and one a purge cannot reach. So this
+ * interceptor sets it here: {@code no-cache} to force revalidation on every load, {@code public} so
+ * a CDN may still hold a purgeable copy - see {@code SurrogateCacheControlAdvice}.
  */
 public class SurrogateKeyInterceptor implements HandlerInterceptor {
 
@@ -45,11 +54,18 @@ public class SurrogateKeyInterceptor implements HandlerInterceptor {
      */
     private static final String NOT_A_NAME = "-";
 
+    private static final String ENTRY_HTML_CACHE_CONTROL = CacheControl.noCache().cachePublic().getHeaderValue();
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         // Before the handler, not after: an endpoint that streams its body or redirects has already
         // committed the response by the time postHandle runs, and a committed response takes no
         // further headers.
+        if (isWebuiEntryPoint(request)) {
+            response.setHeader(HttpHeaders.CACHE_CONTROL, ENTRY_HTML_CACHE_CONTROL);
+            response.setHeader(SurrogateKey.HEADER, SurrogateKey.WEBUI_HTML);
+            return true;
+        }
         var pathVariables = pathVariables(request);
         var namespace = variable(pathVariables, NAMESPACE_VARIABLES);
         if (namespace == null) {
@@ -62,6 +78,11 @@ public class SurrogateKeyInterceptor implements HandlerInterceptor {
                         ? SurrogateKey.namespace(namespace)
                         : SurrogateKey.extension(namespace, extension));
         return true;
+    }
+
+    private static boolean isWebuiEntryPoint(HttpServletRequest request) {
+        var uri = request.getRequestURI();
+        return "/".equals(uri) || "/index.html".equals(uri);
     }
 
     @SuppressWarnings("unchecked")

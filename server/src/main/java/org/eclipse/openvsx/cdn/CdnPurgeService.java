@@ -69,6 +69,15 @@ public class CdnPurgeService {
         collect(SurrogateKey.namespace(namespace));
     }
 
+    /**
+     * The Web UI's entry HTML. Not called from anywhere the rest of this service is - a deploy, not
+     * a data change, is what makes it stale - so the caller is a deploy pipeline's own last step,
+     * once the rollout it is purging for has finished; see {@code AdminAPI#purgeWebuiCache}.
+     */
+    public void purgeWebui() {
+        collect(SurrogateKey.WEBUI_HTML);
+    }
+
     private void collect(String keys) {
         if (!config.isEnabled()) {
             return;

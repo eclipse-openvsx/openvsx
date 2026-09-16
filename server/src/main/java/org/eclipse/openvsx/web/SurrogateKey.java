@@ -30,6 +30,7 @@ import java.util.Locale;
  * <ul>
  *     <li>{@code ns/<namespace>} - everything belonging to a namespace.</li>
  *     <li>{@code ext/<namespace>/<extension>} - everything about one extension.</li>
+ *     <li>{@code webui-html} - the Web UI's entry HTML, {@code /} and {@code /index.html}.</li>
  * </ul>
  * An extension's responses carry both, so a namespace-wide change needs one key rather than a key
  * per extension in it.
@@ -43,6 +44,12 @@ import java.util.Locale;
 public final class SurrogateKey {
 
     public static final String HEADER = "Surrogate-Key";
+
+    /**
+     * The Web UI's entry HTML. Fixed rather than derived: there is exactly one of it, unlike a
+     * namespace or an extension, so nothing to parametrize the key on.
+     */
+    public static final String WEBUI_HTML = "webui-html";
 
     private SurrogateKey() {
     }
