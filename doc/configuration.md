@@ -945,6 +945,10 @@ Responses about an extension or a namespace carry a `Surrogate-Key` header namin
 
 The header is emitted whether or not any of this is configured; without a provider nothing is purged.
 
+The Web UI's entry HTML - `/` and `/index.html` - carries the fixed key `webui-html` instead: what makes it stale is a deploy, not a data change, so nothing in the registry purges it on its own. `POST /admin/purge-webui-cache` (`ROLE_ADMIN`) does, meant to be called as the last step of a Web UI deploy, once the new pods are ready and serving the new build. Called too early - before every old pod is gone - it purges the entry HTML while some of the fleet can still only serve the old one, or the new one is not yet servable everywhere, either way pointing some readers at hashed assets the pod they land on cannot hand out.
+
+The entry HTML is also always sent with `Cache-Control: no-cache, public`, regardless of whether purging is configured: `no-cache` so a browser revalidates it on every load rather than holding its own stale copy - a CDN purge only ever reaches a CDN - and `public` so a CDN may still cache a purgeable copy in between.
+
 Where a provider is configured, the responses that carry a key and that their endpoint already marked `public` are also given a `Surrogate-Control` header, letting the CDN keep them until they are purged rather than until they expire. The header is read by the CDN and stripped before the response reaches anyone else, so `Cache-Control` is untouched: browsers keep revalidating as often as they did, and the revalidation is answered by the CDN instead of by the registry. A browser cache cannot be purged, which is why the two are kept apart.
 
 | Property      | `ovsx.cdn.surrogate-cache-duration`

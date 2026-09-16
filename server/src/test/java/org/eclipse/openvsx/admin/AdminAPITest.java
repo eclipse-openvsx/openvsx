@@ -61,6 +61,7 @@ import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
+import org.eclipse.openvsx.cdn.CdnPurgeService;
 import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.AdminStatistics;
@@ -150,6 +151,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DownloadIngestionProcessor.class,
         ExtensionDownloadMetrics.class,
         CacheService.class,
+        CdnPurgeService.class,
         PublishExtensionVersionHandler.class,
         SearchUtilService.class,
         SearchExplainService.class,
@@ -204,6 +206,9 @@ class AdminAPITest {
 
     @Autowired
     CacheInfoService caches;
+
+    @Autowired
+    CdnPurgeService cdnPurge;
 
     // The document count next to the number of extensions it is built from is the point of this page:
     // an index that quietly lost entries looks exactly like a registry with nothing in it otherwise.
@@ -452,6 +457,32 @@ class AdminAPITest {
                 .andExpect(status().isForbidden());
 
         Mockito.verify(caches, Mockito.never()).clearAll();
+    }
+
+    @Test
+    void testPurgeWebuiCache() throws Exception {
+        mockAdminUser();
+
+        mockMvc.perform(
+                post("/admin/purge-webui-cache")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value("Purged the Web UI's entry HTML from the CDN"));
+
+        Mockito.verify(cdnPurge).purgeWebui();
+    }
+
+    @Test
+    void testPurgeWebuiCacheNotAdmin() throws Exception {
+        mockNormalUser();
+        mockMvc.perform(
+                post("/admin/purge-webui-cache")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+
+        Mockito.verify(cdnPurge, Mockito.never()).purgeWebui();
     }
 
     @Test

@@ -94,8 +94,34 @@ class SurrogateKeyInterceptorTest {
                 .andExpect(header().doesNotExist(SurrogateKey.HEADER));
     }
 
+    @Test
+    void tagsTheRootWithTheFixedWebuiKey() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(SurrogateKey.HEADER, SurrogateKey.WEBUI_HTML))
+                .andExpect(header().string("Cache-Control", "no-cache, public"));
+    }
+
+    @Test
+    void tagsTheEntryHtmlWithTheFixedWebuiKey() throws Exception {
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(SurrogateKey.HEADER, SurrogateKey.WEBUI_HTML))
+                .andExpect(header().string("Cache-Control", "no-cache, public"));
+    }
+
     @RestController
     private static class StubApi {
+
+        @GetMapping("/")
+        ResponseEntity<String> root() {
+            return ResponseEntity.ok("root");
+        }
+
+        @GetMapping("/index.html")
+        ResponseEntity<String> indexHtml() {
+            return ResponseEntity.ok("index");
+        }
 
         @GetMapping("/api/{namespace}")
         ResponseEntity<String> namespaceDetails(@PathVariable String namespace) {

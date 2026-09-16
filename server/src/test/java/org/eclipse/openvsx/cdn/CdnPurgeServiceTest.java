@@ -117,6 +117,18 @@ class CdnPurgeServiceTest {
         assertThat(enqueuedRequest().getKeys()).containsExactly("ext/foo/bar", "ns/foo");
     }
 
+    // A deploy, not a data change, is what makes the entry HTML stale, so nothing in this class
+    // calls purgeWebui() itself - only AdminAPI#purgeWebuiCache does - but it still coalesces and
+    // waits for a commit like every other key, in case it is ever called from inside one.
+    @Test
+    void purgesTheWebuiEntryHtmlByItsFixedKey() {
+        var service = service(true);
+
+        service.purgeWebui();
+
+        assertThat(enqueuedRequest().getKeys()).containsExactly("webui-html");
+    }
+
     @Test
     void sendsNothingWithoutAConfiguredProvider() {
         var service = service(false);
