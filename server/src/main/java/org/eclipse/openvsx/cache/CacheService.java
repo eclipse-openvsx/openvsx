@@ -30,10 +30,11 @@ import org.eclipse.openvsx.util.VersionAlias;
 /**
  * Drops what the caches hold about rows that changed.
  * <p>
- * Every eviction here happens once the surrounding transaction has committed, and off the request
- * thread - see {@link AfterCommitExecutor} for why an eviction sent before the commit can leave a
- * cache staler than no eviction at all. Callers therefore hand over the names they are evicting by,
- * not the entities: by the time the work runs, an entity may be detached.
+ * Every eviction here happens once the surrounding transaction has committed - see
+ * {@link AfterCommitExecutor} for why one sent before the commit can leave a cache staler than no
+ * eviction at all. It still happens on the calling thread. Callers hand over the names they are
+ * evicting by rather than the entities, because by the time the work runs it is outside the
+ * transaction, where an entity may be detached.
  * <p>
  * The file caches below are the exception: they are keyed by the file just written rather than by a
  * row, and their callers are not in a transaction.
