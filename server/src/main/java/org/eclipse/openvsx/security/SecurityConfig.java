@@ -11,7 +11,6 @@ package org.eclipse.openvsx.security;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,26 +21,18 @@ import org.springframework.security.web.authentication.Http403ForbiddenEntryPoin
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
+import org.eclipse.openvsx.web.WebUiProperties;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    @Value(
-        "${ovsx.webui.frontendRoutes:/extension/**,/namespace/**,/search,/user-settings/**,/publish,/admin-dashboard/**}"
-    )
-    String[] frontendRoutes;
-
-    @Value("${ovsx.webui.additional-routes:}")
-    String[] additionalRoutes;
 
     @Bean
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             OAuth2UserServices userServices,
-            ObjectProvider<ClientRegistrationRepository> clientRegistrations
+            ObjectProvider<ClientRegistrationRepository> clientRegistrations,
+            WebUiProperties webUi
     ) throws Exception {
         var filterChain = http.authorizeHttpRequests(
                 registry -> registry
@@ -80,9 +71,9 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(pathMatchers("/admin/**"))
                         .hasAuthority("ROLE_ADMIN")
-                        .requestMatchers(pathMatchers(frontendRoutes))
+                        .requestMatchers(pathMatchers(webUi.getFrontendRoutes()))
                         .permitAll()
-                        .requestMatchers(pathMatchers(additionalRoutes))
+                        .requestMatchers(pathMatchers(webUi.getAdditionalRoutes()))
                         .permitAll()
                         .anyRequest()
                         .authenticated())
@@ -101,8 +92,9 @@ public class SecurityConfig {
                 .exceptionHandling(configurer -> configurer.authenticationEntryPoint(new Http403ForbiddenEntryPoint()));
 
         if (userServices.canLogin()) {
+            var webuiUrl = webUi.getUrl();
             var redirectUrl = StringUtils.isEmpty(webuiUrl) ? "/" : webuiUrl;
-            var returnTo = new LoginReturnTo(frontendRoutes, additionalRoutes);
+            var returnTo = new LoginReturnTo(webUi.getFrontendRoutes(), webUi.getAdditionalRoutes());
             filterChain.oauth2Login(configurer -> {
                 configurer.defaultSuccessUrl(redirectUrl);
                 configurer.successHandler(new CustomAuthenticationSuccessHandler(redirectUrl));

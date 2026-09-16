@@ -22,7 +22,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
@@ -36,11 +35,11 @@ public class SitemapService {
 
     private final RepositoryService repositories;
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
+    private final WebUiProperties webUi;
 
-    public SitemapService(RepositoryService repositories) {
+    public SitemapService(RepositoryService repositories, WebUiProperties webUi) {
         this.repositories = repositories;
+        this.webUi = webUi;
     }
 
     @Cacheable(CACHE_SITEMAP)
@@ -79,6 +78,7 @@ public class SitemapService {
 
     private String getBaseUrl() {
         String url;
+        var webuiUrl = webUi.getUrl();
         if (StringUtils.isEmpty(webuiUrl)) {
             url = UrlUtil.getBaseUrl();
         } else if (URI.create(webuiUrl).isAbsolute()) {

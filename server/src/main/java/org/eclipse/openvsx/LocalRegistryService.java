@@ -62,6 +62,7 @@ import org.eclipse.openvsx.util.VersionAlias;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.util.auth.AuthenticatedUser;
 import org.eclipse.openvsx.util.auth.LoggedInAuthentication;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.cache.CacheService.*;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -89,6 +90,7 @@ public class LocalRegistryService implements IExtensionRegistry {
     private final SimilarityCheckService similarityCheckService;
     private final PublishingConfig publishingConfig;
     private final TrustedPublishingConfig trustedPublishingConfig;
+    private final WebUiProperties webUi;
 
     /**
      * How far behind the present the changes feed stops, see {@link #visibleUntil}.
@@ -111,6 +113,7 @@ public class LocalRegistryService implements IExtensionRegistry {
             @Nullable SimilarityCheckService similarityCheckService,
             PublishingConfig publishingConfig,
             TrustedPublishingConfig trustedPublishingConfig,
+            WebUiProperties webUi,
             @Value("${ovsx.changes-feed.lag:PT30S}") Duration changesFeedLag
     ) {
         this.entityManager = entityManager;
@@ -128,11 +131,9 @@ public class LocalRegistryService implements IExtensionRegistry {
         this.similarityCheckService = similarityCheckService;
         this.publishingConfig = publishingConfig;
         this.trustedPublishingConfig = trustedPublishingConfig;
+        this.webUi = webUi;
         this.changesFeedLag = changesFeedLag;
     }
-
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
 
     @Value("${ovsx.analytics.enabled:false}")
     boolean analyticsEnabled;
@@ -1333,7 +1334,7 @@ public class LocalRegistryService implements IExtensionRegistry {
             return null;
         }
 
-        var baseUrl = webui ? webuiUrl : UrlUtil.getBaseUrl();
+        var baseUrl = webui ? webUi.getUrl() : UrlUtil.getBaseUrl();
         var segments = new String[] {
             webui ? "extension" : "api",
             replacement.getExtension().getNamespace().getName(),
