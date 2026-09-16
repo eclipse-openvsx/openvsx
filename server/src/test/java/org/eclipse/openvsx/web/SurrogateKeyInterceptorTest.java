@@ -105,7 +105,8 @@ class SurrogateKeyInterceptorTest {
     // be matched against /vscode/item rather than never matching at all.
     @Test
     void tagsVSCodeItemUnderAConfiguredContextPath() throws Exception {
-        mockMvc.perform(get("/openvsx-server/vscode/item")
+        mockMvc.perform(
+                get("/openvsx-server/vscode/item")
                         .contextPath("/openvsx-server")
                         .param("itemName", "redhat.java"))
                 .andExpect(status().isOk())
