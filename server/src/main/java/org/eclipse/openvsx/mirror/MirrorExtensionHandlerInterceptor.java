@@ -40,7 +40,9 @@ public class MirrorExtensionHandlerInterceptor implements HandlerInterceptor {
         var namespaceName = params.get("namespaceName");
         var extensionName = params.get("extensionName");
         if (!dataMirror.match(namespaceName, extensionName)) {
-            response.reset();
+            // resetBuffer, not reset: this must not discard headers earlier interceptors already set,
+            // such as SurrogateKeyInterceptor's Surrogate-Key.
+            response.resetBuffer();
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             return false;
         }
