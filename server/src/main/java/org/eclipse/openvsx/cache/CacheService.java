@@ -10,7 +10,6 @@
 package org.eclipse.openvsx.cache;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 
 import io.micrometer.observation.annotation.Observed;
@@ -266,9 +265,15 @@ public class CacheService {
      *     <li>Redis scans its own keyspace. {@link RedisCache#clear(String)} rather than the writer
      *     behind {@link Cache#getNativeCache()}, because it runs the pattern through the cache's own
      *     key prefix first; a pattern built here would match nothing.</li>
-     *     <li>The local caches are iterated instead, which is bounded by what the cache holds - a
-     *     few thousand entries at most - rather than by versions times target platforms.</li>
+     *     <li>The local caches are Caffeine, reached either directly or through the JCache API, and
+     *     their key set is scanned. Through the native cache in both cases: iterating a
+     *     {@code javax.cache.Cache} walks entries rather than keys, and its iterator copies each
+     *     value and refreshes each entry's access expiry on the way past - work this has no use for,
+     *     over values as large as an extension's JSON.</li>
      * </ul>
+     * Scanning is bounded by what the cache holds, where guessing is bounded by versions times target
+     * platforms, so which is cheaper depends on the extension. Completeness does not: guessing cannot
+     * evict a key it did not think of, such as that of a version which was just deleted.
      */
     private boolean clearByKeyPrefix(Cache cache, String prefix) {
         if (cache instanceof RedisCache redisCache) {
@@ -276,29 +281,36 @@ public class CacheService {
             return true;
         }
 
-        var nativeCache = cache.getNativeCache();
-        if (nativeCache instanceof com.github.benmanes.caffeine.cache.Cache<?, ?> caffeineCache) {
-            caffeineCache.asMap().keySet().removeIf(key -> startsWith(key, prefix));
-            return true;
-        }
-        if (nativeCache instanceof javax.cache.Cache<?, ?> jCache) {
-            var keys = new HashSet<>();
+        var caffeineCache = caffeineCacheOf(cache);
+        if (caffeineCache != null) {
             // weakly consistent, which is all this needs: an entry written while it runs belongs to
             // the state after the change, and one removed under it is already gone
-            jCache.forEach(entry -> {
-                if (startsWith(entry.getKey(), prefix)) {
-                    keys.add(entry.getKey());
-                }
-            });
-            if (!keys.isEmpty()) {
-                @SuppressWarnings("unchecked")
-                var typed = (javax.cache.Cache<Object, Object>) jCache;
-                typed.removeAll(keys);
-            }
+            caffeineCache.asMap().keySet().removeIf(key -> startsWith(key, prefix));
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * The Caffeine cache behind a Spring one, however it is wrapped: directly for the file and
+     * settings caches, and through the JCache API for the ones a publish evicts.
+     */
+    private static com.github.benmanes.caffeine.cache.@Nullable Cache<Object, Object> caffeineCacheOf(Cache cache) {
+        var nativeCache = cache.getNativeCache();
+        if (nativeCache instanceof com.github.benmanes.caffeine.cache.Cache<?, ?>) {
+            @SuppressWarnings("unchecked")
+            var caffeineCache = (com.github.benmanes.caffeine.cache.Cache<Object, Object>) nativeCache;
+            return caffeineCache;
+        }
+        if (nativeCache instanceof javax.cache.Cache<?, ?> jCache) {
+            @SuppressWarnings("unchecked")
+            var caffeineCache = (com.github.benmanes.caffeine.cache.Cache<Object, Object>) jCache
+                    .unwrap(com.github.benmanes.caffeine.cache.Cache.class);
+            return caffeineCache;
+        }
+
+        return null;
     }
 
     /**
@@ -308,14 +320,7 @@ public class CacheService {
      * cache that is neither.
      */
     private static boolean clearsByKeyPrefix(@Nullable Cache cache) {
-        if (cache == null) {
-            return false;
-        }
-
-        var nativeCache = cache.getNativeCache();
-        return cache instanceof RedisCache
-                || nativeCache instanceof com.github.benmanes.caffeine.cache.Cache<?, ?>
-                || nativeCache instanceof javax.cache.Cache<?, ?>;
+        return cache != null && (cache instanceof RedisCache || caffeineCacheOf(cache) != null);
     }
 
     private static boolean startsWith(Object key, String prefix) {

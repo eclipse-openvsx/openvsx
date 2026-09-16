@@ -106,7 +106,8 @@ class CacheServiceEvictionTest {
         Mockito.when(cacheManager.getCache(CACHE_EXTENSION_JSON))
                 .thenReturn(new CaffeineCache(CACHE_EXTENSION_JSON, nativeCache));
 
-        service().evictExtensionJsons(extension(2));
+        // no versions loaded: neither cached version is a key the guessing fallback could name
+        service().evictExtensionJsons(extension(0));
 
         assertThat(nativeCache.asMap().values()).containsOnly("kept");
         assertThat(nativeCache.asMap()).hasSize(3);
@@ -127,7 +128,9 @@ class CacheServiceEvictionTest {
             nativeCache.put(keys.generate("foo", "bar-baz", "universal", "1.0.0"), "kept");
             Mockito.when(cacheManager.getCache(CACHE_EXTENSION_JSON)).thenReturn(new JCacheCache(nativeCache));
 
-            service().evictExtensionJsons(extension(1));
+            // no versions loaded, so a key for 1.0.0 is one the guessing fallback could not name:
+            // it is evicted here only because the cache was scanned
+            service().evictExtensionJsons(extension(0));
 
             assertThat(nativeCache.get(keys.generate("foo", "bar", "universal", "1.0.0"))).isNull();
             assertThat(nativeCache.get(keys.generate("foo", "bar2", "universal", "1.0.0"))).isEqualTo("kept");
@@ -267,5 +270,27 @@ class CacheServiceEvictionTest {
         service().evictExtensionJsons(extension);
 
         verify(extension, Mockito.atLeastOnce()).getVersions();
+    }
+
+    /**
+     * Through the native cache rather than the JCache API, because a {@code javax.cache.Cache}
+     * iterator walks entries rather than keys: per entry it copies the value and refreshes the access
+     * expiry, neither of which an eviction has any use for.
+     */
+    @Test
+    void reachesPastTheJCacheApiRatherThanIteratingIt() {
+        var nativeCache = Caffeine.newBuilder().build();
+        var keys = new ExtensionJsonCacheKeyGenerator();
+        nativeCache.put(keys.generate("foo", "bar", "universal", "1.0.0"), "evicted");
+        var jCache = Mockito.mock(javax.cache.Cache.class);
+        Mockito.when(jCache.unwrap(com.github.benmanes.caffeine.cache.Cache.class)).thenReturn(nativeCache);
+        var cache = Mockito.mock(Cache.class);
+        Mockito.when(cache.getNativeCache()).thenReturn(jCache);
+        Mockito.when(cacheManager.getCache(CACHE_EXTENSION_JSON)).thenReturn(cache);
+
+        service().evictExtensionJsons(extension(0));
+
+        assertThat(nativeCache.asMap()).isEmpty();
+        verify(jCache, never()).iterator();
     }
 }
