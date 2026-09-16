@@ -433,13 +433,39 @@ public class VSCodeAPI {
             @PathVariable
             @Parameter(description = "Extension name", example = "malloy-vscode") String extensionName,
             @PathVariable
-            @Parameter(description = "Extension version", example = "0.3.1710435722") String version
+            @Parameter(description = "Extension version", example = "0.3.1710435722") String version,
+            @RequestParam(required = false)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
+            @Parameter(
+                description = "Target platform. May also be given as a `+<target>` suffix on the version, "
+                        + "which is the form VS Code uses when resolving an extension's resources.",
+                example = TargetPlatform.NAME_WEB
+            ) String target
     ) {
+        var targetPlatform = StringUtils.isNotEmpty(target) ? target : null;
+        if (targetPlatform == null) {
+            // VS Code appends the target to the version when it resolves an extension's resources, so
+            // that a `web` build and a `universal` build of one version can be told apart. Only strip
+            // the suffix when it names a platform: a version may legitimately carry semver build
+            // metadata (`1.2.3+build.5`), which belongs to the version rather than being a target.
+            var separator = version.lastIndexOf('+');
+            if (separator >= 0 && separator + 1 < version.length()) {
+                var candidate = version.substring(separator + 1);
+                if (TargetPlatform.isValid(candidate)) {
+                    targetPlatform = candidate;
+                    version = version.substring(0, separator);
+                }
+            }
+        }
+
         var path = UrlUtil.extractWildcardPath(request);
         try {
             for (var service : getVSCodeServices()) {
                 try {
-                    return service.browse(namespaceName, extensionName, version, path);
+                    return service.browse(namespaceName, extensionName, version, targetPlatform, path);
                 } catch (NotFoundException exc) {
                     // Try the next registry
                 }
