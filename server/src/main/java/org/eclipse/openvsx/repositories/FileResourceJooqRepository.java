@@ -44,7 +44,13 @@ public class FileResourceJooqRepository {
         }
 
         var extVersionsById = extVersions.stream().collect(Collectors.toMap(ExtensionVersion::getId, ev -> ev));
-        return dsl.select(FILE_RESOURCE.ID, FILE_RESOURCE.EXTENSION_ID, FILE_RESOURCE.NAME, FILE_RESOURCE.TYPE)
+        return dsl
+                .select(
+                        FILE_RESOURCE.ID,
+                        FILE_RESOURCE.EXTENSION_ID,
+                        FILE_RESOURCE.NAME,
+                        FILE_RESOURCE.TYPE,
+                        FILE_RESOURCE.SIZE)
                 .from(FILE_RESOURCE)
                 .where(FILE_RESOURCE.EXTENSION_ID.in(extVersionsById.keySet())).and(FILE_RESOURCE.TYPE.in(types))
                 .fetch()
@@ -52,7 +58,13 @@ public class FileResourceJooqRepository {
     }
 
     public List<FileResource> findAll(Collection<Long> extensionIds, Collection<String> types) {
-        return dsl.select(FILE_RESOURCE.ID, FILE_RESOURCE.EXTENSION_ID, FILE_RESOURCE.NAME, FILE_RESOURCE.TYPE)
+        return dsl
+                .select(
+                        FILE_RESOURCE.ID,
+                        FILE_RESOURCE.EXTENSION_ID,
+                        FILE_RESOURCE.NAME,
+                        FILE_RESOURCE.TYPE,
+                        FILE_RESOURCE.SIZE)
                 .from(FILE_RESOURCE)
                 .where(FILE_RESOURCE.EXTENSION_ID.in(extensionIds).and(FILE_RESOURCE.TYPE.in(types)))
                 .fetch()
@@ -76,6 +88,9 @@ public class FileResourceJooqRepository {
         fileResource.setId(row.get(FILE_RESOURCE.ID));
         fileResource.setName(row.get(FILE_RESOURCE.NAME));
         fileResource.setType(row.get(FILE_RESOURCE.TYPE));
+        // Null for a resource stored before V1_73 added the column that FileResourceSizeJobRequestHandler
+        // has not backfilled yet, so every reader has to treat the size as unknown rather than as zero.
+        fileResource.setSize(row.get(FILE_RESOURCE.SIZE));
         fileResource.setExtension(extVersion);
 
         return fileResource;
