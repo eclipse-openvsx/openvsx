@@ -114,6 +114,26 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
 
+  # Release images only; sbom-docker.yml stays separately dispatchable for
+  # backfills. 'prepare' is guarded on the upstream repo, so forks skip these.
+  sbom-webui:
+    needs: ['prepare', 'build-and-push-webui']
+    permissions:
+      id-token: write
+    uses: ./.github/workflows/sbom-docker.yml
+    with:
+      image: openvsx-webui
+      version: ${{ needs.prepare.outputs.release-tag }}
+
+  sbom-server:
+    needs: ['prepare', 'build-and-push-server']
+    permissions:
+      id-token: write
+    uses: ./.github/workflows/sbom-docker.yml
+    with:
+      image: openvsx-server
+      version: ${{ needs.prepare.outputs.release-tag }}
+
   github-publish:
     runs-on: ubuntu-22.04
     needs: ['prepare', 'build-and-push-webui', 'build-and-push-server']

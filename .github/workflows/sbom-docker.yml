@@ -2,8 +2,20 @@
 name: Generate SBOM (docker image)
 
 on:
-  registry_package:
-    types: [published]
+  # Called from release.yml once the images are pushed. A registry_package
+  # trigger cannot be used here: release.yml pushes with GITHUB_TOKEN, and
+  # events triggered by GITHUB_TOKEN do not start new workflow runs.
+  workflow_call:
+    inputs:
+      image:
+        description: "Image on ghcr.io/eclipse-openvsx to scan"
+        required: true
+        type: string
+      version:
+        description: "Version tag (e.g. v1.2.3)"
+        required: true
+        type: string
+  # Backfill an SBOM for an image that is already published.
   workflow_dispatch:
     inputs:
       image:
@@ -23,22 +35,16 @@ permissions:
 env:
   REGISTRY: ghcr.io
   OWNER: eclipse-openvsx
-  NAME: "${{ inputs.image || github.event.registry_package.name }}"
-  VERSION: "${{ inputs.version || github.event.registry_package.package_version.container_metadata.tag.name }}"
+  NAME: "${{ inputs.image }}"
+  VERSION: "${{ inputs.version }}"
 
 jobs:
   sbom-docker:
-    # * Auto-run only triggers in upstream repo for upstream registry images.
-    #   Known snapshot images are skipped (see main.yml). An unexpected image
-    #   name is left to fail in the Upload SBOM step, whose endpoint only
-    #   accepts registered product names.
+    # * Called only from release.yml, so only release images are scanned;
+    #   the snapshot images built by main.yml never reach this workflow.
     # * Manual dispatch is allowed on forks, but also uses upstream registry
     #   images. Image names are restricted by the input field.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.repository_owner == 'eclipse-openvsx' &&
-       github.event.registry_package.name != 'openvsx-server-snapshot' &&
-       github.event.registry_package.name != 'openvsx-webui-snapshot')
+    if: github.event_name == 'workflow_dispatch' || github.repository_owner == 'eclipse-openvsx'
     runs-on: ubuntu-latest
     steps:
     - name: Generate SBOM
