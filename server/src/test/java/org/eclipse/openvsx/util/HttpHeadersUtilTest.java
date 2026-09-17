@@ -15,11 +15,107 @@ package org.eclipse.openvsx.util;
 import java.io.InputStream;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class HttpHeadersUtilTest {
+
+    @AfterEach
+    void resetRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    @Test
+    void testResolveAccessTokenPrefersAuthorizationBearer() {
+        var request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer bearer-token");
+        request.addHeader(HttpHeadersUtil.TOKEN_HEADER, "fallback-header-token");
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "query-token")).isEqualTo("bearer-token");
+    }
+
+    @Test
+    void testResolveAccessTokenBearerSchemeIsCaseInsensitiveAndTrimmed() {
+        var request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "bearer   bearer-token  ");
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "query-token")).isEqualTo("bearer-token");
+    }
+
+    @Test
+    void testResolveAccessTokenFallsBackToOpenVsxHeader() {
+        var request = new MockHttpServletRequest();
+        request.addHeader(HttpHeadersUtil.TOKEN_HEADER, "fallback-header-token");
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "query-token")).isEqualTo("fallback-header-token");
+    }
+
+    @Test
+    void testResolveAccessTokenIgnoresNonBearerAuthorization() {
+        // Authorization: Basic is a different scheme entirely (e.g. a reverse proxy in front of a
+        // self-hosted registry) - it must not be mistaken for a PAT nor block the other fallbacks.
+        var request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Basic dXNlcjpwYXNz");
+        request.addHeader(HttpHeadersUtil.TOKEN_HEADER, "fallback-header-token");
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "query-token")).isEqualTo("fallback-header-token");
+    }
+
+    @Test
+    void testResolveAccessTokenFallsBackToQueryParam() {
+        var request = new MockHttpServletRequest();
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "query-token")).isEqualTo("query-token");
+    }
+
+    @Test
+    void testResolveAccessTokenTreatsBlankHeadersAsAbsent() {
+        var request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer   ");
+        request.addHeader(HttpHeadersUtil.TOKEN_HEADER, "   ");
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "query-token")).isEqualTo("query-token");
+    }
+
+    @Test
+    void testResolveAccessTokenReturnsNullWhenNothingIsSupplied() {
+        var request = new MockHttpServletRequest();
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, null)).isNull();
+    }
+
+    @Test
+    void testResolveAccessTokenTreatsBlankQueryTokenAsAbsent() {
+        // ?token= (present but empty) must resolve to null, not "" - callers such as
+        // AdminAPI.searchExplain fall back to session auth only on a genuine null.
+        var request = new MockHttpServletRequest();
+
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "")).isNull();
+        assertThat(HttpHeadersUtil.resolveAccessToken(request, "   ")).isNull();
+    }
+
+    @Test
+    void testGetForwardedHeadersExcludesCredentials() {
+        var request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer secret-token");
+        request.addHeader(HttpHeadersUtil.TOKEN_HEADER, "another-secret-token");
+        request.addHeader(HttpHeaders.HOST, "openvsx.example");
+        request.addHeader("Accept", "application/json");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        var headers = HttpHeadersUtil.getForwardedHeaders();
+
+        assertThat(headers.get(HttpHeaders.AUTHORIZATION)).isNull();
+        assertThat(headers.get(HttpHeadersUtil.TOKEN_HEADER)).isNull();
+        assertThat(headers.get(HttpHeaders.HOST)).isNull();
+        assertThat(headers.getFirst("Accept")).isEqualTo("application/json");
+    }
 
     @Test
     void testCreateJsonFileResponseHeaders() {

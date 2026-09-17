@@ -67,7 +67,8 @@ public class SecurityConfig {
                                         "/vscode/**",
                                         "/documents/**",
                                         "/admin/api/**",
-                                        "/admin/report"))
+                                        "/admin/report",
+                                        "/admin/search-explain"))
                         .permitAll()
                         .requestMatchers(pathMatchers("/admin/**"))
                         .hasAuthority("ROLE_ADMIN")

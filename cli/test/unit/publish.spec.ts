@@ -28,6 +28,7 @@ vi.mock('@vscode/vsce', () => ({ createVSIX: vi.fn() }));
 interface RecordedRequest {
     pathname: string;
     query: URLSearchParams;
+    headers: http.IncomingHttpHeaders;
 }
 
 interface RegistryStub {
@@ -75,7 +76,7 @@ async function startRegistryStub(
                 res.end(JSON.stringify({ value: `token-${state.tokenRequests}` }));
             } else {
                 const attempt = publishAttempts?.[Math.min(publishRequests.length, publishAttempts.length - 1)];
-                publishRequests.push({ pathname: url.pathname, query: url.searchParams });
+                publishRequests.push({ pathname: url.pathname, query: url.searchParams, headers: req.headers });
                 res.writeHead(attempt?.status ?? publishStatus, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(attempt?.body ?? publishBody));
             }
@@ -240,8 +241,8 @@ describe('publish', () => {
         expect(result.status).toBe('fulfilled');
         expect(registry.publishRequests).toHaveLength(2);
         // the retry carries the replacement, not the token that was just refused
-        expect(registry.publishRequests[0].query.get('token')).toBe('token-1');
-        expect(registry.publishRequests[1].query.get('token')).toBe('token-2');
+        expect(registry.publishRequests[0].headers.authorization).toBe('Bearer token-1');
+        expect(registry.publishRequests[1].headers.authorization).toBe('Bearer token-2');
         expect(registry.tokenRequests).toBe(2);
     });
 
@@ -303,7 +304,7 @@ describe('publish', () => {
         expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
         expect(registry.publishRequests).toHaveLength(3);
         expect(registry.tokenRequests).toBe(1);
-        expect(registry.publishRequests.map(request => request.query.get('token')))
-            .toEqual(['token-1', 'token-1', 'token-1']);
+        expect(registry.publishRequests.map(request => request.headers.authorization))
+            .toEqual(['Bearer token-1', 'Bearer token-1', 'Bearer token-1']);
     });
 });
