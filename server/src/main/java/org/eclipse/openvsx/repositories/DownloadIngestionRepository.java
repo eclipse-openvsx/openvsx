@@ -9,6 +9,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.Query;
@@ -33,4 +34,17 @@ public interface DownloadIngestionRepository extends Repository<DownloadIngestio
 
     @Query("select count(dc) from DownloadIngestion dc where dc.success = false")
     long countFailedDownloadIngestions();
+
+    // Successful ingestions of the given files processed at or after the cutoff. Used to keep a
+    // backfill from replaying logs that were already ingested for analytics (i.e. after analytics
+    // went live), which would double-count their events.
+    @Query(
+        "select dc.name from DownloadIngestion dc"
+                + " where dc.success = true and dc.storageType = ?1 and dc.name in(?2) and dc.processedOn >= ?3"
+    )
+    List<String> findAllDownloadIngestionsProcessedSince(
+            String storageType,
+            List<String> names,
+            LocalDateTime processedOn
+    );
 }
