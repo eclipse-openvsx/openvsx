@@ -251,11 +251,10 @@ class LastUpdatedDateCheckTest extends AbstractPostgresContainerTest {
 
     private LocalDateTime lastUpdatedDateInDb() {
         return new TransactionTemplate(txManager).execute(
-                status -> ((java.sql.Timestamp) em
+                status -> (LocalDateTime) em
                         .createNativeQuery("select last_updated_date from extension where id = :id")
                         .setParameter("id", extensionId)
-                        .getSingleResult())
-                        .toLocalDateTime());
+                        .getSingleResult());
     }
 
     @AfterEach
