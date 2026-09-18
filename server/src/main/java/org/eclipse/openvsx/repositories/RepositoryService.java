@@ -644,6 +644,14 @@ public class RepositoryService {
         return downloadIngestionRepo.countFailedDownloadIngestions();
     }
 
+    public List<String> findAllDownloadIngestionsProcessedSince(
+            String storageType,
+            List<String> names,
+            LocalDateTime processedOn
+    ) {
+        return downloadIngestionRepo.findAllDownloadIngestionsProcessedSince(storageType, names, processedOn);
+    }
+
     public List<Extension> findActiveExtensionsByPublicId(Collection<String> publicIds, String... namespacesToExclude) {
         return extensionJooqRepo.findAllActiveByPublicId(publicIds, namespacesToExclude);
     }
