@@ -14,6 +14,7 @@ package org.eclipse.openvsx.analytics;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 
 import jakarta.annotation.PostConstruct;
 import org.jooq.DSLContext;
@@ -37,6 +38,20 @@ class DownloadAnalyticsConfiguration {
     @Bean
     DownloadAnalyticsRepository downloadAnalyticsRepository(@Qualifier("timeseriesDsl") DSLContext dsl) {
         return new DownloadAnalyticsRepository(dsl);
+    }
+
+    /** Registers download_stats_daily for backfill refreshes. */
+    @Bean
+    ContinuousAggregateSet coreDownloadAggregates() {
+        return () -> List.of("download_stats_daily");
+    }
+
+    @Bean
+    ContinuousAggregateRefresher continuousAggregateRefresher(
+            @Qualifier("timeseriesDsl") DSLContext dsl,
+            List<ContinuousAggregateSet> aggregateSets
+    ) {
+        return new ContinuousAggregateRefresher(dsl, aggregateSets);
     }
 
     /**
