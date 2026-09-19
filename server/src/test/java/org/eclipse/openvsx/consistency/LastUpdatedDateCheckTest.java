@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -190,6 +191,76 @@ class LastUpdatedDateCheckTest extends AbstractPostgresContainerTest {
     }
 
     /**
+     * Reproduces the race a reviewer flagged on this check: {@link LastUpdatedDateCheck#fix} reads the
+     * extension, recomputes "latest" from its active versions, then writes - three steps that, without a
+     * lock held across all of them, a concurrent publish can interleave with. Here a "publisher" thread
+     * holds the row lock a real publish would take (see
+     * {@code ExtensionRepository.findByNameIgnoreCaseAndNamespaceNameIgnoreCaseForUpdate}) while adding a
+     * newer active version, so the fixer - which starts once the publisher already holds the lock - must
+     * block until the publish commits rather than reading the pre-publish state and overwriting the
+     * publisher's newer, correct timestamp with its own stale one.
+     */
+    @Test
+    void fix_waitsForAConcurrentPublishInsteadOfRacingIt() throws InterruptedException {
+        var oldTimestamp = LocalDateTime.now().minusDays(30).truncatedTo(ChronoUnit.MICROS);
+        persistVersion("1.0.0", oldTimestamp, true, false);
+        forceLastUpdatedDateInDb(oldTimestamp);
+
+        var publisherHoldsLock = new CountDownLatch(1);
+        var fixerStarting = new CountDownLatch(1);
+        var publisherFailure = new AtomicReference<Throwable>();
+        var fixerFailure = new AtomicReference<Throwable>();
+        var publishedTimestamp = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+
+        var publisher = new Thread(() -> {
+            try {
+                new TransactionTemplate(txManager).executeWithoutResult(status -> {
+                    var extension = em.find(Extension.class, extensionId, LockModeType.PESSIMISTIC_WRITE);
+                    publisherHoldsLock.countDown();
+                    await(fixerStarting);
+                    // ponytail: best-effort wait for the fixer to reach its own lock request and start
+                    // blocking on ours - there is no hook into Hibernate's blocking JDBC call to wait on
+                    // deterministically instead.
+                    sleepBriefly();
+
+                    var token = em.getReference(PersonalAccessToken.class, ownerTokenId);
+                    var extVersion = new ExtensionVersion();
+                    extVersion.setVersion("1.0.1");
+                    extVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
+                    extVersion.setExtension(extension);
+                    extVersion.setPublishedBy(token.getUser());
+                    extVersion.setTimestamp(publishedTimestamp);
+                    extVersion.setActive(true);
+                    em.persist(extVersion);
+                    extension.setLastUpdatedDate(publishedTimestamp);
+                });
+            } catch (Throwable t) {
+                publisherFailure.set(t);
+            }
+        });
+        publisher.start();
+        publisherHoldsLock.await();
+
+        var fixer = new Thread(() -> {
+            try {
+                fixerStarting.countDown();
+                consistencyCheckService.fixOne(LastUpdatedDateCheck.ID, extensionId);
+            } catch (Throwable t) {
+                fixerFailure.set(t);
+            }
+        });
+        fixer.start();
+        fixer.join();
+        publisher.join();
+
+        assertThat(publisherFailure.get()).as("the publisher must not fail").isNull();
+        assertThat(fixerFailure.get()).as("the fixer must not fail").isNull();
+        assertThat(lastUpdatedDateInDb())
+                .as("fix() must wait for the concurrent publish's lock instead of racing it")
+                .isEqualTo(publishedTimestamp);
+    }
+
+    /**
      * A consistent row (last_updated_date already at or after its latest active version) must be left
      * untouched.
      */
@@ -214,6 +285,14 @@ class LastUpdatedDateCheckTest extends AbstractPostgresContainerTest {
     private void await(CountDownLatch latch) {
         try {
             latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void sleepBriefly() {
+        try {
+            Thread.sleep(300);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Component;
 
@@ -81,7 +82,12 @@ public class LastUpdatedDateCheck implements ConsistencyCheck {
     @Override
     @Transactional
     public void fix(long entityId) {
-        var extension = entityManager.find(Extension.class, entityId);
+        // Locked, not a plain find: a concurrent publish or activation for this same extension takes
+        // this same kind of lock (see ExtensionRepository.findByNameIgnoreCaseAndNamespaceNameIgnoreCaseForUpdate)
+        // to write lastUpdatedDate, and without it here the two could interleave so this fixer computes
+        // "latest" from a pre-publish snapshot and then overwrites the publish's newer, correct value
+        // with its own stale one - recreating the exact corruption this check exists to repair.
+        var extension = entityManager.find(Extension.class, entityId, LockModeType.PESSIMISTIC_WRITE);
         if (extension == null) {
             return;
         }
