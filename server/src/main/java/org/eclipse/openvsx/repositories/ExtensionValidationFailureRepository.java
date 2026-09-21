@@ -12,6 +12,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import jakarta.transaction.Transactional;

@@ -14,13 +14,16 @@ package org.eclipse.openvsx.admin;
 
 import java.util.List;
 
-import org.eclipse.openvsx.json.NameSquattingActionRequest;
-import org.eclipse.openvsx.json.NameSquattingActionResponseJson;
-import org.eclipse.openvsx.json.NameSquattingCountsJson;
-import org.eclipse.openvsx.json.NameSquattingFlagListJson;
-import org.eclipse.openvsx.search.SimilarityCheckService;
-import org.eclipse.openvsx.settings.MutatingOperation;
-import org.eclipse.openvsx.util.ErrorResultException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.Explode;
+import io.swagger.v3.oas.annotations.enums.ParameterStyle;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -32,16 +35,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.Explode;
-import io.swagger.v3.oas.annotations.enums.ParameterStyle;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
+import org.eclipse.openvsx.json.NameSquattingActionRequest;
+import org.eclipse.openvsx.json.NameSquattingActionResponseJson;
+import org.eclipse.openvsx.json.NameSquattingCountsJson;
+import org.eclipse.openvsx.json.NameSquattingFlagListJson;
+import org.eclipse.openvsx.search.SimilarityCheckService;
+import org.eclipse.openvsx.settings.MutatingOperation;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 /**
  * REST API for moderating extensions that failed the name squatting publisher check.
@@ -75,7 +75,7 @@ public class NameSquattingAPI {
 
     /** Publication was blocked by the name squatting check, so the extension was never created. */
     public static final String NAME_SQUATTING_STATE_REJECTED = "REJECTED";
-    
+
     private final AdminService admins;
 
     public NameSquattingAPI(AdminService admins) {

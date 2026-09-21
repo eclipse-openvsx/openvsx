@@ -191,7 +191,7 @@ public class PublishExtensionVersionHandler {
         var latestVersion = repositories
                 .findLatestVersion(namespace.getName(), extensionName, null, false, true);
         if (adoptsDisplayName(latestVersion, processor.getDisplayName())) {
-            checkDisplayNameConflict(namespace.getName(), processor.getDisplayName(), token.getUser());
+            checkDisplayNameConflict(namespace.getName(), processor.getDisplayName(), userData);
         }
     }
 
@@ -300,7 +300,7 @@ public class PublishExtensionVersionHandler {
             // is no constraint that could enforce it, the rule being over the latest active version and
             // scoped to the publisher's own namespaces -- so the remaining race is acceptable, and
             // leaves behind a duplicate an admin can resolve.
-            checkDisplayNameConflict(namespaceName, displayName, user);
+            checkDisplayNameConflict(namespaceName, displayName, au.userData());
 
             extension = new Extension();
             extension.setActive(false);
@@ -327,7 +327,7 @@ public class PublishExtensionVersionHandler {
             // name the registry shows.
             var latestVersion = repositories.findLatestVersion(extension, null, false, true);
             if (adoptsDisplayName(latestVersion, displayName)) {
-                checkDisplayNameConflict(namespaceName, displayName, user);
+                checkDisplayNameConflict(namespaceName, displayName, au.userData());
             }
         }
 

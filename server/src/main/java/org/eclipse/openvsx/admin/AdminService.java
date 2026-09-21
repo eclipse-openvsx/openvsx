@@ -87,7 +87,6 @@ import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_CHECK_TY
 import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_STATE_DEACTIVATED;
 import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_STATE_PUBLISHED;
 import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_STATE_REJECTED;
-
 import static org.eclipse.openvsx.entities.FileResource.CHANGELOG;
 import static org.eclipse.openvsx.entities.FileResource.DOWNLOAD;
 import static org.eclipse.openvsx.entities.FileResource.ICON;
@@ -875,17 +874,37 @@ public class AdminService {
 
         var counts = new NameSquattingCountsJson();
         counts.setTotal(
-                countFlaggedExtensions(normalizedNamespace, normalizedPublisher, normalizedName,
-                        detectedFrom, detectedTo, null));
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        null));
         counts.setPublished(
-                countFlaggedExtensions(normalizedNamespace, normalizedPublisher, normalizedName,
-                        detectedFrom, detectedTo, new ExtensionStateFilter(true, false, false)));
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        new ExtensionStateFilter(true, false, false)));
         counts.setDeactivated(
-                countFlaggedExtensions(normalizedNamespace, normalizedPublisher, normalizedName,
-                        detectedFrom, detectedTo, new ExtensionStateFilter(false, true, false)));
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        new ExtensionStateFilter(false, true, false)));
         counts.setRejected(
-                countFlaggedExtensions(normalizedNamespace, normalizedPublisher, normalizedName,
-                        detectedFrom, detectedTo, new ExtensionStateFilter(false, false, true)));
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        new ExtensionStateFilter(false, false, true)));
         return counts;
     }
 
