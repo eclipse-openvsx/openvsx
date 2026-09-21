@@ -55,8 +55,10 @@ public class ContinuousAggregateRefresher {
             } else {
                 // the window arguments are pseudo-type "any", so Postgres cannot infer the type of a
                 // bare bind parameter and defaults it to varchar; the cast pins it to timestamptz
-                dsl.execute("call refresh_continuous_aggregate('" + name + "', ?::timestamptz, ?::timestamptz)",
-                        start, end);
+                dsl.execute(
+                        "call refresh_continuous_aggregate('" + name + "', ?::timestamptz, ?::timestamptz)",
+                        start,
+                        end);
             }
             logger.info("refreshed continuous aggregate {} over [{}, {})", name, start, end);
         }

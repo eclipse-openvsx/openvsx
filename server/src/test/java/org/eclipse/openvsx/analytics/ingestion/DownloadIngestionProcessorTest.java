@@ -223,6 +223,66 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
                         List.of("analytics-test-5.gz")));
     }
 
+    @Test
+    void testBackfillStoresEventsWithoutRegistrySideEffects() {
+        var extension = seedExtension("proc6", "proc6.ext-1.0.0.vsix");
+
+        var hour = Instant.parse("2026-07-01T14:00:00Z");
+        var records = List.of(
+                new RawDownloadRecord(hour.plusSeconds(60), "PROC6.EXT-1.0.0.VSIX", "US", "9.9.9.9", "VSCode 1.90.2"),
+                new RawDownloadRecord(hour.plusSeconds(120), "PROC6.EXT-1.0.0.VSIX", "US", "9.9.9.9", "VSCode 1.90.2"),
+                new RawDownloadRecord(
+                        hour.plusSeconds(3660),
+                        "PROC6.EXT-1.0.0.VSIX",
+                        "US",
+                        "9.9.9.9",
+                        "VSCode 1.90.2"),
+                new RawDownloadRecord(hour, "NO.SUCH-1.0.0.VSIX", null, null, null));
+
+        var ingestionsBefore = countIngestions();
+        var result = processor.backfill(FileResource.STORAGE_AWS, records);
+
+        // the same hourly aggregation as the scheduled ingestion, written immediately
+        assertEquals(2, result.events());
+        assertEquals(3, result.downloads());
+        assertEquals(1, result.extensions());
+        assertEquals(1, result.unresolvedRecords());
+        assertEquals(hour, result.from());
+        assertEquals(hour.plusSeconds(3600), result.to());
+        assertEquals(2, analyticsRepository.saved.size());
+        var aggregated = findEvent(hour, "US", "VSCode 1.90.2");
+        assertEquals(2, aggregated.count());
+        assertEquals(extension.getId(), aggregated.extensionId());
+
+        // but neither the download counter nor an ingestion entry is touched
+        assertEquals(0, freshDownloadCount(extension.getId()));
+        assertEquals(ingestionsBefore, countIngestions());
+    }
+
+    @Test
+    void testBackfillAnalyticsFailurePropagates() {
+        var extension = seedExtension("proc7", "proc7.ext-1.0.0.vsix");
+
+        analyticsRepository.failing = true;
+        var records = List.of(
+                new RawDownloadRecord(
+                        Instant.parse("2026-07-01T14:00:00Z"),
+                        "PROC7.EXT-1.0.0.VSIX",
+                        "US",
+                        "9.9.9.9",
+                        null));
+
+        // unlike the scheduled ingestion there is no ingestion entry at stake: the caller must see the failure
+        assertThrows(IllegalStateException.class, () -> processor.backfill(FileResource.STORAGE_AWS, records));
+        assertEquals(0, freshDownloadCount(extension.getId()));
+    }
+
+    private long countIngestions() {
+        return inTransaction(
+                () -> entityManager.createQuery("select count(i) from DownloadIngestion i", Long.class)
+                        .getSingleResult());
+    }
+
     private DownloadEvent findEvent(Instant time, String country, String userAgent) {
         return analyticsRepository.saved.stream()
                 .filter(event -> event.time().equals(time))

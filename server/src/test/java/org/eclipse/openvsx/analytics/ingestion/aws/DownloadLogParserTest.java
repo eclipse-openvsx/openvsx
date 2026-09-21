@@ -26,6 +26,7 @@ import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionMetrics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -62,18 +63,38 @@ class DownloadLogParserTest {
     @Test
     void detectsGzipFromContentNotFileName() throws IOException {
         var plain = parser.parse(fixture(), DownloadLogParser.Format.CLOUDFRONT, FALLBACK);
-        var gzipped = parser.parse(gzip(fixtureBytes()), DownloadLogParser.Format.CLOUDFRONT, FALLBACK);
+        var gzipped = parser.parse(gzip(fixtureBytes("cloudfront.log")), DownloadLogParser.Format.CLOUDFRONT, FALLBACK);
 
         assertEquals(plain.size(), gzipped.size());
         assertEquals(plain.get(0).vsixFilename(), gzipped.get(0).vsixFilename());
     }
 
-    private InputStream fixture() {
-        return new ByteArrayInputStream(fixtureBytes());
+    @Test
+    void parsesFastlyLogsThroughTheSameStreamPath() throws IOException {
+        var records = parser
+                .parse(new ByteArrayInputStream(fixtureBytes("fastly.log")), DownloadLogParser.Format.FASTLY, FALLBACK);
+
+        assertEquals(2, records.size());
+        assertEquals("VSCJAVA.VSCODE-JAVA-PACK-0.30.4.VSIX", records.get(0).vsixFilename());
+        assertEquals(Instant.parse("2026-02-09T04:20:50Z"), records.get(0).time());
+        assertEquals("FOO.BAR-1.0.0.VSIX", records.get(1).vsixFilename());
+        assertEquals(FALLBACK, records.get(1).time());
+
+        // 5 lines read, 2 not parseable into a record (1 truncated json + 1 without json)
+        verify(metrics).recordParsedLines(5, 2);
     }
 
-    private byte[] fixtureBytes() {
-        try (var in = CloudFrontLogFileParser.class.getResourceAsStream("cloudfront.log")) {
+    @Test
+    void rejectsAnUnknownFormatName() {
+        assertThrows(IllegalArgumentException.class, () -> DownloadLogParser.Format.from("nginx"));
+    }
+
+    private InputStream fixture() {
+        return new ByteArrayInputStream(fixtureBytes("cloudfront.log"));
+    }
+
+    private byte[] fixtureBytes(String name) {
+        try (var in = CloudFrontLogFileParser.class.getResourceAsStream(name)) {
             return in.readAllBytes();
         } catch (IOException e) {
             throw new RuntimeException(e);

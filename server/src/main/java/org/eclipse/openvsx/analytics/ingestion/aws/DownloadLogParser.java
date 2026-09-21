@@ -40,7 +40,8 @@ public class DownloadLogParser {
             try {
                 return valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("unsupported log format '" + value + "', expected cloudfront or fastly");
+                throw new IllegalArgumentException(
+                        "unsupported log format '" + value + "', expected cloudfront or fastly");
             }
         }
     }

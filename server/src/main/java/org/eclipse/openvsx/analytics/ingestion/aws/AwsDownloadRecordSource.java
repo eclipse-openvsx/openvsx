@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
@@ -153,7 +154,9 @@ public class AwsDownloadRecordSource implements DownloadRecordSource {
 
             // copy to a temp file first so the S3 connection is released before the (slower) parse
             Files.copy(inputStream, downloadsTempFile.getPath(), StandardCopyOption.REPLACE_EXISTING);
-            try (var fileStream = Files.newInputStream(downloadsTempFile.getPath())) {
+            // only .gz objects are listed, so a file that is not gzip is corrupt and must fail the
+            // ingestion (and be retained), not be read as plain text
+            try (var fileStream = new GZIPInputStream(Files.newInputStream(downloadsTempFile.getPath()))) {
                 return parser.parse(fileStream, format, fallbackTime);
             }
         }

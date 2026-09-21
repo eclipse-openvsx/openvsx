@@ -93,7 +93,7 @@ public class DownloadBackfillAPI {
 
         // resolve filenames against the application's own storage, not a caller-supplied one
         var storageType = storageUtil.getActiveStorageType();
-        var records = parser.parse(content, DownloadLogParser.Format.from(format), fallbackTime(fileDate));
+        var records = parser.parse(content, logFormat(format), fallbackTime(fileDate));
         var result = processor.backfill(storageType, records);
         if (result.events() > 0) {
             refresher.refresh(result.from(), result.to());
@@ -114,6 +114,14 @@ public class DownloadBackfillAPI {
         }
     }
 
+    private DownloadLogParser.Format logFormat(String format) {
+        try {
+            return DownloadLogParser.Format.from(format);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
     private Instant fallbackTime(@Nullable String fileDate) {
         if (fileDate == null) {
             return Instant.now();
@@ -121,7 +129,9 @@ public class DownloadBackfillAPI {
         try {
             return LocalDate.parse(fileDate).atStartOfDay(ZoneOffset.UTC).toInstant();
         } catch (DateTimeParseException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fileDate must be a date in the format yyyy-mm-dd");
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "fileDate must be a date in the format yyyy-mm-dd");
         }
     }
 
