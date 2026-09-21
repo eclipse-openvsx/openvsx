@@ -106,8 +106,9 @@ must agree:
 
 Do not change one by hand. `scripts/formatter-version-check.sh` resolves both
 authoritative versions — the JDT pin out of spotless-lib-extra's bundled
-lockfile, the spotless-lib version out of the plugin's POM — and compares every
-declaration against them; pre-commit runs it whenever one of those files
+lockfile (or, lacking one, straight out of the Eclipse release's own P2
+repository), the spotless-lib version out of the plugin's POM — and compares
+every declaration against them; pre-commit runs it whenever one of those files
 changes.
 
 ## Deployment descriptors travel with the config
