@@ -82,14 +82,24 @@ source differently if they load different versions of the same library. Two
 coordinates are therefore spread across the build and the jbang scripts, and
 must agree:
 
-- **`org.eclipse.jdt.core`** — in `buildSrc/build.gradle`, `scripts/format.sh`
-  and the `//DEPS` lines of the two brace-fix scripts. All must match what
-  Spotless provisions for the `eclipse('<N>')` step in `build.gradle`. Note
-  that not every Eclipse release has a bundled lockfile — moving
-  `eclipse('<N>')` to one that does not makes Spotless fall back to live P2
-  provisioning, which fails when Eclipse has not populated that repository.
+- **`org.eclipse.jdt.core`** — in `buildSrc/build.gradle` and the `//DEPS`
+  lines of the two brace-fix scripts. All must match what Spotless provisions
+  for the `eclipse('<N>')` step in `build.gradle`. Note that not every Eclipse
+  release has a bundled lockfile — `build.gradle` currently uses `eclipse('4.41')`,
+  which has none in the `spotless-lib-extra` version this project depends on,
+  so Spotless provisions it live from Eclipse's P2 repository instead of a
+  pinned, reproducible dependency set. That has worked in practice, but a
+  future Eclipse release could be unpopulated on P2 when you move to it — if
+  `spotlessApply`/`spotlessCheck` starts failing to resolve the formatter,
+  drop back to the highest `eclipse('<N>')` that still has a bundled lockfile
+  (`scripts/formatter-version-check.sh` reports the highest bundled version).
   Beware that JDT uses two version schemes: Eclipse platform releases count
   `4.40`, `4.41`, while the Maven artifacts count `3.46.0`, `3.47.0`.
+  `jbang-fmt` (the jbang path, run via `scripts/format.sh`) hardcodes its own
+  `org.eclipse.jdt.core` version upstream and does not accept an override —
+  `jbang run --deps` only *adds* dependencies, it cannot replace one an app's
+  own `//DEPS` already declares — so keep the coordinates above in sync with
+  whatever version jbang-fmt currently pins, not the other way around.
 - **`com.diffplug.spotless:spotless-lib(-extra)`** — in
   `buildSrc/build.gradle` and `ImportSort.java`'s `//DEPS`. All must match the
   version the Spotless plugin in `libs.versions.toml` depends on.

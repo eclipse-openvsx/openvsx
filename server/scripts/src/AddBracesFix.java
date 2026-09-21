@@ -13,7 +13,7 @@
 
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //JAVA 25+
-//DEPS org.eclipse.jdt:org.eclipse.jdt.core:3.46.0
+//DEPS org.eclipse.jdt:org.eclipse.jdt.core:3.47.0
 //SOURCES AddBracesFixCore.java
 
 void main(String[] args) throws Exception {

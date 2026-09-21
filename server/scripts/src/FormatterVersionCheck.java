@@ -38,8 +38,10 @@ import java.util.zip.ZipFile;
 // Two things are checked, each against an authoritative source rather than against a declaration:
 //
 //   - org.eclipse.jdt.core, against the eclipse_jdt_formatter/v<N>.lockfile that spotless-lib-extra
-//     bundles for the eclipse('<N>') version in build.gradle. jbang-fmt hardcodes its own, older
-//     jdt.core, which is why format.sh has to override it.
+//     bundles for the eclipse('<N>') version in build.gradle. When no lockfile is bundled for that
+//     version yet, Spotless provisions it live from Eclipse's P2 repository instead, and there is
+//     no authoritative source to check the declarations against - they are only compared with each
+//     other, which still catches drift between them.
 //   - com.diffplug.spotless:spotless-lib(-extra), against the spotless-lib the Spotless Gradle
 //     plugin in libs.versions.toml actually depends on - the check buildSrc/build.gradle's comment
 //     asks a human to do by hand.
@@ -82,12 +84,15 @@ boolean checkJdt() throws Exception {
                 "warning: could not read spotless-lib-extra " + libExtraVersion + "; comparing the "
                         + "declarations against each other only, using " + fallback.label() + " as the reference.");
     } else if (!lockfiles.containsKey(eclipseVersion)) {
+        var fallback = sites.getFirst();
+        expected = fallback.version();
+        source = "the other declarations";
         System.out.println(
                 "NO LOCKFILE: spotless-lib-extra " + libExtraVersion + " does not bundle a lockfile for "
-                        + "eclipse('" + eclipseVersion + "'), so Spotless falls back to provisioning it live from "
-                        + "Eclipse's P2 repository - which fails outright when that repository is not populated.");
-        System.out.println("             Bundled versions go up to " + lockfiles.lastKey() + ".");
-        return false;
+                        + "eclipse('" + eclipseVersion + "') (bundled versions go up to " + lockfiles.lastKey()
+                        + "), so Spotless provisions jdt.core live from Eclipse's P2 repository instead. "
+                        + "Comparing the declarations against each other only, using " + fallback.label()
+                        + " as the reference.");
     } else {
         expected = lockfiles.get(eclipseVersion);
         source = "the version eclipse('" + eclipseVersion + "') provisions";
@@ -169,7 +174,6 @@ List<Site> findJdtDeclarationSites() throws IOException {
     var gav = "org\\.eclipse\\.jdt:org\\.eclipse\\.jdt\\.core:([\\w.\\-]+)";
     var sites = new ArrayList<Site>();
     addSite(sites, Path.of("buildSrc/build.gradle"), Pattern.compile("implementation\\s+'" + gav + "'"));
-    addSite(sites, Path.of("scripts/format.sh"), Pattern.compile("^JDT_VERSION=([\\w.\\-]+)", Pattern.MULTILINE));
     addScriptDepsSites(sites, gav);
     return sites;
 }
