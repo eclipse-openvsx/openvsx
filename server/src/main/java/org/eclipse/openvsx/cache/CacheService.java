@@ -94,6 +94,20 @@ public class CacheService {
         afterCommit.execute(() -> invalidateCache(CACHE_SITEMAP));
     }
 
+    /**
+     * Overwrites the cached malicious-extension list with a freshly fetched one, so the daily
+     * extension-control job (which always fetches a fresh copy) keeps this cache warm at its own
+     * cadence, rather than leaving it to drift for up to its own, independently TTL'd 3 days.
+     */
+    public void refreshMaliciousExtensions(List<String> maliciousExtensionIds) {
+        var cache = cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS);
+        if (cache == null) {
+            return;
+        }
+
+        cache.put(SimpleKey.EMPTY, maliciousExtensionIds);
+    }
+
     public void evictNamespaceDetails() {
         afterCommit.execute(() -> invalidateCache(CACHE_NAMESPACE_DETAILS_JSON));
     }

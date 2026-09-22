@@ -170,6 +170,16 @@ class ExtensionControlServiceTest {
         verify(search, never()).updateSearchEntry(extension);
     }
 
+    @Test
+    void refreshMaliciousExtensionIdsUpdatesFallbackAndSharedCache() {
+        var maliciousExtensionIds = List.of("ns.ext");
+
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
+
+        assertThat(service.getLastKnownMaliciousExtensionIds()).isEqualTo(maliciousExtensionIds);
+        verify(cache).refreshMaliciousExtensions(maliciousExtensionIds);
+    }
+
     /** JacksonException's constructors are protected; a trivial subclass makes one throwable from a test. */
     private static final class FakeJsonParseException extends tools.jackson.core.JacksonException {
         FakeJsonParseException(String message) {

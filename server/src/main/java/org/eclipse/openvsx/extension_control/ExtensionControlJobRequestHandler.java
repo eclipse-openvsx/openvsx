@@ -9,6 +9,8 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.extension_control;
 
+import java.util.ArrayList;
+
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.slf4j.Logger;
@@ -67,13 +69,13 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
         }
 
         var extensionControlUser = service.createExtensionControlUser();
+        var maliciousExtensionIds = new ArrayList<String>();
         for (var item : node) {
-            logger.atInfo()
-                    .setMessage("malicious: {}")
-                    .addArgument(item::asString)
-                    .log();
+            var itemId = item.asString();
+            maliciousExtensionIds.add(itemId);
+            logger.atInfo().setMessage("malicious: {}").addArgument(itemId).log();
 
-            var extensionId = NamingUtil.fromExtensionId(item.asString());
+            var extensionId = NamingUtil.fromExtensionId(itemId);
             if (extensionId != null && repositories.hasExtension(extensionId.namespace(), extensionId.extension())) {
                 logger.info("delete malicious extension");
                 if (service.deleteTransitively) {
@@ -86,6 +88,11 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
                 }
             }
         }
+
+        // This job always fetches a fresh copy; feed it straight into getMaliciousExtensionIds()'s cache
+        // so the publish-time check reflects it immediately instead of drifting for up to that cache's
+        // own, independent TTL.
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
     }
 
     private void processDeprecatedExtensions(JsonNode json) {

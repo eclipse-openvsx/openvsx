@@ -235,4 +235,15 @@ public class ExtensionControlService {
     public List<String> getLastKnownMaliciousExtensionIds() {
         return lastKnownMaliciousExtensionIds;
     }
+
+    /**
+     * Called by the daily extension-control job once it has fetched a fresh malicious-extension list, so
+     * getMaliciousExtensionIds()'s shared cache and per-instance fallback both reflect it immediately
+     * instead of drifting for up to their own, independent TTL.
+     */
+    public void refreshMaliciousExtensionIds(List<String> maliciousExtensionIds) {
+        var result = List.copyOf(maliciousExtensionIds);
+        lastKnownMaliciousExtensionIds = result;
+        cache.refreshMaliciousExtensions(result);
+    }
 }
