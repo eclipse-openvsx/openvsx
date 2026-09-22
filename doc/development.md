@@ -221,6 +221,25 @@ which files have been processed, and a processed file is deleted from the bucket
 `ovsx.logs.aws.archive-prefix` is set. None of this needs `ovsx.analytics.enabled` — ingestion
 drives the download counters on its own, and analytics only adds the time-series events on top.
 
+#### Backfilling analytics directly, without the bucket or the cron schedule
+
+`./server/scripts/backfill-download-logs.sh` generates the same synthetic log with
+`generate-download-logs.sh`, then POSTs it straight to the admin backfill endpoint
+(`/admin/api/analytics/downloads/backfill`) instead of uploading it to the bucket. This exercises
+the backfill API itself and needs `ovsx.analytics.enabled=true` (the endpoint is only mapped when
+it is) rather than the `silo`/AWS setup above - a registry running on local file storage, with at
+least one extension published, is enough. Filenames are still drawn from `file_resource` rows of
+the matching `storage_type` (see above), which for local storage is `local`, not the script's
+`aws` default:
+
+```bash
+./server/scripts/backfill-download-logs.sh --count 500 --days 14 --storage-type local
+```
+
+It defaults to `http://localhost:8080` and the dev super-user token (`super_token`, same as
+`upload-test-extensions.sh` uses); override with `--registry-url`/`--token`. Use `--help` for the
+rest.
+
 ### Optional: Run the server as a mirror
 
 `server/src/dev/resources/application-mirror.yml` configures this server as a mirror of
