@@ -36,6 +36,7 @@ URL="http://localhost:8080"
 # The dev super user's seeded token (src/dev/resources/db/migration/V1_0_1__Super_user.sql).
 TOKEN=super_token
 FILE_DATE=""
+DB_URL=""
 
 usage() {
     cat <<'USAGE'
@@ -47,6 +48,8 @@ Usage: generate-download-logs.sh [options]
   --bucket NAME                Silo bucket (default: test)
   --prefix PREFIX              key prefix, must match ovsx.logs.aws.log-location-prefix (default: AWSLogs/)
   --storage-type TYPE          file_resource.storage_type to draw filenames from (default: aws)
+  --db-url URL                 psql connection URL to query instead of the local docker compose
+                               postgres, e.g. postgresql://user:pass@host:5432/dbname
   --out FILE                   write the (uncompressed) log here instead of a temp file
   --upload                     gzip and upload to the bucket via the silo container
   --backfill                   POST the log to the admin backfill endpoint instead
@@ -78,6 +81,7 @@ while [ $# -gt 0 ]; do
         --bucket) BUCKET="$2"; shift 2 ;;
         --prefix) PREFIX="$2"; shift 2 ;;
         --storage-type) STORAGE_TYPE="$2"; shift 2 ;;
+        --db-url) DB_URL="$2"; shift 2 ;;
         --out) OUT="$2"; shift 2 ;;
         --upload) UPLOAD=1; shift ;;
         --backfill) BACKFILL=1; shift ;;
@@ -110,10 +114,17 @@ ORDER BY fr.name;"
 # :'storage_type' rather than the value inline: psql quotes and escapes it, so a storage type
 # carrying a quote cannot close the literal and run as SQL. The query goes in on stdin because psql
 # only interpolates variables there and with -f, never in a -c argument.
-mapfile -t ROWS < <(
-    printf '%s\n' "$QUERY" |
-        compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}"
-)
+if [ -n "$DB_URL" ]; then
+    mapfile -t ROWS < <(
+        printf '%s\n' "$QUERY" |
+            psql "$DB_URL" -At -F'|' -v storage_type="${STORAGE_TYPE}"
+    )
+else
+    mapfile -t ROWS < <(
+        printf '%s\n' "$QUERY" |
+            compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}"
+    )
+fi
 
 if [ "${#ROWS[@]}" -eq 0 ]; then
     cat >&2 <<EOF
