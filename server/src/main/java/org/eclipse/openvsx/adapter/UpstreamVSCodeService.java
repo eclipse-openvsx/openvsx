@@ -392,11 +392,12 @@ public class UpstreamVSCodeService implements IVSCodeService {
             return ResponseEntity.status(response.getStatusCode())
                     .headers(headers)
                     .body(outputStream -> {
-                        try (var in = Files.newInputStream(tempFile.getPath())) {
+                        // Delete tempFile here, not via try-with-resources on the outer method: this
+                        // lambda runs later, during async response writing, so this is the only place
+                        // that still runs (via close()) if the client aborts mid-transfer.
+                        try (tempFile; var in = Files.newInputStream(tempFile.getPath())) {
                             in.transferTo(outputStream);
                         }
-
-                        IOUtils.closeQuietly(tempFile);
                     });
         } catch (IOException e) {
             IOUtils.closeQuietly(tempFile);
