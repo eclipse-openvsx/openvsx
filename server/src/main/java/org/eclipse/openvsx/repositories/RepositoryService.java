@@ -89,6 +89,7 @@ public class RepositoryService {
     private final PersonalAccessTokenRepository personalAccessTokenRepo;
     private final PersistedLogRepository persistedLogRepo;
     private final DownloadIngestionRepository downloadIngestionRepo;
+    private final DownloadBackfillRepository downloadBackfillRepo;
     private final ExtensionJooqRepository extensionJooqRepo;
     private final ExtensionVersionJooqRepository extensionVersionJooqRepo;
     private final FileResourceJooqRepository fileResourceJooqRepo;
@@ -127,6 +128,7 @@ public class RepositoryService {
             PersonalAccessTokenRepository personalAccessTokenRepo,
             PersistedLogRepository persistedLogRepo,
             DownloadIngestionRepository downloadIngestionRepo,
+            DownloadBackfillRepository downloadBackfillRepo,
             ExtensionJooqRepository extensionJooqRepo,
             ExtensionVersionJooqRepository extensionVersionJooqRepo,
             FileResourceJooqRepository fileResourceJooqRepo,
@@ -164,6 +166,7 @@ public class RepositoryService {
         this.personalAccessTokenRepo = personalAccessTokenRepo;
         this.persistedLogRepo = persistedLogRepo;
         this.downloadIngestionRepo = downloadIngestionRepo;
+        this.downloadBackfillRepo = downloadBackfillRepo;
         this.extensionJooqRepo = extensionJooqRepo;
         this.extensionVersionJooqRepo = extensionVersionJooqRepo;
         this.fileResourceJooqRepo = fileResourceJooqRepo;
@@ -644,12 +647,8 @@ public class RepositoryService {
         return downloadIngestionRepo.countFailedDownloadIngestions();
     }
 
-    public List<String> findAllDownloadIngestionsProcessedSince(
-            String storageType,
-            List<String> names,
-            LocalDateTime processedOn
-    ) {
-        return downloadIngestionRepo.findAllDownloadIngestionsProcessedSince(storageType, names, processedOn);
+    public boolean existsBackfillIngestion(String storageType, String fileName) {
+        return downloadBackfillRepo.existsByStorageTypeAndFileName(storageType, fileName);
     }
 
     public List<Extension> findActiveExtensionsByPublicId(Collection<String> publicIds, String... namespacesToExclude) {

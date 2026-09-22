@@ -21,10 +21,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.zip.GZIPInputStream;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionMetrics;
 import org.eclipse.openvsx.analytics.ingestion.RawDownloadRecord;
+import org.eclipse.openvsx.util.SizeLimitInputStream;
 
 /**
  * Parses an access-log stream into download records. gzip is detected from the content, so plain
@@ -48,6 +50,13 @@ public class DownloadLogParser {
 
     private final DownloadIngestionMetrics metrics;
 
+    /**
+     * Caps the decompressed size of a parsed stream, so a small but highly-compressible gzip
+     * upload cannot grow the in-memory record list without bound.
+     */
+    @Value("${ovsx.analytics.ingestion.max-decompressed-bytes:536870912}")
+    long maxDecompressedBytes = 536_870_912L;
+
     public DownloadLogParser(DownloadIngestionMetrics metrics) {
         this.metrics = metrics;
     }
@@ -62,7 +71,8 @@ public class DownloadLogParser {
             case FASTLY -> new FastlyLogFileParser();
         };
 
-        try (var reader = new BufferedReader(new InputStreamReader(gunzipIfNeeded(input), StandardCharsets.UTF_8))) {
+        var limited = new SizeLimitInputStream(gunzipIfNeeded(input), maxDecompressedBytes);
+        try (var reader = new BufferedReader(new InputStreamReader(limited, StandardCharsets.UTF_8))) {
             var records = new ArrayList<RawDownloadRecord>();
             var total = 0;
             var skipped = 0;

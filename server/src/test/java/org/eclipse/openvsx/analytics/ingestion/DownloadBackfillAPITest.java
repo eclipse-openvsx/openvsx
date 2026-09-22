@@ -70,11 +70,13 @@ class DownloadBackfillAPITest {
     void testUploadedLogIsParsedProcessedAndRefreshed() throws Exception {
         var from = Instant.parse("2025-12-03T13:00:00Z");
         var to = Instant.parse("2026-02-09T00:00:00Z");
-        when(processor.backfill(eq(FileResource.STORAGE_AWS), anyList()))
+        when(processor.backfill(eq(FileResource.STORAGE_AWS), eq("access.log.gz"), anyList()))
                 .thenReturn(new BackfillResult(2, 3, 2, 1, from, to));
 
         mockMvc.perform(
-                post("/admin/api/analytics/downloads/backfill?token=super&fileDate=2026-02-09")
+                post(
+                        "/admin/api/analytics/downloads/backfill"
+                                + "?token=super&fileName=access.log.gz&fileDate=2026-02-09")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(fixtureBytes()))
                 .andExpect(status().isOk())
@@ -88,7 +90,7 @@ class DownloadBackfillAPITest {
 
         // the fixture's two download lines reach the processor, resolved against the app's storage
         ArgumentCaptor<List<RawDownloadRecord>> records = ArgumentCaptor.captor();
-        verify(processor).backfill(eq(FileResource.STORAGE_AWS), records.capture());
+        verify(processor).backfill(eq(FileResource.STORAGE_AWS), eq("access.log.gz"), records.capture());
         assertEquals(2, records.getValue().size());
         assertEquals("VSCJAVA.VSCODE-JAVA-PACK-0.30.4.VSIX", records.getValue().get(0).vsixFilename());
         assertEquals(Instant.parse("2025-12-03T13:20:01Z"), records.getValue().get(0).time());
@@ -100,11 +102,11 @@ class DownloadBackfillAPITest {
 
     @Test
     void testNothingIsRefreshedWhenNoEventsWereWritten() throws Exception {
-        when(processor.backfill(eq(FileResource.STORAGE_AWS), anyList()))
+        when(processor.backfill(eq(FileResource.STORAGE_AWS), eq("access.log.gz"), anyList()))
                 .thenReturn(new BackfillResult(0, 0, 0, 2, null, null));
 
         mockMvc.perform(
-                post("/admin/api/analytics/downloads/backfill")
+                post("/admin/api/analytics/downloads/backfill?fileName=access.log.gz")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(fixtureBytes()))
                 .andExpect(status().isOk())
@@ -118,12 +120,26 @@ class DownloadBackfillAPITest {
     }
 
     @Test
+    void testAlreadyBackfilledFileIsConflict() throws Exception {
+        when(processor.backfill(eq(FileResource.STORAGE_AWS), eq("access.log.gz"), anyList()))
+                .thenThrow(new DuplicateBackfillException("access.log.gz"));
+
+        mockMvc.perform(
+                post("/admin/api/analytics/downloads/backfill?fileName=access.log.gz")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(fixtureBytes()))
+                .andExpect(status().isConflict());
+
+        verifyNoInteractions(refresher);
+    }
+
+    @Test
     void testNonAdminIsForbidden() throws Exception {
         Mockito.doThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN))
                 .when(admins).checkAdminUser();
 
         mockMvc.perform(
-                post("/admin/api/analytics/downloads/backfill")
+                post("/admin/api/analytics/downloads/backfill?fileName=access.log.gz")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(fixtureBytes()))
                 .andExpect(status().isForbidden());
@@ -132,9 +148,20 @@ class DownloadBackfillAPITest {
     }
 
     @Test
+    void testMissingFileNameIsBadRequest() throws Exception {
+        mockMvc.perform(
+                post("/admin/api/analytics/downloads/backfill")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(fixtureBytes()))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(processor, refresher);
+    }
+
+    @Test
     void testInvalidFileDateIsBadRequest() throws Exception {
         mockMvc.perform(
-                post("/admin/api/analytics/downloads/backfill?fileDate=02/09/2026")
+                post("/admin/api/analytics/downloads/backfill?fileName=access.log.gz&fileDate=02/09/2026")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(fixtureBytes()))
                 .andExpect(status().isBadRequest());
@@ -145,7 +172,7 @@ class DownloadBackfillAPITest {
     @Test
     void testUnknownLogFormatIsBadRequest() throws Exception {
         mockMvc.perform(
-                post("/admin/api/analytics/downloads/backfill?format=nginx")
+                post("/admin/api/analytics/downloads/backfill?fileName=access.log.gz&format=nginx")
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .content(fixtureBytes()))
                 .andExpect(status().isBadRequest());

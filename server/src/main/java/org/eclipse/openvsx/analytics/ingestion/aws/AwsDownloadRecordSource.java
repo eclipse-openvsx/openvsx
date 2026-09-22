@@ -137,23 +137,25 @@ public class AwsDownloadRecordSource implements DownloadRecordSource {
 
     @Override
     public List<RawDownloadRecord> read(String name) throws IOException {
-        try (
-                // the response keeps an HTTP connection checked out until it is closed; leaking one
-                // per log object exhausts the S3 client's pool and stalls ingestion
-                var inputStream = getS3Client().getObject(
-                        GetObjectRequest.builder()
-                                .bucket(bucket)
-                                .key(name)
-                                .build(),
-                        ResponseTransformer.toInputStream());
-                var downloadsTempFile = new TempFile("aws-downloads-", ".gz");
-        ) {
-            // records without their own timestamp fall back to the log file's date
-            var lastModified = inputStream.response().lastModified();
-            var fallbackTime = lastModified != null ? lastModified : Instant.now();
+        try (var downloadsTempFile = new TempFile("aws-downloads-", ".gz")) {
+            Instant fallbackTime;
+            try (
+                    // the response keeps an HTTP connection checked out until it is closed; leaking
+                    // one per log object exhausts the S3 client's pool and stalls ingestion, so this
+                    // stream must close here, before the (slower) parse below runs
+                    var inputStream = getS3Client().getObject(
+                            GetObjectRequest.builder()
+                                    .bucket(bucket)
+                                    .key(name)
+                                    .build(),
+                            ResponseTransformer.toInputStream());
+            ) {
+                // records without their own timestamp fall back to the log file's date
+                var lastModified = inputStream.response().lastModified();
+                fallbackTime = lastModified != null ? lastModified : Instant.now();
+                Files.copy(inputStream, downloadsTempFile.getPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
 
-            // copy to a temp file first so the S3 connection is released before the (slower) parse
-            Files.copy(inputStream, downloadsTempFile.getPath(), StandardCopyOption.REPLACE_EXISTING);
             // only .gz objects are listed, so a file that is not gzip is corrupt and must fail the
             // ingestion (and be retained), not be read as plain text
             try (var fileStream = new GZIPInputStream(Files.newInputStream(downloadsTempFile.getPath()))) {

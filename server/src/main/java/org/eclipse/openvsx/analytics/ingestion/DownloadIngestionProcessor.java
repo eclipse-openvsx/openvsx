@@ -34,11 +34,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import org.eclipse.openvsx.analytics.DownloadEvent;
 import org.eclipse.openvsx.cache.CacheService;
+import org.eclipse.openvsx.entities.DownloadBackfill;
 import org.eclipse.openvsx.entities.DownloadIngestion;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.FileResource;
@@ -58,6 +61,7 @@ public class DownloadIngestionProcessor {
     private final ObservationRegistry observations;
     private final ObjectProvider<DownloadAnalyticsRepository> analyticsRepository;
     private final DownloadIngestionMetrics metrics;
+    private final TransactionTemplate transactionTemplate;
 
     private final Cache<String, ResolvedExtension> resolutionCache = Caffeine.newBuilder()
             .maximumSize(65_536)
@@ -71,7 +75,8 @@ public class DownloadIngestionProcessor {
             SearchUtilService search,
             ObservationRegistry observations,
             ObjectProvider<DownloadAnalyticsRepository> analyticsRepository,
-            DownloadIngestionMetrics metrics
+            DownloadIngestionMetrics metrics,
+            PlatformTransactionManager transactionManager
     ) {
         this.entityManager = entityManager;
         this.repositories = repositories;
@@ -80,6 +85,7 @@ public class DownloadIngestionProcessor {
         this.observations = observations;
         this.analyticsRepository = analyticsRepository;
         this.metrics = metrics;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -170,13 +176,19 @@ public class DownloadIngestionProcessor {
 
     /**
      * Stores the download events of a backfill log without incrementing the download counters or
-     * writing an ingestion entry. Analytics write failures propagate to the caller.
+     * writing a {@link DownloadIngestion} entry. Analytics write failures propagate to the caller.
+     * Rejects a file that was already backfilled (tracked via {@link DownloadBackfill}, a separate
+     * ledger from the registry's own ingestion tracking), so a retried or re-uploaded log cannot
+     * double-count its events.
      */
-    public BackfillResult backfill(String storageType, List<RawDownloadRecord> records) {
+    public BackfillResult backfill(String storageType, String fileName, List<RawDownloadRecord> records) {
         return Observation.createNotStarted("DownloadIngestionProcessor#backfill", observations).observe(() -> {
             var repository = analyticsRepository.getIfAvailable();
             if (repository == null) {
                 throw new IllegalStateException("download analytics is not enabled");
+            }
+            if (repositories.existsBackfillIngestion(storageType, fileName)) {
+                throw new DuplicateBackfillException(fileName);
             }
 
             var resolved = resolveExtensions(storageType, records);
@@ -185,6 +197,7 @@ public class DownloadIngestionProcessor {
                 repository.save(events);
                 metrics.recordLoaded(events.size(), events.stream().mapToInt(DownloadEvent::count).sum());
             }
+            persistBackfillIngestion(storageType, fileName);
 
             var unresolved = (int) records.stream().filter(record -> !resolved.containsKey(record.vsixFilename()))
                     .count();
@@ -195,6 +208,22 @@ public class DownloadIngestionProcessor {
                     unresolved,
                     events.stream().map(DownloadEvent::time).min(Instant::compareTo).orElse(null),
                     events.stream().map(DownloadEvent::time).max(Instant::compareTo).orElse(null));
+        });
+    }
+
+    /**
+     * Runs its own transaction rather than relying on {@link #backfill} to be {@code @Transactional}
+     * itself: that method deliberately calls out to the (separately-transacted) analytics database
+     * without an open registry transaction, so a self-invoked {@code @Transactional} method here -
+     * which the surrounding proxy would not intercept anyway - would silently run non-transactional.
+     */
+    void persistBackfillIngestion(String storageType, String fileName) {
+        transactionTemplate.executeWithoutResult(status -> {
+            var backfill = new DownloadBackfill();
+            backfill.setFileName(fileName);
+            backfill.setStorageType(storageType);
+            backfill.setProcessedOn(LocalDateTime.now());
+            entityManager.persist(backfill);
         });
     }
 

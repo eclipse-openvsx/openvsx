@@ -77,6 +77,8 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
             });
             entityManager.createQuery("delete from DownloadIngestion i where i.name like 'analytics-test%'")
                     .executeUpdate();
+            entityManager.createQuery("delete from DownloadBackfill b where b.fileName like 'analytics-test%'")
+                    .executeUpdate();
         });
         seededEntities.clear();
     }
@@ -240,7 +242,7 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
                 new RawDownloadRecord(hour, "NO.SUCH-1.0.0.VSIX", null, null, null));
 
         var ingestionsBefore = countIngestions();
-        var result = processor.backfill(FileResource.STORAGE_AWS, records);
+        var result = processor.backfill(FileResource.STORAGE_AWS, "analytics-test-6.gz", records);
 
         // the same hourly aggregation as the scheduled ingestion, written immediately
         assertEquals(2, result.events());
@@ -254,9 +256,34 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         assertEquals(2, aggregated.count());
         assertEquals(extension.getId(), aggregated.extensionId());
 
-        // but neither the download counter nor an ingestion entry is touched
+        // but neither the download counter nor a DownloadIngestion entry is touched
         assertEquals(0, freshDownloadCount(extension.getId()));
         assertEquals(ingestionsBefore, countIngestions());
+        // the backfill ledger is, so a repeat of the same file is rejected
+        assertTrue(repositories.existsBackfillIngestion(FileResource.STORAGE_AWS, "analytics-test-6.gz"));
+    }
+
+    @Test
+    void testBackfillRejectsAnAlreadyBackfilledFile() {
+        var extension = seedExtension("proc8", "proc8.ext-1.0.0.vsix");
+
+        var records = List.of(
+                new RawDownloadRecord(
+                        Instant.parse("2026-07-01T14:00:00Z"),
+                        "PROC8.EXT-1.0.0.VSIX",
+                        "US",
+                        "9.9.9.9",
+                        null));
+        processor.backfill(FileResource.STORAGE_AWS, "analytics-test-8.gz", records);
+        var savedAfterFirstRun = analyticsRepository.saved.size();
+
+        assertThrows(
+                DuplicateBackfillException.class,
+                () -> processor.backfill(FileResource.STORAGE_AWS, "analytics-test-8.gz", records));
+
+        // the repeat is rejected before it re-aggregates or re-saves anything
+        assertEquals(savedAfterFirstRun, analyticsRepository.saved.size());
+        assertEquals(0, freshDownloadCount(extension.getId()));
     }
 
     @Test
@@ -273,8 +300,12 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
                         null));
 
         // unlike the scheduled ingestion there is no ingestion entry at stake: the caller must see the failure
-        assertThrows(IllegalStateException.class, () -> processor.backfill(FileResource.STORAGE_AWS, records));
+        assertThrows(
+                IllegalStateException.class,
+                () -> processor.backfill(FileResource.STORAGE_AWS, "analytics-test-7.gz", records));
         assertEquals(0, freshDownloadCount(extension.getId()));
+        // the failed attempt must not block a retry once the analytics database is back
+        assertFalse(repositories.existsBackfillIngestion(FileResource.STORAGE_AWS, "analytics-test-7.gz"));
     }
 
     private long countIngestions() {

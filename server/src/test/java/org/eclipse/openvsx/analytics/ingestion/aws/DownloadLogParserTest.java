@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.zip.GZIPOutputStream;
 
@@ -87,6 +88,19 @@ class DownloadLogParserTest {
     @Test
     void rejectsAnUnknownFormatName() {
         assertThrows(IllegalArgumentException.class, () -> DownloadLogParser.Format.from("nginx"));
+    }
+
+    @Test
+    void rejectsDecompressedContentOverTheConfiguredLimit() throws IOException {
+        // the fixture decompresses to well over one byte, so a one-byte cap must fail the parse
+        // instead of buffering it all into an unbounded record list; BufferedReader.lines() can only
+        // report a mid-stream IOException by wrapping it, same as any other I/O failure it hits
+        parser.maxDecompressedBytes = 1;
+
+        assertThrows(
+                UncheckedIOException.class,
+                () -> parser
+                        .parse(gzip(fixtureBytes("cloudfront.log")), DownloadLogParser.Format.CLOUDFRONT, FALLBACK));
     }
 
     private InputStream fixture() {
