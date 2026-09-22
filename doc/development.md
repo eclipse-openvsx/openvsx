@@ -223,25 +223,20 @@ drives the download counters on its own, and analytics only adds the time-series
 
 #### Backfilling analytics directly, without the bucket or the cron schedule
 
-`./server/scripts/generate-download-logs-backfill.sh` generates the same synthetic log as
-`generate-download-logs.sh` (it shells out to that script, so the two cannot drift apart), then, with
-`--backfill`, POSTs it straight to the admin backfill endpoint
-(`/admin/api/analytics/downloads/backfill`) instead of uploading it to the bucket. This exercises
-the backfill API itself and needs `ovsx.analytics.enabled=true` (the endpoint is only mapped when
-it is) rather than the `silo`/AWS setup above - a registry running on local file storage, with at
-least one extension published, is enough. Its `--storage-type` therefore defaults to `local`
-rather than `generate-download-logs.sh`'s `aws`, since filenames are drawn from `file_resource`
-rows matching whatever storage type the *running* server actually uses:
+`generate-download-logs.sh --backfill` POSTs the generated log straight to the admin backfill
+endpoint (`/admin/api/analytics/downloads/backfill`) instead of `--upload`'s route through the
+bucket. This exercises the backfill API itself and needs `ovsx.analytics.enabled=true` (the
+endpoint is only mapped when it is) rather than the `silo`/AWS setup above - a registry running on
+local file storage, with at least one extension published, is enough. Pass `--storage-type local`
+too: filenames are drawn from `file_resource` rows matching whatever storage type the *running*
+server actually uses, which for a plain dev setup is `local`, not the script's `aws` default.
 
 ```bash
-# see what would be generated first, without calling the endpoint
-./server/scripts/generate-download-logs-backfill.sh --count 20 --out /dev/stdout
-
-./server/scripts/generate-download-logs-backfill.sh --count 500 --days 14 --backfill
+./server/scripts/generate-download-logs.sh --count 500 --days 14 --storage-type local --backfill
 ```
 
-It defaults to `http://localhost:8080` and the dev super-user token (`super_token`, same as
-`upload-test-extensions.sh` uses); override with `--url`/`--token`. Use `--help` for the rest.
+`--backfill` defaults to `http://localhost:8080` and the dev super-user token (`super_token`, same
+as `upload-test-extensions.sh` uses); override with `--url`/`--token`. Use `--help` for the rest.
 
 ### Optional: Run the server as a mirror
 
