@@ -243,7 +243,16 @@ public class ExtensionControlService {
      */
     public void refreshMaliciousExtensionIds(List<String> maliciousExtensionIds) {
         var result = List.copyOf(maliciousExtensionIds);
+        // Update the per-instance fallback first: it never touches Redis, so it must not depend on the
+        // shared-cache write below succeeding.
         lastKnownMaliciousExtensionIds = result;
-        cache.refreshMaliciousExtensions(result);
+        try {
+            cache.refreshMaliciousExtensions(result);
+        } catch (RuntimeException e) {
+            // Best-effort: the daily job (retries = 0) calls this before purging and before processing
+            // deprecated extensions, so a Redis outage here must not abort the rest of that work. The
+            // per-instance fallback above is already up to date regardless.
+            logger.error("Failed to refresh the shared malicious-extensions cache", e);
+        }
     }
 }

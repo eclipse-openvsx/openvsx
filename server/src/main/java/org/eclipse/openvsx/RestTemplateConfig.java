@@ -21,6 +21,7 @@ import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
@@ -97,6 +98,9 @@ public class RestTemplateConfig {
                 })
                 .messageConverters(
                         new StringHttpMessageConverter(),
+                        // Needed for EclipseTokenService's application/x-www-form-urlencoded token
+                        // refresh request; the other consumers of this bean only ever post/receive JSON.
+                        new FormHttpMessageConverter(),
                         new JacksonJsonHttpMessageConverter())
                 .build();
     }

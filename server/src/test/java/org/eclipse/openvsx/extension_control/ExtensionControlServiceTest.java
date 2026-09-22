@@ -180,6 +180,19 @@ class ExtensionControlServiceTest {
         verify(cache).refreshMaliciousExtensions(maliciousExtensionIds);
     }
 
+    @Test
+    void refreshMaliciousExtensionIdsSurvivesSharedCacheFailure() {
+        var maliciousExtensionIds = List.of("ns.ext");
+        doThrow(new RuntimeException("redis outage")).when(cache).refreshMaliciousExtensions(maliciousExtensionIds);
+
+        // The daily job (retries = 0) calls this before purging and before processing deprecated
+        // extensions; a Redis outage here must not abort that work, since the per-instance fallback
+        // below is already correct regardless of whether the shared write succeeded.
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
+
+        assertThat(service.getLastKnownMaliciousExtensionIds()).isEqualTo(maliciousExtensionIds);
+    }
+
     /** JacksonException's constructors are protected; a trivial subclass makes one throwable from a test. */
     private static final class FakeJsonParseException extends tools.jackson.core.JacksonException {
         FakeJsonParseException(String message) {
