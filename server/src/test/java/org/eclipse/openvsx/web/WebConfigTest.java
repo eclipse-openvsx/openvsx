@@ -50,8 +50,9 @@ class WebConfigTest {
     }
 
     private static Map<String, CorsConfiguration> mappingsFor(String webuiUrl, String... publicOrigins) {
-        var config = new WebConfig(Optional.empty());
-        config.webuiUrl = webuiUrl;
+        var webUi = new WebUiProperties();
+        webUi.setUrl(webuiUrl);
+        var config = new WebConfig(Optional.empty(), webUi);
         config.publicCorsOrigins = publicOrigins;
         var registry = new ReadableCorsRegistry();
         config.addCorsMappings(registry);
@@ -207,7 +208,7 @@ class WebConfigTest {
     // what stops a cross-site fetch from carrying the session, so it is stated rather than assumed.
     @Test
     void marksCookiesLaxRatherThanLeavingItToTheBrowser() {
-        var supplier = new WebConfig(Optional.empty()).laxCookieSameSiteSupplier();
+        var supplier = new WebConfig(Optional.empty(), new WebUiProperties()).laxCookieSameSiteSupplier();
 
         assertThat(supplier.getSameSite(new jakarta.servlet.http.Cookie("JSESSIONID", "value")))
                 .isEqualTo(Cookie.SameSite.LAX);

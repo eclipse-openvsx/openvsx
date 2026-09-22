@@ -34,6 +34,7 @@ import org.eclipse.openvsx.search.SearchExplainService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.*;
@@ -146,7 +147,8 @@ public class LocalVSCodeServiceTest {
                     storageUtil,
                     integrityService,
                     webResources,
-                    cache);
+                    cache,
+                    new WebUiProperties());
         }
     }
 

@@ -15,18 +15,32 @@ import { FunctionComponent, useContext } from 'react';
 import { Box, Skeleton, SxProps, Theme } from '@mui/material';
 import { MainContext } from '../../context';
 import { Extension, SearchEntry } from '../../extension-registry-types';
+import { useInView } from '../../hooks/use-in-view';
 import { useExtensionIcon } from './use-extension-icon';
 
-/** Renders an extension's icon: a skeleton while loading, then the icon or the configured default. */
+/**
+ * Renders an extension's icon: a skeleton while loading, then the icon or the configured default.
+ *
+ * The icon is fetched as a blob rather than given to an `<img>` as a URL, so the browser's own
+ * lazy loading does not apply and a list would request every icon in it at once. Hold the request
+ * back until the icon comes near the viewport; an extension without an icon has nothing to wait
+ * for and shows the default straight away.
+ */
 export const ExtensionIcon: FunctionComponent<ExtensionIconProps> = ({ extension, alt, sx, pending }) => {
     const { pageSettings } = useContext(MainContext);
-    const { data: icon, isLoading } = useExtensionIcon(extension);
+    const hasIcon = Boolean(extension.files?.icon);
+    const [ref, inView] = useInView({ enabled: hasIcon });
+    const load = inView || !hasIcon;
+    // Enabled only where there is something to fetch: a disabled query is not "loading", so an
+    // extension without an icon renders the default on its first frame rather than a skeleton.
+    const { data: icon, isLoading } = useExtensionIcon(extension, hasIcon && inView);
 
-    if (isLoading || pending) {
+    if (!load || isLoading || pending) {
         // Reset the Skeleton's default height so `aspectRatio` squares it from
         // the width; an explicit height in `sx` still wins.
         return (
             <Skeleton
+                ref={ref}
                 variant='rounded'
                 sx={[{ height: 'auto', aspectRatio: '1 / 1' }, ...(Array.isArray(sx) ? sx : [sx])]}
             />
@@ -35,6 +49,7 @@ export const ExtensionIcon: FunctionComponent<ExtensionIconProps> = ({ extension
 
     return (
         <Box
+            ref={ref}
             component='img'
             src={icon ?? pageSettings.urls.extensionDefaultIcon}
             alt={alt ?? extension.displayName ?? extension.name}

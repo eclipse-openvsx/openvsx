@@ -16,7 +16,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerErrorException;
@@ -31,8 +30,6 @@ import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.TimeUtil;
-
-import static org.eclipse.openvsx.cache.CacheService.CACHE_SITEMAP;
 
 @Component
 public class PublishExtensionVersionService {
@@ -102,7 +99,6 @@ public class PublishExtensionVersionService {
     }
 
     @Transactional
-    @CacheEvict(value = CACHE_SITEMAP, allEntries = true)
     public void activateExtension(ExtensionVersion extVersion, ExtensionService extensions) {
         // Reload the current row before mutating: the passed-in entity may carry a stale snapshot (e.g. it
         // was fetched before a concurrent soft-delete committed), so we must not trust its flags. This

@@ -38,8 +38,10 @@ import java.util.zip.ZipFile;
 // Two things are checked, each against an authoritative source rather than against a declaration:
 //
 //   - org.eclipse.jdt.core, against the eclipse_jdt_formatter/v<N>.lockfile that spotless-lib-extra
-//     bundles for the eclipse('<N>') version in build.gradle. jbang-fmt hardcodes its own, older
-//     jdt.core, which is why format.sh has to override it.
+//     bundles for the eclipse('<N>') version in build.gradle. When no lockfile is bundled for that
+//     version yet, Spotless provisions it live from Eclipse's P2 repository instead - so the check
+//     resolves jdt.core from that same P2 repository directly (see resolveP2JdtVersion) rather than
+//     trusting the declarations to be right on their own.
 //   - com.diffplug.spotless:spotless-lib(-extra), against the spotless-lib the Spotless Gradle
 //     plugin in libs.versions.toml actually depends on - the check buildSrc/build.gradle's comment
 //     asks a human to do by hand.
@@ -84,10 +86,22 @@ boolean checkJdt() throws Exception {
     } else if (!lockfiles.containsKey(eclipseVersion)) {
         System.out.println(
                 "NO LOCKFILE: spotless-lib-extra " + libExtraVersion + " does not bundle a lockfile for "
-                        + "eclipse('" + eclipseVersion + "'), so Spotless falls back to provisioning it live from "
-                        + "Eclipse's P2 repository - which fails outright when that repository is not populated.");
-        System.out.println("             Bundled versions go up to " + lockfiles.lastKey() + ".");
-        return false;
+                        + "eclipse('" + eclipseVersion + "') (bundled versions go up to " + lockfiles.lastKey()
+                        + "), so Spotless provisions jdt.core live from Eclipse's P2 repository instead.");
+        var p2Version = resolveP2JdtVersion(eclipseVersion);
+        if (p2Version == null) {
+            var fallback = sites.getFirst();
+            expected = fallback.version();
+            source = "the other declarations";
+            System.out.println(
+                    "warning: could not resolve jdt.core from eclipse('" + eclipseVersion + "')'s P2 repository; "
+                            + "comparing the declarations against each other only, using " + fallback.label()
+                            + " as the reference.");
+        } else {
+            expected = p2Version;
+            source = "the version eclipse('" + eclipseVersion + "')'s P2 repository publishes";
+            System.out.println("eclipse('" + eclipseVersion + "') P2 repository publishes jdt.core " + expected);
+        }
     } else {
         expected = lockfiles.get(eclipseVersion);
         source = "the version eclipse('" + eclipseVersion + "') provisions";
@@ -169,7 +183,6 @@ List<Site> findJdtDeclarationSites() throws IOException {
     var gav = "org\\.eclipse\\.jdt:org\\.eclipse\\.jdt\\.core:([\\w.\\-]+)";
     var sites = new ArrayList<Site>();
     addSite(sites, Path.of("buildSrc/build.gradle"), Pattern.compile("implementation\\s+'" + gav + "'"));
-    addSite(sites, Path.of("scripts/format.sh"), Pattern.compile("^JDT_VERSION=([\\w.\\-]+)", Pattern.MULTILINE));
     addScriptDepsSites(sites, gav);
     return sites;
 }
@@ -272,6 +285,54 @@ TreeMap<String, String> readLockfileJdtVersions(String libExtraVersion) {
         return null;
     }
     return versions.isEmpty() ? null : versions;
+}
+
+/** For an Eclipse release with no bundled Spotless lockfile, resolves the jdt.core version its own
+ *  P2 repository actually publishes - the same one Spotless's live provisioning fetches - so the
+ *  declarations can be checked against reality instead of just against each other. Null if the
+ *  repository, or the request needed to read it, is unavailable (e.g. offline). */
+String resolveP2JdtVersion(String eclipseVersion) {
+    var base = "https://download.eclipse.org/eclipse/updates/" + eclipseVersion + "/";
+    var compositeContent = fetchZipEntryText(base + "compositeContent.jar", "compositeContent.xml");
+    if (compositeContent == null) {
+        return null;
+    }
+    var child = Pattern.compile("<child location='([^']+)'").matcher(compositeContent);
+    if (!child.find()) {
+        return null;
+    }
+    var content = fetchZipEntryText(base + child.group(1) + "/content.jar", "content.xml");
+    if (content == null) {
+        return null;
+    }
+    var unit = Pattern.compile("<unit id='org\\.eclipse\\.jdt\\.core' version='(\\d+\\.\\d+\\.\\d+)").matcher(content);
+    return unit.find() ? unit.group(1) : null;
+}
+
+/** Downloads a jar and reads one of its entries as text, or null if the download or the entry
+ *  itself is unavailable. */
+String fetchZipEntryText(String url, String entryName) {
+    Path target;
+    try (var client = HttpClient.newHttpClient()) {
+        target = Files.createTempFile("p2", ".jar");
+        target.toFile().deleteOnExit();
+        var response = client.send(
+                HttpRequest.newBuilder(URI.create(url)).build(),
+                HttpResponse.BodyHandlers.ofFile(target));
+        if (response.statusCode() != 200) {
+            return null;
+        }
+    } catch (Exception e) {
+        System.err.println("warning: could not fetch " + url + ": " + e);
+        return null;
+    }
+    try (var zip = new ZipFile(target.toFile())) {
+        var entry = zip.getEntry(entryName);
+        return entry == null ? null : new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
+    } catch (IOException e) {
+        System.err.println("warning: could not read " + entryName + " from " + url + ": " + e);
+        return null;
+    }
 }
 
 /** Prefers an already-downloaded copy so the check works offline, then falls back to Maven Central.

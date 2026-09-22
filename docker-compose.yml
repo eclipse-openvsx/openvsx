@@ -112,7 +112,6 @@ services:
 
   valkey-node-1:
     <<: *valkey-node
-    container_name: valkey-node-1
     ports:
       - "7001:7000"
     volumes:
@@ -121,7 +120,6 @@ services:
 
   valkey-node-2:
     <<: *valkey-node
-    container_name: valkey-node-2
     ports:
       - "7002:7000"
     volumes:
@@ -130,7 +128,6 @@ services:
 
   valkey-node-3:
     <<: *valkey-node
-    container_name: valkey-node-3
     ports:
       - "7003:7000"
     volumes:
@@ -139,7 +136,6 @@ services:
 
   valkey-node-4:
     <<: *valkey-node
-    container_name: valkey-node-4
     ports:
       - "7004:7000"
     volumes:
@@ -148,7 +144,6 @@ services:
 
   valkey-node-5:
     <<: *valkey-node
-    container_name: valkey-node-5
     ports:
       - "7005:7000"
     volumes:
@@ -157,7 +152,6 @@ services:
 
   valkey-node-6:
     <<: *valkey-node
-    container_name: valkey-node-6
     ports:
       - "7006:7000"
     volumes:

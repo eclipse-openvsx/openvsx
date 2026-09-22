@@ -37,6 +37,7 @@ import { ButtonWithProgress } from '../../components/button-with-progress';
 import { Timestamp } from '../../components/timestamp';
 import { ExtensionRatingStars } from './extension-rating-stars';
 import { ExtensionReviewDialog } from './extension-review-dialog';
+import { LoginComponent } from '../../default/login';
 
 export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsProps> = props => {
     const [reviewList, setReviewList] = useState<ExtensionReviewList>();
@@ -97,7 +98,28 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
     };
 
     const renderButton = (): ReactNode => {
-        if (!context.user || !reviewList) {
+        // An anonymous visitor gets the login in place of the review button. It doesn't depend on
+        // reviewList, so it comes before the check the signed-in branches below need.
+        if (!context.user) {
+            // userLoading: undefined user is not yet logged out, and prompting one who is signed in
+            // would send them through OAuth again
+            if (context.userLoading || !context.loginProviders) {
+                return '';
+            }
+            return (
+                <Box>
+                    <LoginComponent
+                        loginProviders={context.loginProviders}
+                        renderButton={(href, onClick) => (
+                            <Button variant='contained' color='secondary' href={href} onClick={onClick}>
+                                Log in to Review
+                            </Button>
+                        )}
+                    />
+                </Box>
+            );
+        }
+        if (!reviewList) {
             return '';
         }
         const existingReview = reviewList.reviews.find(r => isEqualUser(r.user, context.user as UserData));

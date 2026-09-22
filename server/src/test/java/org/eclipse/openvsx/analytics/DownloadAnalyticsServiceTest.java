@@ -20,7 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.junit.jupiter.api.Test;
+import org.springframework.cache.caffeine.CaffeineCache;
 
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 
@@ -32,24 +34,23 @@ class DownloadAnalyticsServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-07-15T10:00:00Z");
     private static final Duration SETTLING_MARGIN = Duration.ofHours(2);
-    private static final Duration CACHE_TTL = Duration.ofHours(1);
 
     private final FakeRepository repository = new FakeRepository();
     private final DownloadAnalyticsService service = new DownloadAnalyticsService(
             repository,
             SETTLING_MARGIN,
-            CACHE_TTL,
+            newCache(),
             Clock.fixed(NOW, ZoneOffset.UTC));
 
+    private static CaffeineCache newCache() {
+        return new CaffeineCache(DownloadAnalyticsService.CACHE_SERIES, Caffeine.newBuilder().build());
+    }
+
     @Test
-    void testZeroTtlReadsASettledRangeEveryTime() {
+    void testNoCacheReadsASettledRangeEveryTime() {
         // Nothing invalidates the cache, so a backfill or a manual refresh of the aggregate is
-        // invisible until it expires. Zero is how a deployment opts out of that entirely.
-        var service = new DownloadAnalyticsService(
-                repository,
-                SETTLING_MARGIN,
-                Duration.ZERO,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        // invisible until it expires. A null cache is how a deployment opts out of that entirely.
+        var service = new DownloadAnalyticsService(repository, SETTLING_MARGIN, null, Clock.fixed(NOW, ZoneOffset.UTC));
         var request = dayRequest("2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z");
 
         service.getSeries(request);
@@ -105,7 +106,7 @@ class DownloadAnalyticsServiceTest {
         var service = new DownloadAnalyticsService(
                 repository,
                 SETTLING_MARGIN,
-                CACHE_TTL,
+                newCache(),
                 Clock.fixed(earlyMorning, ZoneOffset.UTC));
 
         var points = service.getSeries(dayRequest("2026-07-13T00:00:00Z", "2026-07-15T00:00:00Z"));

@@ -122,13 +122,13 @@ This decides whose headers are read, not whether their contents can be believed:
 
 Base URL of the web UI. This is required only if it's different from the server.
 
-| Property      | `ovsx.webui.frontendRoutes`
+| Property      | `ovsx.webui.frontend-routes`
 |---------------|-----------------------------
 | Type          | string[]
-| Default       | `/extension/**,/namespace/**,/user-settings/**,/admin-dashboard/**`
+| Default       | `/extension/**,/namespace/**,/search,/user-settings/**,/publish,/admin-dashboard/**`
 | Compatibility | Since 0.1.0
 
-Routes to be forwarded to `/` because they are handled by the frontend.
+Routes to be forwarded to `/` because they are handled by the frontend, and served without authentication. Spring reads the camel case spelling `ovsx.webui.frontendRoutes` just as well.
 
 | Property      | `ovsx.webui.additional-routes`
 |---------------|------------------------------
@@ -136,7 +136,7 @@ Routes to be forwarded to `/` because they are handled by the frontend.
 | Default       |
 | Compatibility | Since 0.9.0
 
-Further paths, comma separated, that the security configuration serves without authentication. For a customized web UI that adds pages of its own beyond `ovsx.webui.frontendRoutes`.
+Further paths, comma separated, that the security configuration serves without authentication. For a customized web UI that adds pages of its own beyond `ovsx.webui.frontend-routes`.
 
 ## Search Options
 

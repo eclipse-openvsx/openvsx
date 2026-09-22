@@ -88,7 +88,7 @@ class SitemapControllerTest {
 
         @Bean
         SitemapService sitemapService(RepositoryService repositories) {
-            return new SitemapService(repositories);
+            return new SitemapService(repositories, new WebUiProperties());
         }
     }
 }

@@ -55,6 +55,7 @@ import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.util.auth.AccessTokenAuthentication;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -129,6 +130,7 @@ class LocalRegistryServiceTest {
                 similarityCheckService,
                 new PublishingConfig(),
                 new TrustedPublishingConfig(),
+                new WebUiProperties(),
                 Duration.ofSeconds(30));
 
         // A permissive default for a void method rather than a per-test expectation: the tests of

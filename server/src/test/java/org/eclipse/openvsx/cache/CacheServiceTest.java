@@ -21,8 +21,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -41,6 +44,7 @@ import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.ReviewJson;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.security.IdPrincipal;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
 import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.TimeUtil;
@@ -77,6 +81,26 @@ class CacheServiceTest extends AbstractPostgresContainerTest {
 
     @Autowired
     RepositoryService repositories;
+
+    /**
+     * Evictions wait for the commit; these tests drive them inside a transaction that is rolled back,
+     * so they would never run at all. Running them straight away keeps the assertions about
+     * <em>what</em> gets evicted; <em>when</em> it is evicted is {@code AfterCommitExecutorTest}'s.
+     */
+    @TestConfiguration
+    static class InlineEvictions {
+
+        @Bean
+        @Primary
+        AfterCommitExecutor inlineAfterCommitExecutor() {
+            return new AfterCommitExecutor() {
+                @Override
+                public void execute(Runnable task) {
+                    task.run();
+                }
+            };
+        }
+    }
 
     @BeforeEach
     public void clearCaches() {

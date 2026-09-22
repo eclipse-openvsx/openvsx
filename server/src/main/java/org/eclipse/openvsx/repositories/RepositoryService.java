@@ -279,6 +279,10 @@ public class RepositoryService {
         return extensionRepo.findExtensionsWithInconsistentActiveFlag();
     }
 
+    public Streamable<Extension> findExtensionsWithStaleLastUpdatedDate() {
+        return extensionRepo.findExtensionsWithStaleLastUpdatedDate();
+    }
+
     public long countExtensions() {
         return extensionRepo.count();
     }

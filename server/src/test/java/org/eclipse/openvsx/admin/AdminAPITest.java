@@ -117,6 +117,7 @@ import org.eclipse.openvsx.util.TargetPlatformVersion;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -3156,6 +3157,7 @@ class AdminAPITest {
                     similarityCheckService,
                     new PublishingConfig(),
                     new TrustedPublishingConfig(),
+                    new WebUiProperties(),
                     Duration.ofSeconds(30));
         }
 

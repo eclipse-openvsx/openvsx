@@ -65,6 +65,7 @@ import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.web.JacksonConfig;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -1534,7 +1535,8 @@ class VSCodeAPITest {
                     storageUtil,
                     integrityService,
                     webResourceService,
-                    cache);
+                    cache,
+                    new WebUiProperties());
         }
 
         @Bean

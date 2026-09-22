@@ -18,11 +18,14 @@ import org.springframework.cache.interceptor.KeyGenerator;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.Extension;
-import org.eclipse.openvsx.util.NamingUtil;
+import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionAlias;
 
 @Component
 public class LatestExtensionVersionsByPlatformCacheKeyGenerator implements KeyGenerator {
+
+    /** The keys of these caches share the extension-id part, terminator included. */
+    private final ExtensionJsonCacheKeyGenerator extensionJsonCacheKey = new ExtensionJsonCacheKeyGenerator();
 
     @Override
     public Object generate(Object target, Method method, Object... params) {
@@ -40,9 +43,19 @@ public class LatestExtensionVersionsByPlatformCacheKeyGenerator implements KeyGe
     }
 
     public String generate(Extension extension, boolean preReleases) {
-        var extensionName = extension.getName();
-        var namespaceName = extension.getNamespace().getName();
-        return NamingUtil.toFileFormat(namespaceName, extensionName, VersionAlias.LATEST) + ",pre-releases="
-                + preReleases;
+        return generate(extension.getNamespace().getName(), extension.getName(), preReleases);
+    }
+
+    /**
+     * From names rather than the entity, for an eviction that runs after its transaction: by then the
+     * entity may be detached. See {@code AfterCommitExecutor}.
+     */
+    public String generate(String namespaceName, String extensionName, boolean preReleases) {
+        return extensionJsonCacheKey.generate(
+                namespaceName,
+                extensionName,
+                TargetPlatform.NAME_UNIVERSAL,
+                VersionAlias.LATEST)
+                + ",pre-releases=" + preReleases;
     }
 }

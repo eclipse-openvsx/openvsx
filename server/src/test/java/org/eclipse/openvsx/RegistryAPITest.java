@@ -94,6 +94,7 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionAlias;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.entities.FileResource.*;
@@ -3905,6 +3906,7 @@ class RegistryAPITest {
                     similarityCheckService,
                     publishingConfig,
                     trustedPublishingConfig,
+                    new WebUiProperties(),
                     CHANGES_FEED_LAG);
         }
 

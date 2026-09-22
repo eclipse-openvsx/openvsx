@@ -62,9 +62,14 @@ export interface ProviderOptions {
 function mainContextValue(overrides?: Partial<MainContext>): MainContext {
     return {
         service: {} as ExtensionRegistryService,
-        // `elements` is a required PageSettings field; the empty object keeps this default genuinely
-        // well-typed rather than relying on `as PageSettings` to paper over a missing required field.
-        pageSettings: { elements: {} } as PageSettings,
+        // `elements` and `urls` are the required PageSettings fields; filling both keeps this default
+        // genuinely well-typed rather than relying on `as PageSettings` to paper over a missing one.
+        // Components read `urls` while rendering - an extension with no icon falls back to
+        // `extensionDefaultIcon` on its first frame - so leaving it out crashes them.
+        pageSettings: {
+            elements: {},
+            urls: { extensionDefaultIcon: '/default-icon.png', namespaceAccessInfo: '/namespace-access' }
+        } as PageSettings,
         handleError: () => {},
         userLoading: false,
         updateUser: () => {},

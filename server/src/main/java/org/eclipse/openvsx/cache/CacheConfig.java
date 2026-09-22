@@ -36,8 +36,10 @@ import org.springframework.cache.jcache.JCacheCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.cache.BatchStrategies;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.*;
 import redis.clients.jedis.*;
@@ -55,6 +57,13 @@ import static org.eclipse.openvsx.cache.CacheService.*;
 @Configuration
 @EnableCaching(proxyTargetClass = true)
 public class CacheConfig {
+
+    /**
+     * Keys per SCAN round trip when clearing by pattern. A larger batch means fewer round trips and a
+     * longer pause inside Redis for each one; this is the order of magnitude the Redis documentation
+     * suggests, and these caches hold thousands of keys rather than millions.
+     */
+    private static final int SCAN_BATCH_SIZE = 256;
 
     protected final Logger logger = LoggerFactory.getLogger(CacheConfig.class);
 
@@ -310,7 +319,9 @@ public class CacheConfig {
 
         var sharedMapper = JsonMapper.shared();
 
-        var builder = RedisCacheManager.builder(redisConnectionFactory)
+        var cacheWriter = redisCacheWriter(redisConnectionFactory);
+
+        var builder = RedisCacheManager.builder(cacheWriter)
                 .withCacheConfiguration(
                         CACHE_AVERAGE_REVIEW_RATING,
                         redisCacheConfig(new JacksonJsonRedisSerializer<>(Double.class), averageReviewRatingTtl))
@@ -363,10 +374,23 @@ public class CacheConfig {
         return builder.build();
     }
 
-    private <T> RedisCacheConfiguration redisCacheConfig(RedisSerializer<T> serializer, Duration ttl) {
+    public static <T> RedisCacheConfiguration redisCacheConfig(RedisSerializer<T> serializer, Duration ttl) {
         var serializationPair = RedisSerializationContext.SerializationPair.fromSerializer(serializer);
         return RedisCacheConfiguration.defaultCacheConfig()
                 .serializeValuesWith(serializationPair)
                 .entryTtl(ttl);
+    }
+
+    /**
+     * A cache writer built from the connection factory alone clears by pattern with KEYS, which
+     * blocks the server for as long as it takes to walk the whole keyspace - and clearing by pattern
+     * is exactly what an eviction does on every publish and every review. SCAN walks it in batches
+     * instead, so the server stays responsive between them. Shared with any feature module that
+     * builds its own {@link RedisCacheManager}, so every Redis-backed cache in the app clears the
+     * same way.
+     */
+    public static RedisCacheWriter redisCacheWriter(RedisConnectionFactory redisConnectionFactory) {
+        return RedisCacheWriter
+                .nonLockingRedisCacheWriter(redisConnectionFactory, BatchStrategies.scan(SCAN_BATCH_SIZE));
     }
 }
