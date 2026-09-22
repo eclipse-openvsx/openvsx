@@ -136,6 +136,35 @@ class ExtensionVersionJooqRepositoryTest extends AbstractPostgresContainerTest {
     }
 
     @Test
+    void findLatestForIdsAndTargetPlatformReturnsThePerExtensionLatestForThatPlatformOnly() {
+        var ext1 = persistExtension("ns14", "ext14");
+        persistVersion(ext1, "1.0.0", TargetPlatform.NAME_LINUX_X64, true);
+        persistVersion(ext1, "2.0.0", TargetPlatform.NAME_LINUX_X64, true);
+        persistVersion(ext1, "9.0.0", TargetPlatform.NAME_WIN32_X64, true);
+
+        var ext2 = persistExtension("ns15", "ext15");
+        persistVersion(ext2, "1.5.0", TargetPlatform.NAME_LINUX_X64, true);
+        persistVersion(ext2, "3.0.0", TargetPlatform.NAME_WIN32_X64, true);
+
+        var result = repo.findLatest(List.of(ext1.getId(), ext2.getId()), TargetPlatform.NAME_LINUX_X64);
+
+        assertThat(result)
+                .extracting(ExtensionVersion::getVersion)
+                .containsExactlyInAnyOrder("2.0.0", "1.5.0");
+    }
+
+    @Test
+    void findLatestForIdsWithNullTargetPlatformPicksTheOverallBestPerExtension() {
+        var ext1 = persistExtension("ns16", "ext16");
+        persistVersion(ext1, "1.0.0", TargetPlatform.NAME_LINUX_X64, true);
+        persistVersion(ext1, "2.0.0", TargetPlatform.NAME_WIN32_X64, true);
+
+        var result = repo.findLatest(List.of(ext1.getId()), null);
+
+        assertThat(result).extracting(ExtensionVersion::getVersion).containsExactly("2.0.0");
+    }
+
+    @Test
     void mapsPublishedWithTtOnFindLatestByUser() {
         var extension = persistExtension("ns-tt-3", "ext-tt-3");
         persistVersionWithTokenType(extension, "1.0.0", PersonalAccessTokenType.TPT);
