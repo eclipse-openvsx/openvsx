@@ -98,9 +98,7 @@ function weeklyTotals(daily: number[]): number[] {
  */
 const sectionSx = {
     display: 'flex',
-    flexDirection: 'column',
-    flex: { xs: 'none', sm: 'none', md: 1, lg: 1, xl: 'none' },
-    mb: { xs: 2, sm: 2, md: 0, lg: 0, xl: 2 }
+    flexDirection: 'column'
 } as const;
 
 /**
