@@ -26,8 +26,11 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -84,5 +87,44 @@ class ExtensionControlJobRequestHandlerTest {
 
         verify(admin).purgeExtension(extensionControlUser, "ns", "evil");
         verify(admin, never()).purgeExtensionAndReferencingExtensions(any(), any(), any());
+    }
+
+    @Test
+    void refreshesCacheBeforeAttemptingPurges() throws Exception {
+        var extensionControlUser = new UserData();
+        when(service.createExtensionControlUser()).thenReturn(extensionControlUser);
+        when(repositories.hasExtension("ns", "evil")).thenReturn(true);
+        when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.evil"], "deprecated": {}}
+                """));
+        doThrow(new ErrorResultException("boom"))
+                .when(admin)
+                .purgeExtension(extensionControlUser, "ns", "evil");
+
+        handler.run(new HandlerJobRequest<>());
+
+        // A persistent purge failure (this job has retries = 0) must never keep the freshly fetched
+        // list from reaching the publish-time cache.
+        var order = inOrder(service, admin);
+        order.verify(service).refreshMaliciousExtensionIds(List.of("ns.evil"));
+        order.verify(admin).purgeExtension(extensionControlUser, "ns", "evil");
+    }
+
+    @Test
+    void continuesProcessingRemainingExtensionsAfterAPurgeFails() throws Exception {
+        var extensionControlUser = new UserData();
+        when(service.createExtensionControlUser()).thenReturn(extensionControlUser);
+        when(repositories.hasExtension("ns", "evil")).thenReturn(true);
+        when(repositories.hasExtension("ns", "alsoEvil")).thenReturn(true);
+        when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.evil", "ns.alsoEvil"], "deprecated": {}}
+                """));
+        doThrow(new ErrorResultException("boom"))
+                .when(admin)
+                .purgeExtension(extensionControlUser, "ns", "evil");
+
+        handler.run(new HandlerJobRequest<>());
+
+        verify(admin).purgeExtension(extensionControlUser, "ns", "alsoEvil");
     }
 }

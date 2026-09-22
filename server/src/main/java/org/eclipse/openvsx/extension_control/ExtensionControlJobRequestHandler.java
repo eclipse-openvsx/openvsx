@@ -22,6 +22,7 @@ import org.eclipse.openvsx.admin.AdminService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NamingUtil;
 
 @Component
@@ -68,15 +69,24 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
             return;
         }
 
-        var extensionControlUser = service.createExtensionControlUser();
         var maliciousExtensionIds = new ArrayList<String>();
-        for (var item : node) {
-            var itemId = item.asString();
-            maliciousExtensionIds.add(itemId);
+        node.forEach(item -> maliciousExtensionIds.add(item.asString()));
+
+        // Refresh the publish-time cache before attempting any purge below: this job always fetches a
+        // fresh copy, and a purge failure must never keep it from reaching getMaliciousExtensionIds()
+        // (this job has retries = 0, so a persistent purge failure would otherwise block it indefinitely).
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
+
+        var extensionControlUser = service.createExtensionControlUser();
+        for (var itemId : maliciousExtensionIds) {
             logger.atInfo().setMessage("malicious: {}").addArgument(itemId).log();
 
             var extensionId = NamingUtil.fromExtensionId(itemId);
-            if (extensionId != null && repositories.hasExtension(extensionId.namespace(), extensionId.extension())) {
+            if (extensionId == null || !repositories.hasExtension(extensionId.namespace(), extensionId.extension())) {
+                continue;
+            }
+
+            try {
                 logger.info("delete malicious extension");
                 if (service.deleteTransitively) {
                     admin.purgeExtensionAndReferencingExtensions(
@@ -86,13 +96,11 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
                 } else {
                     admin.purgeExtension(extensionControlUser, extensionId.namespace(), extensionId.extension());
                 }
+            } catch (ErrorResultException e) {
+                // One failing purge must not block the rest of the list.
+                logger.error("Failed to purge malicious extension {}", itemId, e);
             }
         }
-
-        // This job always fetches a fresh copy; feed it straight into getMaliciousExtensionIds()'s cache
-        // so the publish-time check reflects it immediately instead of drifting for up to that cache's
-        // own, independent TTL.
-        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
     }
 
     private void processDeprecatedExtensions(JsonNode json) {
