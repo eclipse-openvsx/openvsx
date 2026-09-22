@@ -106,7 +106,8 @@ const sectionSx = {
  * totals for the year behind it — one point per week, so the headline is simply its last point.
  * Hovering reads out that week instead. Renders nothing only when download analytics are disabled
  * server-side (the endpoint 404s); otherwise the chart draws immediately, as a flat zero while the
- * series loads and when the extension has no downloads yet, with the figure held as a placeholder.
+ * series loads, when the extension has no downloads yet, or when the request failed — with the
+ * figure held as a placeholder or shown as unavailable, never as a claimed zero.
  */
 export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ extension }) => {
     const theme = useTheme();
@@ -114,7 +115,11 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
     const analyticsEnabled = version?.analyticsEnabled ?? false;
     const [hovered, setHovered] = useState<number | undefined>(undefined);
 
-    const { data: points, isLoading } = useExtensionDownloadSeries(extension.namespace, extension.name, {
+    const {
+        data: points,
+        isLoading,
+        isError
+    } = useExtensionDownloadSeries(extension.namespace, extension.name, {
         enabled: analyticsEnabled
     });
 
@@ -125,8 +130,8 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
     }
 
     // A flat zero stands in while the series loads (`isLoading` is the first fetch only, and stays
-    // false while the query is disabled) and when there is none, so the chart draws from first paint.
-    // Two points, so it is a visible line, not a lone dot.
+    // false while the query is disabled), when there is none, and when the request failed, so the
+    // chart draws from first paint. Two points, so it is a visible line, not a lone dot.
     const hasData = counts.length > 0;
     const series = hasData ? counts : [0, 0];
 
@@ -149,10 +154,12 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
     const weeks = series.length === 1 ? 'the last week' : `the last ${series.length} weeks`;
     const chartLabel = isLoading
         ? 'Weekly downloads, loading'
-        : hasData
-          ? `Downloads per week over ${weeks}, between ${Math.min(...series).toLocaleString()}` +
-            ` and ${busiest.toLocaleString()} per week`
-          : 'Downloads per week: no downloads yet';
+        : isError
+          ? 'Weekly downloads unavailable'
+          : hasData
+            ? `Downloads per week over ${weeks}, between ${Math.min(...series).toLocaleString()}` +
+              ` and ${busiest.toLocaleString()} per week`
+            : 'Downloads per week: no downloads yet';
 
     return (
         <Box sx={sectionSx} aria-busy={isLoading}>
@@ -175,6 +182,12 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                     {isLoading ? (
                         // Text cannot tween as the chart's data lands, so the figure waits as a placeholder.
                         <Skeleton variant='text' width='4.5rem' sx={{ fontSize: '1.25rem' }} />
+                    ) : isError ? (
+                        // A dash, not a zero: the request failed, so there is no count to claim.
+                        <>
+                            <DownloadsCount style={{ minWidth: reserved }}>—</DownloadsCount>
+                            <Unit>unavailable</Unit>
+                        </>
                     ) : (
                         <>
                             <DownloadsCount style={{ minWidth: reserved }}>
@@ -203,7 +216,11 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                         // A non-'none' axis highlight is also what enables the axis listener, so
                         // the readout above tracks the pointer anywhere along the curve.
                         axisHighlight={{ x: 'line' }}
-                        onHighlightedAxisChange={items => setHovered(items[0]?.dataIndex)}
+                        // Ignored on the placeholder chart (`!hasData`, its two points are not real
+                        // weeks): otherwise an index picked up there survives into the real series
+                        // once it lands, since 0 or 1 stays a valid index into it, and the headline
+                        // opens on that stale week instead of the latest one.
+                        onHighlightedAxisChange={items => hasData && setHovered(items[0]?.dataIndex)}
                         slotProps={{ lineHighlight: { r: 4 } }}
                         color={theme.palette.secondary.main}
                         sx={{

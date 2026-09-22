@@ -68,6 +68,12 @@ function serviceReturning(series: DownloadSeriesPoint[]): ExtensionRegistryServi
     } as unknown as ExtensionRegistryService;
 }
 
+function serviceRejecting(): ExtensionRegistryService {
+    return {
+        getExtensionDownloadSeries: vi.fn().mockRejectedValue(new Error('analytics endpoint unavailable'))
+    } as unknown as ExtensionRegistryService;
+}
+
 // Two whole weeks, 1..14 downloads per day: week 0 covers Jan 1-7 (28) and week 1, the latest,
 // covers Jan 8-14 (77).
 const ascending = points(Array.from({ length: 14 }, (_, i) => i + 1));
@@ -224,5 +230,43 @@ describe('WeeklyDownloads', () => {
         // a positive top keeps the domain non-degenerate, so the zero line rests on the baseline
         expect(chart).toHaveAttribute('data-domain-max-zero', '1');
         expect(screen.getByRole('img', { name: 'Downloads per week: no downloads yet' })).toBeInTheDocument();
+    });
+
+    it('shows the card as unavailable, not a claimed zero, when the request fails', async () => {
+        const service = serviceRejecting();
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service, version: analyticsEnabled }
+        });
+
+        // a failed request is not the same claim as "no downloads yet": it says nothing was learned
+        expect(await screen.findByRole('img', { name: 'Weekly downloads unavailable' })).toBeInTheDocument();
+        expect(screen.getByText('—')).toBeInTheDocument();
+        expect(screen.getByText('unavailable')).toBeInTheDocument();
+        expect(screen.queryByText('0')).not.toBeInTheDocument();
+        // the card, and its placeholder chart, stay in place rather than disappearing
+        expect(screen.getByText(/weekly downloads/i)).toBeInTheDocument();
+        expect(screen.getByTestId('sparkline')).toHaveAttribute('data-length', '2');
+    });
+
+    it('does not carry a hover picked up on the loading placeholder into the real series', async () => {
+        let resolve!: (value: { points: DownloadSeriesPoint[] }) => void;
+        const service = {
+            getExtensionDownloadSeries: vi.fn().mockReturnValue(new Promise(done => (resolve = done)))
+        } as unknown as ExtensionRegistryService;
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service, version: analyticsEnabled }
+        });
+
+        // the placeholder's two points are indices 0 and 1, both valid indices into the real
+        // 2-week series that lands below - so a stale hover here would go unnoticed by index
+        // bounds alone
+        await userEvent.click(screen.getByRole('button', { name: 'hover 0' }));
+
+        resolve({ points: ascending });
+
+        // headlines the latest week (77, Jan 8-14), not the index hovered on the placeholder
+        expect(await screen.findByText((77).toLocaleString())).toBeInTheDocument();
+        expect(screen.getByText(/Jan 8.*Jan 14, 2026/)).toBeInTheDocument();
+        expect(screen.queryByText((28).toLocaleString())).not.toBeInTheDocument();
     });
 });
