@@ -11,14 +11,14 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext, useMemo, useState } from 'react';
 import { Box, Skeleton, Typography, alpha, styled, useTheme } from '@mui/material';
-import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
-import { lineClasses } from '@mui/x-charts/LineChart';
 import { chartsAxisHighlightClasses } from '@mui/x-charts/ChartsAxisHighlight';
+import { lineClasses } from '@mui/x-charts/LineChart';
+import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
 import { DateTime } from 'luxon';
-import { MainContext } from '../../context';
+import { FunctionComponent, useContext, useMemo, useState } from 'react';
 import { Eyebrow } from '../../components/page-primitives';
+import { MainContext } from '../../context';
 import { DownloadSeriesPoint, Extension } from '../../extension-registry-types';
 import { useExtensionDownloadSeries } from './use-extension-download-series';
 
@@ -93,8 +93,8 @@ function weeklyTotals(daily: number[]): number[] {
 }
 
 /**
- * The sidebar slot, shared by the loaded and loading states so neither shifts. Deliberately not a
- * card: it sits flush with the resources group below it, which is styled the same way.
+ * The sidebar slot. Deliberately not a card: it sits flush with the resources group below it, which
+ * is styled the same way. Its shape is fixed from first paint, so nothing shifts when the series lands.
  */
 const sectionSx = {
     display: 'flex',
@@ -103,23 +103,12 @@ const sectionSx = {
     mb: { xs: 2, sm: 2, md: 0, lg: 0, xl: 2 }
 } as const;
 
-/** Same shape and heights as the loaded section, so the sidebar does not jump when the series lands. */
-const LoadingCard: FunctionComponent = () => (
-    <Box sx={sectionSx} role='status' aria-label='Loading weekly downloads'>
-        <Eyebrow>Weekly downloads</Eyebrow>
-        <Skeleton variant='text' width='55%' sx={{ fontSize: '0.75rem' }} />
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 1.5, mt: 0.75 }}>
-            <Skeleton variant='text' width='4.5rem' sx={{ fontSize: '1.25rem' }} />
-            <Skeleton variant='rounded' sx={{ flex: 1, minWidth: 0, height: `${CHART_HEIGHT_PX / 16}rem` }} />
-        </Box>
-    </Box>
-);
-
 /**
  * "Weekly downloads" sidebar card: the downloads of the last 7 days, with a sparkline of the weekly
  * totals for the year behind it — one point per week, so the headline is simply its last point.
- * Hovering reads out that week instead. Renders nothing when download analytics are disabled
- * server-side (the endpoint 404s) or when the extension has no downloads in the year.
+ * Hovering reads out that week instead. Renders nothing only when download analytics are disabled
+ * server-side (the endpoint 404s); otherwise the chart draws immediately, as a flat zero while the
+ * series loads and when the extension has no downloads yet, with the figure held as a placeholder.
  */
 export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ extension }) => {
     const theme = useTheme();
@@ -136,35 +125,45 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
     if (!analyticsEnabled) {
         return null;
     }
-    // `isLoading` is the first fetch only, and stays false while the query is disabled
-    if (isLoading) {
-        return <LoadingCard />;
-    }
-    if (counts.length === 0 || !counts.some(count => count > 0)) {
-        return null;
-    }
+
+    // A flat zero stands in while the series loads (`isLoading` is the first fetch only, and stays
+    // false while the query is disabled) and when there is none, so the chart draws from first paint.
+    // Two points, so it is a visible line, not a lone dot.
+    const hasData = counts.length > 0;
+    const series = hasData ? counts : [0, 0];
 
     // the last week by default; whole weeks are taken from the end, so a short first week is dropped
-    const selected = hovered !== undefined && hovered < counts.length ? hovered : counts.length - 1;
-    const first = daily.length - counts.length * WEEK_DAYS + selected * WEEK_DAYS;
-    const period = formatPeriod(daily[first], daily[first + WEEK_DAYS - 1]);
+    const selected = hovered !== undefined && hovered < series.length ? hovered : series.length - 1;
+    // No period without a real week behind it: the zero point is a placeholder, not a dated span.
+    let period: string | undefined;
+    if (hasData) {
+        const first = daily.length - counts.length * WEEK_DAYS + selected * WEEK_DAYS;
+        period = formatPeriod(daily[first], daily[first + WEEK_DAYS - 1]);
+    }
     // Reserve room for the busiest week, so the headline's width does not track its digit count and
     // resize the sparkline beside it as the pointer moves. Data-derived, so it cannot be a class.
-    const busiest = Math.max(...counts);
+    const busiest = Math.max(...series);
     const reserved = `${busiest.toLocaleString().length}ch`;
 
     // The chart is an SVG with no text alternative, so without this a screen reader gets the
     // eyebrow, the period and a single number, and nothing at all about the weeks behind them.
     // It names the unit too: per week is exactly what the curve's shape might be read against.
-    const weeks = counts.length === 1 ? 'the last week' : `the last ${counts.length} weeks`;
-    const chartLabel =
-        `Downloads per week over ${weeks}, between ${Math.min(...counts).toLocaleString()}` +
-        ` and ${busiest.toLocaleString()} per week`;
+    const weeks = series.length === 1 ? 'the last week' : `the last ${series.length} weeks`;
+    const chartLabel = isLoading
+        ? 'Weekly downloads, loading'
+        : hasData
+          ? `Downloads per week over ${weeks}, between ${Math.min(...series).toLocaleString()}` +
+            ` and ${busiest.toLocaleString()} per week`
+          : 'Downloads per week: no downloads yet';
 
     return (
-        <Box sx={sectionSx}>
+        <Box sx={sectionSx} aria-busy={isLoading}>
             <Eyebrow>Weekly downloads</Eyebrow>
-            {period && <Period>{period}</Period>}
+            {isLoading ? (
+                <Skeleton variant='text' width='55%' sx={{ fontSize: '0.75rem' }} />
+            ) : (
+                period && <Period>{period}</Period>
+            )}
             <Box
                 sx={{
                     display: 'flex',
@@ -175,12 +174,21 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                     borderBottom: `2px solid ${alpha(theme.palette.secondary.main, 0.2)}`
                 }}>
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                    <DownloadsCount style={{ minWidth: reserved }}>{counts[selected].toLocaleString()}</DownloadsCount>
-                    <Unit>{counts[selected] === 1 ? 'download' : 'downloads'}</Unit>
+                    {isLoading ? (
+                        // Text cannot tween as the chart's data lands, so the figure waits as a placeholder.
+                        <Skeleton variant='text' width='4.5rem' sx={{ fontSize: '1.25rem' }} />
+                    ) : (
+                        <>
+                            <DownloadsCount style={{ minWidth: reserved }}>
+                                {series[selected].toLocaleString()}
+                            </DownloadsCount>
+                            <Unit>{series[selected] === 1 ? 'download' : 'downloads'}</Unit>
+                        </>
+                    )}
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }} role='img' aria-label={chartLabel}>
                     <SparkLineChart
-                        data={counts}
+                        data={series}
                         height={CHART_HEIGHT_PX}
                         area
                         // Filled from zero rather than from the quietest week: an area that never
@@ -189,7 +197,9 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                         // series, which now looks as flat as it is.
                         baseline={0}
                         margin={{ top: 5, right: 0, bottom: 0, left: 4 }}
-                        yAxis={{ domainLimit: (_, maxValue) => ({ min: 0, max: maxValue }) }}
+                        // Floor the top at 1 so an all-zero series keeps a non-degenerate domain and
+                        // its flat line sits on the baseline.
+                        yAxis={{ domainLimit: (_, maxValue) => ({ min: 0, max: Math.max(maxValue, 1) }) }}
                         clipAreaOffset={{ top: 2, bottom: 2 }}
                         showHighlight
                         // A non-'none' axis highlight is also what enables the axis listener, so
