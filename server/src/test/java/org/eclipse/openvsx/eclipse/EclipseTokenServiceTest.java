@@ -13,16 +13,14 @@
 package org.eclipse.openvsx.eclipse;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Set;
 
 import jakarta.persistence.EntityManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.FormHttpMessageConverter;
-import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -31,8 +29,8 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 
+import org.eclipse.openvsx.RestTemplateConfig;
 import org.eclipse.openvsx.entities.AuthToken;
 import org.eclipse.openvsx.entities.UserData;
 
@@ -53,12 +51,15 @@ class EclipseTokenServiceTest {
 
     @Test
     void refreshesTokenThroughTheSharedRestTemplatesConverters() {
-        // Mirrors RestTemplateConfig.restTemplate()'s converter list exactly.
-        var restTemplate = new RestTemplate(
-                List.of(
-                        new StringHttpMessageConverter(),
-                        new FormHttpMessageConverter(),
-                        new JacksonJsonHttpMessageConverter()));
+        // Built through the actual bean factory method, not a hand-copied converter list, so a
+        // regression in the real production config (e.g. dropping FormHttpMessageConverter again)
+        // fails this test instead of silently passing it.
+        var httpConnPoolConfig = new RestTemplateConfig.HttpConnPoolConfig(
+                new PoolingHttpClientConnectionManager(),
+                10_000,
+                10_000,
+                10_000);
+        var restTemplate = new RestTemplateConfig().restTemplate(new RestTemplateBuilder(), httpConnPoolConfig);
         var server = MockRestServiceServer.bindTo(restTemplate).build();
         server.expect(requestTo("http://auth.example/token"))
                 .andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))

@@ -176,6 +176,34 @@ class PublishExtensionVersionHandlerTest {
     }
 
     @Test
+    void shouldFailWhenCacheInterceptorItselfFailsButLastKnownListFlagsIt() throws IOException {
+        // getMaliciousExtensionIds() is @Cacheable: the cache interceptor's own Redis lookup/write can
+        // throw a plain RuntimeException unrelated to IOException/JacksonException. That must fall back
+        // too, not escape isMalicious() and break the publish request outright.
+        when(extensionControl.getMaliciousExtensionIds())
+                .thenThrow(new RuntimeException("Redis connection refused"));
+        when(extensionControl.getLastKnownMaliciousExtensionIds())
+                .thenReturn(List.of(NamingUtil.toExtensionId("publisher", "demo")));
+
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("known malicious extension");
+        }
+    }
+
+    @Test
     void shouldRecordTheTokenTypeUsedToPublish() throws IOException {
         // The trusted-publisher badge (ExtensionVersion#toExtensionVersionJson) is driven off
         // publishedWithTt, so it must actually be set from whatever token type authenticated the

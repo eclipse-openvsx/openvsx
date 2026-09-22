@@ -36,7 +36,6 @@ import org.springframework.resilience.retry.MethodRetryPredicate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerErrorException;
-import tools.jackson.core.JacksonException;
 
 import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.ExtensionService;
@@ -463,7 +462,11 @@ public class PublishExtensionVersionHandler {
         List<String> maliciousExtensionIds;
         try {
             maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
-        } catch (IOException | JacksonException e) {
+        } catch (IOException | RuntimeException e) {
+            // getMaliciousExtensionIds() is @Cacheable: besides its own IOException/JacksonException,
+            // the cache interceptor itself can throw (e.g. a Redis outage on the lookup or the
+            // post-fetch write) as an unrelated unchecked exception. Any failure here must fall back,
+            // not break the publish request.
             logger.warn("Failed to refresh malicious extension list, reusing last known list", e);
             maliciousExtensionIds = extensionControl.getLastKnownMaliciousExtensionIds();
         }
