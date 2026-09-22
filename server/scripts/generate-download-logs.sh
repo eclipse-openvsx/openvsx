@@ -114,17 +114,16 @@ ORDER BY fr.name;"
 # :'storage_type' rather than the value inline: psql quotes and escapes it, so a storage type
 # carrying a quote cannot close the literal and run as SQL. The query goes in on stdin because psql
 # only interpolates variables there and with -f, never in a -c argument.
+# Command substitution rather than `mapfile < <(...)`: pipefail only covers the former, so a failed
+# psql (bad connection, bad credentials) would otherwise leave ROWS empty and fall into the "no rows"
+# message below instead of surfacing psql's own error and aborting.
 if [ -n "$DB_URL" ]; then
-    mapfile -t ROWS < <(
-        printf '%s\n' "$QUERY" |
-            psql "$DB_URL" -At -F'|' -v storage_type="${STORAGE_TYPE}"
-    )
+    QUERY_OUTPUT=$(printf '%s\n' "$QUERY" | psql "$DB_URL" -At -F'|' -v storage_type="${STORAGE_TYPE}")
 else
-    mapfile -t ROWS < <(
-        printf '%s\n' "$QUERY" |
-            compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}"
-    )
+    QUERY_OUTPUT=$(printf '%s\n' "$QUERY" | compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}")
 fi
+ROWS=()
+[ -n "$QUERY_OUTPUT" ] && mapfile -t ROWS <<< "$QUERY_OUTPUT"
 
 if [ "${#ROWS[@]}" -eq 0 ]; then
     cat >&2 <<EOF
