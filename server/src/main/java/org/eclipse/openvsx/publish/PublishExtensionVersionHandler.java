@@ -36,6 +36,7 @@ import org.springframework.resilience.retry.MethodRetryPredicate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerErrorException;
+import tools.jackson.core.JacksonException;
 
 import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.ExtensionService;
@@ -459,7 +460,13 @@ public class PublishExtensionVersionHandler {
     }
 
     private boolean isMalicious(String namespace, String extension) {
-        var maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
+        List<String> maliciousExtensionIds;
+        try {
+            maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
+        } catch (IOException | JacksonException e) {
+            logger.warn("Failed to refresh malicious extension list, reusing last known list", e);
+            maliciousExtensionIds = extensionControl.getLastKnownMaliciousExtensionIds();
+        }
         return maliciousExtensionIds.contains(NamingUtil.toExtensionId(namespace, extension));
     }
 

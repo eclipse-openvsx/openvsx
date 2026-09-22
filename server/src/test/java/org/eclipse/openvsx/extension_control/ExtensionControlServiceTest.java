@@ -30,10 +30,13 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.ExtensionId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -175,7 +178,46 @@ class ExtensionControlServiceTest {
     }
 
     @Test
-    void reusesLastKnownMaliciousListWhenFetchFails() throws IOException {
+    void retriesOnceOnTransientIOExceptionThenSucceeds() throws IOException {
+        var spy = spy(service);
+        var goodResponse = JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """);
+        doThrow(new IOException("connection reset"))
+                .doReturn(goodResponse)
+                .when(spy)
+                .fetchExtensionControlJson(any());
+
+        assertThat(spy.getExtensionControlJson()).isEqualTo(goodResponse);
+        verify(spy, times(2)).fetchExtensionControlJson(any());
+    }
+
+    @Test
+    void givesUpAfterMaxAttemptsOnRepeatedIOException() throws IOException {
+        var spy = spy(service);
+        var failure = new IOException("connection reset");
+        doThrow(failure).when(spy).fetchExtensionControlJson(any());
+
+        var thrown = assertThrows(IOException.class, spy::getExtensionControlJson);
+        assertThat(thrown).isSameAs(failure);
+        verify(spy, times(2)).fetchExtensionControlJson(any());
+    }
+
+    @Test
+    void doesNotRetryOnJacksonException() throws IOException {
+        var spy = spy(service);
+        doThrow(new FakeJsonParseException("malformed extensions.json"))
+                .when(spy)
+                .fetchExtensionControlJson(any());
+
+        // A malformed body would fail identically on an immediate retry against the same URL, so this
+        // must not spend a second attempt on it.
+        assertThrows(FakeJsonParseException.class, spy::getExtensionControlJson);
+        verify(spy, times(1)).fetchExtensionControlJson(any());
+    }
+
+    @Test
+    void throwsAndPreservesLastKnownListWhenFetchFails() throws IOException {
         var spy = spy(service);
         spy.enabled = true;
         doReturn(JsonMapper.shared().readTree("""
@@ -187,13 +229,17 @@ class ExtensionControlServiceTest {
 
         doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
 
-        assertThat(spy.getMaliciousExtensionIds())
-                .as("a failed refresh must reuse the last successfully parsed list, not lose it")
+        // Must throw rather than silently returning a fallback: this method is @Cacheable, and a
+        // fallback value returned here would get written into the shared (Redis-backed) cache for the
+        // full TTL, poisoning every other replica's malicious-extension check, not just this call.
+        assertThrows(IOException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds())
+                .as("the per-instance fallback must still hold the last successfully parsed list")
                 .containsExactly("ns.ext");
     }
 
     @Test
-    void reusesLastKnownMaliciousListWhenJsonUnparseable() throws IOException {
+    void throwsAndPreservesLastKnownListWhenJsonUnparseable() throws IOException {
         var spy = spy(service);
         spy.enabled = true;
         doReturn(JsonMapper.shared().readTree("""
@@ -205,22 +251,24 @@ class ExtensionControlServiceTest {
 
         doThrow(new FakeJsonParseException("malformed extensions.json")).when(spy).getExtensionControlJson();
 
-        assertThat(spy.getMaliciousExtensionIds())
-                .as("an unparseable refresh must reuse the last successfully parsed list, not lose it")
+        assertThrows(FakeJsonParseException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds())
+                .as("the per-instance fallback must still hold the last successfully parsed list")
                 .containsExactly("ns.ext");
     }
 
     @Test
-    void returnsEmptyListWhenFetchNeverSucceeded() throws IOException {
+    void throwsAndFallsBackToEmptyListWhenFetchNeverSucceeded() throws IOException {
         var spy = spy(service);
         spy.enabled = true;
         doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
 
-        assertThat(spy.getMaliciousExtensionIds()).isEqualTo(Collections.emptyList());
+        assertThrows(IOException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds()).isEqualTo(Collections.emptyList());
     }
 
     @Test
-    void reusesLastKnownMaliciousListWhenMaliciousFieldMissing() throws IOException {
+    void throwsAndPreservesLastKnownListWhenMaliciousFieldMissing() throws IOException {
         var spy = spy(service);
         spy.enabled = true;
         doReturn(JsonMapper.shared().readTree("""
@@ -236,8 +284,9 @@ class ExtensionControlServiceTest {
                 .when(spy)
                 .getExtensionControlJson();
 
-        assertThat(spy.getMaliciousExtensionIds())
-                .as("a response missing the 'malicious' field must not NPE and must reuse the last list")
+        assertThrows(IOException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds())
+                .as("a response missing the 'malicious' field must not NPE and must preserve the last list")
                 .isEqualTo(List.of("ns.ext"));
     }
 }

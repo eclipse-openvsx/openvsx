@@ -11,6 +11,7 @@ package org.eclipse.openvsx.extension_control;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URL;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +29,6 @@ import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -73,6 +73,10 @@ public class ExtensionControlService {
     // timeout, a stalled connection to GitHub parks the servlet thread forever.
     private static final int FETCH_CONNECT_TIMEOUT_MS = 10_000;
     private static final int FETCH_READ_TIMEOUT_MS = 10_000;
+
+    // One retry for transient network failures only: a malformed response would fail identically on
+    // an immediate retry against the same URL, so JacksonException is not retried.
+    private static final int FETCH_MAX_ATTEMPTS = 2;
 
     // Last successfully parsed malicious-extension list, reused when a refresh fails after eviction
     // instead of leaving the publish-time check with nothing to compare against.
@@ -176,6 +180,23 @@ public class ExtensionControlService {
         var url = URI
                 .create("https://github.com/open-vsx/publish-extensions/raw/master/extension-control/extensions.json")
                 .toURL();
+        for (var attempt = 1;; attempt++) {
+            try {
+                return fetchExtensionControlJson(url);
+            } catch (IOException e) {
+                if (attempt >= FETCH_MAX_ATTEMPTS) {
+                    throw e;
+                }
+                logger.warn(
+                        "Attempt {} of {} to fetch extension control JSON failed, retrying",
+                        attempt,
+                        FETCH_MAX_ATTEMPTS,
+                        e);
+            }
+        }
+    }
+
+    JsonNode fetchExtensionControlJson(URL url) throws IOException {
         var connection = url.openConnection();
         connection.setConnectTimeout(FETCH_CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(FETCH_READ_TIMEOUT_MS);
@@ -184,31 +205,34 @@ public class ExtensionControlService {
         }
     }
 
+    // @Cacheable is backed by Redis across replicas (CacheConfig), so this method must never return a
+    // fallback value on failure: a per-instance fallback returned here would get cached cluster-wide for
+    // the full TTL, silently disabling malicious-extension checks everywhere. Throw instead, so the
+    // failure is never cached, and let callers fall back to getLastKnownMaliciousExtensionIds() themselves.
     @Cacheable(CACHE_MALICIOUS_EXTENSIONS)
-    public List<String> getMaliciousExtensionIds() {
+    public List<String> getMaliciousExtensionIds() throws IOException {
         if (!enabled) {
             return Collections.emptyList();
         }
 
-        JsonNode json;
-        try {
-            json = getExtensionControlJson();
-        } catch (IOException | JacksonException e) {
-            logger.error(
-                    "Failed to fetch or parse extension control JSON, reusing last known malicious extension list",
-                    e);
-            return lastKnownMaliciousExtensionIds;
-        }
-
+        var json = getExtensionControlJson();
         var malicious = json.get("malicious");
         if (malicious == null || !malicious.isArray()) {
-            logger.error("field 'malicious' is not an array, reusing last known malicious extension list");
-            return lastKnownMaliciousExtensionIds;
+            throw new IOException("field 'malicious' is not an array");
         }
 
         var list = new ArrayList<String>();
         malicious.forEach(node -> list.add(node.asString()));
-        lastKnownMaliciousExtensionIds = List.copyOf(list);
+        var result = List.copyOf(list);
+        lastKnownMaliciousExtensionIds = result;
+        return result;
+    }
+
+    /**
+     * The last successfully fetched malicious-extension list, kept per-instance (not cached/shared) so a
+     * failed refresh can fall back to it without ever writing it into the shared cache.
+     */
+    public List<String> getLastKnownMaliciousExtensionIds() {
         return lastKnownMaliciousExtensionIds;
     }
 }
