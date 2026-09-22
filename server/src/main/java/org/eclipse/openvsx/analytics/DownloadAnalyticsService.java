@@ -27,9 +27,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import org.jspecify.annotations.Nullable;
+import org.springframework.cache.Cache;
 
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 
@@ -40,30 +39,36 @@ import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
  */
 public class DownloadAnalyticsService {
 
+    /**
+     * The cache manager backing {@link #CACHE_SERIES}, redis or caffeine depending on
+     * {@code ovsx.redis.enabled} - wired up in {@code DownloadAnalyticsConfiguration}.
+     */
+    public static final String CACHE_MANAGER = "downloadAnalyticsCacheManager";
+    public static final String CACHE_SERIES = "download.series";
+
     private final DownloadAnalyticsRepository repository;
     private final Duration settlingMargin;
     private final Clock clock;
 
     /**
      * Settled ranges, which by definition no longer change - except when the time-series aggregate is
-     * refreshed out of band, which is why the ttl is configurable and zero means no cache at all.
-     * Null when caching is off, rather than a cache with a zero ttl: an explicit bypass says what is
-     * happening, where a degenerate duration leaves it to Caffeine's behaviour at the boundary.
+     * refreshed out of band, which is why its ttl is configurable and a zero ttl means no cache at
+     * all. Null when caching is off, rather than a cache with a zero ttl: an explicit bypass says
+     * what is happening, where a degenerate duration leaves it to the backend's own behaviour at the
+     * boundary - Redis and Caffeine do not even agree on what a zero ttl means.
      */
-    private final @Nullable Cache<DownloadSeriesRequest, List<DownloadSeriesRow>> settledCache;
+    private final @Nullable Cache settledCache;
 
     public DownloadAnalyticsService(
             DownloadAnalyticsRepository repository,
             Duration settlingMargin,
-            Duration settledCacheTtl,
+            @Nullable Cache settledCache,
             Clock clock
     ) {
         this.repository = repository;
         this.settlingMargin = settlingMargin;
         this.clock = clock;
-        this.settledCache = settledCacheTtl.isZero()
-                ? null
-                : Caffeine.newBuilder().maximumSize(10_000).expireAfterWrite(settledCacheTtl).build();
+        this.settledCache = settledCache;
     }
 
     /**
@@ -74,7 +79,7 @@ public class DownloadAnalyticsService {
     private List<DownloadSeriesRow> settledRows(DownloadSeriesRequest request) {
         return settledCache == null
                 ? repository.findSeries(request)
-                : settledCache.get(request, repository::findSeries);
+                : settledCache.get(request, () -> repository.findSeries(request));
     }
 
     /**

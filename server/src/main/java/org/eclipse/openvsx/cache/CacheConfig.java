@@ -319,12 +319,7 @@ public class CacheConfig {
 
         var sharedMapper = JsonMapper.shared();
 
-        // A cache writer built from the connection factory alone clears by pattern with KEYS, which
-        // blocks the server for as long as it takes to walk the whole keyspace - and clearing by
-        // pattern is exactly what an eviction does here, on every publish and every review. SCAN
-        // walks it in batches instead, so the server stays responsive between them.
-        var cacheWriter = RedisCacheWriter
-                .nonLockingRedisCacheWriter(redisConnectionFactory, BatchStrategies.scan(SCAN_BATCH_SIZE));
+        var cacheWriter = redisCacheWriter(redisConnectionFactory);
 
         var builder = RedisCacheManager.builder(cacheWriter)
                 .withCacheConfiguration(
@@ -379,10 +374,23 @@ public class CacheConfig {
         return builder.build();
     }
 
-    private <T> RedisCacheConfiguration redisCacheConfig(RedisSerializer<T> serializer, Duration ttl) {
+    public static <T> RedisCacheConfiguration redisCacheConfig(RedisSerializer<T> serializer, Duration ttl) {
         var serializationPair = RedisSerializationContext.SerializationPair.fromSerializer(serializer);
         return RedisCacheConfiguration.defaultCacheConfig()
                 .serializeValuesWith(serializationPair)
                 .entryTtl(ttl);
+    }
+
+    /**
+     * A cache writer built from the connection factory alone clears by pattern with KEYS, which
+     * blocks the server for as long as it takes to walk the whole keyspace - and clearing by pattern
+     * is exactly what an eviction does on every publish and every review. SCAN walks it in batches
+     * instead, so the server stays responsive between them. Shared with any feature module that
+     * builds its own {@link RedisCacheManager}, so every Redis-backed cache in the app clears the
+     * same way.
+     */
+    public static RedisCacheWriter redisCacheWriter(RedisConnectionFactory redisConnectionFactory) {
+        return RedisCacheWriter
+                .nonLockingRedisCacheWriter(redisConnectionFactory, BatchStrategies.scan(SCAN_BATCH_SIZE));
     }
 }
