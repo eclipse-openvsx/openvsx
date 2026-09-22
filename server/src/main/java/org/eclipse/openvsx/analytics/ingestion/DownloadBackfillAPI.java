@@ -15,7 +15,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
-import java.util.List;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -78,13 +77,10 @@ public class DownloadBackfillAPI {
     @ApiResponse(responseCode = "200", description = "The file was processed; a summary is returned")
     @ApiResponse(responseCode = "400", description = "A parameter or the log format is invalid", content = @Content())
     @ApiResponse(responseCode = "403", description = "The caller is not an admin", content = @Content())
-    @ApiResponse(responseCode = "409", description = "This file was already backfilled", content = @Content())
     public ResponseEntity<BackfillResultJson> backfill(
             InputStream content,
             @RequestParam(required = false)
             @Parameter(description = "Admin access token; omit to authenticate with the session") String token,
-            @RequestParam
-            @Parameter(description = "Identifies the log file, so a repeated upload is rejected") String fileName,
             @RequestParam(defaultValue = "cloudfront")
             @Parameter(description = "Log format: cloudfront or fastly") String format,
             @RequestParam(required = false)
@@ -98,23 +94,11 @@ public class DownloadBackfillAPI {
         // resolve filenames against the application's own storage, not a caller-supplied one
         var storageType = storageUtil.getActiveStorageType();
         var records = parser.parse(content, logFormat(format), fallbackTime(fileDate));
-        var result = runBackfill(storageType, fileName, records);
+        var result = processor.backfill(storageType, records);
         if (result.events() > 0) {
             refresher.refresh(result.from(), result.to());
         }
         return ResponseEntity.ok(BackfillResultJson.from(result));
-    }
-
-    private DownloadIngestionProcessor.BackfillResult runBackfill(
-            String storageType,
-            String fileName,
-            List<RawDownloadRecord> records
-    ) {
-        try {
-            return processor.backfill(storageType, fileName, records);
-        } catch (DuplicateBackfillException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
-        }
     }
 
     private void checkAdmin(@Nullable String token) {

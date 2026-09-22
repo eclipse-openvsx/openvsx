@@ -21,7 +21,6 @@ BACKFILL=0
 URL="http://localhost:8080"
 # The dev super user's seeded token (src/dev/resources/db/migration/V1_0_1__Super_user.sql).
 TOKEN=super_token
-FILE_NAME=""
 FILE_DATE=""
 
 usage() {
@@ -37,8 +36,6 @@ Usage: generate-download-logs-backfill.sh [options]
   --backfill                   POST the log to the admin backfill endpoint
   --url URL                    registry base URL (default: http://localhost:8080)
   --token TOKEN                admin access token (default: super_token, the dev super user's)
-  --file-name NAME             identifies the file to the backfill endpoint (default: generated,
-                               timestamped)
   --file-date DATE             fileDate query param (yyyy-mm-dd), for lines without their own
                                timestamp
   -h, --help                   this text
@@ -65,7 +62,6 @@ while [ $# -gt 0 ]; do
         --backfill) BACKFILL=1; shift ;;
         --url) URL="$2"; shift 2 ;;
         --token) TOKEN="$2"; shift 2 ;;
-        --file-name) FILE_NAME="$2"; shift 2 ;;
         --file-date) FILE_DATE="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -81,16 +77,12 @@ if [ "$BACKFILL" -eq 0 ]; then
     exit 0
 fi
 
-# The pid keeps two runs in the same second from posting the same fileName, which the backfill
-# endpoint would then reject as a duplicate of itself.
-FILE_NAME="${FILE_NAME:-$(date -u +%Y%m%d-%H%M%S)-$$-${FORMAT}.log}"
-
-QUERY="token=${TOKEN}&fileName=${FILE_NAME}&format=${FORMAT}"
+QUERY="token=${TOKEN}&format=${FORMAT}"
 if [ -n "$FILE_DATE" ]; then
     QUERY="${QUERY}&fileDate=${FILE_DATE}"
 fi
 
-echo "backfilling ${COUNT} ${FORMAT} download line(s) as '${FILE_NAME}'..." >&2
+echo "backfilling ${COUNT} ${FORMAT} download line(s) from ${LOG_FILE}..." >&2
 # the parser auto-detects gzip from content, so the plain file the generator wrote needs no
 # compression step here
 RESPONSE=$(
@@ -105,9 +97,9 @@ BODY="${RESPONSE%$'\n'*}"
 
 echo "$BODY"
 if [ "$HTTP_CODE" != 200 ]; then
-    echo "backfill request failed with HTTP ${HTTP_CODE} (fileName=${FILE_NAME})" >&2
+    echo "backfill request failed with HTTP ${HTTP_CODE}" >&2
     echo "if this is a 404, enable analytics first: ovsx.analytics.enabled=true and" \
         "'docker compose --profile analytics up'" >&2
     exit 1
 fi
-echo "backfilled ${FILE_NAME} into download analytics" >&2
+echo "backfilled into download analytics" >&2
