@@ -43,6 +43,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -156,6 +157,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SearchExplainService.class,
         CacheInfoService.class,
         EclipseService.class,
+        RestTemplate.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,
         MailService.class,
@@ -2990,9 +2992,10 @@ class AdminAPITest {
         EclipseTokenService eclipseTokenService(
                 TransactionTemplate transactions,
                 EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository
+                ClientRegistrationRepository clientRegistrationRepository,
+                RestTemplate restTemplate
         ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository);
+            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
         }
 
         @Bean
