@@ -15,6 +15,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Return to the page a login started from instead of the front page: every login link now carries the current location, so the navbar menu, the publish page, user settings, the admin dashboard and the new reviews prompt all come back to where they were used. The registry honours the target only if it is one of its own Web UI routes, and an Eclipse login still lands on the profile page, where the publisher agreement is signed
 - Load an extension's icon only when it comes near the viewport, rather than every icon on the page at once. Icons are fetched as blobs, so the browser's own lazy loading never applied to them: the home page pulled 21 at mount and a search result list pulled one per card it had rendered. An extension with no icon shows the default straight away, and loading starts a little before the icon scrolls into view, so it is normally there by the time it is on screen
 
+### Fixed
+
+- Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times: disabling retries handed fetch-retry an empty options object, which fell back to its defaults. Non-retriable requests now call native fetch directly ([#2237](https://github.com/eclipse-openvsx/openvsx/issues/2237))
+
 ## [v1.2.0] (10/09/2026)
 
 ### Added

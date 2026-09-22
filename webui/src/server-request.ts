@@ -75,19 +75,15 @@ export async function sendRequest<Res>(req: ServerAPIRequest, retry: boolean = t
         param.credentials = 'include';
     }
 
-    const options: any = retry
-        ? {
+    // Non-retriable requests bypass fetch-retry entirely: handing it {} would not disable it -
+    // its defaults still retry every fetch rejection (network errors, aborts) three times.
+    const response = retry
+        ? await fetchBuilder(fetch, {
               retries: 10,
-              retryDelay: (attempt: number, error: Error, response: Response) => {
-                  return Math.pow(2, attempt) * 1000;
-              },
-              retryOn: (attempt: number, error: Error, response: Response) => {
-                  return error !== null || response.status >= 500;
-              }
-          }
-        : {};
-
-    const response = await fetchBuilder(fetch, options)(req.endpoint, param);
+              retryDelay: attempt => Math.pow(2, attempt) * 1000,
+              retryOn: (attempt, error, response) => error !== null || (response?.status ?? 0) >= 500
+          })(req.endpoint, param)
+        : await fetch(req.endpoint, param);
     if (response.ok) {
         switch (req.headers['Accept']) {
             case 'application/json':
