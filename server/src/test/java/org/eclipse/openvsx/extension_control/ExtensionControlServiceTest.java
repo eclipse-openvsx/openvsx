@@ -15,10 +15,12 @@ import java.util.List;
 
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -67,6 +69,13 @@ class ExtensionControlServiceTest {
 
     @InjectMocks
     ExtensionControlService service;
+
+    @BeforeEach
+    void setUpCache() {
+        // Mockito's default answer for a List-returning method is an empty list, not null; without
+        // this, every test below would see a (wrong) cache hit on an empty list instead of a miss.
+        Mockito.lenient().when(cache.getMaliciousExtensions()).thenReturn(null);
+    }
 
     private long idSequence = 0;
 
@@ -168,6 +177,36 @@ class ExtensionControlServiceTest {
         assertThat(extension.getReplacement()).isSameAs(replacement);
         verify(cache, never()).evictExtensionJsons(extension);
         verify(search, never()).updateSearchEntry(extension);
+    }
+
+    @Test
+    void cacheHitUpdatesThePerInstanceFallbackWithoutFetching() throws IOException {
+        // The whole point of managing this cache manually instead of via @Cacheable: a hit must still
+        // seed the fallback, since @Cacheable's hit path would skip this method's body entirely and
+        // leave a replica that only ever sees hits with an empty fallback forever.
+        var spy = spy(service);
+        spy.enabled = true;
+        when(cache.getMaliciousExtensions()).thenReturn(List.of("ns.ext"));
+
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        assertThat(spy.getLastKnownMaliciousExtensionIds()).containsExactly("ns.ext");
+        verify(spy, never()).getExtensionControlJson();
+    }
+
+    @Test
+    void fallsThroughToALiveFetchWhenTheCacheReadFails() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        when(cache.getMaliciousExtensions()).thenThrow(new RuntimeException("redis outage"));
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+
+        // A flaky cache read must not prevent trying a live fetch, which might still succeed.
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
     }
 
     @Test

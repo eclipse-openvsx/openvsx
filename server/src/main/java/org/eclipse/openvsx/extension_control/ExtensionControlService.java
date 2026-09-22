@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -40,8 +39,6 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.TimeUtil;
-
-import static org.eclipse.openvsx.cache.CacheService.CACHE_MALICIOUS_EXTENSIONS;
 
 @Component
 public class ExtensionControlService {
@@ -205,14 +202,27 @@ public class ExtensionControlService {
         }
     }
 
-    // @Cacheable is backed by Redis across replicas (CacheConfig), so this method must never return a
-    // fallback value on failure: a per-instance fallback returned here would get cached cluster-wide for
-    // the full TTL, silently disabling malicious-extension checks everywhere. Throw instead, so the
-    // failure is never cached, and let callers fall back to getLastKnownMaliciousExtensionIds() themselves.
-    @Cacheable(CACHE_MALICIOUS_EXTENSIONS)
+    // The shared cache is managed manually here rather than via @Cacheable, specifically so a cache hit
+    // - which would otherwise skip this method's body entirely, on every replica that never itself sees
+    // a miss - still updates the per-instance fallback below. On failure, this method must never return
+    // a fallback value: doing so would get written into the shared cache for the full TTL, silently
+    // disabling malicious-extension checks cluster-wide. Throw instead, and let callers fall back to
+    // getLastKnownMaliciousExtensionIds() themselves.
     public List<String> getMaliciousExtensionIds() throws IOException {
         if (!enabled) {
             return Collections.emptyList();
+        }
+
+        List<String> cached = null;
+        try {
+            cached = cache.getMaliciousExtensions();
+        } catch (RuntimeException e) {
+            // A flaky cache read must not block a live fetch attempt when one might still succeed.
+            logger.warn("Failed to read the shared malicious-extensions cache, fetching a fresh copy", e);
+        }
+        if (cached != null) {
+            lastKnownMaliciousExtensionIds = cached;
+            return cached;
         }
 
         var json = getExtensionControlJson();
@@ -223,9 +233,8 @@ public class ExtensionControlService {
 
         var list = new ArrayList<String>();
         malicious.forEach(node -> list.add(node.asString()));
-        var result = List.copyOf(list);
-        lastKnownMaliciousExtensionIds = result;
-        return result;
+        refreshMaliciousExtensionIds(list);
+        return lastKnownMaliciousExtensionIds;
     }
 
     /**
