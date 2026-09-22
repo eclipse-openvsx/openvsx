@@ -9,6 +9,10 @@
  ********************************************************************************/
 package org.eclipse.openvsx.extension_control;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.Test;
@@ -16,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.Extension;
@@ -25,7 +30,10 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.ExtensionId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,5 +165,79 @@ class ExtensionControlServiceTest {
         assertThat(extension.getReplacement()).isSameAs(replacement);
         verify(cache, never()).evictExtensionJsons(extension);
         verify(search, never()).updateSearchEntry(extension);
+    }
+
+    /** JacksonException's constructors are protected; a trivial subclass makes one throwable from a test. */
+    private static final class FakeJsonParseException extends tools.jackson.core.JacksonException {
+        FakeJsonParseException(String message) {
+            super(message);
+        }
+    }
+
+    @Test
+    void reusesLastKnownMaliciousListWhenFetchFails() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
+
+        assertThat(spy.getMaliciousExtensionIds())
+                .as("a failed refresh must reuse the last successfully parsed list, not lose it")
+                .containsExactly("ns.ext");
+    }
+
+    @Test
+    void reusesLastKnownMaliciousListWhenJsonUnparseable() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        doThrow(new FakeJsonParseException("malformed extensions.json")).when(spy).getExtensionControlJson();
+
+        assertThat(spy.getMaliciousExtensionIds())
+                .as("an unparseable refresh must reuse the last successfully parsed list, not lose it")
+                .containsExactly("ns.ext");
+    }
+
+    @Test
+    void returnsEmptyListWhenFetchNeverSucceeded() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
+
+        assertThat(spy.getMaliciousExtensionIds()).isEqualTo(Collections.emptyList());
+    }
+
+    @Test
+    void reusesLastKnownMaliciousListWhenMaliciousFieldMissing() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        doReturn(JsonMapper.shared().readTree("""
+                {"deprecated": {}}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+
+        assertThat(spy.getMaliciousExtensionIds())
+                .as("a response missing the 'malicious' field must not NPE and must reuse the last list")
+                .isEqualTo(List.of("ns.ext"));
     }
 }

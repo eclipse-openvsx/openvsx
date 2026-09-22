@@ -459,13 +459,8 @@ public class PublishExtensionVersionHandler {
     }
 
     private boolean isMalicious(String namespace, String extension) {
-        try {
-            var maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
-            return maliciousExtensionIds.contains(NamingUtil.toExtensionId(namespace, extension));
-        } catch (IOException e) {
-            logger.warn("Failed to check whether extension is malicious or not", e);
-            return false;
-        }
+        var maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
+        return maliciousExtensionIds.contains(NamingUtil.toExtensionId(namespace, extension));
     }
 
     private void checkDependencies(List<ExtensionId> dependencies) {

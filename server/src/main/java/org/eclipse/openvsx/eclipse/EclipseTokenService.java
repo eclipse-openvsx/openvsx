@@ -21,6 +21,7 @@ import org.springframework.data.util.Pair;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType;
@@ -134,7 +135,12 @@ public class EclipseTokenService {
 
         try {
             var request = new HttpEntity<>(data, headers);
-            var restTemplate = new RestTemplate();
+            // Plain new RestTemplate() has no connect/read timeout; a stalled Eclipse API response
+            // would otherwise park this thread forever.
+            var requestFactory = new SimpleClientHttpRequestFactory();
+            requestFactory.setConnectTimeout(10_000);
+            requestFactory.setReadTimeout(10_000);
+            var restTemplate = new RestTemplate(requestFactory);
             var response = restTemplate.postForObject(tokenUri, request, String.class);
             var root = jsonMapper.readTree(response);
             var newTokenValue = root.get("access_token").asString();

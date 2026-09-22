@@ -28,6 +28,7 @@ import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -67,6 +68,15 @@ public class ExtensionControlService {
 
     @Value("${ovsx.migrations.delay.seconds:0}")
     long delay;
+
+    // Sits on the publish request path (isMalicious -> getMaliciousExtensionIds); without an explicit
+    // timeout, a stalled connection to GitHub parks the servlet thread forever.
+    private static final int FETCH_CONNECT_TIMEOUT_MS = 10_000;
+    private static final int FETCH_READ_TIMEOUT_MS = 10_000;
+
+    // Last successfully parsed malicious-extension list, reused when a refresh fails after eviction
+    // instead of leaving the publish-time check with nothing to compare against.
+    private volatile List<String> lastKnownMaliciousExtensionIds = Collections.emptyList();
 
     public ExtensionControlService(
             JobRequestScheduler scheduler,
@@ -166,26 +176,39 @@ public class ExtensionControlService {
         var url = URI
                 .create("https://github.com/open-vsx/publish-extensions/raw/master/extension-control/extensions.json")
                 .toURL();
-        try (var inputStream = url.openStream()) {
+        var connection = url.openConnection();
+        connection.setConnectTimeout(FETCH_CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(FETCH_READ_TIMEOUT_MS);
+        try (var inputStream = connection.getInputStream()) {
             return JsonMapper.shared().readValue(inputStream, JsonNode.class);
         }
     }
 
     @Cacheable(CACHE_MALICIOUS_EXTENSIONS)
-    public List<String> getMaliciousExtensionIds() throws IOException {
+    public List<String> getMaliciousExtensionIds() {
         if (!enabled) {
             return Collections.emptyList();
         }
 
-        var json = getExtensionControlJson();
+        JsonNode json;
+        try {
+            json = getExtensionControlJson();
+        } catch (IOException | JacksonException e) {
+            logger.error(
+                    "Failed to fetch or parse extension control JSON, reusing last known malicious extension list",
+                    e);
+            return lastKnownMaliciousExtensionIds;
+        }
+
         var malicious = json.get("malicious");
-        if (!malicious.isArray()) {
-            logger.error("field 'malicious' is not an array");
-            return Collections.emptyList();
+        if (malicious == null || !malicious.isArray()) {
+            logger.error("field 'malicious' is not an array, reusing last known malicious extension list");
+            return lastKnownMaliciousExtensionIds;
         }
 
         var list = new ArrayList<String>();
         malicious.forEach(node -> list.add(node.asString()));
-        return list;
+        lastKnownMaliciousExtensionIds = List.copyOf(list);
+        return lastKnownMaliciousExtensionIds;
     }
 }

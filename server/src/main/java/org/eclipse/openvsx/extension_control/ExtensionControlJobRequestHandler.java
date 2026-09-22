@@ -61,7 +61,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
     private void processMaliciousExtensions(JsonNode json) {
         logger.info("Process malicious extensions");
         var node = json.get("malicious");
-        if (!node.isArray()) {
+        if (node == null || !node.isArray()) {
             logger.error("field 'malicious' is not an array");
             return;
         }
@@ -91,7 +91,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
     private void processDeprecatedExtensions(JsonNode json) {
         logger.info("Process deprecated extensions");
         var node = json.get("deprecated");
-        if (!node.isObject()) {
+        if (node == null || !node.isObject()) {
             logger.error("field 'deprecated' is not an object");
             return;
         }

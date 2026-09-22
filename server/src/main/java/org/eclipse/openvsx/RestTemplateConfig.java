@@ -164,6 +164,7 @@ public class RestTemplateConfig {
     private HttpClientBuilder createHttpClientBuilder(HttpConnPoolConfig httpConnPoolConfig) {
         var connectionConfig = ConnectionConfig.custom()
                 .setConnectTimeout(Timeout.of(httpConnPoolConfig.connectTimeout(), TimeUnit.MILLISECONDS))
+                .setSocketTimeout(Timeout.of(httpConnPoolConfig.socketTimeout(), TimeUnit.MILLISECONDS))
                 .build();
         httpConnPoolConfig.connectionManager().setDefaultConnectionConfig(connectionConfig);
         var requestConfig = RequestConfig.custom()
