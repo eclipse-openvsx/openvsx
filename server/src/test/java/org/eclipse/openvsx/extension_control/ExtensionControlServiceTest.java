@@ -10,11 +10,16 @@
 package org.eclipse.openvsx.extension_control;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.persistence.EntityManager;
@@ -285,10 +290,12 @@ class ExtensionControlServiceTest {
     // GHSA-fq82-m65g-jfrh: fetchExtensionControlJson() sits on the publish request path via
     // getMaliciousExtensionIds() and previously had no read timeout at all, so a stalled connection
     // parked the servlet thread forever. Drives a real request against a server that accepts the
-    // connection and never responds, so removing either setter would make this test hang instead of
-    // pass (bounded by the join() below rather than actually hanging the suite).
+    // connection and never responds, so removing setReadTimeout would make this test hang instead of
+    // pass (bounded by the join() below rather than actually hanging the suite). This only exercises
+    // the read timeout: the server already listens on 127.0.0.1, so the TCP handshake always succeeds
+    // immediately regardless of the connect timeout - see appliesTheConfiguredConnectTimeout() for that.
     @Test
-    void appliesConnectAndReadTimeoutsToARealFetch() throws Exception {
+    void appliesTheConfiguredReadTimeoutToARealFetch() throws Exception {
         try (var serverSocket = new ServerSocket(0)) {
             var acceptThread = new Thread(() -> {
                 try (var socket = serverSocket.accept()) {
@@ -321,6 +328,50 @@ class ExtensionControlServiceTest {
                     .isFalse();
             assertThat(failure.get()).isInstanceOf(SocketTimeoutException.class);
         }
+    }
+
+    // A real unreachable-connect scenario is slow/flaky to simulate reliably, so this checks the
+    // setConnectTimeout(...) call directly via a URLConnection double instead - a controllable
+    // HttpURLConnection whose only job is to record what it was called with. The suppressed deprecation
+    // is on the URL(String, String, int, String, URLStreamHandler) constructor, the only way to give a
+    // URL a caller-supplied stream handler.
+    @SuppressWarnings("deprecation")
+    @Test
+    void appliesTheConfiguredConnectTimeout() throws Exception {
+        var recordedConnectTimeout = new AtomicInteger(-1);
+        var handler = new URLStreamHandler() {
+            @Override
+            protected URLConnection openConnection(URL u) {
+                return new HttpURLConnection(u) {
+                    @Override
+                    public void setConnectTimeout(int timeout) {
+                        recordedConnectTimeout.set(timeout);
+                    }
+
+                    @Override
+                    public void connect() {
+                        // never actually called: getInputStream() isn't overridden, so the inherited
+                        // URLConnection default throws before this would run
+                    }
+
+                    @Override
+                    public void disconnect() {
+                    }
+
+                    @Override
+                    public boolean usingProxy() {
+                        return false;
+                    }
+                };
+            }
+        };
+        var url = new URL("http", "extension-control.invalid", 80, "/extensions.json", handler);
+
+        assertThrows(IOException.class, () -> service.fetchExtensionControlJson(url));
+
+        assertThat(recordedConnectTimeout.get())
+                .as("must match the private FETCH_CONNECT_TIMEOUT_MS constant")
+                .isEqualTo(10_000);
     }
 
     @Test
