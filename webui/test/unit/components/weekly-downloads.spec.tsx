@@ -173,6 +173,23 @@ describe('WeeklyDownloads', () => {
         expect(screen.getByText('7').getAttribute('style')).toContain(reserved);
     });
 
+    it('reserves width for the unit label, so the sparkline does not resize between singular and plural counts', async () => {
+        // week 0 is a single download, week 1 (the default) is many
+        const oneThenMany = points([1, 0, 0, 0, 0, 0, 0, ...Array(7).fill(80)]);
+        renderWithProviders(<WeeklyDownloads extension={extension} />, {
+            mainContext: { service: serviceReturning(oneThenMany), version: analyticsEnabled }
+        });
+
+        // asserted on the style attribute: jsdom drops `ch` from the computed style
+        const reserved = 'min-width: 9ch';
+        const plural = await screen.findByText('downloads');
+        expect(plural.getAttribute('style')).toContain(reserved);
+
+        // the reservation is unchanged while the singular week is being read out
+        await userEvent.click(screen.getByRole('button', { name: 'hover 0' }));
+        expect(screen.getByText('download').getAttribute('style')).toContain(reserved);
+    });
+
     it('draws the chart at a flat zero while loading, holding the figure until the series lands', async () => {
         let resolve!: (value: { points: DownloadSeriesPoint[] }) => void;
         const service = {

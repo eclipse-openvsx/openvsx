@@ -50,6 +50,12 @@ const Unit = styled(Typography)(({ theme }) => ({
     whiteSpace: 'nowrap'
 })) as typeof Typography;
 
+/** The longer of the two words {@link Unit} ever shows, reserved below so switching to the singular
+ *  for a count of exactly one does not resize the sparkline beside it as the pointer moves - the
+ *  same reasoning as the headline's own reserved width, just fixed since these two words aren't
+ *  data-derived. */
+const UNIT_RESERVED_WIDTH = '9ch';
+
 const DAY_AND_MONTH = { month: 'short', day: 'numeric' } as const;
 
 const WEEK_DAYS = 7;
@@ -193,7 +199,9 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
                             <DownloadsCount style={{ minWidth: reserved }}>
                                 {series[selected].toLocaleString()}
                             </DownloadsCount>
-                            <Unit>{series[selected] === 1 ? 'download' : 'downloads'}</Unit>
+                            <Unit style={{ minWidth: UNIT_RESERVED_WIDTH }}>
+                                {series[selected] === 1 ? 'download' : 'downloads'}
+                            </Unit>
                         </>
                     )}
                 </Box>
