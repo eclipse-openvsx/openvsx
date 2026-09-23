@@ -299,9 +299,16 @@ class ExtensionControlServiceTest {
         try (var serverSocket = new ServerSocket(0)) {
             var acceptThread = new Thread(() -> {
                 try (var socket = serverSocket.accept()) {
-                    socket.getInputStream().read(new byte[4096]); // read the request, never respond
+                    var in = socket.getInputStream();
+                    var buffer = new byte[4096];
+                    // Keep draining whatever the client sends but never respond - closing the socket
+                    // here (e.g. after a single read()) would let the client see EOF immediately
+                    // instead of the client's own read timeout actually firing.
+                    while (in.read(buffer) >= 0) {
+                        // discard
+                    }
                 } catch (Exception ignored) {
-                    // test is tearing down
+                    // client closed on its own timeout, or the test is tearing down
                 }
             });
             acceptThread.setDaemon(true);
