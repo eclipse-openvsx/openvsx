@@ -12,6 +12,7 @@
  ********************************************************************************/
 package org.eclipse.openvsx.cache;
 
+import java.util.List;
 import javax.cache.Caching;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -24,6 +25,7 @@ import org.mockito.Mockito;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCache;
+import org.springframework.cache.interceptor.SimpleKey;
 import org.springframework.cache.jcache.JCacheCache;
 import org.springframework.data.redis.cache.RedisCache;
 
@@ -36,6 +38,7 @@ import org.eclipse.openvsx.util.AfterCommitExecutor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_EXTENSION_JSON;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_LATEST_EXTENSION_VERSION;
+import static org.eclipse.openvsx.cache.CacheService.CACHE_MALICIOUS_EXTENSIONS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
@@ -169,6 +172,25 @@ class CacheServiceEvictionTest {
         service().evictExtensionJsons(extension(0));
 
         verify(cache).clear("foo.bar:*");
+    }
+
+    @Test
+    void seedsTheMaliciousExtensionsCacheWithTheFreshList() {
+        var cache = Mockito.mock(Cache.class);
+        Mockito.when(cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS)).thenReturn(cache);
+        var maliciousExtensionIds = List.of("ns.ext");
+
+        service().refreshMaliciousExtensions(maliciousExtensionIds);
+
+        verify(cache).put(SimpleKey.EMPTY, maliciousExtensionIds);
+    }
+
+    // Same defensive shape as every other eviction here: not created yet is not an error.
+    @Test
+    void doesNothingWhenTheMaliciousExtensionsCacheDoesNotExist() {
+        assertThat(cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS)).isNull();
+
+        service().refreshMaliciousExtensions(List.of("ns.ext"));
     }
 
     /**

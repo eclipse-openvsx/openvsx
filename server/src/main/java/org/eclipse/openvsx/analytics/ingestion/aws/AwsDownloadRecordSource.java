@@ -9,12 +9,10 @@
  ********************************************************************************/
 package org.eclipse.openvsx.analytics.ingestion.aws;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -28,7 +26,6 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
-import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionMetrics;
 import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.analytics.ingestion.RawDownloadRecord;
 import org.eclipse.openvsx.entities.FileResource;
@@ -58,7 +55,7 @@ public class AwsDownloadRecordSource implements DownloadRecordSource {
     private static final String LOG_LOCATION_PREFIX = "AWSLogs/";
 
     private final AwsStorageService awsStorageService;
-    private final DownloadIngestionMetrics metrics;
+    private final DownloadLogParser parser;
 
     @Value("${ovsx.logs.aws.bucket:}")
     String bucket;
@@ -78,20 +75,17 @@ public class AwsDownloadRecordSource implements DownloadRecordSource {
     @Value("${ovsx.logs.aws.cron:0 10 * * * *}")
     String cronSchedule;
 
-    LogFileParser logFileParser;
+    DownloadLogParser.Format format;
 
-    public AwsDownloadRecordSource(AwsStorageService awsStorageService, DownloadIngestionMetrics metrics) {
+    public AwsDownloadRecordSource(AwsStorageService awsStorageService, DownloadLogParser parser) {
         this.awsStorageService = awsStorageService;
-        this.metrics = metrics;
+        this.parser = parser;
     }
 
     @PostConstruct
     public void initialize() {
-        logFileParser = switch (logFormat.toLowerCase()) {
-            case "cloudfront" -> new CloudFrontLogFileParser();
-            case "fastly" -> new FastlyLogFileParser();
-            default -> throw new IllegalArgumentException("unsupported log file format '" + logFormat + "'");
-        };
+        // validates the configured format at startup rather than on the first ingestion run
+        format = DownloadLogParser.Format.from(logFormat);
     }
 
     /**
@@ -143,46 +137,29 @@ public class AwsDownloadRecordSource implements DownloadRecordSource {
 
     @Override
     public List<RawDownloadRecord> read(String name) throws IOException {
-        try (
-                // the response keeps an HTTP connection checked out until it is closed; leaking one
-                // per log object exhausts the S3 client's pool and stalls ingestion
-                var inputStream = getS3Client().getObject(
-                        GetObjectRequest.builder()
-                                .bucket(bucket)
-                                .key(name)
-                                .build(),
-                        ResponseTransformer.toInputStream());
-                var downloadsTempFile = new TempFile("aws-downloads-", ".gz");
-        ) {
-            // records without their own timestamp fall back to the log file's date
-            var lastModified = inputStream.response().lastModified();
-            var fallbackTime = lastModified != null ? lastModified : Instant.now();
-
-            Files.copy(inputStream, downloadsTempFile.getPath(), StandardCopyOption.REPLACE_EXISTING);
+        try (var downloadsTempFile = new TempFile("aws-downloads-", ".gz")) {
+            Instant fallbackTime;
             try (
-                    var fileStream = new FileInputStream(downloadsTempFile.getPath().toFile());
-                    var gzipStream = new GZIPInputStream(fileStream);
-                    var reader = new BufferedReader(new InputStreamReader(gzipStream, StandardCharsets.UTF_8));
+                    // the response keeps an HTTP connection checked out until it is closed; leaking
+                    // one per log object exhausts the S3 client's pool and stalls ingestion, so this
+                    // stream must close here, before the (slower) parse below runs
+                    var inputStream = getS3Client().getObject(
+                            GetObjectRequest.builder()
+                                    .bucket(bucket)
+                                    .key(name)
+                                    .build(),
+                            ResponseTransformer.toInputStream());
             ) {
-                var records = new ArrayList<RawDownloadRecord>();
-                var totalLines = 0;
-                var skippedLines = 0;
-                var lines = reader.lines().iterator();
-                while (lines.hasNext()) {
-                    totalLines++;
-                    var record = logFileParser.parse(lines.next());
-                    if (record == null) {
-                        skippedLines++;
-                        continue;
-                    }
+                // records without their own timestamp fall back to the log file's date
+                var lastModified = inputStream.response().lastModified();
+                fallbackTime = lastModified != null ? lastModified : Instant.now();
+                Files.copy(inputStream, downloadsTempFile.getPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
 
-                    var download = record.toDownloadRecord(fallbackTime);
-                    if (download != null) {
-                        records.add(download);
-                    }
-                }
-                metrics.recordParsedLines(totalLines, skippedLines);
-                return records;
+            // only .gz objects are listed, so a file that is not gzip is corrupt and must fail the
+            // ingestion (and be retained), not be read as plain text
+            try (var fileStream = new GZIPInputStream(Files.newInputStream(downloadsTempFile.getPath()))) {
+                return parser.parse(fileStream, format, fallbackTime);
             }
         }
     }

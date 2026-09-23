@@ -11,6 +11,7 @@ package org.eclipse.openvsx.extension_control;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URL;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -39,8 +39,6 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.TimeUtil;
-
-import static org.eclipse.openvsx.cache.CacheService.CACHE_MALICIOUS_EXTENSIONS;
 
 @Component
 public class ExtensionControlService {
@@ -67,6 +65,19 @@ public class ExtensionControlService {
 
     @Value("${ovsx.migrations.delay.seconds:0}")
     long delay;
+
+    // Sits on the publish request path (isMalicious -> getMaliciousExtensionIds); without an explicit
+    // timeout, a stalled connection to GitHub parks the servlet thread forever.
+    private static final int FETCH_CONNECT_TIMEOUT_MS = 10_000;
+    private static final int FETCH_READ_TIMEOUT_MS = 10_000;
+
+    // One retry for transient network failures only: a malformed response would fail identically on
+    // an immediate retry against the same URL, so JacksonException is not retried.
+    private static final int FETCH_MAX_ATTEMPTS = 2;
+
+    // Last successfully parsed malicious-extension list, reused when a refresh fails after eviction
+    // instead of leaving the publish-time check with nothing to compare against.
+    private volatile List<String> lastKnownMaliciousExtensionIds = Collections.emptyList();
 
     public ExtensionControlService(
             JobRequestScheduler scheduler,
@@ -166,26 +177,91 @@ public class ExtensionControlService {
         var url = URI
                 .create("https://github.com/open-vsx/publish-extensions/raw/master/extension-control/extensions.json")
                 .toURL();
-        try (var inputStream = url.openStream()) {
+        for (var attempt = 1;; attempt++) {
+            try {
+                return fetchExtensionControlJson(url);
+            } catch (IOException e) {
+                if (attempt >= FETCH_MAX_ATTEMPTS) {
+                    throw e;
+                }
+                logger.warn(
+                        "Attempt {} of {} to fetch extension control JSON failed, retrying",
+                        attempt,
+                        FETCH_MAX_ATTEMPTS,
+                        e);
+            }
+        }
+    }
+
+    JsonNode fetchExtensionControlJson(URL url) throws IOException {
+        var connection = url.openConnection();
+        connection.setConnectTimeout(FETCH_CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(FETCH_READ_TIMEOUT_MS);
+        try (var inputStream = connection.getInputStream()) {
             return JsonMapper.shared().readValue(inputStream, JsonNode.class);
         }
     }
 
-    @Cacheable(CACHE_MALICIOUS_EXTENSIONS)
+    // The shared cache is managed manually here rather than via @Cacheable, specifically so a cache hit
+    // - which @Cacheable would otherwise serve without ever running this method's body, on every
+    // replica that never itself sees a miss - still updates the per-instance fallback below. This
+    // method returns only a genuine cache hit or a freshly validated fetch; on any failure it throws
+    // rather than inventing a return value, leaving the choice of what to serve instead entirely to
+    // callers via getLastKnownMaliciousExtensionIds().
     public List<String> getMaliciousExtensionIds() throws IOException {
         if (!enabled) {
             return Collections.emptyList();
         }
 
+        List<String> cached = null;
+        try {
+            cached = cache.getMaliciousExtensions();
+        } catch (RuntimeException e) {
+            // A flaky cache read must not block a live fetch attempt when one might still succeed.
+            logger.warn("Failed to read the shared malicious-extensions cache, fetching a fresh copy", e);
+        }
+        if (cached != null) {
+            lastKnownMaliciousExtensionIds = cached;
+            return cached;
+        }
+
         var json = getExtensionControlJson();
         var malicious = json.get("malicious");
-        if (!malicious.isArray()) {
-            logger.error("field 'malicious' is not an array");
-            return Collections.emptyList();
+        if (malicious == null || !malicious.isArray()) {
+            throw new IOException("field 'malicious' is not an array");
         }
 
         var list = new ArrayList<String>();
         malicious.forEach(node -> list.add(node.asString()));
-        return list;
+        refreshMaliciousExtensionIds(list);
+        return lastKnownMaliciousExtensionIds;
+    }
+
+    /**
+     * The last successfully fetched malicious-extension list, kept per-instance (not cached/shared) so a
+     * failed refresh can fall back to it without ever writing it into the shared cache.
+     */
+    public List<String> getLastKnownMaliciousExtensionIds() {
+        return lastKnownMaliciousExtensionIds;
+    }
+
+    /**
+     * Called by the daily extension-control job once it has fetched a fresh malicious-extension list, so
+     * getMaliciousExtensionIds()'s shared cache and per-instance fallback both reflect it immediately
+     * instead of drifting for up to their own, independent TTL.
+     */
+    public void refreshMaliciousExtensionIds(List<String> maliciousExtensionIds) {
+        var result = List.copyOf(maliciousExtensionIds);
+        // Update the per-instance fallback first: it never touches Redis, so it must not depend on the
+        // shared-cache write below succeeding.
+        lastKnownMaliciousExtensionIds = result;
+        try {
+            cache.refreshMaliciousExtensions(result);
+        } catch (RuntimeException e) {
+            // Best-effort: the daily job (retries = 0) calls this before purging and before processing
+            // deprecated extensions, so a Redis outage here must not abort the rest of that work. The
+            // per-instance fallback above is already up to date regardless.
+            logger.error("Failed to refresh the shared malicious-extensions cache", e);
+        }
     }
 }

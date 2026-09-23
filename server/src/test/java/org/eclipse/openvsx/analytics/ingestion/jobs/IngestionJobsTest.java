@@ -24,6 +24,7 @@ import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionMetrics;
 import org.eclipse.openvsx.analytics.ingestion.DownloadIngestionRunner;
 import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.analytics.ingestion.aws.AwsDownloadRecordSource;
+import org.eclipse.openvsx.analytics.ingestion.aws.DownloadLogParser;
 import org.eclipse.openvsx.analytics.ingestion.azure.AzureDownloadRecordSource;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.storage.AwsStorageService;
@@ -50,6 +51,7 @@ class IngestionJobsTest {
         return new ApplicationContextRunner()
                 .withBean(AwsStorageService.class, () -> awsStorage)
                 .withBean(DownloadIngestionMetrics.class, () -> metrics)
+                .withBean(DownloadLogParser.class, () -> new DownloadLogParser(metrics))
                 .withBean(DownloadIngestionRunner.class, () -> ingestionRunner)
                 .withBean(JobRequestScheduler.class, () -> scheduler)
                 .withUserConfiguration(

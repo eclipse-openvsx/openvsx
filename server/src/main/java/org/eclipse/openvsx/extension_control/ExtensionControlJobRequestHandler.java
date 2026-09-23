@@ -9,6 +9,8 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.extension_control;
 
+import java.util.ArrayList;
+
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.slf4j.Logger;
@@ -20,6 +22,7 @@ import org.eclipse.openvsx.admin.AdminService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NamingUtil;
 
 @Component
@@ -61,20 +64,29 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
     private void processMaliciousExtensions(JsonNode json) {
         logger.info("Process malicious extensions");
         var node = json.get("malicious");
-        if (!node.isArray()) {
+        if (node == null || !node.isArray()) {
             logger.error("field 'malicious' is not an array");
             return;
         }
 
-        var extensionControlUser = service.createExtensionControlUser();
-        for (var item : node) {
-            logger.atInfo()
-                    .setMessage("malicious: {}")
-                    .addArgument(item::asString)
-                    .log();
+        var maliciousExtensionIds = new ArrayList<String>();
+        node.forEach(item -> maliciousExtensionIds.add(item.asString()));
 
-            var extensionId = NamingUtil.fromExtensionId(item.asString());
-            if (extensionId != null && repositories.hasExtension(extensionId.namespace(), extensionId.extension())) {
+        // Refresh the publish-time cache before attempting any purge below: this job always fetches a
+        // fresh copy, and a purge failure must never keep it from reaching getMaliciousExtensionIds()
+        // (this job has retries = 0, so a persistent purge failure would otherwise block it indefinitely).
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
+
+        var extensionControlUser = service.createExtensionControlUser();
+        for (var itemId : maliciousExtensionIds) {
+            logger.atInfo().setMessage("malicious: {}").addArgument(itemId).log();
+
+            var extensionId = NamingUtil.fromExtensionId(itemId);
+            if (extensionId == null || !repositories.hasExtension(extensionId.namespace(), extensionId.extension())) {
+                continue;
+            }
+
+            try {
                 logger.info("delete malicious extension");
                 if (service.deleteTransitively) {
                     admin.purgeExtensionAndReferencingExtensions(
@@ -84,6 +96,9 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
                 } else {
                     admin.purgeExtension(extensionControlUser, extensionId.namespace(), extensionId.extension());
                 }
+            } catch (ErrorResultException e) {
+                // One failing purge must not block the rest of the list.
+                logger.error("Failed to purge malicious extension {}", itemId, e);
             }
         }
     }
@@ -91,7 +106,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
     private void processDeprecatedExtensions(JsonNode json) {
         logger.info("Process deprecated extensions");
         var node = json.get("deprecated");
-        if (!node.isObject()) {
+        if (node == null || !node.isObject()) {
             logger.error("field 'deprecated' is not an object");
             return;
         }

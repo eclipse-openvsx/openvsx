@@ -40,6 +40,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.ExtensionValidator;
@@ -91,6 +92,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         UpstreamVSCodeService.class,
         VSCodeIdService.class,
         EclipseService.class,
+        RestTemplate.class,
         ExtensionValidator.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,
@@ -1503,9 +1505,10 @@ class VSCodeAPITest {
         EclipseTokenService eclipseTokenService(
                 TransactionTemplate transactions,
                 EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository
+                ClientRegistrationRepository clientRegistrationRepository,
+                RestTemplate restTemplate
         ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository);
+            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
         }
 
         @Bean

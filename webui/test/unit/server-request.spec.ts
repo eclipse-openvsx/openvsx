@@ -91,4 +91,22 @@ describe('sendNonRetriableRequest', () => {
             error: 'Namespace not found'
         });
     });
+
+    // Regression test: `retry = false` used to hand fetch-retry an empty options object, whose
+    // defaults still retried every fetch rejection (network errors, aborts) three times.
+    it('does not retry a fetch rejection - retries are owned by the query client', async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+        vi.stubGlobal('fetch', fetchMock);
+
+        // Attach the rejection assertion before flushing timers so a retry's rejection is never unhandled.
+        const assertion = expect(
+            sendNonRetriableRequest({ endpoint: 'https://open-vsx.org/api/-/search' })
+        ).rejects.toThrow('Failed to fetch');
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+    });
 });

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-# Generates access-log files for the download ingestion pipeline and, optionally, uploads them to
-# the local Silo bucket the AWS source reads.
+# Generates access-log files for the download ingestion pipeline and, optionally, delivers them one
+# of two ways: --upload to the local Silo bucket the AWS source reads (the scheduled path), or
+# --backfill straight to the admin backfill endpoint (POST /admin/api/analytics/downloads/backfill,
+# needs ovsx.analytics.enabled=true - see doc/development.md).
 #
 # A record is only counted when it survives two filters:
 #   1. AccessLogRecord#isVsixDownload - GET, status 200, URL ending in .vsix
@@ -29,27 +31,45 @@ STORAGE_TYPE=aws
 OUT=""
 UPLOAD=0
 HOST=openvsx.example.org
+BACKFILL=0
+URL="http://localhost:8080"
+# The dev super user's seeded token (src/dev/resources/db/migration/V1_0_1__Super_user.sql).
+TOKEN=super_token
+FILE_DATE=""
+DB_URL=""
 
 usage() {
     cat <<'USAGE'
 Usage: generate-download-logs.sh [options]
 
-  --format cloudfront|fastly  log format to emit (default: cloudfront)
-  --count N                   number of download lines (default: 200)
-  --days N                    spread timestamps over the last N days (default: 7)
-  --bucket NAME               Silo bucket (default: test)
-  --prefix PREFIX             key prefix, must match ovsx.logs.aws.log-location-prefix (default: AWSLogs/)
-  --storage-type TYPE         file_resource.storage_type to draw filenames from (default: aws)
-  --out FILE                  write the (uncompressed) log here instead of a temp file
-  --upload                    gzip and upload to the bucket via the silo container
-  -h, --help                  this text
+  --format cloudfront|fastly   log format to emit (default: cloudfront)
+  --count N                    number of download lines (default: 200)
+  --days N                     spread timestamps over the last N days (default: 7)
+  --bucket NAME                Silo bucket (default: test)
+  --prefix PREFIX              key prefix, must match ovsx.logs.aws.log-location-prefix (default: AWSLogs/)
+  --storage-type TYPE          file_resource.storage_type to draw filenames from (default: aws)
+  --db-url URL                 psql connection URL to query instead of the local docker compose
+                               postgres, e.g. postgresql://user:pass@host:5432/dbname
+  --out FILE                   write the (uncompressed) log here instead of a temp file
+  --upload                     gzip and upload to the bucket via the silo container
+  --backfill                   POST the log to the admin backfill endpoint instead
+  --url URL                    registry base URL for --backfill (default: http://localhost:8080)
+  --token TOKEN                admin access token for --backfill (default: super_token)
+  --file-date DATE             fileDate query param for --backfill (yyyy-mm-dd), for lines without
+                               their own timestamp
+  -h, --help                   this text
 
 Examples:
   # see what would be generated
   ./generate-download-logs.sh --count 20 --out /dev/stdout
 
-  # 500 downloads over 14 days, uploaded so the next ingestion run picks them up
+  # 500 downloads over 14 days, uploaded so the next scheduled ingestion run picks them up
   ./generate-download-logs.sh --count 500 --days 14 --upload
+
+  # same, but ingested immediately through the backfill API instead (needs
+  # ovsx.analytics.enabled=true; --storage-type must match the server's own active storage, 'local'
+  # for a plain dev setup rather than the default below)
+  ./generate-download-logs.sh --count 500 --days 14 --storage-type local --backfill
 USAGE
 }
 
@@ -61,8 +81,13 @@ while [ $# -gt 0 ]; do
         --bucket) BUCKET="$2"; shift 2 ;;
         --prefix) PREFIX="$2"; shift 2 ;;
         --storage-type) STORAGE_TYPE="$2"; shift 2 ;;
+        --db-url) DB_URL="$2"; shift 2 ;;
         --out) OUT="$2"; shift 2 ;;
         --upload) UPLOAD=1; shift ;;
+        --backfill) BACKFILL=1; shift ;;
+        --url) URL="$2"; shift 2 ;;
+        --token) TOKEN="$2"; shift 2 ;;
+        --file-date) FILE_DATE="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -89,10 +114,16 @@ ORDER BY fr.name;"
 # :'storage_type' rather than the value inline: psql quotes and escapes it, so a storage type
 # carrying a quote cannot close the literal and run as SQL. The query goes in on stdin because psql
 # only interpolates variables there and with -f, never in a -c argument.
-mapfile -t ROWS < <(
-    printf '%s\n' "$QUERY" |
-        compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}"
-)
+# Command substitution rather than `mapfile < <(...)`: pipefail only covers the former, so a failed
+# psql (bad connection, bad credentials) would otherwise leave ROWS empty and fall into the "no rows"
+# message below instead of surfacing psql's own error and aborting.
+if [ -n "$DB_URL" ]; then
+    QUERY_OUTPUT=$(printf '%s\n' "$QUERY" | psql "$DB_URL" -At -F'|' -v storage_type="${STORAGE_TYPE}")
+else
+    QUERY_OUTPUT=$(printf '%s\n' "$QUERY" | compose exec -T postgres psql -U openvsx -d postgres -At -F'|' -v storage_type="${STORAGE_TYPE}")
+fi
+ROWS=()
+[ -n "$QUERY_OUTPUT" ] && mapfile -t ROWS <<< "$QUERY_OUTPUT"
 
 if [ "${#ROWS[@]}" -eq 0 ]; then
     cat >&2 <<EOF
@@ -177,4 +208,33 @@ if [ "$UPLOAD" -eq 1 ]; then
         mc alias set local http://localhost:9000 minioadmin minioadmin >/dev/null &&
         mc pipe "local/$1/$2"' sh "$BUCKET" "$key" >/dev/null
     echo "uploaded s3://${BUCKET}/${key}" >&2
+fi
+
+if [ "$BACKFILL" -eq 1 ]; then
+    BACKFILL_QUERY="token=${TOKEN}&format=${FORMAT}"
+    if [ -n "$FILE_DATE" ]; then
+        BACKFILL_QUERY="${BACKFILL_QUERY}&fileDate=${FILE_DATE}"
+    fi
+
+    echo "backfilling ${COUNT} ${FORMAT} download line(s) from ${LOG_FILE}..." >&2
+    # the parser auto-detects gzip from content, so the plain file written above needs no
+    # compression step here
+    RESPONSE=$(
+        curl -sS -X POST \
+            -H 'Content-Type: application/octet-stream' \
+            --data-binary @"$LOG_FILE" \
+            -w $'\n%{http_code}' \
+            "${URL}/admin/api/analytics/downloads/backfill?${BACKFILL_QUERY}"
+    )
+    HTTP_CODE="${RESPONSE##*$'\n'}"
+    BODY="${RESPONSE%$'\n'*}"
+
+    echo "$BODY"
+    if [ "$HTTP_CODE" != 200 ]; then
+        echo "backfill request failed with HTTP ${HTTP_CODE}" >&2
+        echo "if this is a 404, enable analytics first: ovsx.analytics.enabled=true and" \
+            "'docker compose --profile analytics up'" >&2
+        exit 1
+    fi
+    echo "backfilled into download analytics" >&2
 fi
