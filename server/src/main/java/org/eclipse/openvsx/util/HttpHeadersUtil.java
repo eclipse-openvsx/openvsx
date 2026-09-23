@@ -38,9 +38,9 @@ public class HttpHeadersUtil {
      * Fallback header for personal access tokens, used only when {@code Authorization} is already
      * claimed by a standard auth scheme (e.g. the CLI's own Basic auth to a fronting reverse proxy).
      * {@code Authorization: Bearer} is preferred (see {@link #resolveAccessToken}); this and the
-     * legacy {@code token} query parameter are the fallbacks. No {@code X-} prefix per RFC 6648.
+     * legacy {@code token} query parameter are the fallbacks.
      */
-    public static final String TOKEN_HEADER = "OpenVSX-Token";
+    public static final String TOKEN_HEADER = "X-OpenVSX-Token";
 
     private static final String BEARER_PREFIX = "Bearer ";
 

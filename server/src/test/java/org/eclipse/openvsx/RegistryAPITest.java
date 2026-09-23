@@ -1874,7 +1874,7 @@ class RegistryAPITest {
 
     @Test
     void testVerifyTokenOpenVsxHeaderFallback() throws Exception {
-        // The OpenVSX-Token header is the fallback for when Authorization is already in use
+        // The X-OpenVSX-Token header is the fallback for when Authorization is already in use
         // (e.g. Basic auth to a fronting proxy) - it still has to work on its own.
         mockForPublish("owner");
 

@@ -42,13 +42,13 @@ describe('Registry token headers', () => {
         await registry.verifyPat('foo', 'the.pat');
 
         expect(headers[0].authorization).toBe('Bearer the.pat');
-        expect(headers[0]['openvsx-token']).toBeUndefined();
+        expect(headers[0]['x-openvsx-token']).toBeUndefined();
     });
 
     // Authorization is already claimed by Basic auth to a fronting reverse proxy in this
-    // configuration, so the token has to fall back to the OpenVSX-Token header instead of
+    // configuration, so the token has to fall back to the X-OpenVSX-Token header instead of
     // clobbering (or being clobbered by) the proxy credentials.
-    it('falls back to the OpenVSX-Token header when username/password are configured', async () => {
+    it('falls back to the X-OpenVSX-Token header when username/password are configured', async () => {
         const headers: http.IncomingHttpHeaders[] = [];
         const url = await serve((req, res) => {
             headers.push(req.headers);
@@ -59,7 +59,7 @@ describe('Registry token headers', () => {
 
         await registry.verifyPat('foo', 'the.pat');
 
-        expect(headers[0]['openvsx-token']).toBe('the.pat');
+        expect(headers[0]['x-openvsx-token']).toBe('the.pat');
         expect(headers[0].authorization).toBe(`Basic ${Buffer.from('proxy-user:proxy-pass').toString('base64')}`);
     });
 

@@ -23,8 +23,8 @@ export const DEFAULT_TOKEN_REQUEST_SIZE = 8 * 1024;
 export const DEFAULT_DELETE_SIZE = 64 * 1024;
 
 // Fallback only, for when Authorization is already claimed by Basic auth to a fronting proxy (see
-// tokenHeaders/getRequestOptions). No `X-` prefix, per RFC 6648.
-const TOKEN_HEADER = 'OpenVSX-Token';
+// tokenHeaders/getRequestOptions).
+const TOKEN_HEADER = 'X-OpenVSX-Token';
 
 export class Registry {
 
