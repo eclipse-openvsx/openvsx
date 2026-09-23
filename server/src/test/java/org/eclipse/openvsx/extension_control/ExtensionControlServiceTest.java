@@ -10,8 +10,12 @@
 package org.eclipse.openvsx.extension_control;
 
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -278,6 +282,47 @@ class ExtensionControlServiceTest {
         verify(spy, times(1)).fetchExtensionControlJson(any());
     }
 
+    // GHSA-fq82-m65g-jfrh: fetchExtensionControlJson() sits on the publish request path via
+    // getMaliciousExtensionIds() and previously had no read timeout at all, so a stalled connection
+    // parked the servlet thread forever. Drives a real request against a server that accepts the
+    // connection and never responds, so removing either setter would make this test hang instead of
+    // pass (bounded by the join() below rather than actually hanging the suite).
+    @Test
+    void appliesConnectAndReadTimeoutsToARealFetch() throws Exception {
+        try (var serverSocket = new ServerSocket(0)) {
+            var acceptThread = new Thread(() -> {
+                try (var socket = serverSocket.accept()) {
+                    socket.getInputStream().read(new byte[4096]); // read the request, never respond
+                } catch (Exception ignored) {
+                    // test is tearing down
+                }
+            });
+            acceptThread.setDaemon(true);
+            acceptThread.start();
+
+            var url = URI.create("http://127.0.0.1:" + serverSocket.getLocalPort() + "/stalls-forever").toURL();
+
+            var failure = new AtomicReference<Throwable>();
+            var caller = new Thread(() -> {
+                try {
+                    service.fetchExtensionControlJson(url);
+                } catch (Throwable t) {
+                    failure.set(t);
+                }
+            });
+            caller.setDaemon(true);
+            caller.start();
+            // The real configured read timeout is 10s; bound the wait well above that so the test
+            // still passes deterministically, without letting a regression hang the suite forever.
+            caller.join(15_000);
+
+            assertThat(caller.isAlive())
+                    .as("the configured read timeout must bound the fetch, not hang indefinitely")
+                    .isFalse();
+            assertThat(failure.get()).isInstanceOf(SocketTimeoutException.class);
+        }
+    }
+
     @Test
     void throwsAndPreservesLastKnownListWhenFetchFails() throws IOException {
         var spy = spy(service);
@@ -291,9 +336,10 @@ class ExtensionControlServiceTest {
 
         doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
 
-        // Must throw rather than silently returning a fallback: this method is @Cacheable, and a
-        // fallback value returned here would get written into the shared (Redis-backed) cache for the
-        // full TTL, poisoning every other replica's malicious-extension check, not just this call.
+        // Must throw rather than silently returning a fallback: the cache is written only explicitly,
+        // after a successful fetch, so returning a fallback here would mean inventing a value this
+        // method never actually validated - and callers would have no way to tell it apart from a real
+        // fetch result.
         assertThrows(IOException.class, spy::getMaliciousExtensionIds);
         assertThat(spy.getLastKnownMaliciousExtensionIds())
                 .as("the per-instance fallback must still hold the last successfully parsed list")

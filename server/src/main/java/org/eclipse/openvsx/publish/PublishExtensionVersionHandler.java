@@ -463,10 +463,11 @@ public class PublishExtensionVersionHandler {
         try {
             maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
         } catch (IOException | RuntimeException e) {
-            // getMaliciousExtensionIds() is @Cacheable: besides its own IOException/JacksonException,
-            // the cache interceptor itself can throw (e.g. a Redis outage on the lookup or the
-            // post-fetch write) as an unrelated unchecked exception. Any failure here must fall back,
-            // not break the publish request.
+            // getMaliciousExtensionIds() already handles its own cache read/write failures internally
+            // and degrades gracefully on its own; this broad catch is for its remaining failure modes
+            // (a fetch IOException, or the unchecked JacksonException from a malformed response) and as
+            // a backstop against any other unexpected failure, since this gates a security check that
+            // must never break the publish request outright.
             logger.warn("Failed to refresh malicious extension list, reusing last known list", e);
             maliciousExtensionIds = extensionControl.getLastKnownMaliciousExtensionIds();
         }

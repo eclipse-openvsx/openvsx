@@ -150,9 +150,9 @@ class PublishExtensionVersionHandlerTest {
 
     @Test
     void shouldFailWhenMaliciousListRefreshFailsButLastKnownListFlagsIt() throws IOException {
-        // getMaliciousExtensionIds() must be allowed to throw (so a refresh failure is never cached
-        // cluster-wide, see ExtensionControlService); isMalicious() must still catch that and fall back
-        // to the last known list rather than silently treating the extension as clean.
+        // getMaliciousExtensionIds() throws on a fetch failure rather than inventing a return value
+        // (see ExtensionControlService); isMalicious() must still catch that and fall back to the last
+        // known list rather than silently treating the extension as clean.
         when(extensionControl.getMaliciousExtensionIds()).thenThrow(new IOException("connection reset"));
         when(extensionControl.getLastKnownMaliciousExtensionIds())
                 .thenReturn(List.of(NamingUtil.toExtensionId("publisher", "demo")));
@@ -176,10 +176,10 @@ class PublishExtensionVersionHandlerTest {
     }
 
     @Test
-    void shouldFailWhenCacheInterceptorItselfFailsButLastKnownListFlagsIt() throws IOException {
-        // getMaliciousExtensionIds() is @Cacheable: the cache interceptor's own Redis lookup/write can
-        // throw a plain RuntimeException unrelated to IOException/JacksonException. That must fall back
-        // too, not escape isMalicious() and break the publish request outright.
+    void shouldFailWhenMaliciousListLookupThrowsUncheckedExceptionButLastKnownListFlagsIt() throws IOException {
+        // getMaliciousExtensionIds() can also fail with a plain, unanticipated RuntimeException (not
+        // just its own IOException/JacksonException) - isMalicious()'s catch must be broad enough to
+        // fall back on that too, not escape and break the publish request outright.
         when(extensionControl.getMaliciousExtensionIds())
                 .thenThrow(new RuntimeException("Redis connection refused"));
         when(extensionControl.getLastKnownMaliciousExtensionIds())

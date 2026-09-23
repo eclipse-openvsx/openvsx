@@ -203,11 +203,11 @@ public class ExtensionControlService {
     }
 
     // The shared cache is managed manually here rather than via @Cacheable, specifically so a cache hit
-    // - which would otherwise skip this method's body entirely, on every replica that never itself sees
-    // a miss - still updates the per-instance fallback below. On failure, this method must never return
-    // a fallback value: doing so would get written into the shared cache for the full TTL, silently
-    // disabling malicious-extension checks cluster-wide. Throw instead, and let callers fall back to
-    // getLastKnownMaliciousExtensionIds() themselves.
+    // - which @Cacheable would otherwise serve without ever running this method's body, on every
+    // replica that never itself sees a miss - still updates the per-instance fallback below. This
+    // method returns only a genuine cache hit or a freshly validated fetch; on any failure it throws
+    // rather than inventing a return value, leaving the choice of what to serve instead entirely to
+    // callers via getLastKnownMaliciousExtensionIds().
     public List<String> getMaliciousExtensionIds() throws IOException {
         if (!enabled) {
             return Collections.emptyList();
