@@ -60,7 +60,7 @@ public class UpstreamVSCodeServiceTest {
                 urlConfig,
                 Mockito.mock(ExtensionValidator.class));
 
-        var response = service.browse("foo", "bar", "1.0.0", "extension/readme.md");
+        var response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.md");
 
         assertEquals(
                 "text/plain;charset=UTF-8",
@@ -69,7 +69,7 @@ public class UpstreamVSCodeServiceTest {
                 response.getHeaders().getFirst("Content-Security-Policy"),
                 "proxied files must carry a Content-Security-Policy");
 
-        response = service.browse("foo", "bar", "1.0.0", "extension/readme.html");
+        response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.html");
 
         assertEquals(
                 "text/plain;charset=UTF-8",
@@ -77,6 +77,28 @@ public class UpstreamVSCodeServiceTest {
         assertNotNull(
                 response.getHeaders().getFirst("Content-Security-Policy"),
                 "proxied files must carry a Content-Security-Policy");
+    }
+
+    @Test
+    void browseForwardsTargetPlatformAsAQueryParameter() {
+        var nonRedirecting = new RestTemplate();
+        var server = MockRestServiceServer.bindTo(nonRedirecting).build();
+        server.expect(requestTo("http://upstream.example/vscode/unpkg/foo/bar/1.0.0/extension/readme.md?target=web"))
+                .andRespond(withSuccess("### blablabla", MediaType.TEXT_MARKDOWN));
+
+        var urlConfig = Mockito.mock(UrlConfigService.class);
+        Mockito.when(urlConfig.getUpstreamUrl()).thenReturn("http://upstream.example");
+
+        var service = new UpstreamVSCodeService(
+                new RestTemplate(),
+                Optional.empty(),
+                nonRedirecting,
+                urlConfig,
+                Mockito.mock(ExtensionValidator.class));
+
+        service.browse("foo", "bar", "1.0.0", "web", "extension/readme.md");
+
+        server.verify();
     }
 
     @Test
@@ -99,7 +121,7 @@ public class UpstreamVSCodeServiceTest {
         var tmpDir = Path.of(System.getProperty("java.io.tmpdir"));
         var before = spoolFilesIn(tmpDir);
 
-        var response = service.browse("foo", "bar", "1.0.0", "extension/readme.md");
+        var response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.md");
         OutputStream abortingClient = new OutputStream() {
             @Override
             public void write(int b) throws IOException {

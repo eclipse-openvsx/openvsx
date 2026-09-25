@@ -418,7 +418,7 @@ public class VSCodeAPI {
     )
     @ApiResponse(
         responseCode = "400",
-        description = "The namespace name is the built-in extension namespace",
+        description = "The namespace name is the built-in extension namespace, or the target parameter is not a supported target platform",
         content = @Content()
     )
     @ApiResponse(
@@ -433,23 +433,80 @@ public class VSCodeAPI {
             @PathVariable
             @Parameter(description = "Extension name", example = "malloy-vscode") String extensionName,
             @PathVariable
-            @Parameter(description = "Extension version", example = "0.3.1710435722") String version
+            @Parameter(description = "Extension version", example = "0.3.1710435722") String version,
+            @RequestParam(required = false)
+            @Pattern(
+                regexp = TargetPlatform.NAMES_PARAM_REGEX,
+                message = "parameter must be a supported target platform"
+            )
+            @Parameter(
+                description = "Target platform. May also be given as a `+<target>` suffix on the version, "
+                        + "which is the form VS Code uses when resolving an extension's resources.",
+                example = TargetPlatform.NAME_WEB,
+                schema = @Schema(
+                    type = "string",
+                    allowableValues = {
+                        NAME_WIN32_X64,
+                        NAME_WIN32_IA32,
+                        NAME_WIN32_ARM64,
+                        NAME_LINUX_X64,
+                        NAME_LINUX_ARM64,
+                        NAME_LINUX_ARMHF,
+                        NAME_ALPINE_X64,
+                        NAME_ALPINE_ARM64,
+                        NAME_DARWIN_X64,
+                        NAME_DARWIN_ARM64,
+                        NAME_WEB,
+                        NAME_UNIVERSAL
+                    }
+                )
+            ) String target
     ) {
+        var targetPlatform = StringUtils.isNotEmpty(target) ? target : null;
+        var lookupVersion = version;
+        if (targetPlatform == null) {
+            // VS Code appends the target to the version when it resolves an extension's resources, so
+            // that a `web` build and a `universal` build of one version can be told apart.
+            var embeddedTarget = TargetPlatform.targetInVersionSuffix(version);
+            if (embeddedTarget != null) {
+                targetPlatform = embeddedTarget;
+                lookupVersion = version.substring(0, version.length() - embeddedTarget.length() - 1);
+            }
+        }
+
         var path = UrlUtil.extractWildcardPath(request);
         try {
-            for (var service : getVSCodeServices()) {
-                try {
-                    return service.browse(namespaceName, extensionName, version, path);
-                } catch (NotFoundException exc) {
-                    // Try the next registry
-                }
+            var response = browseAcrossServices(namespaceName, extensionName, lookupVersion, targetPlatform, path);
+            if (response == null && !lookupVersion.equals(version)) {
+                // The suffix can also be semver build metadata that happens to name a platform, e.g. a
+                // universal build published as `1.2.3+web`: only once the split reading comes up empty,
+                // fall back to the version exactly as given.
+                response = browseAcrossServices(namespaceName, extensionName, version, null, path);
             }
 
-            return ResponseEntity.notFound().build();
+            return response != null ? response : ResponseEntity.notFound().build();
         } catch (ErrorResultException ex) {
             logger.error(ex.getMessage());
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private ResponseEntity<StreamingResponseBody> browseAcrossServices(
+            String namespaceName,
+            String extensionName,
+            String version,
+            String targetPlatform,
+            String path
+    ) {
+        for (var service : getVSCodeServices()) {
+            try {
+                return service.browse(namespaceName, extensionName, version, targetPlatform, path);
+            } catch (NotFoundException exc) {
+                // Try the next registry
+            }
+        }
+
+        return null;
     }
 
     @GetMapping(

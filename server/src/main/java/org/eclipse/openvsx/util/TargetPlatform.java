@@ -64,4 +64,18 @@ public class TargetPlatform {
     public static boolean isUniversal(String targetPlatform) {
         return NAME_UNIVERSAL.equals(targetPlatform);
     }
+
+    /**
+     * The platform named by a version's trailing {@code +<name>} segment, or null if it has none. A
+     * version's own semver build metadata can coincidentally look like one, e.g. {@code 1.2.3+web}.
+     */
+    public static String targetInVersionSuffix(String version) {
+        var separator = version.lastIndexOf('+');
+        if (separator < 0 || separator + 1 >= version.length()) {
+            return null;
+        }
+
+        var candidate = version.substring(separator + 1);
+        return isValid(candidate) ? candidate : null;
+    }
 }

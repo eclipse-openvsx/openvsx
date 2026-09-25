@@ -758,6 +758,145 @@ class VSCodeAPITest {
                 .andDo(result -> Files.delete(path));
     }
 
+    // VS Code appends the target to the version when it resolves an extension's resources, so that a
+    // web build and a universal build of one version can be told apart - see #744 and #758. Without
+    // this the request 404s, and an extension published for both targets cannot be browsed at all from
+    // a web VS Code.
+    @Test
+    void testBrowseTopDirForATargetPlatformInTheVersion() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6";
+        var path = mockTargetedExtensionBrowse(namespaceName, extensionName, "web", version);
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        namespaceName,
+                        extensionName,
+                        version + "+web"))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                // The listed URLs keep the target, or following one drops back to whichever version
+                // matches first.
+                .andExpect(
+                        content().json(
+                                "["
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension.vsixmanifest\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension/\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/[Content_Types].xml\""
+                                        + "]"))
+                .andDo(result -> Files.delete(path));
+
+        // the split reading must be tried first, or every such request - the form VS Code normally
+        // uses for a targeted extension - pays for a doomed lookup by the untargeted version first
+        Mockito.verify(repositories, Mockito.times(1))
+                .findFileByType(namespaceName, extensionName, "web", version, DOWNLOAD);
+        Mockito.verify(repositories, Mockito.never())
+                .findFileByType(namespaceName, extensionName, null, version + "+web", DOWNLOAD);
+    }
+
+    @Test
+    void testBrowseTopDirForATargetPlatformParameter() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6";
+        var path = mockTargetedExtensionBrowse(namespaceName, extensionName, "web", version);
+        mockMvc.perform(
+                get("/vscode/unpkg/{namespaceName}/{extensionName}/{version}", namespaceName, extensionName, version)
+                        .param("target", "web"))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(
+                        content().json(
+                                "["
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension.vsixmanifest\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/extension/\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/[Content_Types].xml\""
+                                        + "]"))
+                .andDo(result -> Files.delete(path));
+    }
+
+    @Test
+    void testBrowseRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        "EditorConfig",
+                        "EditorConfig",
+                        "0.16.6")
+                        .param("target", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0]").value("target: parameter must be a supported target platform"));
+    }
+
+    // A resolved universal target has to survive into the listed URLs too when the version's own
+    // suffix could otherwise be misread as a target on the next request - the listed URLs are
+    // followed as-is, with no separate target parameter.
+    @Test
+    void testBrowseTopDirKeepsAnExplicitUniversalTargetWhenTheVersionSuffixLooksLikeOne() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6+web";
+        var path = mockTargetedExtensionBrowse(namespaceName, extensionName, "universal", version);
+        mockMvc.perform(
+                get("/vscode/unpkg/{namespaceName}/{extensionName}/{version}", namespaceName, extensionName, version)
+                        .param("target", "universal"))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(
+                        content().json(
+                                "["
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web+universal/extension.vsixmanifest\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web+universal/extension/\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web+universal/[Content_Types].xml\""
+                                        + "]"))
+                .andDo(result -> Files.delete(path));
+    }
+
+    // A published version's own build metadata can itself name a platform, e.g. `0.16.6+web`. The
+    // split reading is tried first and misses (there is no `0.16.6` targeting `web`), so this must
+    // fall back to the version exactly as given, or a universal build published under such a version
+    // could never be reached.
+    @Test
+    void testBrowseFallsBackToTheExactVersionWhenTheSplitReadingMisses() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6+web";
+        var path = mockExtensionBrowse(namespaceName, extensionName, version);
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        namespaceName,
+                        extensionName,
+                        version))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andDo(result -> Files.delete(path));
+    }
+
+    // A version may legitimately carry semver build metadata, which is part of the version and not a
+    // target, so the text after the last '+' is only taken when it names a platform.
+    @Test
+    void testBrowseKeepsSemverBuildMetadataInTheVersion() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        "EditorConfig",
+                        "EditorConfig",
+                        "1.2.3+build.5"))
+                .andExpect(status().isNotFound());
+
+        Mockito.verify(repositories).findFileByType("EditorConfig", "EditorConfig", null, "1.2.3+build.5", DOWNLOAD);
+    }
+
     @Test
     void testBrowseVsixManifest() throws Exception {
         var namespaceName = "EditorConfig";
@@ -1416,6 +1555,17 @@ class VSCodeAPITest {
 
     private Path mockWebResourceAsset(String namespaceName, String extensionName, String targetPlatform, String version)
             throws IOException {
+        return mockExtensionBrowse(namespaceName, extensionName, targetPlatform, version, false);
+    }
+
+    /** Browse setup for a request that names its target, so the download lookup is keyed by it rather
+     *  than by null the way an untargeted browse is. */
+    private Path mockTargetedExtensionBrowse(
+            String namespaceName,
+            String extensionName,
+            String targetPlatform,
+            String version
+    ) throws IOException {
         return mockExtensionBrowse(namespaceName, extensionName, targetPlatform, version, false);
     }
 
