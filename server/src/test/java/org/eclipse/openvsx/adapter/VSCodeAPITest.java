@@ -813,6 +813,28 @@ class VSCodeAPITest {
                 .andDo(result -> Files.delete(path));
     }
 
+    // A published version's own build metadata can itself name a platform, e.g. `0.16.6+web`. That
+    // exact version has to resolve before the suffix is ever read as a target, or a universal build
+    // published under such a version could never be reached.
+    @Test
+    void testBrowseResolvesTheExactVersionBeforeReadingATargetSuffix() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6+web";
+        var path = mockExtensionBrowse(namespaceName, extensionName, version);
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        namespaceName,
+                        extensionName,
+                        version))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andDo(result -> Files.delete(path));
+    }
+
     // A version may legitimately carry semver build metadata, which is part of the version and not a
     // target, so the text after the last '+' is only taken when it names a platform.
     @Test

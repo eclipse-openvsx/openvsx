@@ -446,36 +446,52 @@ public class VSCodeAPI {
             ) String target
     ) {
         var targetPlatform = StringUtils.isNotEmpty(target) ? target : null;
-        if (targetPlatform == null) {
-            // VS Code appends the target to the version when it resolves an extension's resources, so
-            // that a `web` build and a `universal` build of one version can be told apart. Only strip
-            // the suffix when it names a platform: a version may legitimately carry semver build
-            // metadata (`1.2.3+build.5`), which belongs to the version rather than being a target.
-            var separator = version.lastIndexOf('+');
-            if (separator >= 0 && separator + 1 < version.length()) {
-                var candidate = version.substring(separator + 1);
-                if (TargetPlatform.isValid(candidate)) {
-                    targetPlatform = candidate;
-                    version = version.substring(0, separator);
-                }
-            }
-        }
-
         var path = UrlUtil.extractWildcardPath(request);
         try {
-            for (var service : getVSCodeServices()) {
-                try {
-                    return service.browse(namespaceName, extensionName, version, targetPlatform, path);
-                } catch (NotFoundException exc) {
-                    // Try the next registry
+            var response = browseAcrossServices(namespaceName, extensionName, version, targetPlatform, path);
+            if (response == null && targetPlatform == null) {
+                // VS Code appends the target to the version when it resolves an extension's resources,
+                // so that a `web` build and a `universal` build of one version can be told apart. Only
+                // fall back to that reading once the version as published is not found: a version may
+                // legitimately carry semver build metadata that happens to name a platform, e.g.
+                // `1.2.3+web`, and that has to resolve as itself first.
+                var separator = version.lastIndexOf('+');
+                if (separator >= 0 && separator + 1 < version.length()) {
+                    var candidate = version.substring(separator + 1);
+                    if (TargetPlatform.isValid(candidate)) {
+                        response = browseAcrossServices(
+                                namespaceName,
+                                extensionName,
+                                version.substring(0, separator),
+                                candidate,
+                                path);
+                    }
                 }
             }
 
-            return ResponseEntity.notFound().build();
+            return response != null ? response : ResponseEntity.notFound().build();
         } catch (ErrorResultException ex) {
             logger.error(ex.getMessage());
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private ResponseEntity<StreamingResponseBody> browseAcrossServices(
+            String namespaceName,
+            String extensionName,
+            String version,
+            String targetPlatform,
+            String path
+    ) {
+        for (var service : getVSCodeServices()) {
+            try {
+                return service.browse(namespaceName, extensionName, version, targetPlatform, path);
+            } catch (NotFoundException exc) {
+                // Try the next registry
+            }
+        }
+
+        return null;
     }
 
     @GetMapping(
