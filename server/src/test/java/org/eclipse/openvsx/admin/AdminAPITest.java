@@ -2766,7 +2766,8 @@ class AdminAPITest {
         token.setValue(tokenValue);
         token.setUser(user);
         token.setType(PersonalAccessTokenType.LLT);
-        when(repositories.findPersonalAccessToken(tokenValue)).thenReturn(token);
+        // token.version defaults to 0 (never set below), so this is the v0 fallback lookup
+        when(repositories.findPersonalAccessToken(tokenValue, 0)).thenReturn(token);
 
         return token;
     }
@@ -2781,7 +2782,8 @@ class AdminAPITest {
         token.setValue(tokenValue);
         token.setUser(user);
         token.setType(PersonalAccessTokenType.LLT);
-        when(repositories.findPersonalAccessToken(tokenValue)).thenReturn(token);
+        // token.version defaults to 0 (never set below), so this is the v0 fallback lookup
+        when(repositories.findPersonalAccessToken(tokenValue, 0)).thenReturn(token);
 
         return token;
     }
