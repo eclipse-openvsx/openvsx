@@ -20,6 +20,17 @@
 -- namespaces the version has left, never corrects the one it currently occupies. Not a concern for the
 -- four renames #2244 was filed about (none of them cycle back to a prior name); left as a follow-up rather
 -- than folded into this fix.
+--
+-- Lock first, before the first snapshot below: a rolling deployment can have an old-version instance
+-- still serving traffic while this migration runs on a new one. Without the lock, a purge landing between
+-- the departures snapshot and its insert would delete the extension_version row that snapshot already
+-- captured the id of, and the insert referencing it would violate the foreign key; a rename landing
+-- between the departures and arrivals snapshots would let one see the version under its old namespace and
+-- the other under a namespace newer still, repairing neither correctly. SHARE mode blocks concurrent
+-- writers (INSERT/UPDATE/DELETE all take ROW EXCLUSIVE, which conflicts with SHARE) without blocking
+-- readers, and Flyway runs this whole script in one transaction, so the lock is held through both
+-- snapshots and both inserts. Same pattern as V1_76__Unique_Active_Review.sql.
+LOCK TABLE public.extension, public.extension_version, public.extension_version_change IN SHARE MODE;
 
 -- Every namespace a still-existing version (extension_version_id IS NOT NULL, i.e. not yet purged) has
 -- ever been reported under, and the most recent state recorded specifically under that namespace. Kept
