@@ -51,7 +51,10 @@ import static org.springframework.data.web.config.EnableSpringDataWebSupport.Pag
     }
 )
 @EnableScheduling
-@EnableResilientMethods
+// Class-based (CGLIB) proxying, not the default interface-based one: a @Retryable bean that also
+// implements an interface (e.g. LocalRegistryService/IExtensionRegistry) would otherwise get a proxy
+// assignable only to that interface, breaking every other bean wired to the concrete type.
+@EnableResilientMethods(proxyTargetClass = true)
 @EnableAsync
 @EnableConfigurationProperties(OAuth2AttributesConfig.class)
 // Need to enable serialization support for spring data's Page, see:
