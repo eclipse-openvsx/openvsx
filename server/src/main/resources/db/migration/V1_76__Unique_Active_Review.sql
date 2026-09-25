@@ -1,12 +1,12 @@
 -- Close a race in postReview(): concurrent duplicate-review checks under READ COMMITTED could each
 -- pass before either insert committed, letting one user hold more than one active review for the
--- same extension. Keep the oldest such review per (extension, user) and deactivate the rest before
--- the unique index below, since a partial unique index cannot be created over existing duplicates.
-UPDATE extension_review r
-SET active = false
+-- same extension. Drop all but the most recent (highest id, a reliable tie-breaker even when two
+-- racing inserts have near-identical timestamps) such review per (extension, user) before the unique
+-- index below, since a partial unique index cannot be created over existing duplicates.
+DELETE FROM extension_review r
 WHERE r.active
 AND r.id NOT IN (
-    SELECT MIN(id)
+    SELECT MAX(id)
     FROM extension_review
     WHERE active
     GROUP BY extension_id, user_id
