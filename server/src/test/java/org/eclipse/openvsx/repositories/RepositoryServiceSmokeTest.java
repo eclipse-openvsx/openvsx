@@ -294,6 +294,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findChanges(null, null, new ChangesCursor(NOW, 1L), 100),
                 () -> repositories.findChanges(null, NOW, new ChangesCursor(NOW.minus(Duration.ofDays(1)), 1L), 100),
                 () -> repositories.findLatestExtensionVersionChange(extVersion),
+                () -> repositories.wasReportedAsAvailable(extVersion),
                 () -> repositories.recordExtensionVersionChange(
                         extVersion,
                         ExtensionVersionState.ACTIVE,

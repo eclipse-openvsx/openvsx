@@ -11,6 +11,15 @@
 -- changedAt javadoc on ExtensionVersionChange). Captured once into each temp table so every row it
 -- produces shares the exact same instant, the same way a live rename reports all of its versions at one
 -- instant.
+--
+-- Known limitation: a version renamed back to a namespace it occupied before (A -> B -> A) is only
+-- repaired correctly if A's own last entry already agrees with the version's current active/inactive
+-- state. If it does not - e.g. A was ACTIVE, the version silently moved to B and was deactivated there,
+-- then silently moved back to A - the departure logic above closes B (the abandoned tuple) but leaves A's
+-- stale ACTIVE entry in place, since A is the current namespace and this migration only ever closes
+-- namespaces the version has left, never corrects the one it currently occupies. Not a concern for the
+-- four renames #2244 was filed about (none of them cycle back to a prior name); left as a follow-up rather
+-- than folded into this fix.
 
 -- Every namespace a still-existing version (extension_version_id IS NOT NULL, i.e. not yet purged) has
 -- ever been reported under, and the most recent state recorded specifically under that namespace. Kept

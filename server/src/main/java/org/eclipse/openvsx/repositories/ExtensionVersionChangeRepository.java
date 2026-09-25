@@ -34,4 +34,14 @@ public interface ExtensionVersionChangeRepository extends Repository<ExtensionVe
     Optional<ExtensionVersionChange> findFirstByExtensionVersionOrderByChangedAtDescIdDesc(
             ExtensionVersion extVersion
     );
+
+    /**
+     * The entry most recently appended for the given version under the given namespace specifically. A
+     * version that has been renamed can have entries under more than one namespace, each with its own
+     * independent latest state - see {@link org.eclipse.openvsx.repositories.RepositoryService#wasReportedAsAvailable}.
+     */
+    Optional<ExtensionVersionChange> findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc(
+            ExtensionVersion extVersion,
+            String namespace
+    );
 }
