@@ -746,6 +746,25 @@ public class RepositoryService {
         return extensionVersionChangeRepo.findFirstByExtensionVersionOrderByChangedAtDescIdDesc(extVersion);
     }
 
+    /**
+     * Whether the changes feed last reported this version as being available, and so has a transition to
+     * withdraw once the version goes away (deleted, purged, or moved to another namespace).
+     * <p>
+     * False for a version the feed never reported -- one whose publication never made it public, for
+     * instance because a scan quarantined it, or one that predates the feed and was already hidden when
+     * it was seeded. Reporting its removal would withdraw a publication that consumers were never told
+     * about, which is the one thing the append-only log is not allowed to say.
+     * <p>
+     * False as well once the feed has reported the version as gone: a version is deleted before it can be
+     * purged, and the purge only drops the tombstone the deletion kept, which is invisible from the
+     * outside, so a second entry would report a transition that never happened.
+     */
+    public boolean wasReportedAsAvailable(ExtensionVersion extVersion) {
+        return findLatestExtensionVersionChange(extVersion)
+                .map(latest -> latest.getState() != ExtensionVersionState.REMOVED)
+                .orElse(false);
+    }
+
     public List<ExtensionVersion> findActiveExtensionVersions(
             Collection<Long> extensionIds,
             String targetPlatform,
