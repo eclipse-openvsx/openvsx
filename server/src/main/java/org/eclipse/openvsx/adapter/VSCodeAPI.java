@@ -442,7 +442,24 @@ public class VSCodeAPI {
             @Parameter(
                 description = "Target platform. May also be given as a `+<target>` suffix on the version, "
                         + "which is the form VS Code uses when resolving an extension's resources.",
-                example = TargetPlatform.NAME_WEB
+                example = TargetPlatform.NAME_WEB,
+                schema = @Schema(
+                    type = "string",
+                    allowableValues = {
+                        NAME_WIN32_X64,
+                        NAME_WIN32_IA32,
+                        NAME_WIN32_ARM64,
+                        NAME_LINUX_X64,
+                        NAME_LINUX_ARM64,
+                        NAME_LINUX_ARMHF,
+                        NAME_ALPINE_X64,
+                        NAME_ALPINE_ARM64,
+                        NAME_DARWIN_X64,
+                        NAME_DARWIN_ARM64,
+                        NAME_WEB,
+                        NAME_UNIVERSAL
+                    }
+                )
             ) String target
     ) {
         var targetPlatform = StringUtils.isNotEmpty(target) ? target : null;

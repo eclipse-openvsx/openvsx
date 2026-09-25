@@ -820,6 +820,19 @@ class VSCodeAPITest {
                 .andDo(result -> Files.delete(path));
     }
 
+    @Test
+    void testBrowseRejectsAnUnknownTargetPlatform() throws Exception {
+        mockMvc.perform(
+                get(
+                        "/vscode/unpkg/{namespaceName}/{extensionName}/{version}",
+                        "EditorConfig",
+                        "EditorConfig",
+                        "0.16.6")
+                        .param("target", "win32-bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0]").value("target: parameter must be a supported target platform"));
+    }
+
     // A resolved universal target has to survive into the listed URLs too when the version's own
     // suffix could otherwise be misread as a target on the next request - the listed URLs are
     // followed as-is, with no separate target parameter.
