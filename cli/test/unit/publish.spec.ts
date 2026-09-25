@@ -35,6 +35,7 @@ interface RegistryStub {
     url: string;
     publishRequests: RecordedRequest[];
     tokenRequests: number;
+    versionRequests: number;
     close: () => Promise<void>;
 }
 
@@ -62,12 +63,13 @@ async function startRegistryStub(
     // Answers the nth publish with the nth entry, the last one repeating, so a first attempt can be
     // refused and the retry accepted.
     const publishAttempts = publishResponse.attempts;
-    const state = { tokenRequests: 0 };
+    const state = { tokenRequests: 0, versionRequests: 0 };
     const server = http.createServer((req, res) => {
         const url = new URL(req.url ?? '/', 'http://127.0.0.1');
         req.on('data', () => undefined);
         req.on('end', () => {
             if (url.pathname === '/api/version') {
+                state.versionRequests++;
                 res.writeHead(versionStatus, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(versionBody));
             } else if (url.pathname === '/api/-/trusted-publishing/token') {
@@ -89,6 +91,9 @@ async function startRegistryStub(
         publishRequests,
         get tokenRequests() {
             return state.tokenRequests;
+        },
+        get versionRequests() {
+            return state.versionRequests;
         },
         close: () => new Promise<void>(resolve => server.close(() => resolve()))
     };
@@ -214,6 +219,26 @@ describe('publish', () => {
 
         expect(result.status).toBe('fulfilled');
         expect(registry.publishRequests).toHaveLength(1);
+    });
+
+    // The size-limit lookup and the token-header version check (Registry.tokenQuery) both fetch
+    // /api/version, and every target used to get its own Registry instance - looking that up once for
+    // the size limit and once per target added up fast for a wide fan-out. All targets now share the
+    // one Registry created up front, so this is a single request regardless of fan-out width.
+    it('looks up the registry version only once across a fan-out of targets', async () => {
+        const registry = await givenRegistry({ body: { version: '1.3.0' } });
+        const extensionFile = givenExtensionFile(200);
+
+        const results = await publish({
+            extensionFile,
+            pat: 'the.pat',
+            registryUrl: registry.url,
+            targets: ['linux-x64', 'darwin-arm64', 'win32-x64']
+        });
+
+        expect(results.every(result => result.status === 'fulfilled')).toBe(true);
+        expect(registry.publishRequests).toHaveLength(3);
+        expect(registry.versionRequests).toBe(1);
     });
 
     // The trusted publishing token is short-lived and shared by every target platform of a release, so
