@@ -418,7 +418,7 @@ public class VSCodeAPI {
     )
     @ApiResponse(
         responseCode = "400",
-        description = "The namespace name is the built-in extension namespace",
+        description = "The namespace name is the built-in extension namespace, or the target parameter is not a supported target platform",
         content = @Content()
     )
     @ApiResponse(
