@@ -2518,12 +2518,17 @@ class AdminAPITest {
                     "publishers": []
                 }
                 """;
+        // /admin/api/** is CSRF-exempt (see SecurityConfig), so a request with no CSRF token still
+        // succeeds. Proving that needs a token that actually authenticates - an unauthenticated
+        // request would 403 before CSRF is ever evaluated, indistinguishable from
+        // testRevokeBulkPublishersMissingToken.
+        var token = mockAdminToken();
         mockMvc.perform(
                 post("/admin/api/publisher/bulk-revoke")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue())
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden())
-                .andExpect(content().json(errorJson("Administration role is required.")));
+                .andExpect(status().isOk());
     }
 
     @Test
