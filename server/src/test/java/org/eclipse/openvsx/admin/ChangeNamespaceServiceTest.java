@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.admin;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -34,6 +35,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -109,9 +111,21 @@ class ChangeNamespaceServiceTest {
         // the feed already told consumers this version is available
         when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(true);
 
+        // recordExtensionVersionChange takes no namespace argument -- the real implementation reads
+        // extVersion.getExtension().getNamespace() at call time, so the mock has to capture that same
+        // live, mutable reference at each invocation to prove the departure is actually recorded while
+        // the namespace is still "old" and the arrival only once it has become "new", rather than just
+        // that the two calls happen in that relative order regardless of when the swap happens.
+        var namespacesAtCallTime = new ArrayList<String>();
+        doAnswer(invocation -> {
+            namespacesAtCallTime.add(extVersion.getExtension().getNamespace().getName());
+            return null;
+        }).when(repositories).recordExtensionVersionChange(eq(extVersion), any(), any());
+
         service.changeNamespaceInDatabase(newNamespace, oldNamespace, List.of(), true, false);
 
         assertThat(extension.getNamespace()).isEqualTo(newNamespace);
+        assertThat(namespacesAtCallTime).containsExactly("old", "new");
         // the old tuple is withdrawn before the new one is announced, matching the order the move
         // actually happens in
         var order = inOrder(repositories);
