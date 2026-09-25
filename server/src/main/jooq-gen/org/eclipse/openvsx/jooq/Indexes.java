@@ -99,6 +99,7 @@ public class Indexes {
     public static final Index SPRING_SESSION_IX3 = Internal.createIndex(DSL.name("spring_session_ix3"), SpringSession.SPRING_SESSION, new OrderField[] { SpringSession.SPRING_SESSION.PRINCIPAL_NAME }, false);
     public static final Index TIER_TIER_TYPE = Internal.createIndex(DSL.name("tier_tier_type"), Tier.TIER, new OrderField[] { Tier.TIER.TIER_TYPE }, false);
     public static final Index TRUSTED_PUBLISHER_EXTENSION_IDX = Internal.createIndex(DSL.name("trusted_publisher_extension_idx"), TrustedPublisher.TRUSTED_PUBLISHER, new OrderField[] { TrustedPublisher.TRUSTED_PUBLISHER.EXTENSION_ID }, true);
+    public static final Index UNIQUE_ACTIVE_REVIEW = Internal.createIndex(DSL.name("unique_active_review"), ExtensionReview.EXTENSION_REVIEW, new OrderField[] { ExtensionReview.EXTENSION_REVIEW.EXTENSION_ID, ExtensionReview.EXTENSION_REVIEW.USER_ID }, true);
     public static final Index UNIQUE_ACTIVE_SIGNATURE_KEY_PAIR_IDX = Internal.createIndex(DSL.name("unique_active_signature_key_pair_idx"), SignatureKeyPair.SIGNATURE_KEY_PAIR, new OrderField[] { SignatureKeyPair.SIGNATURE_KEY_PAIR.ACTIVE }, true);
     public static final Index UNIQUE_ADMIN_STATISTICS = Internal.createIndex(DSL.name("unique_admin_statistics"), AdminStatistics.ADMIN_STATISTICS, new OrderField[] { AdminStatistics.ADMIN_STATISTICS.YEAR, AdminStatistics.ADMIN_STATISTICS.MONTH }, true);
 }
