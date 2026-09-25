@@ -820,11 +820,38 @@ class VSCodeAPITest {
                 .andDo(result -> Files.delete(path));
     }
 
-    // A published version's own build metadata can itself name a platform, e.g. `0.16.6+web`. That
-    // exact version has to resolve before the suffix is ever read as a target, or a universal build
-    // published under such a version could never be reached.
+    // A resolved universal target has to survive into the listed URLs too when the version's own
+    // suffix could otherwise be misread as a target on the next request - the listed URLs are
+    // followed as-is, with no separate target parameter.
     @Test
-    void testBrowseResolvesTheExactVersionBeforeReadingATargetSuffix() throws Exception {
+    void testBrowseTopDirKeepsAnExplicitUniversalTargetWhenTheVersionSuffixLooksLikeOne() throws Exception {
+        var namespaceName = "EditorConfig";
+        var extensionName = "EditorConfig";
+        var version = "0.16.6+web";
+        var path = mockTargetedExtensionBrowse(namespaceName, extensionName, "universal", version);
+        mockMvc.perform(
+                get("/vscode/unpkg/{namespaceName}/{extensionName}/{version}", namespaceName, extensionName, version)
+                        .param("target", "universal"))
+                .andExpect(request().asyncStarted())
+                .andDo(MvcResult::getAsyncResult)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(
+                        content().json(
+                                "["
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web+universal/extension.vsixmanifest\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web+universal/extension/\","
+                                        + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web+universal/[Content_Types].xml\""
+                                        + "]"))
+                .andDo(result -> Files.delete(path));
+    }
+
+    // A published version's own build metadata can itself name a platform, e.g. `0.16.6+web`. The
+    // split reading is tried first and misses (there is no `0.16.6` targeting `web`), so this must
+    // fall back to the version exactly as given, or a universal build published under such a version
+    // could never be reached.
+    @Test
+    void testBrowseFallsBackToTheExactVersionWhenTheSplitReadingMisses() throws Exception {
         var namespaceName = "EditorConfig";
         var extensionName = "EditorConfig";
         var version = "0.16.6+web";

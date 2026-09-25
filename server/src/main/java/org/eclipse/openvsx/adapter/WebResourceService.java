@@ -149,10 +149,13 @@ public class WebResourceService {
             }
 
             // The listed URLs are followed as-is, so the target has to survive the round trip or
-            // walking into a subdirectory silently drops back to whichever version matches first.
-            var versionSegment = TargetPlatform.isValid(targetPlatform) && !TargetPlatform.isUniversal(targetPlatform)
-                    ? version + "+" + targetPlatform
-                    : version;
+            // walking into a subdirectory silently drops back to whichever version matches first. A
+            // resolved universal target has to be spelled out too when the version's own suffix would
+            // otherwise be misread as one, e.g. a universal build published as `1.2.3+web`.
+            var versionSuffixLooksLikeATarget = TargetPlatform.targetInVersionSuffix(version) != null;
+            var needsTargetSuffix = TargetPlatform.isValid(targetPlatform)
+                    && (!TargetPlatform.isUniversal(targetPlatform) || versionSuffixLooksLikeATarget);
+            var versionSegment = needsTargetSuffix ? version + "+" + targetPlatform : version;
             var baseUrl = UrlUtil.createApiUrl("", "vscode", "unpkg", namespace, extension, versionSegment);
             var node = jsonMapper.createArrayNode();
             for (var entry : dirEntries) {

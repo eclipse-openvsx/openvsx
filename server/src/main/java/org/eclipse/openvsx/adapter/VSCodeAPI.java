@@ -450,13 +450,10 @@ public class VSCodeAPI {
         if (targetPlatform == null) {
             // VS Code appends the target to the version when it resolves an extension's resources, so
             // that a `web` build and a `universal` build of one version can be told apart.
-            var separator = version.lastIndexOf('+');
-            if (separator >= 0 && separator + 1 < version.length()) {
-                var candidate = version.substring(separator + 1);
-                if (TargetPlatform.isValid(candidate)) {
-                    targetPlatform = candidate;
-                    lookupVersion = version.substring(0, separator);
-                }
+            var embeddedTarget = TargetPlatform.targetInVersionSuffix(version);
+            if (embeddedTarget != null) {
+                targetPlatform = embeddedTarget;
+                lookupVersion = version.substring(0, version.length() - embeddedTarget.length() - 1);
             }
         }
 
