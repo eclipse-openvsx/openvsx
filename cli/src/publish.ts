@@ -24,8 +24,11 @@ export async function publish(options: PublishOptions = {}): Promise<PromiseSett
     addEnvOptions(options);
     addTrustedPublishingEnvOptions(options);
 
-    // Looked up once and shared by every target/package below, rather than once per artifact.
-    const maxExtensionSize = await getMaxExtensionSize(new Registry(options));
+    // Shared by every target/package below, rather than one per artifact: besides saving the extra
+    // `/api/version` round trips, it's also where the registry's reported version is cached (see
+    // Registry.tokenQuery), so a wide fan-out doesn't repeat that lookup once per target either.
+    const registry = new Registry(options);
+    const maxExtensionSize = await getMaxExtensionSize(registry);
 
     const internalPublishOptions: InternalPublishOptions[] = [];
     const packagePaths = options.packagePath || [undefined];
@@ -36,7 +39,7 @@ export async function publish(options: PublishOptions = {}): Promise<PromiseSett
         }
     }
 
-    return Promise.allSettled(internalPublishOptions.map(publishOptions => doPublish(publishOptions)));
+    return Promise.allSettled(internalPublishOptions.map(publishOptions => doPublish(registry, publishOptions)));
 }
 
 /**
@@ -54,14 +57,13 @@ async function getMaxExtensionSize(registry: Registry): Promise<number | undefin
     }
 }
 
-async function doPublish(options: InternalPublishOptions = {}): Promise<void> {
+async function doPublish(registry: Registry, options: InternalPublishOptions = {}): Promise<void> {
     // if the packagePath is a link to a vsix, don't need to package it
     if (options.packagePath?.endsWith('.vsix')) {
         options.extensionFile = options.packagePath;
         delete options.packagePath;
         delete options.target;
     }
-    const registry = new Registry(options);
     if (!options.extensionFile) {
         await packageExtension(options, registry);
         console.log(); // new line

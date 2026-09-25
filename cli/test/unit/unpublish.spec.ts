@@ -23,6 +23,7 @@ interface DeleteRequest {
     method?: string;
     pathname: string;
     query: URLSearchParams;
+    headers: http.IncomingHttpHeaders;
     body: unknown;
 }
 
@@ -55,6 +56,7 @@ async function startRegistryStub(
                 method: req.method,
                 pathname: url.pathname,
                 query: url.searchParams,
+                headers: req.headers,
                 body: raw.length > 0 ? JSON.parse(raw) : undefined
             };
             if (url.pathname === '/api/version') {
@@ -141,6 +143,7 @@ describe('unpublish', () => {
         const [request] = registry.requests;
         expect(request.method).toBe('POST');
         expect(request.pathname).toBe('/api/foo/bar/delete');
+        expect(request.headers.authorization).toBe('Bearer the.pat');
         expect(request.query.get('token')).toBe('the.pat');
         expect(request.query.get('allVersions')).toBe('true');
         expect(request.body).toBeUndefined();
@@ -160,6 +163,7 @@ describe('unpublish', () => {
 
         expect(registry.requests).toHaveLength(1);
         const [request] = registry.requests;
+        expect(request.headers.authorization).toBe('Bearer the.pat');
         expect(request.query.get('token')).toBe('the.pat');
         expect(request.query.has('allVersions')).toBe(false);
         expect(request.body).toEqual([{ version: '1.0.0' }, { version: '1.0.1' }]);
@@ -226,6 +230,9 @@ describe('unpublish', () => {
             await unpublish({ extensionId: 'foo.bar', pat: 'the.pat', force: true, registryUrl: registry.url });
 
             expect(registry.requests).toHaveLength(1);
+            // deleteExtension's own token-header version check (Registry.tokenQuery) shares this
+            // command's Registry instance with the check above, rather than fetching it again.
+            expect(registry.versionRequests).toHaveLength(1);
         });
 
         it('proceeds when the registry does not expose `/api/version`', async () => {
