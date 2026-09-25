@@ -3358,7 +3358,8 @@ class RegistryAPITest {
         token.setValue("my_token");
         token.setActive(true);
         token.setType(PersonalAccessTokenType.LLT);
-        Mockito.when(repositories.findPersonalAccessToken("my_token"))
+        // token.version defaults to 0 (never set below), so this is the v0 fallback lookup
+        Mockito.when(repositories.findPersonalAccessToken("my_token", 0))
                 .thenReturn(token);
         return token;
     }

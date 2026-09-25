@@ -485,6 +485,28 @@ class AccessTokenServiceTest {
 
         verify(repositories).findPersonalAccessToken(hashed("tok", "pepper"));
         verify(repositories).findPersonalAccessToken(hashed("tok", "old-pepper"));
-        verify(repositories).findPersonalAccessToken("tok");
+        verify(repositories).findPersonalAccessToken("tok", 0);
+    }
+
+    // GHSA-7gx8-xhrx-g8h5: the v0-upgrade fallback used to look the raw presented string up with
+    // findPersonalAccessToken(String), the very same version-agnostic query used for hashed lookups -
+    // so presenting a v1 token's own stored hash (e.g. from a leaked DB dump/backup) matched that row
+    // directly and authenticated as its owner, defeating the pepper entirely. Scoping the fallback to
+    // version 0 (findPersonalAccessToken(String, int)) closes that: a v1 row can never satisfy it.
+    @Test
+    void rejectsAPresentedValueThatIsActuallyAV1TokensStoredHash() {
+        var user = new UserData();
+        var token = activeUnrestrictedToken();
+        token.setUser(user);
+        var leakedHash = hashed("real-token-value", "pepper");
+        token.setValue(leakedHash);
+        // simulates the real column: an exact, version-agnostic match on the leaked hash succeeds
+        lenient().when(repositories.findPersonalAccessToken(leakedHash)).thenReturn(token);
+
+        var tau = accessTokenService.useAccessToken(leakedHash, new AccessTokenAction.Verify());
+
+        assertThat(tau).isNull();
+        verify(repositories).findPersonalAccessToken(leakedHash, 0);
+        verify(repositories, never()).findPersonalAccessToken(leakedHash);
     }
 }
