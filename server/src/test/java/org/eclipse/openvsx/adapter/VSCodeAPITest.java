@@ -788,6 +788,13 @@ class VSCodeAPITest {
                                         + "\"http://localhost/vscode/unpkg/EditorConfig/EditorConfig/0.16.6+web/[Content_Types].xml\""
                                         + "]"))
                 .andDo(result -> Files.delete(path));
+
+        // the split reading must be tried first, or every such request - the form VS Code normally
+        // uses for a targeted extension - pays for a doomed lookup by the untargeted version first
+        Mockito.verify(repositories, Mockito.times(1))
+                .findFileByType(namespaceName, extensionName, "web", version, DOWNLOAD);
+        Mockito.verify(repositories, Mockito.never())
+                .findFileByType(namespaceName, extensionName, null, version + "+web", DOWNLOAD);
     }
 
     @Test

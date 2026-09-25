@@ -446,27 +446,28 @@ public class VSCodeAPI {
             ) String target
     ) {
         var targetPlatform = StringUtils.isNotEmpty(target) ? target : null;
+        var lookupVersion = version;
+        if (targetPlatform == null) {
+            // VS Code appends the target to the version when it resolves an extension's resources, so
+            // that a `web` build and a `universal` build of one version can be told apart.
+            var separator = version.lastIndexOf('+');
+            if (separator >= 0 && separator + 1 < version.length()) {
+                var candidate = version.substring(separator + 1);
+                if (TargetPlatform.isValid(candidate)) {
+                    targetPlatform = candidate;
+                    lookupVersion = version.substring(0, separator);
+                }
+            }
+        }
+
         var path = UrlUtil.extractWildcardPath(request);
         try {
-            var response = browseAcrossServices(namespaceName, extensionName, version, targetPlatform, path);
-            if (response == null && targetPlatform == null) {
-                // VS Code appends the target to the version when it resolves an extension's resources,
-                // so that a `web` build and a `universal` build of one version can be told apart. Only
-                // fall back to that reading once the version as published is not found: a version may
-                // legitimately carry semver build metadata that happens to name a platform, e.g.
-                // `1.2.3+web`, and that has to resolve as itself first.
-                var separator = version.lastIndexOf('+');
-                if (separator >= 0 && separator + 1 < version.length()) {
-                    var candidate = version.substring(separator + 1);
-                    if (TargetPlatform.isValid(candidate)) {
-                        response = browseAcrossServices(
-                                namespaceName,
-                                extensionName,
-                                version.substring(0, separator),
-                                candidate,
-                                path);
-                    }
-                }
+            var response = browseAcrossServices(namespaceName, extensionName, lookupVersion, targetPlatform, path);
+            if (response == null && !lookupVersion.equals(version)) {
+                // The suffix can also be semver build metadata that happens to name a platform, e.g. a
+                // universal build published as `1.2.3+web`: only once the split reading comes up empty,
+                // fall back to the version exactly as given.
+                response = browseAcrossServices(namespaceName, extensionName, version, null, path);
             }
 
             return response != null ? response : ResponseEntity.notFound().build();
