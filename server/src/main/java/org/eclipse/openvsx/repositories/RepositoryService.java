@@ -747,20 +747,30 @@ public class RepositoryService {
     }
 
     /**
-     * Whether the changes feed last reported this version as being available, and so has a transition to
-     * withdraw once the version goes away (deleted, purged, or moved to another namespace).
+     * Whether the changes feed last reported this version as being available under the namespace it
+     * currently lives in, and so has a transition to withdraw once the version goes away (deleted,
+     * purged, or moved to yet another namespace).
      * <p>
-     * False for a version the feed never reported -- one whose publication never made it public, for
-     * instance because a scan quarantined it, or one that predates the feed and was already hidden when
-     * it was seeded. Reporting its removal would withdraw a publication that consumers were never told
-     * about, which is the one thing the append-only log is not allowed to say.
+     * Scoped to the version's current namespace rather than its single most recent entry overall: a
+     * version that has been renamed can carry entries under more than one namespace, and a namespace
+     * rename backfill (or a later rename) can append a newer entry for an <em>abandoned</em> namespace
+     * after this one - looking at the latest entry regardless of namespace would then see that other
+     * namespace's entry and answer for the wrong tuple entirely.
      * <p>
-     * False as well once the feed has reported the version as gone: a version is deleted before it can be
-     * purged, and the purge only drops the tombstone the deletion kept, which is invisible from the
-     * outside, so a second entry would report a transition that never happened.
+     * False for a version the feed never reported under this namespace -- one whose publication never
+     * made it public, for instance because a scan quarantined it, one that predates the feed and was
+     * already hidden when it was seeded, or one that only just moved here and has no entry of its own
+     * yet. Reporting its removal would withdraw a publication that consumers were never told about,
+     * which is the one thing the append-only log is not allowed to say.
+     * <p>
+     * False as well once the feed has reported this namespace's tuple as gone: a version is deleted
+     * before it can be purged, and the purge only drops the tombstone the deletion kept, which is
+     * invisible from the outside, so a second entry would report a transition that never happened.
      */
     public boolean wasReportedAsAvailable(ExtensionVersion extVersion) {
-        return findLatestExtensionVersionChange(extVersion)
+        var namespace = extVersion.getExtension().getNamespace().getName();
+        return extensionVersionChangeRepo
+                .findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc(extVersion, namespace)
                 .map(latest -> latest.getState() != ExtensionVersionState.REMOVED)
                 .orElse(false);
     }

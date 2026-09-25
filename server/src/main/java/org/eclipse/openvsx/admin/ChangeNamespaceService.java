@@ -63,6 +63,13 @@ public class ChangeNamespaceService {
 
         // Read while the extensions still point at the old namespace, so each version's move is reported
         // as a withdrawal of its old (namespace, extension, version) tuple, not just a silent disappearance.
+        //
+        // Known limitation: nothing here locks the extensions being renamed against a concurrent writer
+        // (a scan completing, an admin action, a reactivation) recording a transition for one of their
+        // versions between this read and changeExtensionNamespace below - none of those paths lock the
+        // extension either today, so closing this fully means auditing every transition writer, not just
+        // this one. Pre-existing gap (a rename already moved extensions without any locking before this
+        // fix), made visible here rather than introduced by it; left as a follow-up.
         var now = TimeUtil.getCurrentUTC();
         recordNamespaceDeparture(extensions, now);
 
