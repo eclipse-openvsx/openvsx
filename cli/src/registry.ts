@@ -10,6 +10,7 @@
 
 import * as http from 'http';
 import * as fs from 'fs';
+import * as semver from 'semver';
 import { pipeline, Writable } from 'stream';
 import * as followRedirects from 'follow-redirects';
 import { RegistryOptions } from './registry-options';
@@ -26,6 +27,13 @@ export const DEFAULT_DELETE_SIZE = 64 * 1024;
 // tokenHeaders/getRequestOptions).
 const TOKEN_HEADER = 'X-OpenVSX-Token';
 
+/**
+ * Oldest registry version that resolves the personal access token from a header (see #1344).
+ * Registries older than this only look at the `token` query parameter, so `tokenQuery` keeps
+ * sending it to anything below this version.
+ */
+export const MIN_TOKEN_HEADER_REGISTRY_VERSION = '1.3.0';
+
 export class Registry {
 
     readonly url: string;
@@ -34,6 +42,7 @@ export class Registry {
     readonly timeout: number;
     readonly username?: string;
     readonly password?: string;
+    private tokenHeaderSupport?: Promise<boolean>;
 
     constructor(options: RegistryOptions = {}) {
         if (options.registryUrl?.endsWith('/'))
@@ -55,13 +64,11 @@ export class Registry {
         return url.hostname === 'open-vsx.org' || url.hostname.endsWith('.open-vsx.org');
     }
 
-    createNamespace(name: string, pat: string): Promise<Response> {
+    async createNamespace(name: string, pat: string): Promise<Response> {
         try {
-            // The query parameter is kept alongside the header for registries that predate header
-            // support; it is dropped once that's no longer a concern (see #1344).
-            const url = this.getUrl(['api', '-', 'namespace', 'create'], { token: pat });
+            const url = this.getUrl(['api', '-', 'namespace', 'create'], await this.tokenQuery(pat));
             const namespace = { name };
-            return this.post(JSON.stringify(namespace), url, {
+            return await this.post(JSON.stringify(namespace), url, {
                 'Content-Type': 'application/json',
                 ...this.tokenHeaders(pat)
             }, this.maxNamespaceSize);
@@ -70,10 +77,10 @@ export class Registry {
         }
     }
 
-    verifyPat(namespace: string, pat: string): Promise<Response> {
+    async verifyPat(namespace: string, pat: string): Promise<Response> {
         try {
-            const url = this.getUrl(['api', namespace, 'verify-pat'], { token: pat });
-            return this.getJson(url, this.tokenHeaders(pat));
+            const url = this.getUrl(['api', namespace, 'verify-pat'], await this.tokenQuery(pat));
+            return await this.getJson(url, this.tokenHeaders(pat));
         } catch (err) {
             return rejectError(err);
         }
@@ -87,10 +94,10 @@ export class Registry {
         }
     }
 
-    publish(file: string, pat: string): Promise<Extension> {
+    async publish(file: string, pat: string): Promise<Extension> {
         try {
-            const url = this.getUrl(['api', '-', 'publish'], { token: pat });
-            return this.postFile(file, url, {
+            const url = this.getUrl(['api', '-', 'publish'], await this.tokenQuery(pat));
+            return await this.postFile(file, url, {
                 'Content-Type': 'application/octet-stream',
                 ...this.tokenHeaders(pat)
             }, this.maxPublishSize);
@@ -115,7 +122,7 @@ export class Registry {
      * Deletes extension versions. Omitting `targetVersions` deletes the extension as a whole,
      * i.e. all versions the personal access token's user is allowed to delete.
      */
-    deleteExtension(
+    async deleteExtension(
         namespace: string,
         extension: string,
         targetVersions: TargetPlatformVersion[] | undefined,
@@ -123,12 +130,13 @@ export class Registry {
     ): Promise<Response> {
         try {
             if (!targetVersions) {
-                const url = this.getUrl(['api', namespace, extension, 'delete'], { token: pat, allVersions: 'true' });
-                return this.post('', url, this.tokenHeaders(pat), DEFAULT_DELETE_SIZE);
+                const query = { ...await this.tokenQuery(pat), allVersions: 'true' };
+                const url = this.getUrl(['api', namespace, extension, 'delete'], query);
+                return await this.post('', url, this.tokenHeaders(pat), DEFAULT_DELETE_SIZE);
             }
 
-            const url = this.getUrl(['api', namespace, extension, 'delete'], { token: pat });
-            return this.post(JSON.stringify(targetVersions), url, {
+            const url = this.getUrl(['api', namespace, extension, 'delete'], await this.tokenQuery(pat));
+            return await this.post(JSON.stringify(targetVersions), url, {
                 'Content-Type': 'application/json',
                 ...this.tokenHeaders(pat)
             }, DEFAULT_DELETE_SIZE);
@@ -330,6 +338,25 @@ export class Registry {
         return (this.username && this.password)
             ? { [TOKEN_HEADER]: pat }
             : { Authorization: `Bearer ${pat}` };
+    }
+
+    /**
+     * The `token` query parameter to add alongside the header, for registries that predate header
+     * support (see #1344) - empty once the registry is known to be new enough to not need it.
+     *
+     * Best-effort and cached per `Registry` instance: a registry that doesn't expose `/api/version`,
+     * or reports a version that doesn't parse as semver, is assumed too old to know about the header,
+     * same as before this method existed - the query parameter is kept rather than risking a request
+     * that only carries a header such a registry never looks at.
+     */
+    private tokenQuery(pat: string): Promise<Record<string, string>> {
+        return (this.tokenHeaderSupport ??= this.getRegistryVersion()
+            .then(({ version }) => {
+                const parsed = semver.coerce(version);
+                return !!parsed && semver.gte(parsed, MIN_TOKEN_HEADER_REGISTRY_VERSION);
+            })
+            .catch(() => false)
+        ).then(supported => supported ? {} : { token: pat } as Record<string, string>);
     }
 
     private getUrl(segments: string[], query?: Record<string, string>): URL {
