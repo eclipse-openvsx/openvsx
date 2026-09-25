@@ -42,6 +42,7 @@ export class Registry {
     readonly timeout: number;
     readonly username?: string;
     readonly password?: string;
+    private registryVersion?: Promise<RegistryVersion>;
     private tokenHeaderSupport?: Promise<boolean>;
 
     constructor(options: RegistryOptions = {}) {
@@ -86,9 +87,13 @@ export class Registry {
         }
     }
 
+    /**
+     * Cached per `Registry` instance - callers like `tokenQuery` and `unpublish`'s own version check
+     * would otherwise each fetch it separately, doubling the round trip for a single command.
+     */
     getRegistryVersion(): Promise<RegistryVersion> {
         try {
-            return this.getJson(this.getUrl(['api', 'version']));
+            return this.registryVersion ??= this.getJson(this.getUrl(['api', 'version']));
         } catch (err) {
             return rejectError(err);
         }

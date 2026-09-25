@@ -230,6 +230,9 @@ describe('unpublish', () => {
             await unpublish({ extensionId: 'foo.bar', pat: 'the.pat', force: true, registryUrl: registry.url });
 
             expect(registry.requests).toHaveLength(1);
+            // deleteExtension's own token-header version check (Registry.tokenQuery) shares this
+            // command's Registry instance with the check above, rather than fetching it again.
+            expect(registry.versionRequests).toHaveLength(1);
         });
 
         it('proceeds when the registry does not expose `/api/version`', async () => {
