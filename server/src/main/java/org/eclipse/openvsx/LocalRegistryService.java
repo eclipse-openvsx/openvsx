@@ -11,6 +11,7 @@ package org.eclipse.openvsx;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -20,14 +21,18 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.resilience.annotation.Retryable;
+import org.springframework.resilience.retry.MethodRetryPredicate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -903,6 +908,17 @@ public class LocalRegistryService implements IExtensionRegistry {
         }
     }
 
+    // hasActiveReview() below and the insert are a check-then-act pair with no serialization point
+    // between them, so two concurrent requests from the same user can both pass the check under READ
+    // COMMITTED. The unique_active_review index (V1_76 migration) closes that at the database level;
+    // a losing request retries once, so it re-reads the now-committed sibling row and correctly reports
+    // "already reviewed" instead of failing outright.
+    @Retryable(
+        includes = DataIntegrityViolationException.class,
+        predicate = DuplicateReviewPredicate.class,
+        maxRetries = 1,
+        delay = 100
+    )
     @Transactional(rollbackOn = ResponseStatusException.class)
     public ResultJson postReview(ReviewJson review, String namespace, String extensionName) {
         var user = users.findLoggedInUser();
@@ -1444,5 +1460,30 @@ public class LocalRegistryService implements IExtensionRegistry {
     static LocalDateTime visibleUntil(LocalDateTime until, LocalDateTime now, Duration lag) {
         var cutoff = now.minus(lag);
         return until == null || until.isAfter(cutoff) ? cutoff : until;
+    }
+
+    public static class DuplicateReviewPredicate implements MethodRetryPredicate {
+
+        // Unique index on extension_review(extension_id, user_id) WHERE active, see the V1_76 migration.
+        private static final String UNIQUE_ACTIVE_REVIEW = "unique_active_review";
+
+        private static final Logger logger = LoggerFactory.getLogger(DuplicateReviewPredicate.class);
+
+        @Override
+        public boolean shouldRetry(Method method, Throwable exception) {
+            for (var cause = exception; cause != null; cause = cause.getCause()) {
+                var isDuplicateReview = cause instanceof ConstraintViolationException violation
+                        && UNIQUE_ACTIVE_REVIEW.equals(violation.getConstraintName());
+                // The constraint name is not always available, so fall back to the reported message.
+                isDuplicateReview |= cause.getMessage() != null
+                        && cause.getMessage().contains('"' + UNIQUE_ACTIVE_REVIEW + '"');
+
+                if (isDuplicateReview) {
+                    logger.warn("Review was created concurrently, retrying to report the duplicate", exception);
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

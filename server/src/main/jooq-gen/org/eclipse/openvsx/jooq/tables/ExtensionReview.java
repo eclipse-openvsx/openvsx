@@ -130,7 +130,7 @@ public class ExtensionReview extends TableImpl<ExtensionReviewRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.EXTENSION_REVIEW__EXTENSION_ID__IDX, Indexes.EXTENSION_REVIEW__USER_ID__IDX);
+        return Arrays.asList(Indexes.EXTENSION_REVIEW__EXTENSION_ID__IDX, Indexes.EXTENSION_REVIEW__USER_ID__IDX, Indexes.UNIQUE_ACTIVE_REVIEW);
     }
 
     @Override
