@@ -570,6 +570,10 @@ public class RepositoryService {
         return personalAccessTokenRepo.findByValue(value);
     }
 
+    public PersonalAccessToken findPersonalAccessToken(String value, int version) {
+        return personalAccessTokenRepo.findByValueAndVersion(value, version);
+    }
+
     public PersonalAccessToken findPersonalAccessToken(long id) {
         return personalAccessTokenRepo.findById(id);
     }
