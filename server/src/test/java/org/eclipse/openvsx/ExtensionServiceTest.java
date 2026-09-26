@@ -17,7 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -158,8 +157,7 @@ class ExtensionServiceTest {
         ext.getVersions().add(extVersion);
         Mockito.when(repositories.findFiles(extVersion)).thenReturn(Streamable.empty());
         // the feed announced this version as available at some point
-        Mockito.when(repositories.findLatestExtensionVersionChange(extVersion))
-                .thenReturn(Optional.of(change(extVersion, ExtensionVersionState.ACTIVE)));
+        Mockito.when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(true);
 
         svc.deleteExtensionVersion(mockUser(), extVersion);
 
@@ -180,7 +178,7 @@ class ExtensionServiceTest {
         ext.getVersions().add(extVersion);
         Mockito.when(repositories.findFiles(extVersion)).thenReturn(Streamable.empty());
         // no entry was ever written for it
-        Mockito.when(repositories.findLatestExtensionVersionChange(extVersion)).thenReturn(Optional.empty());
+        Mockito.when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(false);
 
         svc.deleteExtensionVersion(mockUser(), extVersion);
 
@@ -196,8 +194,7 @@ class ExtensionServiceTest {
         var extVersion = plainExtensionVersion(mockExtension(), "1.1.0");
         Mockito.when(repositories.findFiles(extVersion)).thenReturn(Streamable.empty());
         // the feed announced this version as available at some point
-        Mockito.when(repositories.findLatestExtensionVersionChange(extVersion))
-                .thenReturn(Optional.of(change(extVersion, ExtensionVersionState.ACTIVE)));
+        Mockito.when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(true);
 
         svc.removeExtensionVersion(extVersion);
 
@@ -216,8 +213,8 @@ class ExtensionServiceTest {
     void shouldNotReportAPurgeOfAVersionThatWasAlreadyRemoved() {
         var extVersion = plainExtensionVersion(mockExtension(), "1.1.0");
         Mockito.when(repositories.findFiles(extVersion)).thenReturn(Streamable.empty());
-        Mockito.when(repositories.findLatestExtensionVersionChange(extVersion))
-                .thenReturn(Optional.of(change(extVersion, ExtensionVersionState.REMOVED)));
+        // the feed already reported this version as removed
+        Mockito.when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(false);
 
         svc.removeExtensionVersion(extVersion);
 
@@ -232,7 +229,7 @@ class ExtensionServiceTest {
         var extVersion = plainExtensionVersion(mockExtension(), "1.1.0");
         Mockito.when(repositories.findFiles(extVersion)).thenReturn(Streamable.empty());
         // no entry was ever written for it, e.g. its publication failed before it was activated
-        Mockito.when(repositories.findLatestExtensionVersionChange(extVersion)).thenReturn(Optional.empty());
+        Mockito.when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(false);
 
         svc.removeExtensionVersion(extVersion);
 
@@ -246,8 +243,7 @@ class ExtensionServiceTest {
     void shouldDetachTheLogFromAPurgedVersionEvenWhenItReportsNothing() {
         var extVersion = plainExtensionVersion(mockExtension(), "1.1.0");
         Mockito.when(repositories.findFiles(extVersion)).thenReturn(Streamable.empty());
-        Mockito.when(repositories.findLatestExtensionVersionChange(extVersion))
-                .thenReturn(Optional.of(change(extVersion, ExtensionVersionState.REMOVED)));
+        Mockito.when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(false);
 
         svc.removeExtensionVersion(extVersion);
 
@@ -381,14 +377,6 @@ class ExtensionServiceTest {
         extVersion.setTimestamp(LocalDateTime.parse("2000-01-01T10:00"));
         extVersion.setExtension(extension);
         return extVersion;
-    }
-
-    private ExtensionVersionChange change(ExtensionVersion extVersion, ExtensionVersionState state) {
-        var change = new ExtensionVersionChange();
-        change.setExtensionVersion(extVersion);
-        change.setState(state);
-        change.setChangedAt(LocalDateTime.parse("2000-01-01T10:00"));
-        return change;
     }
 
     private Extension mockExtension() {
