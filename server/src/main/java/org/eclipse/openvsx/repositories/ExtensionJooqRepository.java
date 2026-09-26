@@ -12,7 +12,9 @@ package org.eclipse.openvsx.repositories;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import org.jooq.*;
 import org.jooq.Record;
@@ -440,5 +442,76 @@ public class ExtensionJooqRepository {
         query.addLimit(limit);
 
         return query.fetch().map(this::toExtension);
+    }
+
+    /**
+     * Finds an active extension whose latest version carries the given display name, skipping the
+     * namespaces in {@code excludeNamespaces}.
+     * <p>
+     * The display names are compared as a reader seeing the two extensions side by side would compare
+     * them, rather than byte for byte: casing and surrounding whitespace are normalised away, as
+     * neither is visible enough to tell two extensions apart. Everything beyond that -- transposed
+     * characters, homoglyphs, added punctuation -- is left to {@link
+     * #findSimilarExtensionsByLevenshtein}, which reports rather than rejects and is far too
+     * imprecise to decide a publication on.
+     * <p>
+     * Only the latest version of an extension is considered, because that is the name the registry
+     * shows for it. An extension that carried the name in an earlier version and has since renamed
+     * itself does not hold the name any longer, and does not stand in the way of another extension
+     * taking it.
+     *
+     * @return the conflicting extension, or {@code null} if no other extension shows that name
+     */
+    public Extension findActiveExtensionByDisplayName(String displayName, Collection<String> excludeNamespaces) {
+        if (displayName == null || displayName.isBlank()) {
+            return null;
+        }
+
+        // Both sides are normalised by the database rather than one of them in Java, so that the
+        // comparison cannot be thrown off by the two disagreeing on what lower casing means.
+        var normalizedDisplayName = DSL.lower(DSL.trim(DSL.val(displayName)));
+
+        // The row that matches the display name. Aliased because the correlated subquery below selects
+        // from the unaliased EXTENSION_VERSION and would otherwise be shadowed by this one.
+        var evMatch = EXTENSION_VERSION.as("ev_match");
+
+        // Correlated to the display name match rather than to EXTENSION, so that the subquery depends
+        // only on the rows the display name index already narrowed down to. Correlating it to
+        // EXTENSION.ID instead lets the planner hash join the two and evaluate the subquery once per
+        // row of a sequential scan over EXTENSION, which costs a full scan of that table plus one index
+        // probe per extension on every publication, and grows with the table rather than with the
+        // number of extensions actually carrying the name.
+        var latestQuery = extensionVersionRepo.findLatestQuery(null, false, true);
+        latestQuery.addSelect(EXTENSION_VERSION.ID);
+        latestQuery.addConditions(EXTENSION_VERSION.EXTENSION_ID.eq(evMatch.EXTENSION_ID));
+        var latestVersionId = latestQuery.asField().coerce(Long.class);
+
+        var query = findAllActive();
+        query.addJoin(evMatch, evMatch.EXTENSION_ID.eq(EXTENSION.ID));
+        query.addConditions(
+                evMatch.ACTIVE.eq(true),
+                DSL.lower(DSL.trim(evMatch.DISPLAY_NAME)).eq(normalizedDisplayName),
+                evMatch.ID.eq(latestVersionId));
+
+        if (excludeNamespaces != null && !excludeNamespaces.isEmpty()) {
+            // Upper cased to match the unique index on UPPER(name), and nulls dropped because a single
+            // null in a NOT IN list makes the whole predicate null, which would silently stop the check
+            // from ever reporting a conflict.
+            var excluded = excludeNamespaces.stream()
+                    .filter(Objects::nonNull)
+                    .map(name -> name.toUpperCase(Locale.ROOT))
+                    .toList();
+            if (!excluded.isEmpty()) {
+                query.addConditions(DSL.upper(NAMESPACE.NAME).notIn(excluded));
+            }
+        }
+
+        // Deliberately unordered. Any ORDER BY here lets the planner satisfy the ordering by walking
+        // that index and stopping at the first match, rather than driving off the display name index --
+        // which it costs as cheap because it has no idea how rare a match is, and which walks the whole
+        // EXTENSION table when there is none. Which of several conflicting extensions gets named in the
+        // rejection message is arbitrary, and not worth that.
+        query.addLimit(1);
+        return query.fetchOne(this::toExtension);
     }
 }

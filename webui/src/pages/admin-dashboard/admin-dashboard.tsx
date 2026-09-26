@@ -18,6 +18,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
+import GavelIcon from '@mui/icons-material/Gavel';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import StorageIcon from '@mui/icons-material/Storage';
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
@@ -39,6 +40,7 @@ import { AdminPage, isNavGroup, NavEntry, NavGroup, RouteEntry } from './nav-typ
 import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
+import { NameSquatting } from './name-squatting/name-squatting';
 import { Tiers } from './tiers/tiers';
 import { Customers } from './customers/customers';
 import { CustomerDetails } from './customers/customer-details';
@@ -80,6 +82,12 @@ const navConfig: NavEntry[] = [
         name: 'Scans',
         icon: <SecurityIcon />,
         description: 'View security scan results and manage quarantined extensions'
+    },
+    {
+        path: AdminDashboardRoutes.NAME_SQUATTING,
+        name: 'Name Squatting',
+        icon: <GavelIcon />,
+        description: 'Moderate extensions flagged by the name squatting publisher check'
     },
     {
         name: 'Rate Limiting',
@@ -269,6 +277,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/publisher' element={<PublisherAdmin />} />
                                     <Route path='/publisher/:publisher' element={<PublisherAdmin />} />
                                     <Route path='/scans' element={<ScanAdmin />} />
+                                    <Route path='/name-squatting' element={<NameSquatting />} />
                                     <Route path='/tiers' element={<Tiers />} />
                                     <Route path='/customers' element={<Customers />} />
                                     <Route path='/customers/:customer' element={<CustomerDetails />} />

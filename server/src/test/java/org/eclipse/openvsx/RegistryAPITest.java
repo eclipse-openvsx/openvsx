@@ -3947,7 +3947,8 @@ class RegistryAPITest {
                     users,
                     validator,
                     extensionControl,
-                    extensionScanService);
+                    extensionScanService,
+                    false);
         }
 
         @Bean

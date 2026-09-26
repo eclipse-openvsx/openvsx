@@ -44,6 +44,11 @@ import {
     FileDecisionResponse,
     FileDecisionDeleteRequest,
     FileDecisionDeleteResponse,
+    NameSquattingActionRequest,
+    NameSquattingActionResponse,
+    NameSquattingCounts,
+    NameSquattingFlagList,
+    NameSquattingState,
     Tier,
     TierList,
     Customer,
@@ -767,6 +772,33 @@ export interface AdminService {
     makeScanDecision(request: ScanDecisionRequest): Promise<Readonly<ScanDecisionResponse>>;
     makeFileDecision(request: FileDecisionRequest): Promise<Readonly<FileDecisionResponse>>;
     deleteFileDecisions(request: FileDecisionDeleteRequest): Promise<Readonly<FileDecisionDeleteResponse>>;
+    // Name squatting moderation API
+    getNameSquattingFlags(
+        abortController: AbortController,
+        params?: {
+            size?: number;
+            offset?: number;
+            publisher?: string;
+            namespace?: string;
+            name?: string;
+            state?: NameSquattingState[];
+            dateDetectedFrom?: string;
+            dateDetectedTo?: string;
+            sortOrder?: 'asc' | 'desc';
+        }
+    ): Promise<Readonly<NameSquattingFlagList>>;
+    getNameSquattingCounts(
+        abortController: AbortController,
+        params?: {
+            publisher?: string;
+            namespace?: string;
+            name?: string;
+            dateDetectedFrom?: string;
+            dateDetectedTo?: string;
+        }
+    ): Promise<Readonly<NameSquattingCounts>>;
+    clearNameSquattingFlags(request: NameSquattingActionRequest): Promise<Readonly<NameSquattingActionResponse>>;
+    deleteNameSquattingExtensions(request: NameSquattingActionRequest): Promise<Readonly<NameSquattingActionResponse>>;
     getTiers(abortController: AbortController): Promise<Readonly<TierList>>;
     createTier(tier: Tier): Promise<Readonly<Tier>>;
     updateTier(name: string, tier: Tier): Promise<Readonly<Tier>>;
@@ -1298,6 +1330,97 @@ export class AdminServiceImpl implements AdminService {
             headers,
             payload: request
         });
+    }
+
+    async getNameSquattingFlags(
+        abortController: AbortController,
+        params?: {
+            size?: number;
+            offset?: number;
+            publisher?: string;
+            namespace?: string;
+            name?: string;
+            state?: NameSquattingState[];
+            dateDetectedFrom?: string;
+            dateDetectedTo?: string;
+            sortOrder?: 'asc' | 'desc';
+        }
+    ): Promise<Readonly<NameSquattingFlagList>> {
+        const query: { key: string; value: string | number }[] = [];
+        if (params) {
+            if (params.size !== undefined) query.push({ key: 'size', value: params.size });
+            if (params.offset !== undefined) query.push({ key: 'offset', value: params.offset });
+            if (params.publisher) query.push({ key: 'publisher', value: params.publisher });
+            if (params.namespace) query.push({ key: 'namespace', value: params.namespace });
+            if (params.name) query.push({ key: 'name', value: params.name });
+            if (params.state && params.state.length > 0) query.push({ key: 'state', value: params.state.join(',') });
+            if (params.dateDetectedFrom) query.push({ key: 'dateDetectedFrom', value: params.dateDetectedFrom });
+            if (params.dateDetectedTo) query.push({ key: 'dateDetectedTo', value: params.dateDetectedTo });
+            if (params.sortOrder) query.push({ key: 'sortOrder', value: params.sortOrder });
+        }
+        return sendNonRetriableRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting'], query)
+        });
+    }
+
+    async getNameSquattingCounts(
+        abortController: AbortController,
+        params?: {
+            publisher?: string;
+            namespace?: string;
+            name?: string;
+            dateDetectedFrom?: string;
+            dateDetectedTo?: string;
+        }
+    ): Promise<Readonly<NameSquattingCounts>> {
+        const query: { key: string; value: string | number }[] = [];
+        if (params) {
+            if (params.publisher) query.push({ key: 'publisher', value: params.publisher });
+            if (params.namespace) query.push({ key: 'namespace', value: params.namespace });
+            if (params.name) query.push({ key: 'name', value: params.name });
+            if (params.dateDetectedFrom) query.push({ key: 'dateDetectedFrom', value: params.dateDetectedFrom });
+            if (params.dateDetectedTo) query.push({ key: 'dateDetectedTo', value: params.dateDetectedTo });
+        }
+        return sendNonRetriableRequest({
+            abortController,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'counts'], query)
+        });
+    }
+
+    async clearNameSquattingFlags(request: NameSquattingActionRequest): Promise<Readonly<NameSquattingActionResponse>> {
+        return sendNonRetriableRequest({
+            method: 'POST',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'clear']),
+            headers: await this.jsonMutationHeaders(),
+            payload: request
+        });
+    }
+
+    async deleteNameSquattingExtensions(
+        request: NameSquattingActionRequest
+    ): Promise<Readonly<NameSquattingActionResponse>> {
+        return sendNonRetriableRequest({
+            method: 'POST',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'delete']),
+            headers: await this.jsonMutationHeaders(),
+            payload: request
+        });
+    }
+
+    /** JSON headers for a mutating admin request, carrying the CSRF token when one is available. */
+    private async jsonMutationHeaders(): Promise<Record<string, string>> {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json;charset=UTF-8' };
+        const csrfResponse = await this.registry.getCsrfToken();
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        return headers;
     }
 
     async getTiers(abortController: AbortController): Promise<Readonly<TierList>> {

@@ -9,10 +9,14 @@
  ********************************************************************************/
 package org.eclipse.openvsx.admin;
 
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -24,6 +28,7 @@ import jakarta.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jobrunr.scheduling.cron.Cron;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
@@ -43,13 +48,23 @@ import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionReview;
+import org.eclipse.openvsx.entities.ExtensionValidationFailure;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
+import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ChangeNamespaceJson;
 import org.eclipse.openvsx.json.ExtensionJson;
+import org.eclipse.openvsx.json.NameSquattingActionRequest;
+import org.eclipse.openvsx.json.NameSquattingActionResponseJson;
+import org.eclipse.openvsx.json.NameSquattingActionResultJson;
+import org.eclipse.openvsx.json.NameSquattingCountsJson;
+import org.eclipse.openvsx.json.NameSquattingFindingJson;
+import org.eclipse.openvsx.json.NameSquattingFlagJson;
+import org.eclipse.openvsx.json.NameSquattingFlagListJson;
+import org.eclipse.openvsx.json.NameSquattingTargetJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
@@ -68,6 +83,10 @@ import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 import org.eclipse.openvsx.util.auth.AccessTokenAuthentication;
 
+import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_CHECK_TYPE;
+import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_STATE_DEACTIVATED;
+import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_STATE_PUBLISHED;
+import static org.eclipse.openvsx.admin.NameSquattingAPI.NAME_SQUATTING_STATE_REJECTED;
 import static org.eclipse.openvsx.entities.FileResource.CHANGELOG;
 import static org.eclipse.openvsx.entities.FileResource.DOWNLOAD;
 import static org.eclipse.openvsx.entities.FileResource.ICON;
@@ -760,5 +779,455 @@ public class AdminService {
         if (year > now.getYear() || (year == now.getYear() && month > now.getMonthValue())) {
             throw new ErrorResultException("Combination of year and month lies in the future", HttpStatus.BAD_REQUEST);
         }
+    }
+
+    /**
+     * Which extensions to include, by what became of them after the check ran. All false means no
+     * filtering; see {@code NameSquattingFlagJson.state} for what each state means.
+     */
+    public record ExtensionStateFilter(
+            boolean filterPublished,
+            boolean filterDeactivated,
+            boolean filterRejected
+    ) {
+        public boolean hasFilter() {
+            return filterPublished || filterDeactivated || filterRejected;
+        }
+    }
+
+    /**
+     * List the extensions flagged by the name squatting check, one entry per extension. Findings are
+     * grouped per extension because the moderation actions apply to the extension as a whole.
+     */
+    public NameSquattingFlagListJson getNameSquattingFlags(
+            @Nullable String publisher,
+            @Nullable String namespace,
+            @Nullable String name,
+            @Nullable List<String> state,
+            @Nullable String dateDetectedFrom,
+            @Nullable String dateDetectedTo,
+            int size,
+            int offset,
+            @Nullable String sortOrder
+    ) throws ErrorResultException {
+        var normalizedPublisher = normalizeSearch(publisher);
+        var normalizedNamespace = normalizeSearch(namespace);
+        var normalizedName = normalizeSearch(name);
+        var stateFilter = parseStateFilter(state);
+        var detectedFrom = parseUtcDateTime(dateDetectedFrom, "dateDetectedFrom");
+        var detectedTo = parseUtcDateTime(dateDetectedTo, "dateDetectedTo");
+        var ascending = parseSortOrder(sortOrder);
+
+        var totalSize = repositories.countFlaggedExtensions(
+                NAME_SQUATTING_CHECK_TYPE,
+                normalizedNamespace,
+                normalizedPublisher,
+                normalizedName,
+                detectedFrom,
+                detectedTo,
+                stateFilter);
+
+        var keys = size == 0
+                ? List.<String>of()
+                : repositories.findFlaggedExtensionKeys(
+                        NAME_SQUATTING_CHECK_TYPE,
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        stateFilter,
+                        ascending,
+                        size,
+                        offset);
+
+        var flags = new ArrayList<NameSquattingFlagJson>();
+        for (var key : keys) {
+            var flag = toNameSquattingFlagJson(key, detectedFrom, detectedTo);
+            if (flag != null) {
+                flags.add(flag);
+            }
+        }
+
+        var result = new NameSquattingFlagListJson();
+        result.setOffset(offset);
+        result.setTotalSize((int) totalSize);
+        result.setFlags(flags);
+        return result;
+    }
+
+    /**
+     * Count the extensions flagged by the name squatting check, broken down by what became of them.
+     */
+    public NameSquattingCountsJson getNameSquattingCounts(
+            @Nullable String publisher,
+            @Nullable String namespace,
+            @Nullable String name,
+            @Nullable String dateDetectedFrom,
+            @Nullable String dateDetectedTo
+    ) throws ErrorResultException {
+        var normalizedPublisher = normalizeSearch(publisher);
+        var normalizedNamespace = normalizeSearch(namespace);
+        var normalizedName = normalizeSearch(name);
+        var detectedFrom = parseUtcDateTime(dateDetectedFrom, "dateDetectedFrom");
+        var detectedTo = parseUtcDateTime(dateDetectedTo, "dateDetectedTo");
+
+        var counts = new NameSquattingCountsJson();
+        counts.setTotal(
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        null));
+        counts.setPublished(
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        new ExtensionStateFilter(true, false, false)));
+        counts.setDeactivated(
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        new ExtensionStateFilter(false, true, false)));
+        counts.setRejected(
+                countFlaggedExtensions(
+                        normalizedNamespace,
+                        normalizedPublisher,
+                        normalizedName,
+                        detectedFrom,
+                        detectedTo,
+                        new ExtensionStateFilter(false, false, true)));
+        return counts;
+    }
+
+    /**
+     * Clear the name squatting findings recorded for the requested extensions, for use when an
+     * administrator judges the match to be a false positive.
+     * <p>
+     * This removes the failure records, so the extension no longer shows up as flagged. The audit
+     * record of the check having run is kept in the scan check results, and the action itself is
+     * written to the admin log.
+     */
+    public NameSquattingActionResponseJson clearNameSquattingFindings(
+            UserData adminUser,
+            NameSquattingActionRequest request
+    ) throws ErrorResultException {
+        var results = new ArrayList<NameSquattingActionResultJson>();
+        for (var target : requireNameSquattingTargets(request)) {
+            results.add(clearNameSquattingFindings(adminUser, target));
+        }
+        return toNameSquattingActionResponse(results);
+    }
+
+    /**
+     * Soft-delete the requested flagged extensions, for use when the match turns out to be a real
+     * attempt at squatting a name.
+     * <p>
+     * Every active version is deactivated, which makes the extension unavailable while keeping its
+     * records and reserving its version identities. Extensions whose publication was blocked by the
+     * check were never created and cannot be deleted.
+     */
+    public NameSquattingActionResponseJson deleteNameSquattingExtensions(
+            UserData adminUser,
+            NameSquattingActionRequest request
+    ) throws ErrorResultException {
+        var results = new ArrayList<NameSquattingActionResultJson>();
+        for (var target : requireNameSquattingTargets(request)) {
+            results.add(deleteNameSquattingExtension(adminUser, target));
+        }
+        return toNameSquattingActionResponse(results);
+    }
+
+    private NameSquattingActionResultJson clearNameSquattingFindings(
+            UserData adminUser,
+            NameSquattingTargetJson target
+    ) {
+        var namespaceName = target.getNamespace();
+        var extensionName = target.getExtension();
+        try {
+            var cleared = repositories
+                    .deleteValidationFailures(NAME_SQUATTING_CHECK_TYPE, namespaceName, extensionName);
+            if (cleared == 0) {
+                return NameSquattingActionResultJson.failure(
+                        namespaceName,
+                        extensionName,
+                        "No name squatting findings are recorded for this extension");
+            }
+
+            var message = String.format(
+                    "Cleared %d name squatting finding%s for extension %s.%s as a false positive",
+                    cleared,
+                    cleared == 1 ? "" : "s",
+                    namespaceName,
+                    extensionName);
+            logs.logAction(adminUser, ResultJson.success(message));
+
+            return NameSquattingActionResultJson.success(namespaceName, extensionName, message);
+        } catch (ErrorResultException exc) {
+            return NameSquattingActionResultJson.failure(namespaceName, extensionName, exc.getMessage());
+        }
+    }
+
+    private NameSquattingActionResultJson deleteNameSquattingExtension(
+            UserData adminUser,
+            NameSquattingTargetJson target
+    ) {
+        var namespaceName = target.getNamespace();
+        var extensionName = target.getExtension();
+
+        var extension = repositories.findExtension(extensionName, namespaceName);
+        if (extension == null) {
+            return NameSquattingActionResultJson.failure(
+                    namespaceName,
+                    extensionName,
+                    "Extension does not exist, its publication was blocked by the check");
+        }
+
+        var targetVersions = activeTargetVersions(extension);
+        if (targetVersions.length == 0) {
+            return NameSquattingActionResultJson.failure(
+                    namespaceName,
+                    extensionName,
+                    "Extension has no active versions left to deactivate");
+        }
+
+        try {
+            var result = deleteExtensionNoWait(
+                    adminUser,
+                    extension.getNamespace().getName(),
+                    extension.getName(),
+                    targetVersions);
+            if (result != null && result.getError() != null) {
+                return NameSquattingActionResultJson.failure(namespaceName, extensionName, result.getError());
+            }
+
+            var message = String.format(
+                    "Deactivated %d version%s of extension %s.%s flagged for name squatting",
+                    targetVersions.length,
+                    targetVersions.length == 1 ? "" : "s",
+                    extension.getNamespace().getName(),
+                    extension.getName());
+            logs.logAction(adminUser, ResultJson.success(message));
+
+            return NameSquattingActionResultJson.success(namespaceName, extensionName, message);
+        } catch (ErrorResultException exc) {
+            return NameSquattingActionResultJson.failure(namespaceName, extensionName, exc.getMessage());
+        }
+    }
+
+    /**
+     * Build the response row for one {@code <namespace>/<extension>} key, or null when its findings
+     * were cleared between listing the keys and reading them back.
+     */
+    private @Nullable NameSquattingFlagJson toNameSquattingFlagJson(
+            String key,
+            @Nullable LocalDateTime detectedFrom,
+            @Nullable LocalDateTime detectedTo
+    ) {
+        var separator = key.indexOf('/');
+        if (separator < 0) {
+            return null;
+        }
+        var namespaceName = key.substring(0, separator);
+        var extensionName = key.substring(separator + 1);
+
+        var failures = repositories.findValidationFailures(
+                NAME_SQUATTING_CHECK_TYPE,
+                namespaceName,
+                extensionName,
+                detectedFrom,
+                detectedTo);
+        if (failures.isEmpty()) {
+            return null;
+        }
+
+        // Failures come back newest first, so the first one carries the most recent metadata.
+        var latestScan = failures.getFirst().getScan();
+        var extension = repositories.findExtension(extensionName, namespaceName);
+
+        var json = new NameSquattingFlagJson();
+        json.setNamespace(latestScan.getNamespaceName());
+        json.setExtensionName(latestScan.getExtensionName());
+        json.setDisplayName(
+                latestScan.getExtensionDisplayName() != null
+                        ? latestScan.getExtensionDisplayName()
+                        : latestScan.getExtensionName());
+        json.setPublisher(latestScan.getPublisher());
+        json.setPublisherUrl(latestScan.getPublisherUrl());
+        json.setFindingCount(failures.size());
+        json.setDateLastDetected(TimeUtil.toUTCString(failures.getFirst().getDetectedAt()));
+        json.setDateFirstDetected(TimeUtil.toUTCString(failures.getLast().getDetectedAt()));
+        json.setFindings(failures.stream().map(this::toNameSquattingFindingJson).toList());
+
+        if (extension == null) {
+            json.setState(NAME_SQUATTING_STATE_REJECTED);
+            json.setActiveVersionCount(0);
+        } else {
+            var activeVersions = (int) repositories.findActiveVersions(extension).stream().count();
+            json.setActiveVersionCount(activeVersions);
+            json.setState(
+                    extension.isActive() && activeVersions > 0
+                            ? NAME_SQUATTING_STATE_PUBLISHED
+                            : NAME_SQUATTING_STATE_DEACTIVATED);
+        }
+
+        return json;
+    }
+
+    private NameSquattingFindingJson toNameSquattingFindingJson(ExtensionValidationFailure failure) {
+        var scan = failure.getScan();
+        var json = new NameSquattingFindingJson();
+        json.setId(String.valueOf(failure.getId()));
+        json.setScanId(String.valueOf(scan.getId()));
+        json.setVersion(scan.getExtensionVersion());
+        json.setTargetPlatform(scan.getTargetPlatform());
+        json.setScanStatus(formatScanStatus(scan.getStatus()));
+        json.setRuleName(failure.getRuleName());
+        json.setReason(failure.getValidationFailureReason());
+        json.setDateDetected(TimeUtil.toUTCString(failure.getDetectedAt()));
+        json.setEnforcedFlag(failure.isEnforced());
+        return json;
+    }
+
+    private TargetPlatformVersion[] activeTargetVersions(Extension extension) {
+        return repositories.findActiveVersions(extension).stream()
+                .map(version -> new TargetPlatformVersion(version.getTargetPlatform(), version.getVersion()))
+                .distinct()
+                .toArray(TargetPlatformVersion[]::new);
+    }
+
+    private int countFlaggedExtensions(
+            @Nullable String namespace,
+            @Nullable String publisher,
+            @Nullable String name,
+            @Nullable LocalDateTime detectedFrom,
+            @Nullable LocalDateTime detectedTo,
+            @Nullable ExtensionStateFilter stateFilter
+    ) {
+        return (int) repositories.countFlaggedExtensions(
+                NAME_SQUATTING_CHECK_TYPE,
+                namespace,
+                publisher,
+                name,
+                detectedFrom,
+                detectedTo,
+                stateFilter);
+    }
+
+    private List<NameSquattingTargetJson> requireNameSquattingTargets(NameSquattingActionRequest request) {
+        var targets = request.getTargets();
+        if (targets == null || targets.isEmpty()) {
+            throw new ErrorResultException("At least one extension is required", HttpStatus.BAD_REQUEST);
+        }
+        for (var target : targets) {
+            if (target == null
+                    || target.getNamespace() == null || target.getNamespace().isBlank()
+                    || target.getExtension() == null || target.getExtension().isBlank()) {
+                throw new ErrorResultException(
+                        "Each extension must have a namespace and an extension name",
+                        HttpStatus.BAD_REQUEST);
+            }
+        }
+        return targets;
+    }
+
+    private NameSquattingActionResponseJson toNameSquattingActionResponse(
+            List<NameSquattingActionResultJson> results
+    ) {
+        var successful = (int) results.stream().filter(NameSquattingActionResultJson::isSuccess).count();
+
+        var response = new NameSquattingActionResponseJson();
+        response.setProcessed(results.size());
+        response.setSuccessful(successful);
+        response.setFailed(results.size() - successful);
+        response.setResults(results);
+        return response;
+    }
+
+    private @Nullable ExtensionStateFilter parseStateFilter(@Nullable List<String> state) {
+        if (state == null || state.isEmpty()) {
+            return null;
+        }
+
+        var published = false;
+        var deactivated = false;
+        var rejected = false;
+        for (var raw : state) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            for (var token : raw.split(",")) {
+                if (token.isBlank()) {
+                    continue;
+                }
+                switch (token.trim().toUpperCase(Locale.ROOT)) {
+                    case NAME_SQUATTING_STATE_PUBLISHED -> published = true;
+                    case NAME_SQUATTING_STATE_DEACTIVATED -> deactivated = true;
+                    case NAME_SQUATTING_STATE_REJECTED -> rejected = true;
+                    default -> throw new ErrorResultException(
+                            "Unknown state filter: " + token.trim(),
+                            HttpStatus.BAD_REQUEST);
+                }
+            }
+        }
+
+        var filter = new ExtensionStateFilter(published, deactivated, rejected);
+        return filter.hasFilter() ? filter : null;
+    }
+
+    private @Nullable String normalizeSearch(@Nullable String search) {
+        if (search == null || search.isBlank()) {
+            return null;
+        }
+        return search.trim();
+    }
+
+    private boolean parseSortOrder(@Nullable String sortOrder) {
+        if (sortOrder == null) {
+            return false;
+        }
+        return switch (sortOrder.toLowerCase(Locale.ROOT)) {
+            case "asc" -> true;
+            case "desc" -> false;
+            default ->
+                throw new ErrorResultException("Unsupported sortOrder value: " + sortOrder, HttpStatus.BAD_REQUEST);
+        };
+    }
+
+    private @Nullable LocalDateTime parseUtcDateTime(@Nullable String raw, String paramName) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return TimeUtil.fromUTCString(raw);
+        } catch (Exception e) {
+            throw new ErrorResultException(
+                    "Invalid ISO date-time for parameter '" + paramName + "': " + raw,
+                    HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * Formats the scan status the same way the scan API does, so the admin dashboard shows one
+     * vocabulary across both views.
+     */
+    private String formatScanStatus(ScanStatus status) {
+        return switch (status) {
+            case STARTED -> "STARTED";
+            case VALIDATING -> "VALIDATING";
+            case SCANNING -> "SCANNING";
+            case PASSED -> "PASSED";
+            case QUARANTINED -> "QUARANTINED";
+            case REJECTED -> "AUTO REJECTED";
+            case ERRORED -> "ERROR";
+        };
     }
 }
