@@ -36,9 +36,8 @@ public interface ExtensionVersionChangeRepository extends Repository<ExtensionVe
     );
 
     /**
-     * The entry most recently appended for the given version under the given namespace specifically. A
-     * version that has been renamed can have entries under more than one namespace, each with its own
-     * independent latest state - see {@link org.eclipse.openvsx.repositories.RepositoryService#wasReportedAsAvailable}.
+     * The entry most recently appended for the given version under the given namespace specifically --
+     * see {@link RepositoryService#wasReportedAsAvailable}.
      */
     Optional<ExtensionVersionChange> findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc(
             ExtensionVersion extVersion,

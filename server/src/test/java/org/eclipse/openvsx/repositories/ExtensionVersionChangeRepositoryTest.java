@@ -42,12 +42,9 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link ExtensionVersionChangeRepository#findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc}
- * exists because a version's history can span more than one namespace once a rename is reported on it -
- * {@link RepositoryService#wasReportedAsAvailable} has to resolve the latest state <em>for the namespace
- * the version currently lives in</em>, not the single most recent entry regardless of namespace, or a
- * newer entry appended for an abandoned namespace (e.g. by the #2244 backfill migration, or a later
- * rename) would answer for the wrong tuple entirely.
+ * {@link RepositoryService#wasReportedAsAvailable} needs the latest state for a version's <em>current</em>
+ * namespace, not its single latest entry overall -- a newer entry for an abandoned namespace (e.g. from
+ * the #2244 backfill) would otherwise answer for the wrong tuple.
  */
 @SpringBootTest(
     classes = ExtensionVersionChangeRepositoryTest.ExtensionVersionChangeRepositoryTestConfig.class,
@@ -102,12 +99,11 @@ class ExtensionVersionChangeRepositoryTest extends AbstractPostgresContainerTest
         change("old-namespace", ExtensionVersionState.ACTIVE, LocalDateTime.parse("2026-01-01T00:00"));
         // a later, correctly-recorded transition under the namespace the version lives in today
         change("current-namespace", ExtensionVersionState.INACTIVE, LocalDateTime.parse("2026-01-02T00:00"));
-        // a namespace-rename backfill closing the abandoned tuple, stamped with its own (later) run time -
-        // newer than every entry above, including the one for the namespace actually in use today
+        // a rename backfill closing the abandoned tuple, stamped later than every entry above
         change("old-namespace", ExtensionVersionState.REMOVED, LocalDateTime.parse("2026-06-01T00:00"));
 
-        // the version's single most recent entry overall is the old namespace's backfilled tombstone -
-        // exactly the entry that must NOT be mistaken for the current namespace's own state
+        // the single most recent entry overall is the backfilled tombstone -- must not be mistaken for
+        // the current namespace's own state
         assertThat(repo.findFirstByExtensionVersionOrderByChangedAtDescIdDesc(extVersion))
                 .get()
                 .extracting(ExtensionVersionChange::getNamespace, ExtensionVersionChange::getState)
