@@ -111,11 +111,9 @@ class ChangeNamespaceServiceTest {
         // the feed already told consumers this version is available
         when(repositories.wasReportedAsAvailable(extVersion)).thenReturn(true);
 
-        // recordExtensionVersionChange takes no namespace argument -- the real implementation reads
-        // extVersion.getExtension().getNamespace() at call time, so the mock has to capture that same
-        // live, mutable reference at each invocation to prove the departure is actually recorded while
-        // the namespace is still "old" and the arrival only once it has become "new", rather than just
-        // that the two calls happen in that relative order regardless of when the swap happens.
+        // recordExtensionVersionChange takes no namespace argument -- it reads the live Extension
+        // reference at call time, so capture that at each invocation to verify old-then-new, not just
+        // that the two calls happen in that order regardless of when the swap happens.
         var namespacesAtCallTime = new ArrayList<String>();
         doAnswer(invocation -> {
             namespacesAtCallTime.add(extVersion.getExtension().getNamespace().getName());

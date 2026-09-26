@@ -61,15 +61,9 @@ public class ChangeNamespaceService {
             cache.evictLatestExtensionVersion(extension);
         }
 
-        // Read while the extensions still point at the old namespace, so each version's move is reported
-        // as a withdrawal of its old (namespace, extension, version) tuple, not just a silent disappearance.
-        //
-        // Known limitation: nothing here locks the extensions being renamed against a concurrent writer
-        // (a scan completing, an admin action, a reactivation) recording a transition for one of their
-        // versions between this read and changeExtensionNamespace below - none of those paths lock the
-        // extension either today, so closing this fully means auditing every transition writer, not just
-        // this one. Pre-existing gap (a rename already moved extensions without any locking before this
-        // fix), made visible here rather than introduced by it; left as a follow-up.
+        // Read before the namespace changes, so departure withdraws the still-current old tuple.
+        // Known gap: not locked against a concurrent writer (scan, admin action) on these extensions -
+        // pre-existing, not introduced here; left as a follow-up.
         var now = TimeUtil.getCurrentUTC();
         recordNamespaceDeparture(extensions, now);
 
@@ -84,8 +78,7 @@ public class ChangeNamespaceService {
         }
 
         changeExtensionNamespace(extensions, newNamespace);
-        // Now that the extensions point at the new namespace, report their still-active versions there,
-        // so the feed does not go silent about them until their next unrelated transition.
+        // Now under the new namespace - report the still-active versions there.
         recordNamespaceArrival(extensions, now);
         changeMembershipNamespace(oldNamespace, newNamespace, removeOldNamespace);
         renameResources(updatedResources);
@@ -119,10 +112,8 @@ public class ChangeNamespaceService {
     }
 
     /**
-     * Reports every version of the given extensions that the feed already knows about as {@code REMOVED},
-     * withdrawing its (still current) old-namespace tuple before the namespace change below moves it away.
-     * A version the feed never reported has nothing to withdraw, same as for a deletion or purge -- see
-     * {@link RepositoryService#wasReportedAsAvailable}.
+     * Withdraws every version's old-namespace tuple as {@code REMOVED}. Nothing to withdraw for a
+     * version never reported as available -- see {@link RepositoryService#wasReportedAsAvailable}.
      */
     private void recordNamespaceDeparture(Streamable<Extension> extensions, LocalDateTime now) {
         for (var extension : extensions) {
@@ -135,10 +126,8 @@ public class ChangeNamespaceService {
     }
 
     /**
-     * Reports every still-active version of the given extensions as {@code ACTIVE} under their new
-     * namespace, mirroring how a reactivation is announced. Inactive and removed versions get no entry
-     * here: they are not publicly available under the new name either, so there is nothing to announce
-     * until they change state on their own.
+     * Announces every still-active version as {@code ACTIVE} under its new namespace. Inactive/removed
+     * versions get nothing here -- not available under the new name either.
      */
     private void recordNamespaceArrival(Streamable<Extension> extensions, LocalDateTime now) {
         for (var extension : extensions) {
