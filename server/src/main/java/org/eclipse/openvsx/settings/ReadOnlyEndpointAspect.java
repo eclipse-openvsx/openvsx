@@ -12,34 +12,38 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.Around;
-import org.aspectj.lang.annotation.Aspect;
+import java.lang.reflect.Method;
+
+import org.aopalliance.intercept.MethodInterceptor;
+import org.springframework.aop.support.StaticMethodMatcherPointcutAdvisor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
+import org.eclipse.openvsx.RegistryAPI;
+import org.eclipse.openvsx.UserAPI;
 import org.eclipse.openvsx.json.ResultJson;
 
-@Aspect
+/**
+ * A hand-written {@link StaticMethodMatcherPointcutAdvisor} rather than an AspectJ {@code @Aspect}: an
+ * AspectJ {@code execution()} pointcut has to spin up its own PointcutParser/World and scan the classpath
+ * to resolve types on every candidate bean, on every Spring context boot - this was the single largest
+ * cost in the test suite's context startup time (roughly 70% of it), since this aspect (unlike the other
+ * four in {@code mirror.aop}) has no {@code @ConditionalOnProperty} and so is always active. A plain
+ * Method/Class check has none of that cost.
+ */
 @Component
-public class ReadOnlyEndpointAspect {
-
-    private final SettingsService settings;
+public class ReadOnlyEndpointAspect extends StaticMethodMatcherPointcutAdvisor {
 
     public ReadOnlyEndpointAspect(SettingsService settings) {
-        this.settings = settings;
+        super((MethodInterceptor) invocation -> settings.isReadOnly()
+                ? ResponseEntity.status(409).body(ResultJson.error("Registry is in read-only mode."))
+                : invocation.proceed());
+        setClassFilter(type -> type == RegistryAPI.class || type == UserAPI.class
+                || (type.getPackageName().equals("org.eclipse.openvsx.admin") && type.getSimpleName().endsWith("API")));
     }
 
-    @Around(
-        "(execution(org.springframework.http.ResponseEntity org.eclipse.openvsx.RegistryAPI.*(..)) ||" +
-                " execution(org.springframework.http.ResponseEntity org.eclipse.openvsx.UserAPI.*(..))  ||" +
-                " execution(org.springframework.http.ResponseEntity org.eclipse.openvsx.admin.*API.*(..))) && @annotation(MutatingOperation)"
-    )
-    public Object handleMutatingEndpoint(ProceedingJoinPoint joinPoint) throws Throwable {
-        if (settings.isReadOnly()) {
-            return ResponseEntity.status(409).body(ResultJson.error("Registry is in read-only mode."));
-        } else {
-            return joinPoint.proceed();
-        }
+    @Override
+    public boolean matches(Method method, Class<?> targetClass) {
+        return method.getReturnType() == ResponseEntity.class && method.isAnnotationPresent(MutatingOperation.class);
     }
 }
