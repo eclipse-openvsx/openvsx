@@ -16,6 +16,7 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
@@ -50,8 +51,12 @@ import static org.mockito.Mockito.doReturn;
  * reserved and can never be republished. Only a purge physically removes the row and frees the identity.
  * These tests exercise the end-to-end behaviour against a real database, as well as the query paths that
  * must exclude tombstones from public surfaces.
+ * <p>
+ * {@code @Isolated}: collides with {@code ConsistencyCheckServiceTest}/{@code ExtensionActiveFlagCheckTest}
+ * scanning and locking every {@code Extension} row while this test mutates its own concurrently.
  */
 @SpringBootTest
+@Isolated
 class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
 
     private static final String NAMESPACE = "soft-delete-testns";

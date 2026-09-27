@@ -20,6 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,7 +43,12 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * {@code @Isolated}: several tests here count rows in the shared ingestion-tracking table before/after an
+ * action, colliding with unrelated tests concurrently writing their own rows into it.
+ */
 @SpringBootTest
+@Isolated
 class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
 
     private static final LocalDateTime PROCESSED_ON = LocalDateTime.of(2026, 7, 1, 15, 0);

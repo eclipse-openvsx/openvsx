@@ -13,7 +13,6 @@
 package org.eclipse.openvsx;
 
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -31,15 +30,12 @@ import org.testcontainers.utility.DockerImageName;
  * <p>
  * Because all contexts now share a single database, tests must keep cleaning up after themselves (via
  * transactional rollback or an explicit tear-down) and use unique identifiers, exactly as they already
- * had to when sharing a context. That was enough under the previous strictly-serial execution, but not
- * under JUnit 5 parallel class execution: tests that scan or lock the whole shared table (consistency
- * checks, analytics aggregation) or rely on precise internal race timing collide with unrelated,
- * concurrently-running tests mutating the same rows. {@code @Isolated} is {@code @Inherited}, so this
- * forces every subclass (including through {@code AbstractTimeseriesContainerTest}) to run with no other
- * test class executing at the same time, while unrelated unit tests keep running in parallel.
+ * had to when sharing a context. That is enough for most tests to run safely under JUnit 5 parallel class
+ * execution too, but not for ones that scan or lock the whole shared table (consistency checks, analytics
+ * aggregation) or rely on precise internal race timing - those collide with unrelated, concurrently-running
+ * tests mutating the same rows, and are individually marked {@code @Isolated} instead.
  */
 @Tag("integration")
-@Isolated
 public abstract class AbstractPostgresContainerTest {
 
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(

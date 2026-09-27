@@ -20,6 +20,7 @@ import javax.sql.DataSource;
 import org.jooq.exception.DataAccessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,7 +37,12 @@ import org.eclipse.openvsx.analytics.DownloadSeriesRow;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * {@code @Isolated}: several tests here query/aggregate over the whole shared download_analytics table,
+ * colliding with unrelated tests concurrently writing their own download events into it.
+ */
 @SpringBootTest
+@Isolated
 class DownloadAnalyticsRepositoryTest extends AbstractTimeseriesContainerTest {
 
     @Autowired

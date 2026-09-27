@@ -23,6 +23,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -53,8 +54,13 @@ import static org.mockito.Mockito.doAnswer;
  * triggered by intercepting the duplicate-review check (using a spy) and letting the competing writer
  * commit in exactly the window that used to break, exactly as PublishExtensionVersionConcurrencyTest does
  * for the analogous extension-creation race.
+ * <p>
+ * {@code @Isolated}: same reason as {@link org.eclipse.openvsx.publish.PublishExtensionVersionConcurrencyTest}
+ * - the deliberately triggered race depends on precise internal timing that unrelated concurrently-running
+ * tests competing for CPU can throw off.
  */
 @SpringBootTest
+@Isolated
 class LocalRegistryServicePostReviewConcurrencyTest extends AbstractPostgresContainerTest {
 
     private static final String NAMESPACE = "race-reviewns";

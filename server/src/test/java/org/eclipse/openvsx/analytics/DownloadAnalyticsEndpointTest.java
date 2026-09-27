@@ -18,6 +18,7 @@ import java.util.List;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -47,9 +48,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Full-stack proof of the enabled configuration: the TimescaleDB-backed repository on its own
  * database, queried through the public REST endpoint.
+ * <p>
+ * {@code @Isolated}: aggregates over the whole shared download_analytics table, colliding with unrelated
+ * tests concurrently writing their own download events into it.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Isolated
 class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
 
     @Autowired

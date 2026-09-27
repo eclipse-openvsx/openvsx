@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,9 +35,15 @@ import org.eclipse.openvsx.json.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * {@code @Isolated}: publishes a fixed "EditorConfig"/"editorconfig" namespace and extension rather than a
+ * unique-per-run name, colliding with {@code VSCodeGalleryExtensionQueryCompressionIntegrationTest}, which
+ * queries for the same fixture.
+ */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @ActiveProfiles({ "test", "test_search" })
+@Isolated
 class IntegrationTest extends AbstractPostgresContainerTest {
 
     protected final Logger logger = LoggerFactory.getLogger(IntegrationTest.class);
