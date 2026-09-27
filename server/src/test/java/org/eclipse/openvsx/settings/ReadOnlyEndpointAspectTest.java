@@ -12,6 +12,9 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
+
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.Test;
@@ -20,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.eclipse.openvsx.RegistryAPI;
 import org.eclipse.openvsx.UserAPI;
 import org.eclipse.openvsx.admin.AdminAPI;
-import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.ResultJson;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,12 +47,31 @@ class ReadOnlyEndpointAspectTest {
     }
 
     @Test
-    void matchesOnlyMutatingOperationsReturningResponseEntity() throws NoSuchMethodException {
-        var mutating = RegistryAPI.class.getMethod("createNamespace", NamespaceJson.class, String.class);
-        var readOnly = RegistryAPI.class.getMethod("getNamespace", String.class);
+    void matchesOnlyMutatingOperationsReturningResponseEntity() {
+        // By annotation and return type rather than a specific method: RegistryAPI's exact method
+        // signatures (e.g. which token/header parameters they take) change independently of what
+        // this advisor actually cares about.
+        var methods = Arrays.stream(RegistryAPI.class.getMethods())
+                .filter(m -> m.getReturnType() == ResponseEntity.class)
+                .toList();
+        var mutating = methods.stream().filter(m -> m.isAnnotationPresent(MutatingOperation.class)).findFirst();
+        var readOnly = methods.stream().filter(m -> !m.isAnnotationPresent(MutatingOperation.class)).findFirst();
 
-        assertThat(advisor.matches(mutating, RegistryAPI.class)).isTrue();
-        assertThat(advisor.matches(readOnly, RegistryAPI.class)).isFalse();
+        assertThat(mutating).isPresent();
+        assertThat(readOnly).isPresent();
+        assertThat(advisor.matches(mutating.orElseThrow(), RegistryAPI.class)).isTrue();
+        assertThat(advisor.matches(readOnly.orElseThrow(), RegistryAPI.class)).isFalse();
+    }
+
+    @Test
+    void rejectsAMutatingOperationThatDoesNotReturnResponseEntity() throws NoSuchMethodException {
+        var method = ReadOnlyEndpointAspectTest.class.getDeclaredMethod("dummyMutatingOperation");
+        assertThat(advisor.matches(method, RegistryAPI.class)).isFalse();
+    }
+
+    @MutatingOperation
+    private void dummyMutatingOperation() {
+        // exists only to be reflected on above
     }
 
     @Test
