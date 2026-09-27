@@ -38,8 +38,10 @@ public class ReadOnlyEndpointAspect extends StaticMethodMatcherPointcutAdvisor {
         super((MethodInterceptor) invocation -> settings.isReadOnly()
                 ? ResponseEntity.status(409).body(ResultJson.error("Registry is in read-only mode."))
                 : invocation.proceed());
-        setClassFilter(type -> type == RegistryAPI.class || type == UserAPI.class
-                || (type.getPackageName().equals("org.eclipse.openvsx.admin") && type.getSimpleName().endsWith("API")));
+        setClassFilter(
+                type -> type == RegistryAPI.class || type == UserAPI.class
+                        || (type.getPackageName().equals("org.eclipse.openvsx.admin")
+                                && type.getSimpleName().endsWith("API")));
     }
 
     @Override
