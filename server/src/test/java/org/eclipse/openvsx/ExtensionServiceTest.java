@@ -302,6 +302,17 @@ class ExtensionServiceTest {
         Mockito.verify(repositories, Mockito.never()).findLatestExtensionScan(Mockito.any());
     }
 
+    @Test
+    void shouldEvictSitemapCacheOnUpdate() {
+        var ext = mockExtension();
+
+        // lastUpdatedDate - what sitemap.xml reports as `lastmod` - is stamped right here, so this is
+        // the one place that must evict it; see #2229.
+        svc.updateExtension(ext);
+
+        Mockito.verify(cache).evictSitemap();
+    }
+
     /**
      * Validating and scanning a package that can not be published anyway is pointless, so the publish
      * preconditions (publisher exists, access rights, version not published yet) are checked first and

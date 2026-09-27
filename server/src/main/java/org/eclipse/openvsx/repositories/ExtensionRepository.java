@@ -86,4 +86,16 @@ public interface ExtensionRepository extends Repository<Extension, Long> {
         nativeQuery = true
     )
     Streamable<Extension> findExtensionsWithInconsistentActiveFlag();
+
+    // Extensions whose last_updated_date - what the sitemap reports as `lastmod` - is older than their
+    // own latest active version. Same cross-transaction lost-update race as
+    // findExtensionsWithInconsistentActiveFlag; used by LastUpdatedDateCheck to fix rows already
+    // affected. See issue #2229.
+    @Query(
+        value = "select e.* from extension e where e.active = true and e.last_updated_date <"
+                + " (select max(v.timestamp) from extension_version v"
+                + " where v.extension_id = e.id and v.active = true)",
+        nativeQuery = true
+    )
+    Streamable<Extension> findExtensionsWithStaleLastUpdatedDate();
 }

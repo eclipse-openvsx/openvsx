@@ -31,7 +31,7 @@ re2j            = "1.8"
 rewrite-java    = "3.38.0"
 spring-boot     = "4.0.8"
 springdoc       = "3.1.0"
-tika            = "3.3.1"
+tika            = "3.3.2"
 woodstox        = "6.4.0"
 uuid-generator  = "5.2.0"
 

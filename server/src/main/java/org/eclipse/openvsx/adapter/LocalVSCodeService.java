@@ -48,6 +48,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.*;
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.Criterion.*;
@@ -68,6 +69,7 @@ public class LocalVSCodeService implements IVSCodeService {
     private final ExtensionVersionIntegrityService integrityService;
     private final WebResourceService webResources;
     private final CacheService cache;
+    private final WebUiProperties webUi;
 
     private final Map<String, String> assets = Map.of(
             FILE_VSIX,
@@ -87,9 +89,6 @@ public class LocalVSCodeService implements IVSCodeService {
             FILE_SIGNATURE,
             DOWNLOAD_SIG);
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
     // See RepositoryService.findActiveExtensionVersions / ExtensionVersionJooqRepository -
     // caps how many of an extension's active pre-release versions the version listing below
     // fetches per extensionQuery request; regular releases are never capped. A negative value
@@ -105,7 +104,8 @@ public class LocalVSCodeService implements IVSCodeService {
             StorageUtilService storageUtil,
             ExtensionVersionIntegrityService integrityService,
             WebResourceService webResources,
-            CacheService cache
+            CacheService cache,
+            WebUiProperties webUi
     ) {
         this.repositories = repositories;
         this.versions = versions;
@@ -114,6 +114,7 @@ public class LocalVSCodeService implements IVSCodeService {
         this.integrityService = integrityService;
         this.webResources = webResources;
         this.cache = cache;
+        this.webUi = webUi;
     }
 
     @Override
@@ -466,6 +467,7 @@ public class LocalVSCodeService implements IVSCodeService {
             throw new NotFoundException();
         }
 
+        var webuiUrl = webUi.getUrl();
         return UrlUtil.createApiUrl(webuiUrl, "extension", extension.getNamespace().getName(), extension.getName());
     }
 
@@ -510,24 +512,37 @@ public class LocalVSCodeService implements IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     ) {
         if (BuiltInExtensionUtil.isBuiltIn(namespaceName)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(builtinExtensionResponse());
         }
 
-        var extensionDownloadPath = webResources.getExtensionDownload(namespaceName, extensionName, null, version);
+        var extensionDownloadPath = webResources
+                .getExtensionDownload(namespaceName, extensionName, targetPlatform, version);
         if (extensionDownloadPath == null) {
             throw new NotFoundException();
         }
 
-        var file = getWebResource(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var file = getWebResource(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (file != null) {
             return storageUtil.getFileResponse(file);
         }
 
-        var node = webResources
-                .browseExtensionPackage(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var node = webResources.browseExtensionPackage(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (node != null) {
             return storageUtil.getFileResponse(node);
         }

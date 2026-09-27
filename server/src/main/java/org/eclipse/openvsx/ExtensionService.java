@@ -235,6 +235,7 @@ public class ExtensionService {
         cache.evictNamespaceDetails(extension);
         cache.evictLatestExtensionVersion(extension);
         cache.evictExtensionJsons(extension);
+        cache.evictSitemap();
 
         if (extension.getVersions().stream().anyMatch(ExtensionVersion::isActive)) {
             // There is at least one active version => activate the extension

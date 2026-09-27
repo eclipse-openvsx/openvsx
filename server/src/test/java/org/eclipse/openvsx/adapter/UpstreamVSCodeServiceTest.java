@@ -12,8 +12,14 @@
  *****************************************************************************/
 package org.eclipse.openvsx.adapter;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -54,7 +60,7 @@ public class UpstreamVSCodeServiceTest {
                 urlConfig,
                 Mockito.mock(ExtensionValidator.class));
 
-        var response = service.browse("foo", "bar", "1.0.0", "extension/readme.md");
+        var response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.md");
 
         assertEquals(
                 "text/plain;charset=UTF-8",
@@ -63,7 +69,7 @@ public class UpstreamVSCodeServiceTest {
                 response.getHeaders().getFirst("Content-Security-Policy"),
                 "proxied files must carry a Content-Security-Policy");
 
-        response = service.browse("foo", "bar", "1.0.0", "extension/readme.html");
+        response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.html");
 
         assertEquals(
                 "text/plain;charset=UTF-8",
@@ -71,5 +77,73 @@ public class UpstreamVSCodeServiceTest {
         assertNotNull(
                 response.getHeaders().getFirst("Content-Security-Policy"),
                 "proxied files must carry a Content-Security-Policy");
+    }
+
+    @Test
+    void browseForwardsTargetPlatformAsAQueryParameter() {
+        var nonRedirecting = new RestTemplate();
+        var server = MockRestServiceServer.bindTo(nonRedirecting).build();
+        server.expect(requestTo("http://upstream.example/vscode/unpkg/foo/bar/1.0.0/extension/readme.md?target=web"))
+                .andRespond(withSuccess("### blablabla", MediaType.TEXT_MARKDOWN));
+
+        var urlConfig = Mockito.mock(UrlConfigService.class);
+        Mockito.when(urlConfig.getUpstreamUrl()).thenReturn("http://upstream.example");
+
+        var service = new UpstreamVSCodeService(
+                new RestTemplate(),
+                Optional.empty(),
+                nonRedirecting,
+                urlConfig,
+                Mockito.mock(ExtensionValidator.class));
+
+        service.browse("foo", "bar", "1.0.0", "web", "extension/readme.md");
+
+        server.verify();
+    }
+
+    @Test
+    void abortedDownloadDoesNotLeakSpoolFile() throws IOException {
+        var nonRedirecting = new RestTemplate();
+        var server = MockRestServiceServer.bindTo(nonRedirecting).build();
+        server.expect(requestTo("http://upstream.example/vscode/unpkg/foo/bar/1.0.0/extension/readme.md"))
+                .andRespond(withSuccess("### blablabla", MediaType.TEXT_MARKDOWN));
+
+        var urlConfig = Mockito.mock(UrlConfigService.class);
+        Mockito.when(urlConfig.getUpstreamUrl()).thenReturn("http://upstream.example");
+
+        var service = new UpstreamVSCodeService(
+                new RestTemplate(),
+                Optional.empty(),
+                nonRedirecting,
+                urlConfig,
+                Mockito.mock(ExtensionValidator.class));
+
+        var tmpDir = Path.of(System.getProperty("java.io.tmpdir"));
+        var before = spoolFilesIn(tmpDir);
+
+        var response = service.browse("foo", "bar", "1.0.0", null, "extension/readme.md");
+        OutputStream abortingClient = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw new IOException("simulated client abort");
+            }
+        };
+
+        assertThrows(
+                IOException.class,
+                () -> response.getBody().writeTo(abortingClient),
+                "aborted transfer should propagate the write failure");
+
+        assertEquals(
+                before,
+                spoolFilesIn(tmpDir),
+                "aborted download must not leak its spool file in java.io.tmpdir");
+    }
+
+    private static Set<Path> spoolFilesIn(Path tmpDir) throws IOException {
+        try (var files = Files.list(tmpDir)) {
+            return files.filter(p -> p.getFileName().toString().startsWith("browse"))
+                    .collect(Collectors.toSet());
+        }
     }
 }

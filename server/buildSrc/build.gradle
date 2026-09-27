@@ -22,10 +22,10 @@ dependencies {
     // check that plugin version's POM for its spotless-lib dependency if you bump either.
     implementation 'com.diffplug.spotless:spotless-lib:4.10.2'
     implementation 'com.diffplug.spotless:spotless-lib-extra:4.10.2'
-    // must match both the jdt.core that spotless-lib-extra's
-    // eclipse_jdt_formatter/v<N>.lockfile pins for the eclipse('<N>') version used in
-    // build.gradle, and the //DEPS versions in scripts/src/{AddBracesFix,ClosingBraceFix}.java.
-    implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.46.0'
+    // must match both the jdt.core that build.gradle's eclipse('<N>') step provisions (no bundled
+    // lockfile for 4.41 yet, so that's live P2 provisioning - see AGENTS.md), and the //DEPS
+    // versions in scripts/src/{AddBracesFix,ClosingBraceFix}.java.
+    implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.47.0'
     // must match the //DEPS version in scripts/src/DependencyOverrideCheck.java
     implementation 'org.apache.maven:maven-artifact:3.9.16'
 }

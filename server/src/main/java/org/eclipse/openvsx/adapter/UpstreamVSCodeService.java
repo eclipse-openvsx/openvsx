@@ -148,6 +148,7 @@ public class UpstreamVSCodeService implements IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     ) {
         var urlBuilder = new StringBuilder(
@@ -168,6 +169,13 @@ public class UpstreamVSCodeService implements IVSCodeService {
                 urlBuilder.append("/{").append(varName).append("}");
                 uriVariables.put(varName, segments[i]);
             }
+        }
+
+        // As a query parameter rather than the `<version>+<target>` form the client may have used:
+        // both are accepted upstream, and this one needs no escaping decisions.
+        if (StringUtils.isNotBlank(targetPlatform)) {
+            urlBuilder.append("?target={target}");
+            uriVariables.put("target", targetPlatform);
         }
 
         var method = HttpMethod.GET;
@@ -392,11 +400,12 @@ public class UpstreamVSCodeService implements IVSCodeService {
             return ResponseEntity.status(response.getStatusCode())
                     .headers(headers)
                     .body(outputStream -> {
-                        try (var in = Files.newInputStream(tempFile.getPath())) {
+                        // Delete tempFile here, not via try-with-resources on the outer method: this
+                        // lambda runs later, during async response writing, so this is the only place
+                        // that still runs (via close()) if the client aborts mid-transfer.
+                        try (tempFile; var in = Files.newInputStream(tempFile.getPath())) {
                             in.transferTo(outputStream);
                         }
-
-                        IOUtils.closeQuietly(tempFile);
                     });
         } catch (IOException e) {
             IOUtils.closeQuietly(tempFile);

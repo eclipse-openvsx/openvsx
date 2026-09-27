@@ -45,10 +45,12 @@ class ServerErrorControllerTest {
 
     @Test
     void errorHtmlRedirectsToTheWebuiErrorPage() throws Exception {
+        var webUi = new WebUiProperties();
+        webUi.setUrl("https://open-vsx.org");
         var controller = new ServerErrorController(
                 Mockito.mock(ErrorAttributes.class),
-                new WebProperties());
-        controller.webuiUrl = "https://open-vsx.org";
+                new WebProperties(),
+                webUi);
 
         var modelAndView = controller.errorHtml(
                 Mockito.mock(HttpServletRequest.class),

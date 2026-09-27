@@ -279,6 +279,10 @@ public class RepositoryService {
         return extensionRepo.findExtensionsWithInconsistentActiveFlag();
     }
 
+    public Streamable<Extension> findExtensionsWithStaleLastUpdatedDate() {
+        return extensionRepo.findExtensionsWithStaleLastUpdatedDate();
+    }
+
     public long countExtensions() {
         return extensionRepo.count();
     }
@@ -564,6 +568,10 @@ public class RepositoryService {
 
     public PersonalAccessToken findPersonalAccessToken(String value) {
         return personalAccessTokenRepo.findByValue(value);
+    }
+
+    public PersonalAccessToken findPersonalAccessToken(String value, int version) {
+        return personalAccessTokenRepo.findByValueAndVersion(value, version);
     }
 
     public PersonalAccessToken findPersonalAccessToken(long id) {

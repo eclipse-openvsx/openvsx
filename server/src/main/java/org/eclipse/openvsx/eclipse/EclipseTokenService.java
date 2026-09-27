@@ -46,16 +46,19 @@ public class EclipseTokenService {
     private final EntityManager entityManager;
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final JsonMapper jsonMapper;
+    private final RestTemplate restTemplate;
 
     public EclipseTokenService(
             TransactionTemplate transactions,
             EntityManager entityManager,
-            @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository
+            @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository,
+            RestTemplate restTemplate
     ) {
         this.transactions = transactions;
         this.entityManager = entityManager;
         this.clientRegistrationRepository = clientRegistrationRepository;
         this.jsonMapper = JsonMapper.builder().build();
+        this.restTemplate = restTemplate;
     }
 
     public AuthToken updateEclipseToken(long userId, OAuth2AccessToken accessToken, OAuth2RefreshToken refreshToken) {
@@ -134,7 +137,6 @@ public class EclipseTokenService {
 
         try {
             var request = new HttpEntity<>(data, headers);
-            var restTemplate = new RestTemplate();
             var response = restTemplate.postForObject(tokenUri, request, String.class);
             var root = jsonMapper.readTree(response);
             var newTokenValue = root.get("access_token").asString();

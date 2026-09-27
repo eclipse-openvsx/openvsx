@@ -22,6 +22,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -90,6 +92,10 @@ import org.eclipse.openvsx.util.*;
 )
 public class AdminAPI {
 
+    private static final String TOKEN_PARAM_DESCRIPTION = "A personal access token. Deprecated: send it via the "
+            + "Authorization: Bearer header instead (or " + HttpHeadersUtil.TOKEN_HEADER
+            + " if Authorization is already in use).";
+
     private final RepositoryService repositories;
     private final AdminService admins;
     private final ExtensionService extensions;
@@ -128,6 +134,7 @@ public class AdminAPI {
     )
     @CrossOrigin
     @Operation(summary = "Get the admin report for the given month and year")
+    @SecurityRequirement(name = "bearerAuth")
     @ApiResponse(
         responseCode = "200",
         description = "The report is returned",
@@ -145,13 +152,14 @@ public class AdminAPI {
         content = @Content()
     )
     public ResponseEntity<AdminStatisticsJson> getReportJson(
-            @RequestParam("token")
-            @Parameter(description = "A personal access token") String tokenValue,
+            HttpServletRequest request,
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestParam("year") int year,
             @RequestParam("month") int month
     ) {
         try {
-            var statistics = getReport(tokenValue, year, month);
+            var statistics = getReport(request, tokenValue, year, month);
             return ResponseEntity.ok(statistics.toJson());
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(AdminStatisticsJson.class);
@@ -165,20 +173,21 @@ public class AdminAPI {
     @CrossOrigin
     @Operation(hidden = true)
     public ResponseEntity<String> getReportCsv(
-            @RequestParam("token") String tokenValue,
+            HttpServletRequest request,
+            @RequestParam(value = "token", required = false) String tokenValue,
             @RequestParam("year") int year,
             @RequestParam("month") int month
     ) {
         try {
-            var statistics = getReport(tokenValue, year, month);
+            var statistics = getReport(request, tokenValue, year, month);
             return ResponseEntity.ok(statistics.toCsv());
         } catch (ErrorResultException exc) {
             return ResponseEntity.status(exc.getStatus()).body(exc.getMessage());
         }
     }
 
-    private AdminStatistics getReport(String tokenValue, int year, int month) {
-        admins.checkAdminUser(tokenValue);
+    private AdminStatistics getReport(HttpServletRequest request, String tokenValue, int year, int month) {
+        admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
         return admins.getAdminStatistics(year, month);
     }
 
@@ -564,6 +573,7 @@ public class AdminAPI {
         )
     )
     public ResponseEntity<?> searchExplain(
+            HttpServletRequest request,
             // An empty query matches every document, and this is the one endpoint that asks the engine
             // to explain every result it returns, so it must not be run over everything by accident.
             @RequestParam("query")
@@ -580,7 +590,15 @@ public class AdminAPI {
             @RequestParam(value = "token", required = false) String token
     ) {
         try {
-            admins.checkAdminUser();
+            // Falls back to the session-authenticated admin when neither a token header nor a token
+            // query parameter is supplied, so browsing this endpoint while logged into /admin keeps
+            // working exactly as it did before token support was wired in here.
+            var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
+            if (tokenValue != null) {
+                admins.checkAdminUser(tokenValue);
+            } else {
+                admins.checkAdminUser();
+            }
             // Trimmed so " foo " and "foo" are not treated as different queries.
             var trimmed = query.trim();
             return ResponseEntity.ok(searchExplainService.explain(trimmed, size, offset, sortBy, sortOrder));
@@ -716,17 +734,19 @@ public class AdminAPI {
         description = "Extension not found",
         content = @Content()
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> deleteExtension(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace name", example = "julialang") String namespaceName,
             @PathVariable
             @Parameter(description = "Extension name", example = "language-julia") String extensionName,
-            @RequestParam(value = "token")
-            @Parameter(description = "A personal access token") String tokenValue,
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
-            var adminUser = admins.checkAdminUser(tokenValue);
+            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
             var targets = CollectionUtil.toArray(
                     targetVersions,
                     TargetPlatformVersionJson::toTargetPlatformVersion,
@@ -808,17 +828,19 @@ public class AdminAPI {
         description = "Extension not found",
         content = @Content()
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> purgeExtension(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace name", example = "julialang") String namespaceName,
             @PathVariable
             @Parameter(description = "Extension name", example = "language-julia") String extensionName,
-            @RequestParam(value = "token")
-            @Parameter(description = "A personal access token") String tokenValue,
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
-            var adminUser = admins.checkAdminUser(tokenValue);
+            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
             var targets = CollectionUtil.toArray(
                     targetVersions,
                     TargetPlatformVersionJson::toTargetPlatformVersion,
@@ -1114,14 +1136,16 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = NamespaceMembershipListJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<NamespaceMembershipListJson> getNamespaceMembers(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace name", example = "mtxr") String namespaceName,
-            @RequestParam(value = "token")
-            @Parameter(description = "A personal access token") String tokenValue
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
-            admins.checkAdminUser(tokenValue);
+            admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
             var memberships = repositories.findMemberships(namespaceName);
             var membershipList = new NamespaceMembershipListJson();
             membershipList.setNamespaceMemberships(memberships.stream().map(NamespaceMembership::toJson).toList());
@@ -1181,7 +1205,9 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> editNamespaceMember(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Namespace name", example = "BeardedBear") String namespaceName,
             @RequestParam("user")
@@ -1195,11 +1221,11 @@ public class AdminAPI {
                     allowableValues = { NamespaceMembership.ROLE_CONTRIBUTOR, NamespaceMembership.ROLE_OWNER, "remove" }
                 )
             ) String role,
-            @RequestParam(value = "token")
-            @Parameter(description = "A personal access token") String tokenValue
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
-            var adminUser = admins.checkAdminUser(tokenValue);
+            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
             var result = admins.editNamespaceMember(namespaceName, userName, provider, role, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1332,9 +1358,11 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<BulkPublisherRevokeResponseJson> revokeBulkPublishers(
-            @RequestParam(value = "token")
-            @Parameter(description = "A personal access token") String tokenValue,
+            HttpServletRequest httpRequest,
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue,
             @RequestBody BulkPublisherRevokeRequestJson request
     ) {
         if (request.publishers().size() > 100) {
@@ -1342,7 +1370,7 @@ public class AdminAPI {
             return new ResponseEntity<>(json, HttpStatus.BAD_REQUEST);
         }
         try {
-            var adminUser = admins.checkAdminUser(tokenValue);
+            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(httpRequest, tokenValue));
 
             var resultMap = new HashMap<String, ResultJson>();
             for (var publisher : request.publishers()) {
@@ -1421,16 +1449,18 @@ public class AdminAPI {
         description = "User not found",
         content = @Content()
     )
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ResultJson> forgetUser(
+            HttpServletRequest request,
             @PathVariable
             @Parameter(description = "Authentication provider", example = "github") String provider,
             @PathVariable
             @Parameter(description = "Provider-specific username") String username,
-            @RequestParam(value = "token")
-            @Parameter(description = "A personal access token") String tokenValue
+            @RequestParam(value = "token", required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
-            var adminUser = admins.checkAdminUser(tokenValue);
+            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
             var result = admins.forgetUser(provider, username, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {

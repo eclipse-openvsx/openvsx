@@ -255,7 +255,10 @@ spotless {
         // formatter step below so the braces it adds get properly indented/positioned
         addStep(AddBracesFixStep.create())
 
-        eclipse('4.40').configFile('config/eclipse-java-formatter.xml')
+        // no lockfile is bundled yet for 4.41 in spotless-lib-extra, so this provisions jdt.core
+        // live from Eclipse's P2 repository instead of a pinned/reproducible dependency set - see
+        // AGENTS.md's "The formatter's versions have one source of truth"
+        eclipse('4.41').configFile('config/eclipse-java-formatter.xml')
 
         // shared with scripts/ClosingBraceFix.java (the jbang path) via buildSrc,
         // see buildSrc/src/main/java/ClosingBraceFixStep.java

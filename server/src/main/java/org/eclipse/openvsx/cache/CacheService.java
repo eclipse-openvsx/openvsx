@@ -94,6 +94,35 @@ public class CacheService {
         afterCommit.execute(() -> invalidateCache(CACHE_SITEMAP));
     }
 
+    /**
+     * Reads the cached malicious-extension list, or null on a cache miss or if the cache does not exist
+     * yet. Managed manually (not via {@code @Cacheable}) specifically so a cache hit can still update
+     * the caller's per-instance fallback - {@code @Cacheable}'s hit path skips the annotated method
+     * body entirely, so it has no opportunity to do that.
+     */
+    public List<String> getMaliciousExtensions() {
+        var cache = cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS);
+        if (cache == null) {
+            return null;
+        }
+
+        return cache.get(SimpleKey.EMPTY, List.class);
+    }
+
+    /**
+     * Overwrites the cached malicious-extension list with a freshly fetched one, so the daily
+     * extension-control job (which always fetches a fresh copy) keeps this cache warm at its own
+     * cadence, rather than leaving it to drift for up to its own, independently TTL'd 3 days.
+     */
+    public void refreshMaliciousExtensions(List<String> maliciousExtensionIds) {
+        var cache = cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS);
+        if (cache == null) {
+            return;
+        }
+
+        cache.put(SimpleKey.EMPTY, maliciousExtensionIds);
+    }
+
     public void evictNamespaceDetails() {
         afterCommit.execute(() -> invalidateCache(CACHE_NAMESPACE_DETAILS_JSON));
     }

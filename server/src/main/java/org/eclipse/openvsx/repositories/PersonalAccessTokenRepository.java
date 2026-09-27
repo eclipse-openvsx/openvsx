@@ -37,6 +37,8 @@ public interface PersonalAccessTokenRepository extends Repository<PersonalAccess
 
     PersonalAccessToken findByValue(String value);
 
+    PersonalAccessToken findByValueAndVersion(String value, int version);
+
     PersonalAccessToken findByUserAndDescriptionAndActiveTrue(UserData user, String description);
 
     @Modifying
