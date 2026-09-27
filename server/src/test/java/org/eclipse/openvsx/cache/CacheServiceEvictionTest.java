@@ -116,10 +116,10 @@ class CacheServiceEvictionTest {
     // What extension.json is actually kept in, when Redis is off: a JCache over Caffeine.
     @Test
     void dropsOnlyTheExtensionsOwnKeysFromAJCacheBackedCache() {
-        try (
-                var provider = Caching.getCachingProvider(CaffeineCachingProvider.class.getName());
-                var manager = provider.getCacheManager()
-        ) {
+        // Only the manager is a resource here: CachingProvider.close() closes every CacheManager it
+        // has ever handed out, not just this one - closing the (JVM-wide, cached) provider itself
+        // reaped other tests' concurrently-running managers too.
+        try (var manager = Caching.getCachingProvider(CaffeineCachingProvider.class.getName()).getCacheManager()) {
             var nativeCache = manager
                     .createCache(CACHE_EXTENSION_JSON, new CaffeineConfiguration<Object, Object>());
             var keys = new ExtensionJsonCacheKeyGenerator();
