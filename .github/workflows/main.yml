@@ -95,7 +95,7 @@ jobs:
 
     - name: Build and push Web UI Image
       if: steps.changed_webui_files.outputs.any_changed == 'true'
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: webui
         push: ${{ github.repository_owner == 'eclipse-openvsx' &&
@@ -223,7 +223,7 @@ jobs:
               github.event.pull_request.head.repo.full_name == github.repository
             )
           )
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: server
         push: true
