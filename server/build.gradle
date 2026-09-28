@@ -289,11 +289,6 @@ test {
     jvmArgs = ['--enable-native-access=ALL-UNNAMED', '-Xmx6144m', '-Xshare:off'] // due to https://github.com/netty/netty/issues/15161
     useJUnitPlatform()
 
-    // The suite has ~25-30 distinct @SpringBootTest/@WebMvcTest context configurations, close to
-    // Spring's default cache size of 32 - raise it so LRU eviction doesn't force a context rebuild
-    // mid-suite, which parallel class execution makes more likely by interleaving them unpredictably.
-    systemProperty 'spring.test.context.cache.maxSize', '64'
-
     // registry tests run on plain postgres, analytics tests on timescale/timescaledb; override
     // either image with -Dovsx.test.postgres.image=... / -Dovsx.test.timeseries.image=...
     ['ovsx.test.postgres.image', 'ovsx.test.timeseries.image'].each { property ->
