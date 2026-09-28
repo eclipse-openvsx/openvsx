@@ -127,29 +127,44 @@ jobs:
         distribution: 'temurin'
         java-version: 25
 
-    # The official Gradle action rather than setup-java's own `cache: gradle` or a hand-rolled
-    # actions/cache step (both explicitly discouraged alongside this one, since they can interfere
-    # with its caching): by default it only writes cache entries from runs on the default branch, and
-    # pull_request runs (forks included) can only read them back, never write. zizmor's cache-poisoning
-    # audit still flags it below on the same generic "cache-enabling step precedes a publish step in
-    # this job" heuristic it can't see past (same false positive already explained for
-    # server/Dockerfile's isolated build on this PR's other cache-poisoning suppression), but the
+    # The official Gradle action rather than setup-java's own `cache: gradle` (explicitly discouraged
+    # alongside this one, since it can interfere with its caching) for Gradle User Home (dependencies,
+    # build-output cache): by default it only writes cache entries from runs on the default branch,
+    # and pull_request runs (forks included) can only read them back, never write. zizmor's
+    # cache-poisoning audit still flags it below on the same generic "cache-enabling step precedes a
+    # publish step in this job" heuristic it can't see past (same false positive already explained for
+    # server/Dockerfile's isolated build on the next cache-poisoning suppression below), but the
     # write-scoping above is a second, independent reason this one doesn't apply either.
-    # cache-encryption-key additionally encrypts the configuration-cache entries this enables in
-    # gradle.properties, since - per a Copilot review finding on this PR - configuration-cache data can
-    # capture values that shouldn't be readable by anyone who can open a fork pull request against this
-    # repo. Requires a GRADLE_ENCRYPTION_KEY repository secret (openssl rand -base64 16); with no such
-    # secret this degrades to unencrypted rather than failing.
+    #
+    # This does NOT cache server/.gradle/configuration-cache - that would need this action's
+    # "project state" caching, which turns out to be a Develocity-licensed trial feature gated behind
+    # an undocumented opt-in env var (confirmed by reading gradle/actions' own source,
+    # sources/src/cache-service.ts's ProjectCacheStatus type), not just cache-encryption-key as its
+    # docs implied. This repo has no Develocity access, so that path isn't available - see the
+    # dedicated actions/cache step below instead.
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # zizmor: ignore[cache-poisoning] v6.3.0, see comment above
-      with:
-        cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
     - name: Get all changed server files
       id: changed_server_files
       uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       with:
         files: server/**
+
+    # server/.gradle/configuration-cache can capture values from the build environment that
+    # shouldn't be readable by anyone who can open a fork pull request against this repo (a Copilot
+    # review finding on this PR), and GitHub allows fork PR runs to read caches scoped to the base
+    # branch by default. Restricting this step to same-repo events closes that off entirely: a step
+    # that never runs for fork PRs can't leak anything to them, encrypted or not. Same-repo PRs and
+    # pushes still get the speedup this was added for.
+    - name: Cache Gradle configuration cache
+      if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v6.1.0, see comment above
+      with:
+        path: server/.gradle/configuration-cache
+        key: gradle-configuration-cache-${{ runner.os }}-${{ hashFiles('server/**/*.gradle', 'server/gradle/libs.versions.toml', 'server/gradle/wrapper/gradle-wrapper.properties', 'server/buildSrc/**') }}
+        restore-keys: |
+          gradle-configuration-cache-${{ runner.os }}-
 
     - name: Run Server Tests
       if: steps.changed_server_files.outputs.any_changed == 'true'
