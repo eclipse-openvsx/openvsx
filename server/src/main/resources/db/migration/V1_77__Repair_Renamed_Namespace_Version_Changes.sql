@@ -1,34 +1,30 @@
--- A namespace rename used to move extensions without appending anything to the changes feed, so a
--- version's pre-rename tuple stayed reported ACTIVE/INACTIVE forever and its new tuple never appeared
--- (#2244). Backfills the REMOVED/ACTIVE pair a live rename now records, for every version whose reported
+-- A namespace rename moved extensions without appending anything to the changes feed, so a version's
+-- pre-rename tuple stayed reported ACTIVE/INACTIVE forever and its new tuple never appeared (#2244).
+-- Backfills the REMOVED/ACTIVE pair a live rename now records, for every version whose reported
 -- history doesn't match where it lives now.
 --
--- changed_at is this migration's own run time, not a reconstructed (unknown) rename time - backdating it
--- would sort the entry into a part of the feed a caught-up consumer already read past (see the changedAt
--- javadoc on ExtensionVersionChange). Captured once per temp table so departures and arrivals agree on it.
+-- changed_at is this migration's run time, not a reconstructed (unknown) rename time - backdating it
+-- would sort the entry into a part of the feed a caught-up consumer already read past (see the
+-- changedAt javadoc on ExtensionVersionChange).
 --
--- Known limitation: a version renamed back to a namespace it occupied before (A -> B -> A) is only fixed
--- correctly if A's own last entry already agrees with the version's current state - this only ever closes
--- namespaces a version has left, never corrects the one it currently occupies. Not a concern for the four
--- renames #2244 was filed about; left as a follow-up.
+-- Known limitation: a version renamed back to a prior namespace (A -> B -> A) is only fixed correctly
+-- if A's own last entry already agrees with the version's current state. Not a concern for the four
+-- renames #2244 was filed about.
 --
--- extension_version_change_seq (V1_71) was created without OWNED BY, unlike every other entity's
--- sequence (V1_40 added this same link for the sequences that predated it). Without it,
--- pg_get_serial_sequence('extension_version_change', 'id') returns NULL, silently defeating
--- anything that relies on it to find the table's sequence - concretely,
--- scripts/import-db-dump.sh's generic per-table sequence reset after loading a dump skips this
--- table entirely, so the next feed write after an import collides with an imported id.
+-- Also fixes extension_version_change_seq (V1_71), created without OWNED BY unlike every other
+-- entity's sequence (V1_40 added it for the ones that predated it) - without it,
+-- pg_get_serial_sequence can't find the sequence, silently defeating
+-- scripts/import-db-dump.sh's sequence reset after loading a dump.
 ALTER SEQUENCE extension_version_change_seq OWNED BY public.extension_version_change.id;
 
--- Locked first: a rolling deployment can have an old instance still writing while this runs. Without the
--- lock, a concurrent purge could delete a row already captured below, failing the insert on its FK; a
--- concurrent rename landing between the two snapshots would leave them looking at different namespace
--- states. SHARE mode blocks writers, not readers - same pattern as V1_76__Unique_Active_Review.sql.
+-- Locked first: a rolling deployment can have an old instance still writing while this runs - a
+-- concurrent purge could delete a row already captured below, or a concurrent rename could land
+-- between the two snapshots. SHARE mode blocks writers, not readers - same as
+-- V1_76__Unique_Active_Review.sql.
 LOCK TABLE public.extension, public.extension_version, public.extension_version_change IN SHARE MODE;
 
--- Every namespace a version has ever been reported under, and its own latest state there - kept per
--- (version, namespace) so a later, correctly-recorded transition under the new namespace (e.g. an admin
--- deactivation) can't hide an older, still-open abandoned namespace that also needs closing.
+-- Every namespace a version has been reported under, and its own latest state there - per (version,
+-- namespace) so a later transition under the new namespace can't hide an older abandoned one.
 CREATE TEMPORARY TABLE tmp_namespace_rename_departures ON COMMIT DROP AS
 SELECT
     nh.extension_version_id,
