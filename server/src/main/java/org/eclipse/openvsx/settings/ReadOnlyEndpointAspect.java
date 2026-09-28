@@ -16,7 +16,9 @@ import java.lang.reflect.Method;
 
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.aop.support.StaticMethodMatcherPointcutAdvisor;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Role;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
@@ -39,8 +41,14 @@ import org.eclipse.openvsx.json.ResultJson;
  * pulling that in this early produced a
  * "not eligible for getting processed by all BeanPostProcessors" warning at startup. Deferring the
  * lookup until the advice actually fires keeps this bean itself cheap to construct.
+ * <p>
+ * {@code @Role(ROLE_INFRASTRUCTURE)}: this bean is itself resolved before all {@code BeanPostProcessor}s
+ * are registered (see above) and is never meant to be proxied/advised by anything else, which otherwise
+ * trips the same "not eligible for getting processed by all BeanPostProcessors" warning - this is
+ * Spring's own documented way to tell that check the early creation is expected.
  */
 @Component
+@Role(BeanDefinition.ROLE_INFRASTRUCTURE)
 public class ReadOnlyEndpointAspect extends StaticMethodMatcherPointcutAdvisor {
 
     public ReadOnlyEndpointAspect(@Lazy SettingsService settings) {
