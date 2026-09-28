@@ -236,15 +236,26 @@ with open(sys.argv[1], newline='', encoding='utf-8', errors='replace') as f:
         if i >= 2000:
             break
         counts[len(row)] += 1
-print(counts.most_common(1)[0][0])
+# A table with zero dump rows (e.g. extension_version_change on a registry that has never
+# published anything) gives no column-count signal at all - print nothing rather than crashing on
+# counts.most_common(1)[0], and let the caller treat that table as uninformative below.
+if counts:
+    print(counts.most_common(1)[0][0])
 PY
   }
 
   declare -A actual_cols
+  any_signal=false
   for t in "${TABLES[@]}"; do
     actual_cols["${t}"]=$(detect_actual_cols "${t}")
+    [ -n "${actual_cols[${t}]}" ] && any_signal=true
   done
-  echo "  dump column counts: $(for t in "${TABLES[@]}"; do printf '%s=%s ' "${t}" "${actual_cols[${t}]}"; done)"
+  echo "  dump column counts: $(for t in "${TABLES[@]}"; do printf '%s=%s ' "${t}" "${actual_cols[${t}]:-empty}"; done)"
+
+  if [ "${any_signal}" = false ]; then
+    echo "Every dump file is empty - nothing to detect a Flyway version from. Pass -t yourself." >&2
+    exit 1
+  fi
 
   mapfile -t VERSIONS < <(
     find "${MIGRATIONS_DIR}" -maxdepth 1 -name 'V*__*' -printf '%f\n' \
@@ -257,6 +268,9 @@ PY
     scratch_migrate "${v}"
     match=true
     for t in "${TABLES[@]}"; do
+      # An empty dump file carries no signal for this table (see detect_actual_cols) - skip it
+      # rather than let it veto every candidate version.
+      [ -z "${actual_cols[${t}]}" ] && continue
       if [ "$(table_column_count "${t}")" != "${actual_cols[${t}]}" ]; then
         match=false
         break

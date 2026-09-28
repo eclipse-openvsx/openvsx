@@ -10,6 +10,14 @@ usage() {
 [ $# -ge 1 ] || usage
 SOURCE_DB_URL="$1"
 OUT_DIR="${2:-db/dump}"
+
+command -v psql >/dev/null || { echo "This script needs 'psql' on PATH." >&2; exit 1; }
+
+# The dump holds raw secrets until scrub-db-dump.sh redacts them (personal_access_token.value,
+# signature_key_pair.private_key, user_data.eclipse_token) - keep every file/directory this script
+# creates readable only by the current user, regardless of the caller's umask.
+umask 077
+
 mkdir -p "${OUT_DIR}"
 OUT_DIR="$(cd "${OUT_DIR}" && pwd)"
 
@@ -18,6 +26,15 @@ OUT_DIR="$(cd "${OUT_DIR}" && pwd)"
 # how the 3 sensitive ones among them get redacted first).
 TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data extension_version_change)
 
+# Stage next to OUT_DIR (same filesystem, so promoting a file is a fast, atomic rename) and only
+# move files into OUT_DIR once psql has committed. \copy writes its target file directly and
+# independently of the transaction it runs in, so a failure partway through the loop below would
+# otherwise leave OUT_DIR with some freshly-overwritten tables and some left over from whatever
+# was there before - a mixed, inconsistent directory that still passes import-db-dump.sh's own
+# existence checks.
+STAGE_DIR=$(mktemp -d "${OUT_DIR}.XXXXXX")
+trap 'rm -rf "${STAGE_DIR}"' EXIT
+
 {
   echo "BEGIN;"
   # One snapshot for every table below, however long the export takes - concurrent writes on the
@@ -25,10 +42,14 @@ TABLES=(extension extension_version file_resource namespace namespace_membership
   # up looking at different points in time relative to each other.
   echo "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY;"
   for t in "${TABLES[@]}"; do
-    echo "\\copy ${t} to '${OUT_DIR}/${t}.csv' with (format text, delimiter ',')"
+    echo "\\copy ${t} to '${STAGE_DIR}/${t}.csv' with (format text, delimiter ',')"
   done
   echo "COMMIT;"
 } | psql "${SOURCE_DB_URL}" -v ON_ERROR_STOP=1
+
+for t in "${TABLES[@]}"; do
+  mv -f "${STAGE_DIR}/${t}.csv" "${OUT_DIR}/${t}.csv"
+done
 
 echo "Done. Dump files in ${OUT_DIR}:"
 ls -la "${OUT_DIR}"/*.csv
