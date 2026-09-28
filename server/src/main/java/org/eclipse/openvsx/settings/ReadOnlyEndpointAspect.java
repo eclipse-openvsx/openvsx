@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.aop.support.StaticMethodMatcherPointcutAdvisor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
@@ -30,11 +31,19 @@ import org.eclipse.openvsx.json.ResultJson;
  * cost in the test suite's context startup time (roughly 70% of it), since this aspect (unlike the other
  * four in {@code mirror.aop}) has no {@code @ConditionalOnProperty} and so is always active. A plain
  * Method/Class check has none of that cost.
+ * <p>
+ * {@link SettingsService} is injected lazily: any bean implementing {@code Advisor} (this one included,
+ * via {@link StaticMethodMatcherPointcutAdvisor}) is resolved eagerly by Spring's auto-proxying
+ * machinery before all {@code BeanPostProcessor}s are registered, and {@code SettingsService}'s own
+ * dependency chain reaches all the way to the JPA/DataSource (and therefore Flyway) infrastructure -
+ * pulling that in this early produced a
+ * "not eligible for getting processed by all BeanPostProcessors" warning at startup. Deferring the
+ * lookup until the advice actually fires keeps this bean itself cheap to construct.
  */
 @Component
 public class ReadOnlyEndpointAspect extends StaticMethodMatcherPointcutAdvisor {
 
-    public ReadOnlyEndpointAspect(SettingsService settings) {
+    public ReadOnlyEndpointAspect(@Lazy SettingsService settings) {
         super((MethodInterceptor) invocation -> settings.isReadOnly()
                 ? ResponseEntity.status(409).body(ResultJson.error("Registry is in read-only mode."))
                 : invocation.proceed());
