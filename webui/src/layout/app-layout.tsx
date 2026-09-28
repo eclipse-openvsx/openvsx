@@ -16,6 +16,7 @@ import { Routes, Route, useNavigate } from 'react-router';
 import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { Banner } from '../components/banner';
+import { RegistryBanner } from '../components/registry-banner';
 import { ShortcutsModal } from '../components/shortcuts-modal';
 import { MainContext } from '../context';
 import { useSearch } from '../hooks/use-search';
@@ -104,7 +105,10 @@ const AppLayoutContent: FunctionComponent<AppLayoutProps> = props => {
                     color={BannerComponent.props?.color}>
                     <BannerComponent.content />
                 </Banner>
-            ) : null}
+            ) : (
+                /* No banner from the page settings: fall back to the one admins configure at runtime. */
+                <RegistryBanner />
+            )}
             <AppNavbar />
             {/* Mobile: fill the viewport so the (screen-tall) footer stays below the fold.
                 Desktop: flexGrow alone sticks the footer to the viewport bottom. A flex

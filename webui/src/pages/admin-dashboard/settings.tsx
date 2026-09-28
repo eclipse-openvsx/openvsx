@@ -22,14 +22,15 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Paper,
     Stack,
     Typography
 } from '@mui/material';
 import type { Settings } from '../../extension-registry-types';
 import { handleError } from '../../utils';
 import { useSavedFlash } from '../../hooks/use-saved-flash';
+import { SettingsBannerItem } from './settings-banner-item';
 import { SettingsItem } from './settings-item';
+import { SettingsSection } from './settings-section';
 import { useSettings, useUpdateSettings } from './use-settings';
 
 interface NotificationState {
@@ -41,12 +42,23 @@ interface NotificationState {
 
 const NOTIFICATION_TIMEOUT = 2000;
 
-const SETTINGS: Record<keyof Settings, { title: string; description: string }> = {
-    readOnly: {
+/** Settings rendered as a plain on/off toggle. */
+type FlagKey = 'read-only';
+
+const FLAGS: Record<FlagKey, { title: string; description: string }> = {
+    'read-only': {
         title: 'Read-only mode',
         description: 'Blocks write operations while keeping browsing, search, and downloads available.'
     }
 };
+
+const SETTING_KEYS = [
+    'read-only',
+    'banner-enabled',
+    'banner-message',
+    'banner-severity',
+    'banner-dismiss-id'
+] as const satisfies readonly (keyof Settings)[];
 
 export const RuntimeSettingsPage: FC = () => {
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
@@ -96,17 +108,24 @@ export const RuntimeSettingsPage: FC = () => {
     };
 
     const handleFlagChange = useCallback(
-        (key: keyof Settings) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
+        (key: FlagKey) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
             setDraftSettings(current => (current ? { ...current, [key]: checked } : current));
             clearSaved();
         },
         [clearSaved]
     );
 
-    const hasChanges =
-        draftSettings !== null &&
-        settings != null &&
-        (Object.keys(SETTINGS) as (keyof Settings)[]).some(k => draftSettings[k] !== settings[k]);
+    const handleBannerChange = useCallback(
+        (patch: Settings) => {
+            setDraftSettings(current => (current ? { ...current, ...patch } : current));
+            clearSaved();
+        },
+        [clearSaved]
+    );
+
+    const edited = draftSettings !== null && settings != null;
+    const flagsChanged = edited && (Object.keys(FLAGS) as FlagKey[]).some(k => draftSettings[k] !== settings[k]);
+    const hasChanges = edited && SETTING_KEYS.some(key => draftSettings[key] !== settings[key]);
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -143,11 +162,11 @@ export const RuntimeSettingsPage: FC = () => {
                     </Alert>
                 )}
 
-                <Paper
-                    variant='outlined'
-                    elevation={0}
-                    sx={{ overflow: 'hidden', borderColor: hasChanges ? 'red' : 'grey' }}>
-                    {(Object.entries(SETTINGS) as [keyof Settings, { title: string; description: string }][]).map(
+                <SettingsSection
+                    title='Registry'
+                    description='How the registry service behaves for every caller.'
+                    changed={flagsChanged}>
+                    {(Object.entries(FLAGS) as [FlagKey, { title: string; description: string }][]).map(
                         ([key, flag]) => (
                             <SettingsItem
                                 key={key}
@@ -160,7 +179,18 @@ export const RuntimeSettingsPage: FC = () => {
                             />
                         )
                     )}
-                </Paper>
+                </SettingsSection>
+
+                {/* No change outline here: unlike read-only mode, a banner edit is not worth a warning. */}
+                <SettingsSection title='Site settings' description='What visitors see on the web UI.'>
+                    <SettingsBannerItem
+                        settings={draftSettings ?? {}}
+                        resetPending={edited && draftSettings['banner-dismiss-id'] !== settings['banner-dismiss-id']}
+                        loading={loading || !draftSettings}
+                        disabled={loading || saving || !draftSettings}
+                        onChange={handleBannerChange}
+                    />
+                </SettingsSection>
 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <SaveButton

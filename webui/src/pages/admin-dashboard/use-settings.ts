@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../context';
 import type { Settings } from '../../extension-registry-types';
 import { controllerFromSignal } from '../../query-client';
+import { siteSettingsQueryKey } from '../../components/use-site-settings';
 
 export const settingsQueryKey = ['admin', 'settings'] as const;
 
@@ -42,6 +43,8 @@ export const useUpdateSettings = () => {
         mutationFn: (settings: Settings) => service.admin.updateSettings(settings),
         onSuccess: updated => {
             queryClient.setQueryData(settingsQueryKey, updated);
+            // The banner above the admin's own navbar reads the public settings, not these.
+            return queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey });
         }
     });
 };
