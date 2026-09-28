@@ -547,10 +547,18 @@ SQL_FILE="${WORKDIR}/reload.sql"
     # Not every table's id is sequence-backed (or has an "id" column at all, though all 9 here
     # do) - pg_get_serial_sequence returns NULL rather than erroring for those, so the setval
     # call is skipped for them via the WHERE-less guard below.
+    #
+    # It also returns NULL for a sequence that exists but isn't OWNED BY the column -
+    # extension_version_change_seq on any target schema before that ownership link was added
+    # (every table here follows the <table>_seq naming convention once it has one, so that's a
+    # safe fallback rather than a guess - see V1_77__Repair_Renamed_Namespace_Version_Changes.sql).
+    # Needed regardless of whether the target ends up on a schema past that fix: a fresh target is
+    # deliberately migrated only to the dump's own Flyway version (see the -t option above), which
+    # can predate it even after this script is updated to know about it.
     cat <<SQL
 DO \$\$
 DECLARE
-  seq_name text := pg_get_serial_sequence('${t}', 'id');
+  seq_name text := coalesce(pg_get_serial_sequence('${t}', 'id'), to_regclass('public.${t}_seq')::text);
   max_id bigint;
 BEGIN
   IF seq_name IS NOT NULL THEN

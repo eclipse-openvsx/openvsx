@@ -40,7 +40,19 @@ TABLES=(extension extension_version file_resource namespace namespace_membership
 # existence checks.
 STAGE_DIR=$(mktemp -d "${OUT_DIR}.XXXXXX")
 PREVIOUS_DIR=""
-trap 'rm -rf "${STAGE_DIR}" "${PREVIOUS_DIR}"' EXIT
+PUBLISHED=false
+cleanup() {
+  # The old generation was moved aside but the new one never took its place (the second mv below
+  # failed, or the script was interrupted between the two) - put it back rather than leaving no
+  # output directory at all. Not a substitute for both renames succeeding as a unit: a SIGKILL (or
+  # power loss) landing in that exact gap skips this trap too, the one gap nothing short of a
+  # single-syscall swap (e.g. a symlink indirection) closes, and isn't worth that complexity here.
+  if [ "${PUBLISHED}" = false ] && [ -n "${PREVIOUS_DIR}" ] && [ -d "${PREVIOUS_DIR}" ] && [ ! -e "${OUT_DIR}" ]; then
+    mv "${PREVIOUS_DIR}" "${OUT_DIR}"
+  fi
+  rm -rf "${STAGE_DIR}" "${PREVIOUS_DIR}"
+}
+trap cleanup EXIT
 
 {
   echo "BEGIN;"
@@ -62,6 +74,7 @@ trap 'rm -rf "${STAGE_DIR}" "${PREVIOUS_DIR}"' EXIT
 PREVIOUS_DIR="${OUT_DIR}.previous.$$"
 mv "${OUT_DIR}" "${PREVIOUS_DIR}"
 mv "${STAGE_DIR}" "${OUT_DIR}"
+PUBLISHED=true
 
 echo "Done. Dump files in ${OUT_DIR}:"
 ls -la "${OUT_DIR}"/*.csv
