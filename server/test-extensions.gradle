@@ -1,7 +1,3 @@
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-
 // Test extensions downloaded into build-local/test-extensions-builtin (vscode built-ins)
 // and build-local/test-extensions (regular extensions), keyed dest file name -> source URL.
 def builtinExtensions = [
@@ -52,21 +48,21 @@ def testExtensions = [
 ]
 
 tasks.register('downloadTestExtensions') {
-    String buildLocalDir = layout.projectDirectory.dir('build-local').toString()
+    notCompatibleWithConfigurationCache("uses the download plugin's extension, which holds a live Project reference")
+    def buildLocalDir = rootProject.file('build-local').toString()
 
     doLast {
-        def downloadFile = { String url, Path dest ->
-            Files.createDirectories(dest.parent)
-            URI.create(url).toURL().openStream().withCloseable { input ->
-                Files.copy(input, dest, StandardCopyOption.REPLACE_EXISTING)
-            }
-            println "Downloaded ${dest}"
-        }
         builtinExtensions.each { name, url ->
-            downloadFile(url, Path.of(buildLocalDir, 'test-extensions-builtin', name))
+            download.run {
+                src url
+                dest "${buildLocalDir}/test-extensions-builtin/${name}"
+            }
         }
         testExtensions.each { name, url ->
-            downloadFile(url, Path.of(buildLocalDir, 'test-extensions', name))
+            download.run {
+                src url
+                dest "${buildLocalDir}/test-extensions/${name}"
+            }
         }
     }
 }
