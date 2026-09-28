@@ -36,7 +36,6 @@ woodstox        = "6.4.0"
 uuid-generator  = "5.2.0"
 
 [plugins]
-download                     = { id = "de.undercouch.download", version = "5.7.0" }
 gatling                      = { id = "io.gatling.gradle", version.ref = "gatling" }
 hibernate-orm                = { id = "org.hibernate.orm" }
 jooq-codegen                 = { id = "org.jooq.jooq-codegen-gradle", version.ref = "jooq" }

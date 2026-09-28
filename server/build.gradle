@@ -3,7 +3,6 @@ plugins {
     id 'scala'
     id 'jacoco'
     alias(libs.plugins.jooq.codegen)
-    alias(libs.plugins.download)
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.hibernate.orm)
