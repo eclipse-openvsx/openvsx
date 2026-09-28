@@ -72,6 +72,11 @@ trap 'rm -rf "${STAGE_DIR}"' EXIT
 # scrub-db-dump.sh deliberately leaves *.csv.bak originals alongside the redacted files until
 # they've been reviewed, and a whole-directory swap would silently delete those (and anything else
 # already there) the moment this script is re-run to refresh the dump.
+#
+# Not atomic as a set: an mv failing (or the script being interrupted) partway through can leave
+# some tables refreshed and others on the previous export. Accepted rather than closed with a
+# directory-level swap, since that trades a stale CSV of this tool's own regenerable output - fixed
+# by re-running the export - for silently destroying files the export doesn't own.
 for t in "${TABLES[@]}"; do
   mv -f "${STAGE_DIR}/${t}.csv" "${OUT_DIR}/${t}.csv"
 done
