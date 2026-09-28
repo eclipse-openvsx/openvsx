@@ -126,12 +126,26 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: 25
+        cache: 'gradle'
 
     - name: Get all changed server files
       id: changed_server_files
       uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       with:
         files: server/**
+
+    # Dependency/build-output caching is handled by setup-java's own `cache: gradle` above (which
+    # covers ~/.gradle); the configuration cache lives under the project directory instead
+    # (server/.gradle/configuration-cache, since gradlew runs with -p server), so it needs its own
+    # entry. A stale hit here is safe: Gradle's own build-fingerprint check invalidates it internally
+    # if relevant inputs changed, independent of whether the cache key matched.
+    - name: Cache Gradle configuration cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: server/.gradle/configuration-cache
+        key: gradle-configuration-cache-${{ runner.os }}-${{ hashFiles('server/**/*.gradle', 'server/gradle/libs.versions.toml', 'server/gradle/wrapper/gradle-wrapper.properties', 'server/buildSrc/**') }}
+        restore-keys: |
+          gradle-configuration-cache-${{ runner.os }}-
 
     - name: Run Server Tests
       if: steps.changed_server_files.outputs.any_changed == 'true'
