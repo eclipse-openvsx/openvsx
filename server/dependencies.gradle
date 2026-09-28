@@ -1,9 +1,9 @@
+import java.nio.file.Files
 import java.nio.file.Path
 
 tasks.register('listDependencies') {
     String gradleUserHomeDir = project.gradle.gradleUserHomeDir.toString()
     String buildDirectory = rootProject.layout.buildDirectory.get().toString()
-    mkdir "${buildDirectory}/dependencies"
     def runtimeClasspath = sourceSets.main.runtimeClasspath
     doLast {
         def prefix = Path.of(gradleUserHomeDir, 'caches', 'modules-2', 'files-2.1')
@@ -16,7 +16,9 @@ tasks.register('listDependencies') {
             }
         }
         list.sort()
-        def output = new File("${buildDirectory}/dependencies/list.txt")
+        def dependenciesDir = Path.of(buildDirectory, 'dependencies')
+        Files.createDirectories(dependenciesDir)
+        def output = dependenciesDir.resolve('list.txt').toFile()
         output.write(list.join('\n'))
         println "Created " + output.toString()
     }
