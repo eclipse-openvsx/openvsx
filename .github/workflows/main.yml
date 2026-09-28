@@ -116,6 +116,13 @@ jobs:
       packages: write
       id-token: write
     runs-on: ubuntu-latest
+    env:
+      # Gradle's own encryption for the configuration cache, keyed by a fixed secret rather than the
+      # per-machine key it generates by default (which wouldn't survive across separate CI runs
+      # anyway). This is the real boundary against a fork PR reading server/.gradle/configuration-cache
+      # below: GitHub never exposes secrets to fork pull_request runs, so a fork can restore the cache
+      # bytes but not decrypt them - unlike an `if:` in this file, which a fork PR can just edit away.
+      GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -139,15 +146,14 @@ jobs:
       with:
         files: server/**
 
-    # Restricted to same-repo events: this cache can capture values from the build environment, and
-    # GitHub lets fork PR runs read (not write) caches scoped to the base branch by default. A step
-    # that never runs for a fork PR can't leak anything to it.
+    # GRADLE_ENCRYPTION_KEY (job env, above) is what actually protects this; skipping the restore for
+    # fork PRs too is just an optimization, since they couldn't decrypt the entries anyway.
     - name: Cache Gradle configuration cache
       if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v6.1.0, see comment above
       with:
         path: server/.gradle/configuration-cache
-        key: gradle-configuration-cache-${{ runner.os }}-${{ hashFiles('server/**/*.gradle', 'server/gradle/libs.versions.toml', 'server/gradle/wrapper/gradle-wrapper.properties', 'server/buildSrc/**') }}
+        key: gradle-configuration-cache-${{ runner.os }}-${{ hashFiles('server/**/*.gradle', 'server/gradle.properties', 'server/gradle/libs.versions.toml', 'server/gradle/wrapper/gradle-wrapper.properties', 'server/buildSrc/**') }}
         restore-keys: |
           gradle-configuration-cache-${{ runner.os }}-
 
