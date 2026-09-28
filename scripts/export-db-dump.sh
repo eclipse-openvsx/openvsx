@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_ROOT=$( dirname "${SCRIPT_DIR}" )
+
 usage() {
   echo "Usage: $(basename "$0") <source-connection-string> [output-dir]" >&2
   echo "  e.g.: $(basename "$0") 'postgresql://user@prod-host:5432/openvsx' db/dump" >&2
@@ -9,7 +12,10 @@ usage() {
 
 [ $# -ge 1 ] || usage
 SOURCE_DB_URL="$1"
-OUT_DIR="${2:-db/dump}"
+# Anchored to the repo root, same as scrub-db-dump.sh/import-db-dump.sh's own db/dump default -
+# a relative default here would instead resolve against the caller's cwd, so invoking this script
+# by path from somewhere else would write a dump neither of those two scripts would find.
+OUT_DIR="${2:-${PROJECT_ROOT}/db/dump}"
 
 command -v psql >/dev/null || { echo "This script needs 'psql' on PATH." >&2; exit 1; }
 

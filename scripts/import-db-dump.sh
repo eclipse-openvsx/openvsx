@@ -268,10 +268,20 @@ PY
     scratch_migrate "${v}"
     match=true
     for t in "${TABLES[@]}"; do
-      # An empty dump file carries no signal for this table (see detect_actual_cols) - skip it
-      # rather than let it veto every candidate version.
-      [ -z "${actual_cols[${t}]}" ] && continue
-      if [ "$(table_column_count "${t}")" != "${actual_cols[${t}]}" ]; then
+      cols="$(table_column_count "${t}")"
+      if [ -z "${actual_cols[${t}]}" ]; then
+        # An empty dump file carries no signal for this table's exact column count (see
+        # detect_actual_cols), but the file existing at all (checked up front) means the table
+        # existed at export time - reject any candidate version where it doesn't exist yet
+        # (column count 0) rather than skipping the table outright, or a version from before it
+        # was introduced could still "match" on the strength of every other table alone.
+        if [ "${cols}" = "0" ]; then
+          match=false
+          break
+        fi
+        continue
+      fi
+      if [ "${cols}" != "${actual_cols[${t}]}" ]; then
         match=false
         break
       fi
