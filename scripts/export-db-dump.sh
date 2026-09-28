@@ -25,7 +25,10 @@ command -v psql >/dev/null || { echo "This script needs 'psql' on PATH." >&2; ex
 umask 077
 
 mkdir -p "${OUT_DIR}"
-OUT_DIR="$(cd "${OUT_DIR}" && pwd)"
+# -P resolves any symlink in the path to its real, physical location - the renames below operate
+# on directory entries, and doing that through a symlink would rename the symlink itself rather
+# than the directory it points at, leaving whatever it actually points at untouched.
+OUT_DIR="$(cd "${OUT_DIR}" && pwd -P)"
 
 # The same 9 tables, and the same per-table "format text, delimiter ','" layout, import-db-dump.sh
 # reloads from db/dump - see that script for how these get loaded back (and scrub-db-dump.sh for
@@ -64,7 +67,10 @@ trap cleanup EXIT
     echo "\\copy ${t} to '${STAGE_DIR}/${t}.csv' with (format text, delimiter ',')"
   done
   echo "COMMIT;"
-} | psql "${SOURCE_DB_URL}" -v ON_ERROR_STOP=1
+  # -X: a ~/.psqlrc loads after -v ON_ERROR_STOP=1 and could override it (or AUTOCOMMIT, or
+  # anything else that changes how a \copy failure is handled), which would let a broken export
+  # get published as if it were complete - same reasoning as import-db-dump.sh's own target_psql.
+} | psql -X "${SOURCE_DB_URL}" -v ON_ERROR_STOP=1
 
 # Publish the whole generation as two directory renames rather than moving each table's file into
 # OUT_DIR individually - a crash or a failed move partway through a per-file loop could leave
