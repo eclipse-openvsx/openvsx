@@ -121,37 +121,35 @@ jobs:
       with:
         persist-credentials: false
 
-    # zizmor flags `cache: gradle` here because this job later publishes a Docker image
-    # (docker/build-push-action below) - but that image is built by server/Dockerfile's own isolated
-    # `RUN ./gradlew --no-daemon assemble`, whose COPY instructions only bring in
-    # gradlew/*.gradle/gradle.properties/gradle//src, never `.gradle/`, so this runner-host cache
-    # cannot reach the published artifact.
     - name: Set up JDK
-      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # zizmor: ignore[cache-poisoning] v6.0.1, see comment above
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
       with:
         distribution: 'temurin'
         java-version: 25
-        cache: 'gradle'
+
+    # The official Gradle action rather than setup-java's own `cache: gradle` or a hand-rolled
+    # actions/cache step (both explicitly discouraged alongside this one, since they can interfere
+    # with its caching): by default it only writes cache entries from runs on the default branch, and
+    # pull_request runs (forks included) can only read them back, never write. zizmor's cache-poisoning
+    # audit still flags it below on the same generic "cache-enabling step precedes a publish step in
+    # this job" heuristic it can't see past (same false positive already explained for
+    # server/Dockerfile's isolated build on this PR's other cache-poisoning suppression), but the
+    # write-scoping above is a second, independent reason this one doesn't apply either.
+    # cache-encryption-key additionally encrypts the configuration-cache entries this enables in
+    # gradle.properties, since - per a Copilot review finding on this PR - configuration-cache data can
+    # capture values that shouldn't be readable by anyone who can open a fork pull request against this
+    # repo. Requires a GRADLE_ENCRYPTION_KEY repository secret (openssl rand -base64 16); with no such
+    # secret this degrades to unencrypted rather than failing.
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # zizmor: ignore[cache-poisoning] v6.3.0, see comment above
+      with:
+        cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
     - name: Get all changed server files
       id: changed_server_files
       uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       with:
         files: server/**
-
-    # Dependency/build-output caching is handled by setup-java's own `cache: gradle` above (which
-    # covers ~/.gradle); the configuration cache lives under the project directory instead
-    # (server/.gradle/configuration-cache, since gradlew runs with -p server), so it needs its own
-    # entry. A stale hit here is safe: Gradle's own build-fingerprint check invalidates it internally
-    # if relevant inputs changed, independent of whether the cache key matched. Same
-    # cache-poisoning false positive as the setup-java step above - see that comment.
-    - name: Cache Gradle configuration cache
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v6.1.0, see comment above
-      with:
-        path: server/.gradle/configuration-cache
-        key: gradle-configuration-cache-${{ runner.os }}-${{ hashFiles('server/**/*.gradle', 'server/gradle/libs.versions.toml', 'server/gradle/wrapper/gradle-wrapper.properties', 'server/buildSrc/**') }}
-        restore-keys: |
-          gradle-configuration-cache-${{ runner.os }}-
 
     - name: Run Server Tests
       if: steps.changed_server_files.outputs.any_changed == 'true'
