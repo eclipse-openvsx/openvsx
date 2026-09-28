@@ -116,13 +116,6 @@ jobs:
       packages: write
       id-token: write
     runs-on: ubuntu-latest
-    env:
-      # Gradle's own encryption for the configuration cache, keyed by a fixed secret rather than the
-      # per-machine key it generates by default (which wouldn't survive across separate CI runs
-      # anyway). This is the real boundary against a fork PR reading server/.gradle/configuration-cache
-      # below: GitHub never exposes secrets to fork pull_request runs, so a fork can restore the cache
-      # bytes but not decrypt them - unlike an `if:` in this file, which a fork PR can just edit away.
-      GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -146,8 +139,9 @@ jobs:
       with:
         files: server/**
 
-    # GRADLE_ENCRYPTION_KEY (job env, above) is what actually protects this; skipping the restore for
-    # fork PRs too is just an optimization, since they couldn't decrypt the entries anyway.
+    # GRADLE_ENCRYPTION_KEY (set on the Run Server Tests step below) is what actually protects this;
+    # skipping the restore for fork PRs too is just an optimization, since they couldn't decrypt the
+    # entries anyway.
     - name: Cache Gradle configuration cache
       if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v6.1.0, see comment above
@@ -159,6 +153,15 @@ jobs:
 
     - name: Run Server Tests
       if: steps.changed_server_files.outputs.any_changed == 'true'
+      env:
+        # Gradle's own encryption for the configuration cache, keyed by a fixed secret rather than the
+        # per-machine key it generates by default (which wouldn't survive across separate CI runs
+        # anyway). This is the real boundary against a fork PR reading server/.gradle/configuration-cache
+        # above: GitHub never exposes secrets to fork pull_request runs, so a fork can restore the cache
+        # bytes but not decrypt them - unlike an `if:` in this file, which a fork PR can just edit away.
+        # Scoped to this step alone, not the whole job, so unrelated actions (checkout, Docker,
+        # changed-files) never see it.
+        GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       run: server/gradlew --no-daemon -p server check
 
     - name: Log in to the Container registry
