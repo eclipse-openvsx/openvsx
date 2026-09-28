@@ -167,8 +167,23 @@ jobs:
         GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       run: server/gradlew --no-daemon -p server check
 
+    # Building (not just pushing) only when we're actually going to push: a plain build is otherwise
+    # wasted CI time on every PR that touches server/**, since only a push event or a same-repo PR
+    # labeled "snapshot" ever results in a push anyway. Login and metadata extraction are pointless
+    # work too when we're not going to push, so all three steps repeat the same condition (a YAML
+    # anchor would avoid the repetition, but zizmor's anchor support is beta and documented as prone
+    # to unexpected errors - not worth the fragility for three lines).
     - name: Log in to the Container registry
-      if: steps.changed_server_files.outputs.any_changed == 'true'
+      if: steps.changed_server_files.outputs.any_changed == 'true' &&
+          github.repository_owner == 'eclipse-openvsx' &&
+          github.actor != 'dependabot[bot]' &&
+          (
+            github.event_name == 'push' ||
+            (
+              contains(github.event.pull_request.labels.*.name, 'snapshot') &&
+              github.event.pull_request.head.repo.full_name == github.repository
+            )
+          )
       uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
       with:
         registry: ${{ env.REGISTRY }}
@@ -176,7 +191,16 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Extract metadata (tags, labels) for Docker
-      if: steps.changed_server_files.outputs.any_changed == 'true'
+      if: steps.changed_server_files.outputs.any_changed == 'true' &&
+          github.repository_owner == 'eclipse-openvsx' &&
+          github.actor != 'dependabot[bot]' &&
+          (
+            github.event_name == 'push' ||
+            (
+              contains(github.event.pull_request.labels.*.name, 'snapshot') &&
+              github.event.pull_request.head.repo.full_name == github.repository
+            )
+          )
       id: meta
       uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
       with:
@@ -189,19 +213,20 @@ jobs:
           org.opencontainers.image.title=OpenVSX Server Snapshot
 
     - name: Build and push Server Image
-      if: steps.changed_server_files.outputs.any_changed == 'true'
+      if: steps.changed_server_files.outputs.any_changed == 'true' &&
+          github.repository_owner == 'eclipse-openvsx' &&
+          github.actor != 'dependabot[bot]' &&
+          (
+            github.event_name == 'push' ||
+            (
+              contains(github.event.pull_request.labels.*.name, 'snapshot') &&
+              github.event.pull_request.head.repo.full_name == github.repository
+            )
+          )
       uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
       with:
         context: server
-        push: ${{ github.repository_owner == 'eclipse-openvsx' &&
-                  github.actor != 'dependabot[bot]'   &&
-                  (
-                     github.event_name == 'push' ||
-                     (
-                       contains(github.event.pull_request.labels.*.name, 'snapshot') &&
-                       github.event.pull_request.head.repo.full_name == github.repository
-                     )
-                  ) }}
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
 
