@@ -127,23 +127,11 @@ jobs:
         distribution: 'temurin'
         java-version: 25
 
-    # The official Gradle action rather than setup-java's own `cache: gradle` (explicitly discouraged
-    # alongside this one, since it can interfere with its caching) for Gradle User Home (dependencies,
-    # build-output cache): by default it only writes cache entries from runs on the default branch,
-    # and pull_request runs (forks included) can only read them back, never write. zizmor's
-    # cache-poisoning audit still flags it below on the same generic "cache-enabling step precedes a
-    # publish step in this job" heuristic it can't see past (same false positive already explained for
-    # server/Dockerfile's isolated build on the next cache-poisoning suppression below), but the
-    # write-scoping above is a second, independent reason this one doesn't apply either.
-    #
-    # This does NOT cache server/.gradle/configuration-cache - that would need this action's
-    # "project state" caching, which turns out to be a Develocity-licensed trial feature gated behind
-    # an undocumented opt-in env var (confirmed by reading gradle/actions' own source,
-    # sources/src/cache-service.ts's ProjectCacheStatus type), not just cache-encryption-key as its
-    # docs implied. This repo has no Develocity access, so that path isn't available - see the
-    # dedicated actions/cache step below instead.
+    # Caches Gradle User Home (dependencies, build-output cache); avoid also using setup-java's own
+    # `cache: gradle`, the two can interfere. Only writes cache entries on the default branch - PR
+    # runs, forks included, only read. Does not cover server/.gradle/configuration-cache, see below.
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # zizmor: ignore[cache-poisoning] v6.3.0, see comment above
+      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # zizmor: ignore[cache-poisoning] v6.3.0, PR-write-scoped, see comment above
 
     - name: Get all changed server files
       id: changed_server_files
@@ -151,12 +139,9 @@ jobs:
       with:
         files: server/**
 
-    # server/.gradle/configuration-cache can capture values from the build environment that
-    # shouldn't be readable by anyone who can open a fork pull request against this repo (a Copilot
-    # review finding on this PR), and GitHub allows fork PR runs to read caches scoped to the base
-    # branch by default. Restricting this step to same-repo events closes that off entirely: a step
-    # that never runs for fork PRs can't leak anything to them, encrypted or not. Same-repo PRs and
-    # pushes still get the speedup this was added for.
+    # Restricted to same-repo events: this cache can capture values from the build environment, and
+    # GitHub lets fork PR runs read (not write) caches scoped to the base branch by default. A step
+    # that never runs for a fork PR can't leak anything to it.
     - name: Cache Gradle configuration cache
       if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v6.1.0, see comment above
