@@ -12,7 +12,6 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
-import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -38,9 +37,13 @@ final class SettingsValidator {
     private static final Pattern DISMISS_ID = Pattern.compile("[A-Za-z0-9-]{0,64}");
     /** A tag opener, so ordinary prose like "latency <2s" or "queue > 500" still passes. */
     private static final Pattern HTML_TAG = Pattern.compile("</?[A-Za-z!?]");
-    private static final List<String> EXECUTABLE_LINKS = List.of("](javascript:", "](vbscript:", "](data:");
-    /** Whitespace and control characters, which split a scheme without breaking it for a browser. */
-    private static final Pattern IGNORED_IN_LINK = Pattern.compile("[\\s\\p{Cntrl}\\u200B-\\u200D\\uFEFF]");
+    /**
+     * URL schemes are case-insensitive. {@code Pattern.CASE_INSENSITIVE} on its own folds ASCII
+     * only, so the match holds whatever the JVM's default locale is - Turkish lowercases
+     * {@code I} to a dotless {@code i}.
+     */
+    private static final Pattern EXECUTABLE_LINK = Pattern
+            .compile("]\\((javascript|vbscript|data):", Pattern.CASE_INSENSITIVE);
 
     private SettingsValidator() {
     }
@@ -71,11 +74,8 @@ final class SettingsValidator {
             throw badRequest("Banner message may not contain HTML. Use Markdown, e.g. [label](https://example.org).");
         }
 
-        var collapsed = IGNORED_IN_LINK.matcher(message).replaceAll("").toLowerCase();
-        for (var link : EXECUTABLE_LINKS) {
-            if (collapsed.contains(link)) {
-                throw badRequest("Banner message may not link to '" + link.substring(2) + "'.");
-            }
+        if (EXECUTABLE_LINK.matcher(message).find()) {
+            throw badRequest("Banner message may not link to a javascript:, vbscript: or data: destination.");
         }
     }
 

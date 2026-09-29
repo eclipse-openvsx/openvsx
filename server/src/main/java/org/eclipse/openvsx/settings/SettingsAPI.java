@@ -41,7 +41,11 @@ public class SettingsAPI {
     @GetMapping(path = "/api/-/settings", produces = MediaType.APPLICATION_JSON_VALUE)
     @CrossOrigin
     @Operation(summary = "Return the registry's public site settings, keyed by setting name")
-    @ApiResponse(responseCode = "200", description = "The site settings are returned in JSON format")
+    @ApiResponse(
+        responseCode = "200",
+        description = "The site settings are returned in JSON format. `banner-message` is Markdown an admin wrote; "
+                + "sanitize it before rendering it as HTML."
+    )
     public ResponseEntity<Map<String, Object>> getSiteSettings() {
         // Short-lived: an admin changing a setting should reach visitors within the minute.
         return ResponseEntity.ok()

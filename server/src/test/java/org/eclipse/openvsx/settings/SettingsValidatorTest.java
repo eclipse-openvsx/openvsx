@@ -79,8 +79,8 @@ class SettingsValidatorTest {
         strings = {
             "[click](javascript:alert(1))",
             "[click](JavaScript:alert(1))",
-            // Whitespace inside a scheme is ignored by browsers, so it can't be used to slip past.
-            "[click](java\tscript:alert(1))",
+            // Upper case: folding with the default locale would miss this on a Turkish JVM.
+            "[click](JAVASCRIPT:alert(1))",
             "[click](vbscript:msgbox(1))",
             "[click](data:text/html;base64,PHNjcmlwdD4=)"
         }

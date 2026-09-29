@@ -134,8 +134,8 @@ export const RuntimeSettingsPage: FC = () => {
     const handleConfirmSave = useCallback(() => {
         if (!draftSettings || !settings) return;
         setConfirmOpen(false);
-        // Only the settings this admin changed: sending the whole snapshot back would restore
-        // whatever another admin has changed since this page loaded.
+        // Only the settings this admin changed, so a save doesn't revert what another admin
+        // changed while this page was open.
         const patch = SETTING_KEYS.filter(key => draftSettings[key] !== settings[key]).reduce<Settings>(
             (changed, key) => Object.assign(changed, { [key]: draftSettings[key] }),
             {}

@@ -38,7 +38,9 @@ public class SettingsJson extends ResultJson {
     private @Nullable Boolean bannerEnabled;
 
     @JsonProperty("banner-message")
-    @Schema(description = "Site banner text, rendered as Markdown")
+    @Schema(
+        description = "Site banner text, as Markdown. Untrusted input: sanitize it before rendering it as HTML."
+    )
     private @Nullable String bannerMessage;
 
     @JsonProperty("banner-severity")
