@@ -132,9 +132,15 @@ export const RuntimeSettingsPage: FC = () => {
     const handleConfirmClose = () => setConfirmOpen(false);
 
     const handleConfirmSave = useCallback(() => {
-        if (!draftSettings) return;
+        if (!draftSettings || !settings) return;
         setConfirmOpen(false);
-        saveSettings(draftSettings, {
+        // Only the settings this admin changed: sending the whole snapshot back would restore
+        // whatever another admin has changed since this page loaded.
+        const patch = SETTING_KEYS.filter(key => draftSettings[key] !== settings[key]).reduce<Settings>(
+            (changed, key) => Object.assign(changed, { [key]: draftSettings[key] }),
+            {}
+        );
+        saveSettings(patch, {
             onSuccess: flashSaved,
             onError: err => {
                 addNotification({
@@ -142,7 +148,7 @@ export const RuntimeSettingsPage: FC = () => {
                 });
             }
         });
-    }, [draftSettings, saveSettings, addNotification, flashSaved]);
+    }, [draftSettings, settings, saveSettings, addNotification, flashSaved]);
 
     return (
         <>

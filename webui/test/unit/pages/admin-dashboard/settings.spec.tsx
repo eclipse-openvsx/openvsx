@@ -19,6 +19,14 @@ import { ExtensionRegistryService } from '../../../../src/extension-registry-ser
 import { Settings } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
 
+const defaults: Settings = {
+    'read-only': false,
+    'banner-enabled': false,
+    'banner-message': '',
+    'banner-severity': 'info',
+    'banner-dismiss-id': ''
+};
+
 const configured: Settings = {
     'read-only': false,
     'banner-enabled': true,
@@ -29,7 +37,7 @@ const configured: Settings = {
 
 // not named render*, so the testing-library naming rule does not treat the service stub it returns
 // as a render result
-const mountPage = (settings: Settings = {}) => {
+const mountPage = (settings: Settings = defaults) => {
     const admin = {
         getSettings: vi.fn().mockResolvedValue(settings),
         updateSettings: vi.fn().mockImplementation((updated: Settings) => Promise.resolve(updated))
@@ -63,9 +71,7 @@ describe('RuntimeSettingsPage', () => {
         await userEvent.click(await screen.findByText('Warning'));
         await save();
 
-        await waitFor(() =>
-            expect(admin.updateSettings).toHaveBeenCalledWith({ ...configured, 'banner-severity': 'warning' })
-        );
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-severity': 'warning' }));
     });
 
     it('turns the banner on and off without touching the message', async () => {
@@ -74,9 +80,7 @@ describe('RuntimeSettingsPage', () => {
         await userEvent.click(await screen.findByLabelText('Toggle banner'));
         await save();
 
-        await waitFor(() =>
-            expect(admin.updateSettings).toHaveBeenCalledWith({ ...configured, 'banner-enabled': false })
-        );
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-enabled': false }));
     });
 
     it('previews the message as the banner will render it', async () => {
@@ -98,6 +102,15 @@ describe('RuntimeSettingsPage', () => {
         expect(saved['banner-message']).toBe('Heads up!');
         expect(saved['banner-dismiss-id']).not.toBe('token-1');
         expect(saved['banner-dismiss-id']).toHaveLength(36);
+    });
+
+    it('sends only the settings it changed, so a concurrent edit is not reverted', async () => {
+        const admin = mountPage(configured);
+
+        await userEvent.type(await screen.findByLabelText('Message'), '!');
+        await save();
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-message': 'Heads up!' }));
     });
 
     it('keeps Save disabled until a setting actually changes', async () => {

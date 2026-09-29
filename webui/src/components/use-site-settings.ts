@@ -26,6 +26,10 @@ export const useSiteSettings = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: siteSettingsQueryKey,
-        queryFn: ({ signal }) => service.getSiteSettings(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.getSiteSettings(controllerFromSignal(signal)),
+        // The layout mounts this once and focus refetching is off app-wide, so a tab left open
+        // would never see a banner an admin puts up. Matches the endpoint's cache lifetime, and
+        // TanStack leaves background tabs alone.
+        refetchInterval: 60_000
     });
 };
