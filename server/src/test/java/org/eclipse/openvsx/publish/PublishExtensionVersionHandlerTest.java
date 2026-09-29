@@ -610,8 +610,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             when(repositories.findNamespace("publisher")).thenReturn(namespace);
             when(users.hasPublishPermission(user, namespace)).thenReturn(true);
@@ -623,7 +622,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
                     .thenReturn(buildExtension("otherpublisher", "other-demo"));
 
-            assertThatThrownBy(() -> handler.createExtensionVersion(processor, token, LocalDateTime.now(), false))
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
                     .isInstanceOf(ErrorResultException.class)
                     .hasMessageContaining("Display name 'Demo OK' is already used by")
                     .hasMessageContaining("otherpublisher.other-demo");
@@ -642,8 +641,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             var membership = new NamespaceMembership();
             membership.setUser(user);
@@ -659,7 +657,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
             when(repositories.findMemberships(user)).thenReturn(Streamable.of(membership));
 
-            handler.createExtensionVersion(processor, token, LocalDateTime.now(), false);
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
 
             var excludedNamespaces = ArgumentCaptor.forClass(Collection.class);
             verify(repositories).findActiveExtensionByDisplayName(eq("Demo OK"), excludedNamespaces.capture());
@@ -679,8 +677,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             var existingExtension = buildExtension("publisher", "demo");
 
@@ -694,7 +691,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findLatestVersion(existingExtension, null, false, true))
                     .thenReturn(buildVersionShowing("Demo OK"));
 
-            handler.createExtensionVersion(processor, token, LocalDateTime.now(), false);
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
 
             verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
         }
@@ -710,8 +707,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             var existingExtension = buildExtension("publisher", "demo");
 
@@ -727,7 +723,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
                     .thenReturn(buildExtension("otherpublisher", "other-demo"));
 
-            assertThatThrownBy(() -> handler.createExtensionVersion(processor, token, LocalDateTime.now(), false))
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
                     .isInstanceOf(ErrorResultException.class)
                     .hasMessageContaining("Display name 'Demo OK' is already used by")
                     .hasMessageContaining("otherpublisher.other-demo");
@@ -744,8 +740,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             var existingExtension = buildExtension("publisher", "demo");
 
@@ -760,7 +755,7 @@ class PublishExtensionVersionHandlerTest {
                     .thenReturn(buildVersionShowing("Some Name Of Its Own"));
             when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any())).thenReturn(null);
 
-            handler.createExtensionVersion(processor, token, LocalDateTime.now(), false);
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
 
             // The rename was checked rather than waved through, and nothing held the name.
             verify(repositories).findActiveExtensionByDisplayName(eq("Demo OK"), any());
@@ -778,8 +773,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             var existingExtension = buildExtension("publisher", "demo");
 
@@ -793,7 +787,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findLatestVersion(existingExtension, null, false, true))
                     .thenReturn(buildVersionShowing("Demo OK"));
 
-            handler.createExtensionVersion(processor, token, LocalDateTime.now(), false);
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
 
             verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
         }
@@ -822,8 +816,7 @@ class PublishExtensionVersionHandlerTest {
 
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
+            var liu = new LoggedInAuthentication(user);
 
             when(repositories.findNamespace("publisher")).thenReturn(namespace);
             when(users.hasPublishPermission(user, namespace)).thenReturn(true);
@@ -833,7 +826,7 @@ class PublishExtensionVersionHandlerTest {
                     new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
             when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
 
-            mirroringHandler.createExtensionVersion(processor, token, LocalDateTime.now(), false);
+            mirroringHandler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
 
             verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
         }
@@ -846,8 +839,6 @@ class PublishExtensionVersionHandlerTest {
         try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
 
             when(processor.getNamespace()).thenReturn("publisher");
             when(processor.getExtensionName()).thenReturn("demo");
@@ -861,7 +852,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
                     .thenReturn(buildExtension("otherpublisher", "other-demo"));
 
-            assertThatThrownBy(() -> handler.checkPublishPreconditions(processor, token))
+            assertThatThrownBy(() -> handler.checkPublishPreconditions(processor, user))
                     .isInstanceOf(ErrorResultException.class)
                     .hasMessageContaining("Display name 'Demo OK' is already used by");
         }
@@ -872,8 +863,6 @@ class PublishExtensionVersionHandlerTest {
         try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
 
             when(processor.getNamespace()).thenReturn("publisher");
             when(processor.getExtensionName()).thenReturn("demo");
@@ -887,7 +876,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findLatestVersion("publisher", "demo", null, false, true))
                     .thenReturn(buildVersionShowing("Demo OK"));
 
-            assertThatCode(() -> handler.checkPublishPreconditions(processor, token)).doesNotThrowAnyException();
+            assertThatCode(() -> handler.checkPublishPreconditions(processor, user)).doesNotThrowAnyException();
 
             verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
         }
@@ -900,8 +889,6 @@ class PublishExtensionVersionHandlerTest {
         try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
             var namespace = buildNamespace("publisher");
             var user = new UserData();
-            var token = new PersonalAccessToken();
-            token.setUser(user);
 
             when(processor.getNamespace()).thenReturn("publisher");
             when(processor.getExtensionName()).thenReturn("demo");
@@ -917,7 +904,7 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
                     .thenReturn(buildExtension("otherpublisher", "other-demo"));
 
-            assertThatThrownBy(() -> handler.checkPublishPreconditions(processor, token))
+            assertThatThrownBy(() -> handler.checkPublishPreconditions(processor, user))
                     .isInstanceOf(ErrorResultException.class)
                     .hasMessageContaining("Display name 'Demo OK' is already used by")
                     .hasMessageContaining("otherpublisher.other-demo");
