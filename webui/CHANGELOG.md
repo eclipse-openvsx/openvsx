@@ -15,6 +15,14 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Return to the page a login started from, instead of always landing on the front page (#2148)
 - Load an extension's icon only when it comes near the viewport, instead of every icon on the page at once (#2213)
 
+### Fixed
+
+- Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times (#2237)
+
+### Dependencies
+
+- Bump ip-address from 10.4.0 to 10.7.2
+
 ## [v1.2.0] (10/09/2026)
 
 ### Added
@@ -26,6 +34,11 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Show a warning notice with a claim action wherever an unverified namespace is holding something back — the extension settings page when the extension has a namespace ownership conflict, and the namespace settings page for any unverified namespace — making clear the namespace must be claimed (verified) first. The action is the deployment's configured `elements.claimNamespace`, falling back to the namespace access documentation when none is configured. The admin dashboard's extension and namespace views show the same explanation without the claim action, since claiming is the publisher's action to take, not an admin's on someone else's behalf
 - Add a "Search Index" page to the admin dashboard: which engine answers searches, how many extensions the index holds against how many it is built from, and a button to rebuild it where there is an index to rebuild. The two counts sit side by side because an index that has quietly lost entries answers searches perfectly well, just with nothing in them, which is indistinguishable from an empty registry unless both numbers are visible at once
 - Mark a version that was published through a trusted publishing workflow with an icon next to "Published by" on the extension detail page, linking to the deployment's trusted publishing documentation. The default deployment points that link at the [Trusted Publishing](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing) wiki page
+- Add a `Pill` component — the clickable glass pill the category pills are built on, now usable on its own — and extract the `MonoSlash`, `glassSurface` and `compactControl` page primitives out of the search field, the pills and the search header
+- Add `userLoading` to `MainContext`, so custom pages can tell "not logged in" from "still resolving the user"
+- Add a `userMenuContent` slot to `PageSettings.elements`: extra entries for the logged-in account menu, rendered above the admin entry. The slot receives a `MenuEntry` component to build entries with, so each entry is styled by the menu it appears in — the desktop and mobile menus style theirs differently, and a consumer cannot match both on its own
+- Add an `adminPages` slot to `PageSettings.elements`: extra admin dashboard pages, each declaring a name, icon, optional description and optional category, and each appearing in the side panel, as a card on the dashboard overview and as a route. Contributions are additive — a category name matching a built-in group appends to it, and a page whose path would shadow a built-in one is ignored
+- Widen the published API for consumers building their own pages: the request layer (`sendRequest`, `sendNonRetriableRequest`, `ErrorResponse`, `controllerFromSignal`), `MainContext`, `AppProviders`, `NotFound`, `createDefaultTheme` with the `MONO_FONT`/`NAVBAR_HEIGHT` tokens, the `createRoute`/`createAbsoluteURL`/`addQuery`/`formatCompactNumber`/`toRelativeTime` utils, the `useDebouncedCallback` and `useGridCursor` hooks, the navbar-chrome, search-focus and page-search-bar hooks, the category icon helpers, `ExtensionDetailRoutes`, and the `itemIcon`/`MenuItemText` building blocks for `userMenuContent` entries
 
 ### Changed
 
@@ -39,17 +52,6 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Publishing goes through TanStack Query: `publishExtension` and `createNamespace` are mutation hooks (`usePublishExtension`, `useCreateNamespace`), and both service methods lose their `AbortController` parameter — writes are no longer aborted, and retries are the query client's to own. The user's extension list is a query too (`useUserExtensions`), read by the settings tab and by the publish queue as it follows a package, so a card appears in the list as soon as the registry has the package
 - `ExtensionCard` accepts an `Extension` as well as a `SearchEntry`, and takes optional `to`, `linkState`, `overlay`, `footerStart`, `dimmed`, `tone` and `iconPending` props so other surfaces can reuse it instead of copying it
 - Show an extension card's rating as one star and the score rather than five stars, and no rating at all on an extension nobody has reviewed. Five icons could not shrink, so beside a long download count the count spilled out of the card
-
-### Added
-
-- Add a `Pill` component — the clickable glass pill the category pills are built on, now usable on its own — and extract the `MonoSlash`, `glassSurface` and `compactControl` page primitives out of the search field, the pills and the search header
-- Add `userLoading` to `MainContext`, so custom pages can tell "not logged in" from "still resolving the user"
-- Add a `userMenuContent` slot to `PageSettings.elements`: extra entries for the logged-in account menu, rendered above the admin entry. The slot receives a `MenuEntry` component to build entries with, so each entry is styled by the menu it appears in — the desktop and mobile menus style theirs differently, and a consumer cannot match both on its own
-- Add an `adminPages` slot to `PageSettings.elements`: extra admin dashboard pages, each declaring a name, icon, optional description and optional category, and each appearing in the side panel, as a card on the dashboard overview and as a route. Contributions are additive — a category name matching a built-in group appends to it, and a page whose path would shadow a built-in one is ignored
-- Widen the published API for consumers building their own pages: the request layer (`sendRequest`, `sendNonRetriableRequest`, `ErrorResponse`, `controllerFromSignal`), `MainContext`, `AppProviders`, `NotFound`, `createDefaultTheme` with the `MONO_FONT`/`NAVBAR_HEIGHT` tokens, the `createRoute`/`createAbsoluteURL`/`addQuery`/`formatCompactNumber`/`toRelativeTime` utils, the `useDebouncedCallback` and `useGridCursor` hooks, the navbar-chrome, search-focus and page-search-bar hooks, the category icon helpers, `ExtensionDetailRoutes`, and the `itemIcon`/`MenuItemText` building blocks for `userMenuContent` entries
-
-### Changed
-
 - Rename `ScrollToTop` to `ScrollRestoration`, matching what it does on back/forward navigation
 - Rename the extension tint context to `navbar-chrome-context` and add a second channel to it: a page with sections pinned under the navbar can extend the navbar's blur fan down to back them (`useExtendNavbarBlur`)
 - Give Popover and Autocomplete popups the same floating-paper treatment as the other menus, and stop Popovers locking body scroll — the lock jumps the scroll position on mobile and shifts the pinned chrome

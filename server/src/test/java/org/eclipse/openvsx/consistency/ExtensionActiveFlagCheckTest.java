@@ -21,6 +21,7 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -49,8 +50,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * default full-row {@code UPDATE}. Covers both the {@code @DynamicUpdate} fix that prevents it going
  * forward, and {@link ExtensionActiveFlagCheck} (run through {@link ConsistencyCheckService}), which
  * repairs rows already left inconsistent by it.
+ * <p>
+ * {@code @Isolated}: runs {@link ExtensionActiveFlagCheck} through {@link ConsistencyCheckService}, which
+ * scans and locks every {@code Extension} row, colliding with unrelated tests concurrently mutating their
+ * own.
  */
 @SpringBootTest
+@Isolated
 class ExtensionActiveFlagCheckTest extends AbstractPostgresContainerTest {
 
     private static final String NAMESPACE = "active-flag-testns";

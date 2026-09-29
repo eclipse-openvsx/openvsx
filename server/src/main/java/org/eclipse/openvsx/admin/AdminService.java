@@ -697,7 +697,7 @@ public class AdminService {
     }
 
     public UserData checkAdminUser(String tokenValue) {
-        var user = Optional.of(tokenValue)
+        var user = Optional.ofNullable(tokenValue)
                 .map(tv -> tokens.useAccessToken(tv, new AccessTokenAction.Administration()))
                 .map(AccessTokenAuthentication::userData)
                 .orElse(null);

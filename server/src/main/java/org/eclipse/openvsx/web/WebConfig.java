@@ -17,6 +17,7 @@ import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.server.servlet.CookieSameSiteSupplier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,17 +29,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.eclipse.openvsx.mirror.MirrorExtensionHandlerInterceptor;
 
 @Configuration
+@EnableConfigurationProperties(WebUiProperties.class)
 public class WebConfig implements WebMvcConfigurer {
 
     private MirrorExtensionHandlerInterceptor mirrorInterceptor;
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
-    @Value(
-        "${ovsx.webui.frontendRoutes:/extension/**,/namespace/**,/search,/user-settings/**,/publish,/admin-dashboard/**}"
-    )
-    String[] frontendRoutes;
+    private final WebUiProperties webUi;
 
     /**
      * The origins allowed to read the public, unauthenticated surface - the registry API, the VS Code
@@ -66,8 +62,12 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${ovsx.cors.public-origins:*}")
     String[] publicCorsOrigins;
 
-    public WebConfig(Optional<MirrorExtensionHandlerInterceptor> mirrorExtensionHandlerInterceptor) {
+    public WebConfig(
+            Optional<MirrorExtensionHandlerInterceptor> mirrorExtensionHandlerInterceptor,
+            WebUiProperties webUi
+    ) {
         mirrorExtensionHandlerInterceptor.ifPresent(service -> this.mirrorInterceptor = service);
+        this.webUi = webUi;
     }
 
     /**
@@ -147,6 +147,7 @@ public class WebConfig implements WebMvcConfigurer {
      * A default port is dropped for the same reason: a browser leaves it out of the header it sends.
      */
     private @Nullable String webuiOrigin() {
+        var webuiUrl = webUi.getUrl();
         if (StringUtils.isEmpty(webuiUrl)) {
             return null;
         }
@@ -195,7 +196,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        for (var route : frontendRoutes) {
+        for (var route : webUi.getFrontendRoutes()) {
             registry.addViewController(route).setViewName("forward:/index.html");
         }
     }

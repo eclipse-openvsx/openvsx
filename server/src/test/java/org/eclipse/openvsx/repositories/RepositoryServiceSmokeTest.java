@@ -205,6 +205,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.countUsers(),
                 () -> repositories.downloadsTotal(),
                 () -> repositories.findPersonalAccessToken("value"),
+                () -> repositories.findPersonalAccessToken("value", 0),
                 () -> repositories.findPersonalAccessToken(1L),
                 () -> repositories.findPersonalAccessTokens(userData),
                 () -> repositories.findActiveExtensions(namespace),
@@ -235,6 +236,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findExtensionForUpdateNoWait("name", "namespace"),
                 () -> repositories.findExtensions(namespace),
                 () -> repositories.findExtensionsWithInconsistentActiveFlag(),
+                () -> repositories.findExtensionsWithStaleLastUpdatedDate(),
                 () -> repositories.findFileByType(extVersion, "type"),
                 () -> repositories.findFiles(extVersion),
                 () -> repositories.findFilesByStorageType("storageType"),
@@ -292,6 +294,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findChanges(null, null, new ChangesCursor(NOW, 1L), 100),
                 () -> repositories.findChanges(null, NOW, new ChangesCursor(NOW.minus(Duration.ofDays(1)), 1L), 100),
                 () -> repositories.findLatestExtensionVersionChange(extVersion),
+                () -> repositories.wasReportedAsAvailable(extVersion),
                 () -> repositories.recordExtensionVersionChange(
                         extVersion,
                         ExtensionVersionState.ACTIVE,

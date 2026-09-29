@@ -279,6 +279,10 @@ public class RepositoryService {
         return extensionRepo.findExtensionsWithInconsistentActiveFlag();
     }
 
+    public Streamable<Extension> findExtensionsWithStaleLastUpdatedDate() {
+        return extensionRepo.findExtensionsWithStaleLastUpdatedDate();
+    }
+
     public long countExtensions() {
         return extensionRepo.count();
     }
@@ -566,6 +570,10 @@ public class RepositoryService {
         return personalAccessTokenRepo.findByValue(value);
     }
 
+    public PersonalAccessToken findPersonalAccessToken(String value, int version) {
+        return personalAccessTokenRepo.findByValueAndVersion(value, version);
+    }
+
     public PersonalAccessToken findPersonalAccessToken(long id) {
         return personalAccessTokenRepo.findById(id);
     }
@@ -736,6 +744,23 @@ public class RepositoryService {
      */
     public Optional<ExtensionVersionChange> findLatestExtensionVersionChange(ExtensionVersion extVersion) {
         return extensionVersionChangeRepo.findFirstByExtensionVersionOrderByChangedAtDescIdDesc(extVersion);
+    }
+
+    /**
+     * Whether the changes feed last reported this version as available under its current namespace, and
+     * so has a transition to withdraw once it goes away (deleted, purged, or renamed again).
+     * <p>
+     * Scoped to the current namespace, not the single latest entry overall: a renamed version can carry
+     * entries under more than one namespace, and a newer entry for an abandoned one would otherwise
+     * answer for the wrong tuple. False when never reported under this namespace, or already
+     * {@code REMOVED} there.
+     */
+    public boolean wasReportedAsAvailable(ExtensionVersion extVersion) {
+        var namespace = extVersion.getExtension().getNamespace().getName();
+        return extensionVersionChangeRepo
+                .findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc(extVersion, namespace)
+                .map(latest -> latest.getState() != ExtensionVersionState.REMOVED)
+                .orElse(false);
     }
 
     public List<ExtensionVersion> findActiveExtensionVersions(

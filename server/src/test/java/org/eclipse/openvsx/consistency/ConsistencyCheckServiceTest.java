@@ -19,6 +19,7 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -39,8 +40,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@link ConsistencyCheck} beans are registered - using the real {@link ExtensionActiveFlagCheck} as the
  * one currently wired up, rather than a fake, so this also doubles as an end-to-end check that a
  * registered check is actually picked up with no further wiring.
+ * <p>
+ * {@code @Isolated}: {@code runAllChecks} scans and locks every {@code Extension} row, colliding with
+ * unrelated tests concurrently mutating their own.
  */
 @SpringBootTest
+@Isolated
 class ConsistencyCheckServiceTest extends AbstractPostgresContainerTest {
 
     private static final String NAMESPACE = "consistency-service-testns";

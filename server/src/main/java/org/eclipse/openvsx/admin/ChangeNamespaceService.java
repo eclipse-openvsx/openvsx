@@ -9,6 +9,7 @@
  * ****************************************************************************** */
 package org.eclipse.openvsx.admin;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,10 +20,12 @@ import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.util.TimeUtil;
 
 @Component
 public class ChangeNamespaceService {
@@ -58,6 +61,12 @@ public class ChangeNamespaceService {
             cache.evictLatestExtensionVersion(extension);
         }
 
+        // Read before the namespace changes, so departure withdraws the still-current old tuple.
+        // Known gap: not locked against a concurrent writer (scan, admin action) on these extensions -
+        // pre-existing, not introduced here; left as a follow-up.
+        var now = TimeUtil.getCurrentUTC();
+        recordNamespaceDeparture(extensions, now);
+
         if (createNewNamespace) {
             entityManager.persist(newNamespace);
         } else {
@@ -69,6 +78,8 @@ public class ChangeNamespaceService {
         }
 
         changeExtensionNamespace(extensions, newNamespace);
+        // Now under the new namespace - report the still-active versions there.
+        recordNamespaceArrival(extensions, now);
         changeMembershipNamespace(oldNamespace, newNamespace, removeOldNamespace);
         renameResources(updatedResources);
 
@@ -96,6 +107,34 @@ public class ChangeNamespaceService {
             var managedResource = entityManager.find(FileResource.class, resource.getId());
             if (managedResource != null) {
                 managedResource.setName(resource.getName());
+            }
+        }
+    }
+
+    /**
+     * Withdraws every version's old-namespace tuple as {@code REMOVED}. Nothing to withdraw for a
+     * version never reported as available -- see {@link RepositoryService#wasReportedAsAvailable}.
+     */
+    private void recordNamespaceDeparture(Streamable<Extension> extensions, LocalDateTime now) {
+        for (var extension : extensions) {
+            for (var version : repositories.findVersions(extension)) {
+                if (repositories.wasReportedAsAvailable(version)) {
+                    repositories.recordExtensionVersionChange(version, ExtensionVersionState.REMOVED, now);
+                }
+            }
+        }
+    }
+
+    /**
+     * Announces every still-active version as {@code ACTIVE} under its new namespace. Inactive/removed
+     * versions get nothing here -- not available under the new name either.
+     */
+    private void recordNamespaceArrival(Streamable<Extension> extensions, LocalDateTime now) {
+        for (var extension : extensions) {
+            for (var version : repositories.findVersions(extension)) {
+                if (version.isActive()) {
+                    repositories.recordExtensionVersionChange(version, ExtensionVersionState.ACTIVE, now);
+                }
             }
         }
     }

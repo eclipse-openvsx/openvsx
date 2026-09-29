@@ -52,8 +52,7 @@ public record TargetPlatformVersionJson(
                 NAME_UNIVERSAL
             }
         ) String targetPlatform,
-        @NotNull
-        @Schema(description = "Version of the extension") String version
+        @NotNull @Schema(description = "Version of the extension") String version
 ) {
     public TargetPlatformVersion toTargetPlatformVersion() {
         return new TargetPlatformVersion(targetPlatform, version);

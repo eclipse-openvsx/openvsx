@@ -9,13 +9,29 @@
  ********************************************************************************/
 package org.eclipse.openvsx.extension_control;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.Extension;
@@ -25,7 +41,13 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.util.ExtensionId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +78,13 @@ class ExtensionControlServiceTest {
 
     @InjectMocks
     ExtensionControlService service;
+
+    @BeforeEach
+    void setUpCache() {
+        // Mockito's default answer for a List-returning method is an empty list, not null; without
+        // this, every test below would see a (wrong) cache hit on an empty list instead of a miss.
+        Mockito.lenient().when(cache.getMaliciousExtensions()).thenReturn(null);
+    }
 
     private long idSequence = 0;
 
@@ -157,5 +186,273 @@ class ExtensionControlServiceTest {
         assertThat(extension.getReplacement()).isSameAs(replacement);
         verify(cache, never()).evictExtensionJsons(extension);
         verify(search, never()).updateSearchEntry(extension);
+    }
+
+    @Test
+    void cacheHitUpdatesThePerInstanceFallbackWithoutFetching() throws IOException {
+        // The whole point of managing this cache manually instead of via @Cacheable: a hit must still
+        // seed the fallback, since @Cacheable's hit path would skip this method's body entirely and
+        // leave a replica that only ever sees hits with an empty fallback forever.
+        var spy = spy(service);
+        spy.enabled = true;
+        when(cache.getMaliciousExtensions()).thenReturn(List.of("ns.ext"));
+
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        assertThat(spy.getLastKnownMaliciousExtensionIds()).containsExactly("ns.ext");
+        verify(spy, never()).getExtensionControlJson();
+    }
+
+    @Test
+    void fallsThroughToALiveFetchWhenTheCacheReadFails() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        when(cache.getMaliciousExtensions()).thenThrow(new RuntimeException("redis outage"));
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+
+        // A flaky cache read must not prevent trying a live fetch, which might still succeed.
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+    }
+
+    @Test
+    void refreshMaliciousExtensionIdsUpdatesFallbackAndSharedCache() {
+        var maliciousExtensionIds = List.of("ns.ext");
+
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
+
+        assertThat(service.getLastKnownMaliciousExtensionIds()).isEqualTo(maliciousExtensionIds);
+        verify(cache).refreshMaliciousExtensions(maliciousExtensionIds);
+    }
+
+    @Test
+    void refreshMaliciousExtensionIdsSurvivesSharedCacheFailure() {
+        var maliciousExtensionIds = List.of("ns.ext");
+        doThrow(new RuntimeException("redis outage")).when(cache).refreshMaliciousExtensions(maliciousExtensionIds);
+
+        // The daily job (retries = 0) calls this before purging and before processing deprecated
+        // extensions; a Redis outage here must not abort that work, since the per-instance fallback
+        // below is already correct regardless of whether the shared write succeeded.
+        service.refreshMaliciousExtensionIds(maliciousExtensionIds);
+
+        assertThat(service.getLastKnownMaliciousExtensionIds()).isEqualTo(maliciousExtensionIds);
+    }
+
+    /** JacksonException's constructors are protected; a trivial subclass makes one throwable from a test. */
+    private static final class FakeJsonParseException extends tools.jackson.core.JacksonException {
+        FakeJsonParseException(String message) {
+            super(message);
+        }
+    }
+
+    @Test
+    void retriesOnceOnTransientIOExceptionThenSucceeds() throws IOException {
+        var spy = spy(service);
+        var goodResponse = JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """);
+        doThrow(new IOException("connection reset"))
+                .doReturn(goodResponse)
+                .when(spy)
+                .fetchExtensionControlJson(any());
+
+        assertThat(spy.getExtensionControlJson()).isEqualTo(goodResponse);
+        verify(spy, times(2)).fetchExtensionControlJson(any());
+    }
+
+    @Test
+    void givesUpAfterMaxAttemptsOnRepeatedIOException() throws IOException {
+        var spy = spy(service);
+        var failure = new IOException("connection reset");
+        doThrow(failure).when(spy).fetchExtensionControlJson(any());
+
+        var thrown = assertThrows(IOException.class, spy::getExtensionControlJson);
+        assertThat(thrown).isSameAs(failure);
+        verify(spy, times(2)).fetchExtensionControlJson(any());
+    }
+
+    @Test
+    void doesNotRetryOnJacksonException() throws IOException {
+        var spy = spy(service);
+        doThrow(new FakeJsonParseException("malformed extensions.json"))
+                .when(spy)
+                .fetchExtensionControlJson(any());
+
+        // A malformed body would fail identically on an immediate retry against the same URL, so this
+        // must not spend a second attempt on it.
+        assertThrows(FakeJsonParseException.class, spy::getExtensionControlJson);
+        verify(spy, times(1)).fetchExtensionControlJson(any());
+    }
+
+    // GHSA-fq82-m65g-jfrh: fetchExtensionControlJson() sits on the publish request path via
+    // getMaliciousExtensionIds() and previously had no read timeout at all, so a stalled connection
+    // parked the servlet thread forever. Drives a real request against a server that accepts the
+    // connection and never responds, so removing setReadTimeout would make this test hang instead of
+    // pass (bounded by the join() below rather than actually hanging the suite). This only exercises
+    // the read timeout: the server already listens on 127.0.0.1, so the TCP handshake always succeeds
+    // immediately regardless of the connect timeout - see appliesTheConfiguredConnectTimeout() for that.
+    @Test
+    void appliesTheConfiguredReadTimeoutToARealFetch() throws Exception {
+        try (var serverSocket = new ServerSocket(0)) {
+            var acceptThread = new Thread(() -> {
+                try (var socket = serverSocket.accept()) {
+                    var in = socket.getInputStream();
+                    var buffer = new byte[4096];
+                    // Keep draining whatever the client sends but never respond - closing the socket
+                    // here (e.g. after a single read()) would let the client see EOF immediately
+                    // instead of the client's own read timeout actually firing.
+                    while (in.read(buffer) >= 0) {
+                        // discard
+                    }
+                } catch (Exception ignored) {
+                    // client closed on its own timeout, or the test is tearing down
+                }
+            });
+            acceptThread.setDaemon(true);
+            acceptThread.start();
+
+            var url = URI.create("http://127.0.0.1:" + serverSocket.getLocalPort() + "/stalls-forever").toURL();
+
+            var failure = new AtomicReference<Throwable>();
+            var caller = new Thread(() -> {
+                try {
+                    service.fetchExtensionControlJson(url);
+                } catch (Throwable t) {
+                    failure.set(t);
+                }
+            });
+            caller.setDaemon(true);
+            caller.start();
+            // The real configured read timeout is 10s; bound the wait well above that so the test
+            // still passes deterministically, without letting a regression hang the suite forever.
+            caller.join(15_000);
+
+            assertThat(caller.isAlive())
+                    .as("the configured read timeout must bound the fetch, not hang indefinitely")
+                    .isFalse();
+            assertThat(failure.get()).isInstanceOf(SocketTimeoutException.class);
+        }
+    }
+
+    // A real unreachable-connect scenario is slow/flaky to simulate reliably, so this checks the
+    // setConnectTimeout(...) call directly via a URLConnection double instead - a controllable
+    // HttpURLConnection whose only job is to record what it was called with. The suppressed deprecation
+    // is on the URL(String, String, int, String, URLStreamHandler) constructor, the only way to give a
+    // URL a caller-supplied stream handler.
+    @SuppressWarnings("deprecation")
+    @Test
+    void appliesTheConfiguredConnectTimeout() throws Exception {
+        var recordedConnectTimeout = new AtomicInteger(-1);
+        var handler = new URLStreamHandler() {
+            @Override
+            protected URLConnection openConnection(URL u) {
+                return new HttpURLConnection(u) {
+                    @Override
+                    public void setConnectTimeout(int timeout) {
+                        recordedConnectTimeout.set(timeout);
+                    }
+
+                    @Override
+                    public void connect() {
+                        // never actually called: getInputStream() isn't overridden, so the inherited
+                        // URLConnection default throws before this would run
+                    }
+
+                    @Override
+                    public void disconnect() {
+                    }
+
+                    @Override
+                    public boolean usingProxy() {
+                        return false;
+                    }
+                };
+            }
+        };
+        var url = new URL("http", "extension-control.invalid", 80, "/extensions.json", handler);
+
+        assertThrows(IOException.class, () -> service.fetchExtensionControlJson(url));
+
+        assertThat(recordedConnectTimeout.get())
+                .as("must match the private FETCH_CONNECT_TIMEOUT_MS constant")
+                .isEqualTo(10_000);
+    }
+
+    @Test
+    void throwsAndPreservesLastKnownListWhenFetchFails() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
+
+        // Must throw rather than silently returning a fallback: the cache is written only explicitly,
+        // after a successful fetch, so returning a fallback here would mean inventing a value this
+        // method never actually validated - and callers would have no way to tell it apart from a real
+        // fetch result.
+        assertThrows(IOException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds())
+                .as("the per-instance fallback must still hold the last successfully parsed list")
+                .containsExactly("ns.ext");
+    }
+
+    @Test
+    void throwsAndPreservesLastKnownListWhenJsonUnparseable() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        doThrow(new FakeJsonParseException("malformed extensions.json")).when(spy).getExtensionControlJson();
+
+        assertThrows(FakeJsonParseException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds())
+                .as("the per-instance fallback must still hold the last successfully parsed list")
+                .containsExactly("ns.ext");
+    }
+
+    @Test
+    void throwsAndFallsBackToEmptyListWhenFetchNeverSucceeded() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doThrow(new IOException("connection reset")).when(spy).getExtensionControlJson();
+
+        assertThrows(IOException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds()).isEqualTo(Collections.emptyList());
+    }
+
+    @Test
+    void throwsAndPreservesLastKnownListWhenMaliciousFieldMissing() throws IOException {
+        var spy = spy(service);
+        spy.enabled = true;
+        doReturn(JsonMapper.shared().readTree("""
+                {"malicious": ["ns.ext"]}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+        assertThat(spy.getMaliciousExtensionIds()).containsExactly("ns.ext");
+
+        doReturn(JsonMapper.shared().readTree("""
+                {"deprecated": {}}
+                """))
+                .when(spy)
+                .getExtensionControlJson();
+
+        assertThrows(IOException.class, spy::getMaliciousExtensionIds);
+        assertThat(spy.getLastKnownMaliciousExtensionIds())
+                .as("a response missing the 'malicious' field must not NPE and must preserve the last list")
+                .isEqualTo(List.of("ns.ext"));
     }
 }

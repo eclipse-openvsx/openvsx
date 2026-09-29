@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRe
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.client.RestTemplate;
@@ -31,9 +35,15 @@ import org.eclipse.openvsx.json.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * {@code @Isolated}: publishes a fixed "EditorConfig"/"editorconfig" namespace and extension rather than a
+ * unique-per-run name, colliding with {@code VSCodeGalleryExtensionQueryCompressionIntegrationTest}, which
+ * queries for the same fixture.
+ */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @ActiveProfiles({ "test", "test_search" })
+@Isolated
 class IntegrationTest extends AbstractPostgresContainerTest {
 
     protected final Logger logger = LoggerFactory.getLogger(IntegrationTest.class);
@@ -142,8 +152,15 @@ class IntegrationTest extends AbstractPostgresContainerTest {
     }
 
     private void verifyToken() {
-        var response = restTemplate
-                .getForEntity(apiCall("/api/editorconfig/verify-pat?token=test_token"), ResultJson.class);
+        // Sent via Authorization: Bearer rather than the query parameter, exercising the header
+        // path end to end (real request parsing, real filter chain) rather than only the query one.
+        var headers = new HttpHeaders();
+        headers.set(HttpHeaders.AUTHORIZATION, "Bearer test_token");
+        var response = restTemplate.exchange(
+                apiCall("/api/editorconfig/verify-pat"),
+                HttpMethod.GET,
+                new HttpEntity<Void>(headers),
+                ResultJson.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         var json = response.getBody();
         assertThat(json).isNotNull();
