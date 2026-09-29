@@ -16,8 +16,11 @@ philosophy). This file only covers what's specific to the CLI.
 
 ## Project shape
 
-- Each command lives in its own `src/<command>.ts` plus a sibling
-  `src/<command>-options.ts` for its CLI flags, wired up in `src/main.ts`.
+- Each command's logic lives in `src/<command>.ts`, taking a typed options
+  object; most (not all — `logout` doesn't) have a sibling
+  `src/<command>-options.ts` declaring that options interface. The actual CLI
+  flags (`.option(...)`) are declared in `src/main.ts`, which parses them and
+  wires each command into `commander`.
 - Unit tests live in `test/unit/`, generally one `<command>.spec.ts` per
   command file, occasionally split further by scenario (e.g.
   `registry-download.spec.ts` / `registry-json.spec.ts`).

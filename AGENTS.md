@@ -18,15 +18,16 @@ request from the user, ask before overriding it.
   existing file in the same component).
 - **Never commit unless the user asks**, and stage only the files you changed
   (`git add <path>`), never `git add -A` / `git add .`.
-- **A change with no matching test update is incomplete.** Say so explicitly
-  rather than skipping silently; for a bug fix, confirm the regression test
-  fails without the fix. See the component's own `AGENTS.md` for its test
-  runner and layout.
+- **A change with no matching test update is incomplete**, unless it has no
+  testable surface (a docs-only or pure styling/config change) — say so
+  explicitly rather than skipping silently; for a bug fix, confirm the
+  regression test fails without the fix. See the component's own `AGENTS.md`
+  for its test runner and layout.
 
 ## Workflow and code quality
 
-- Read files in full before wide-ranging changes, and before editing files you
-  have not inspected. Do not rely on search snippets.
+- Read files in full before wide-ranging changes, before editing files you
+  have not inspected, and when investigating. Do not rely on search snippets.
 - Keep code comments short (1–3 lines): state only the non-obvious constraint
   or rationale, never narrate what the code does. In particular do not
   recount the bug a line used to have or how it used to behave: a comment is

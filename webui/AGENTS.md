@@ -49,9 +49,6 @@ Every behavioral change updates coverage:
 - **vitest** unit tests under `test/unit/`, mirroring the source path
   (`yarn test`). Follow the `write-tests` skill; for a bug fix add a regression
   test and confirm it fails without the fix.
-- A change with no matching test update is incomplete. Pure styling/config with
-  no testable surface is the only exception — say so explicitly rather than
-  skipping silently.
 
 The Playwright smoke test in `test/e2e/` runs only when the user asks
 (`yarn smoke-tests`).
