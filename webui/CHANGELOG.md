@@ -6,6 +6,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
+- Add fine-grained admin permissions: grant or revoke a single admin capability per user instead of only the all-or-nothing admin role; the admin dashboard shows only the pages a user's granted permissions cover (#2269)
 - Add a "Caches" page to the admin dashboard, with per-cache hit/eviction stats and a way to clear one or all without restarting the server (#2203)
 - Add a weekly downloads card to the extension detail page, with a hoverable sparkline of the year's weekly totals (#2135)
 - Prompt anonymous visitors to log in on an extension's reviews tab, where "Write a Review" was previously blank (#2148)

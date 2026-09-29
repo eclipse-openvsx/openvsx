@@ -73,8 +73,10 @@ public class SecurityConfig {
                                         "/admin/report",
                                         "/admin/search-explain"))
                         .permitAll()
+                        // fine-grained enforcement (which admin capability, if any) happens inside AdminService's
+                        // checkPermission/checkAdminUser calls - this rule only keeps anonymous requests out
                         .requestMatchers(pathMatchers("/admin/**"))
-                        .hasAuthority("ROLE_ADMIN")
+                        .authenticated()
                         .requestMatchers(pathMatchers(webUi.getFrontendRoutes()))
                         .permitAll()
                         .requestMatchers(pathMatchers(webUi.getAdditionalRoutes()))

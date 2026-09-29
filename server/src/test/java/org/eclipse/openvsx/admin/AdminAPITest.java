@@ -807,6 +807,8 @@ class AdminAPITest {
         mockExtension(2, 0, 0);
         mockMvc.perform(
                 post("/admin/extension/{namespace}/{extension}/delete", "foobar", "baz")
+                        .content("[]")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .with(user("test_user"))
                         .with(csrf().asHeader()))
                 .andExpect(status().isForbidden());
@@ -1185,7 +1187,7 @@ class AdminAPITest {
     void testGetUsersNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
-                get("/admin/users")
+                get("/admin/user/search")
                         .with(user("test_user"))
                         .with(csrf().asHeader()))
                 .andExpect(status().isForbidden());
@@ -1808,7 +1810,7 @@ class AdminAPITest {
                 get("/admin/report?year=2021&month=3")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
                 .andExpect(status().isForbidden())
-                .andExpect(content().json(errorJson("Administration role is required.")));
+                .andExpect(content().json(errorJson("Missing required permission: view_reports")));
     }
 
     @Test
@@ -2561,7 +2563,7 @@ class AdminAPITest {
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden())
-                .andExpect(content().json(errorJson("Administration role is required.")));
+                .andExpect(content().json(errorJson("Missing required permission: manage_publishers")));
     }
 
     @Test

@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import org.eclipse.openvsx.entities.ExtensionSizeOverride;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.SizeOverrideJson;
 import org.eclipse.openvsx.json.SizeOverrideListJson;
@@ -53,7 +54,7 @@ public class ExtensionSizeOverrideAPI {
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SizeOverrideListJson> getSizeOverrides() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var json = limits.listOverrides().stream().map(ExtensionSizeOverrideAPI::toJson).toList();
             return ResponseEntity.ok(new SizeOverrideListJson(json));
         } catch (ErrorResultException exc) {
@@ -74,7 +75,7 @@ public class ExtensionSizeOverrideAPI {
     @MutatingOperation
     public ResponseEntity<SizeOverrideJson> createSizeOverride(@RequestBody SizeOverrideJson request) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var created = limits.createOverride(request.getNamespace(), request.getExtension(), request.getMaxSize());
             var result = toJson(created);
             result.setSuccess(
@@ -100,7 +101,7 @@ public class ExtensionSizeOverrideAPI {
             @RequestBody SizeOverrideJson request
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var updated = limits.updateOverride(id, request.getMaxSize());
             var override = updated.override();
             var result = toJson(override);
@@ -122,7 +123,7 @@ public class ExtensionSizeOverrideAPI {
     @MutatingOperation
     public ResponseEntity<ResultJson> deleteSizeOverride(@PathVariable long id) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var deleted = limits.deleteOverride(id);
             var result = ResultJson.success(
                     "Deleted size override for " + scopeOf(deleted) + " of " + deleted.getMaxSize() + " bytes");

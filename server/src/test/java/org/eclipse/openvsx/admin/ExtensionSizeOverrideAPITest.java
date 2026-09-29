@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionSizeOverride;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -68,7 +69,7 @@ class ExtensionSizeOverrideAPITest {
 
     @Test
     void listReturnsEveryOverride() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_EXTENSIONS)).thenReturn(adminUser());
         when(limits.listOverrides()).thenReturn(List.of(override("foo", null, 100L)));
 
         mockMvc.perform(get("/admin/size-overrides").accept(MediaType.APPLICATION_JSON))
@@ -80,7 +81,7 @@ class ExtensionSizeOverrideAPITest {
 
     @Test
     void listRequiresAdmin() throws Exception {
-        when(admins.checkAdminUser())
+        when(admins.checkPermission(Permission.MANAGE_EXTENSIONS))
                 .thenThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN));
 
         mockMvc.perform(get("/admin/size-overrides").accept(MediaType.APPLICATION_JSON))
@@ -90,7 +91,7 @@ class ExtensionSizeOverrideAPITest {
     @Test
     void createPersistsTheOverrideAndAuditsIt() throws Exception {
         var admin = adminUser();
-        when(admins.checkAdminUser()).thenReturn(admin);
+        when(admins.checkPermission(Permission.MANAGE_EXTENSIONS)).thenReturn(admin);
         when(limits.createOverride("foo", null, 100L)).thenReturn(override("foo", null, 100L));
 
         mockMvc.perform(
@@ -105,7 +106,7 @@ class ExtensionSizeOverrideAPITest {
 
     @Test
     void createSurfacesAValidationFailureAsBadRequest() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_EXTENSIONS)).thenReturn(adminUser());
         when(limits.createOverride(Mockito.anyString(), Mockito.any(), Mockito.anyLong()))
                 .thenThrow(new ErrorResultException("Unknown namespace: nope", HttpStatus.BAD_REQUEST));
 
@@ -122,7 +123,7 @@ class ExtensionSizeOverrideAPITest {
     @Test
     void updateChangesTheSize() throws Exception {
         var admin = adminUser();
-        when(admins.checkAdminUser()).thenReturn(admin);
+        when(admins.checkPermission(Permission.MANAGE_EXTENSIONS)).thenReturn(admin);
         when(limits.updateOverride(1L, 200L))
                 .thenReturn(new ExtensionSizeLimitService.UpdatedOverride(override("foo", null, 200L), 100L));
 
@@ -141,7 +142,7 @@ class ExtensionSizeOverrideAPITest {
     @Test
     void deleteRemovesTheOverride() throws Exception {
         var admin = adminUser();
-        when(admins.checkAdminUser()).thenReturn(admin);
+        when(admins.checkPermission(Permission.MANAGE_EXTENSIONS)).thenReturn(admin);
         when(limits.deleteOverride(1L)).thenReturn(override("foo", "bar", 100L));
 
         mockMvc.perform(delete("/admin/size-overrides/1").accept(MediaType.APPLICATION_JSON))

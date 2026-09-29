@@ -49,6 +49,7 @@ import org.eclipse.openvsx.entities.ExtensionReview;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ChangeNamespaceJson;
@@ -457,6 +458,7 @@ public class AdminService {
                     var json = new UserRelationshipsJson();
                     var userJson = user.toUserJson();
                     userJson.setRole(user.getRoleAsString());
+                    userJson.setPermissions(user.getPermissionsAsStrings());
                     json.setUser(userJson);
                     json.setNamespaces(
                             repositories.findMemberships(user).stream()
@@ -728,6 +730,76 @@ public class AdminService {
             return UserData.Role.valueOfIgnoreCase(role);
         } catch (IllegalArgumentException ignored) {
             throw new ErrorResultException("Invalid role: " + role, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * Checks that the logged-in user has {@code required}, throwing 403 otherwise. Unlike
+     * {@link #checkAdminUser()}, this also passes for a non-ADMIN user individually granted the
+     * permission via {@link #updateUserPermission}.
+     */
+    public UserData checkPermission(Permission required) {
+        return checkPermission(users.findLoggedInUser(), required);
+    }
+
+    public UserData checkPermission(String tokenValue, Permission required) {
+        var user = Optional.ofNullable(tokenValue)
+                .map(tv -> tokens.useAccessToken(tv, new AccessTokenAction.Administration()))
+                .map(AccessTokenAuthentication::userData)
+                .orElse(null);
+
+        return checkPermission(user, required);
+    }
+
+    private UserData checkPermission(UserData user, Permission required) {
+        if (user == null || !user.hasPermission(required)) {
+            throw new ErrorResultException("Missing required permission: " + required, HttpStatus.FORBIDDEN);
+        }
+        return user;
+    }
+
+    /**
+     * Grants or revokes a single {@link Permission} for a user. Deliberately not gated by
+     * {@link #checkPermission}, only by {@link #checkAdminUser()} at the call site in
+     * {@code AdminAPI} - granting permissions is itself a privilege-escalation action and stays
+     * restricted to full admins, not delegable like the permissions it manages.
+     */
+    @Transactional(rollbackOn = ErrorResultException.class)
+    public ResultJson updateUserPermission(
+            String provider,
+            String loginName,
+            String permission,
+            boolean grant,
+            UserData admin
+    ) {
+        var user = repositories.findUserByLoginName(provider, loginName);
+        if (user == null) {
+            throw new ErrorResultException(userNotFoundMessage(provider + "/" + loginName), HttpStatus.NOT_FOUND);
+        }
+
+        var parsedPermission = parsePermission(permission);
+        var changed = grant
+                ? user.getPermissions().add(parsedPermission)
+                : user.getPermissions().remove(parsedPermission);
+        if (!changed) {
+            throw new ErrorResultException(
+                    "User " + provider + "/" + loginName
+                            + (grant ? " already has " : " does not have ") + "the permission " + parsedPermission
+                            + ".");
+        }
+
+        var message = (grant ? "Granted " : "Revoked ") + parsedPermission + (grant ? " to " : " from ") + "user "
+                + provider + "/" + loginName + ".";
+        var result = ResultJson.success(message);
+        logs.logAction(admin, result);
+        return result;
+    }
+
+    private Permission parsePermission(String permission) {
+        try {
+            return Permission.valueOfIgnoreCase(permission);
+        } catch (IllegalArgumentException ignored) {
+            throw new ErrorResultException("Invalid permission: " + permission, HttpStatus.BAD_REQUEST);
         }
     }
 
