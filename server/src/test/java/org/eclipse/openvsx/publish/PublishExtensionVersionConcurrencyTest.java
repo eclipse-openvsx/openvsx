@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2026 Eclipse Foundation and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.publish;
 
 import java.time.LocalDateTime;
@@ -22,6 +25,7 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -65,8 +69,12 @@ import static org.mockito.Mockito.when;
  * <p>
  * The races are deliberately triggered by intercepting the extension lookup (using a spy) and letting
  * the competing writer commit in exactly the window that used to break.
+ * <p>
+ * {@code @Isolated}: the deliberately-triggered race depends on precise internal timing between two
+ * threads, which unrelated concurrently-running tests competing for CPU can throw off.
  */
 @SpringBootTest
+@Isolated
 class PublishExtensionVersionConcurrencyTest extends AbstractPostgresContainerTest {
 
     private static final String NAMESPACE = "race-publishns";

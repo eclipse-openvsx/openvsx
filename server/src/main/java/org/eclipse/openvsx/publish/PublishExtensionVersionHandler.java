@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.publish;
 
 import java.io.IOException;
@@ -459,13 +462,19 @@ public class PublishExtensionVersionHandler {
     }
 
     private boolean isMalicious(String namespace, String extension) {
+        List<String> maliciousExtensionIds;
         try {
-            var maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
-            return maliciousExtensionIds.contains(NamingUtil.toExtensionId(namespace, extension));
-        } catch (IOException e) {
-            logger.warn("Failed to check whether extension is malicious or not", e);
-            return false;
+            maliciousExtensionIds = extensionControl.getMaliciousExtensionIds();
+        } catch (IOException | RuntimeException e) {
+            // getMaliciousExtensionIds() already handles its own cache read/write failures internally
+            // and degrades gracefully on its own; this broad catch is for its remaining failure modes
+            // (a fetch IOException, or the unchecked JacksonException from a malformed response) and as
+            // a backstop against any other unexpected failure, since this gates a security check that
+            // must never break the publish request outright.
+            logger.warn("Failed to refresh malicious extension list, reusing last known list", e);
+            maliciousExtensionIds = extensionControl.getLastKnownMaliciousExtensionIds();
         }
+        return maliciousExtensionIds.contains(NamingUtil.toExtensionId(namespace, extension));
     }
 
     private void checkDependencies(List<ExtensionId> dependencies) {

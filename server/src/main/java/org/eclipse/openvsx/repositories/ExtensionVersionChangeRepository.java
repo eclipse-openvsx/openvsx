@@ -34,4 +34,13 @@ public interface ExtensionVersionChangeRepository extends Repository<ExtensionVe
     Optional<ExtensionVersionChange> findFirstByExtensionVersionOrderByChangedAtDescIdDesc(
             ExtensionVersion extVersion
     );
+
+    /**
+     * The entry most recently appended for the given version under the given namespace specifically --
+     * see {@link RepositoryService#wasReportedAsAvailable}.
+     */
+    Optional<ExtensionVersionChange> findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc(
+            ExtensionVersion extVersion,
+            String namespace
+    );
 }

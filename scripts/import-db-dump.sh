@@ -14,11 +14,11 @@ the one 'docker compose --profile db up postgres' starts, matching
 server/src/dev/resources/application.yml's connection details, which are this script's defaults.
 The target can be either completely empty or already fully migrated - see below.
 
-Deletes all existing rows from the 8 tables the dump covers first (children before parents, so no
+Deletes all existing rows from the 9 tables the dump covers first (children before parents, so no
 foreign key elsewhere in that same set gets violated), then imports every dump file and fixes up
 each table's id sequence so the running app doesn't collide with the imported ids on its next
 insert. The whole delete+import runs as ONE transaction: if anything fails partway through -
-including a table outside these 8 that has its own foreign key into one of them, which a plain
+including a table outside these 9 that has its own foreign key into one of them, which a plain
 DELETE (deliberately not CASCADE) will refuse to run past - nothing changes on the target at all.
 
 This does NOT figure out which Flyway version the dump predates (scrub-db-dump.sh already needed
@@ -26,9 +26,9 @@ to for its own reasons - if you still have that terminal output, reuse it here w
 whatever's given via -t, or migrates a throwaway scratch container through the full history to
 detect it, purely to learn each table's dump-era column *names*.
 
-What happens next depends on the target's own state, checked by looking for these 8 tables (not
+What happens next depends on the target's own state, checked by looking for these 9 tables (not
 by table count, so unrelated tables - e.g. spring_session - don't confuse it):
-  - None of the 8 exist: the target is treated as a fresh database and migrated directly, via a
+  - None of the 9 exist: the target is treated as a fresh database and migrated directly, via a
     real 'flyway migrate -target=<detected version>' run against it, to the dump's own Flyway
     version - not to the latest one. Afterwards its schema is an exact match for the dump, so
     there's nothing to adapt. If you want the target on the current schema afterwards (e.g. to run
@@ -40,15 +40,17 @@ by table count, so unrelated tables - e.g. spring_session - don't confuse it):
     'super_token' seed (V1_0_1 + V1_1_1): it touches user_data/personal_access_token, so the
     DELETE+import below wipes it regardless of having run - deliberately not reseeded afterwards
     (its own migrations' hardcoded id isn't guaranteed free in real dump data, and it's not worth
-    reconstructing outside of a real flyway migrate just for this).
-  - All 8 already exist: the target is assumed to already be on the current schema (the app or
+    reconstructing outside of a real flyway migrate just for this). A dump taken before V1_71
+    (which introduced extension_version_change) has no extension_version_change.csv to give this
+    script, and is refused the same way a dump missing any other of these 9 files would be.
+  - All 9 already exist: the target is assumed to already be on the current schema (the app or
     'flyway migrate' got it there), same as before. The dump's old column layout is adapted to fit
     via an explicit column list per \\copy, so newer columns the target has gained since simply
     keep their column default (with known exceptions backfilled - see KNOWN_BACKFILLS below). A
     column the target has *dropped* since can't be adapted that way - there's nowhere to put its
     data - so those are detected up front and the run is refused with guidance, rather than
     failing deep inside the \\copy with a bare 'column does not exist'.
-  - Some but not all 8 exist: refused - this is neither state above, and guessing which columns
+  - Some but not all 9 exist: refused - this is neither state above, and guessing which columns
     are missing on a half-migrated schema is more likely to corrupt data than help.
 Either way, the target is only ever touched starting at the DELETE+import step (or, for a fresh
 target, the flyway migrate right before it).
@@ -108,9 +110,11 @@ SCRATCH_CONTAINER="openvsx-${RUN_ID}"
 SCRATCH_NETWORK="openvsx-${RUN_ID}-net"
 COPY_FORMAT="format text, delimiter ','"
 
-# All 8 tables scrub-db-dump.sh's dump files cover, dependency order computed dynamically below
-# (do not assume it here - the target's actual constraints are authoritative).
-TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data)
+# All 9 tables this script reloads, dependency order computed dynamically below (do not assume it
+# here - the target's actual constraints are authoritative). scrub-db-dump.sh only redacts 3 of
+# these (personal_access_token, signature_key_pair, user_data) - the rest, extension_version_change
+# included, carry nothing sensitive and pass through untouched.
+TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data extension_version_change)
 
 for t in "${TABLES[@]}"; do
   if [ ! -f "${DUMP_DIR}/${t}.csv" ]; then
@@ -168,8 +172,8 @@ target_psql() {
 # for the "target is empty" case below. Includes the dev migrations (see DEV_MIGRATIONS_DIR above)
 # alongside the main ones, if that directory exists, so a fresh target ends up the same way
 # running the app locally would have left it - including e.g. V1_62_1's rate-limit tier/customer
-# seed data, which isn't part of any of these 8 dump tables so survives the import step untouched.
-# The one exception is V1_0_1/V1_1_1's 'super_user' seed, which DOES touch two of these 8 tables
+# seed data, which isn't part of any of these 9 dump tables so survives the import step untouched.
+# The one exception is V1_0_1/V1_1_1's 'super_user' seed, which DOES touch two of these 9 tables
 # (user_data, personal_access_token) and so gets wiped by the DELETE+import below regardless of
 # having been applied here - deliberately left that way, not reseeded afterwards.
 target_flyway_migrate() {
@@ -232,15 +236,26 @@ with open(sys.argv[1], newline='', encoding='utf-8', errors='replace') as f:
         if i >= 2000:
             break
         counts[len(row)] += 1
-print(counts.most_common(1)[0][0])
+# A table with zero dump rows (e.g. extension_version_change on a registry that has never
+# published anything) gives no column-count signal at all - print nothing rather than crashing on
+# counts.most_common(1)[0], and let the caller treat that table as uninformative below.
+if counts:
+    print(counts.most_common(1)[0][0])
 PY
   }
 
   declare -A actual_cols
+  any_signal=false
   for t in "${TABLES[@]}"; do
     actual_cols["${t}"]=$(detect_actual_cols "${t}")
+    [ -n "${actual_cols[${t}]}" ] && any_signal=true
   done
-  echo "  dump column counts: $(for t in "${TABLES[@]}"; do printf '%s=%s ' "${t}" "${actual_cols[${t}]}"; done)"
+  echo "  dump column counts: $(for t in "${TABLES[@]}"; do printf '%s=%s ' "${t}" "${actual_cols[${t}]:-empty}"; done)"
+
+  if [ "${any_signal}" = false ]; then
+    echo "Every dump file is empty - nothing to detect a Flyway version from. Pass -t yourself." >&2
+    exit 1
+  fi
 
   mapfile -t VERSIONS < <(
     find "${MIGRATIONS_DIR}" -maxdepth 1 -name 'V*__*' -printf '%f\n' \
@@ -253,7 +268,20 @@ PY
     scratch_migrate "${v}"
     match=true
     for t in "${TABLES[@]}"; do
-      if [ "$(table_column_count "${t}")" != "${actual_cols[${t}]}" ]; then
+      cols="$(table_column_count "${t}")"
+      if [ -z "${actual_cols[${t}]}" ]; then
+        # An empty dump file carries no signal for this table's exact column count (see
+        # detect_actual_cols), but the file existing at all (checked up front) means the table
+        # existed at export time - reject any candidate version where it doesn't exist yet
+        # (column count 0) rather than skipping the table outright, or a version from before it
+        # was introduced could still "match" on the strength of every other table alone.
+        if [ "${cols}" = "0" ]; then
+          match=false
+          break
+        fi
+        continue
+      fi
+      if [ "${cols}" != "${actual_cols[${t}]}" ]; then
         match=false
         break
       fi
@@ -265,7 +293,7 @@ PY
   done
 
   if [ -z "${FLYWAY_TARGET}" ]; then
-    echo "Could not find a single Flyway version matching all 8 tables' column counts." >&2
+    echo "Could not find a single Flyway version matching all 9 tables' column counts." >&2
     echo "Pass -t to pin a version yourself." >&2
     exit 1
   fi
@@ -281,11 +309,11 @@ for t in "${TABLES[@]}"; do
   echo "  ${t}: (${COLUMN_LISTS[${t}]})"
 done
 
-# --- Decide whether the target is a fresh database (none of the 8 tables exist yet) or one
-# that's presumably already fully migrated (all 8 exist). Checked by table presence, not a bare
+# --- Decide whether the target is a fresh database (none of the 9 tables exist yet) or one
+# that's presumably already fully migrated (all 9 exist). Checked by table presence, not a bare
 # table count, so other tables the target happens to have (spring_session, flyway_schema_history,
 # ...) don't affect the decision either way.
-echo "Checking whether the target already has these 8 tables..."
+echo "Checking whether the target already has these 9 tables..."
 present=0
 declare -a MISSING_TABLES=()
 for t in "${TABLES[@]}"; do
@@ -306,7 +334,7 @@ elif [ "${#MISSING_TABLES[@]}" -eq 0 ]; then
   echo "  all present - assuming the target is already on the current schema."
 else
   echo "" >&2
-  echo "The target has some but not all of these 8 tables - missing: ${MISSING_TABLES[*]}." >&2
+  echo "The target has some but not all of these 9 tables - missing: ${MISSING_TABLES[*]}." >&2
   echo "That's neither a fresh database nor a fully migrated one, so this script won't guess." >&2
   echo "Point it at an empty database, or one already fully migrated via 'flyway migrate'." >&2
   exit 1
@@ -421,12 +449,12 @@ if [ "${#UNKNOWN_GAPS[@]}" -gt 0 ]; then
   exit 1
 fi
 
-# --- Compute a safe delete order from the TARGET's actual foreign keys among these 8 tables -
+# --- Compute a safe delete order from the TARGET's actual foreign keys among these 9 tables -
 # not assumed, and not necessarily the dump-era graph, since the target may be on a newer schema
 # than the dump (the "already fully migrated" case above; a freshly-migrated target's graph is the
 # dump-era one exactly, which this reads just as well). A table can be deleted once nothing else
 # still-undeleted references it;
-# any foreign key from OUTSIDE this set of 8 into one of them is deliberately left for Postgres
+# any foreign key from OUTSIDE this set of 9 into one of them is deliberately left for Postgres
 # to enforce (see the module docstring above on why this isn't CASCADE).
 echo "Computing a safe delete order from the target's current foreign keys..."
 edges=$(target_psql -t -A -F',' -c "
@@ -516,13 +544,21 @@ SQL_FILE="${WORKDIR}/reload.sql"
     done
   done
   for t in "${TABLES[@]}"; do
-    # Not every table's id is sequence-backed (or has an "id" column at all, though all 8 here
+    # Not every table's id is sequence-backed (or has an "id" column at all, though all 9 here
     # do) - pg_get_serial_sequence returns NULL rather than erroring for those, so the setval
     # call is skipped for them via the WHERE-less guard below.
+    #
+    # It also returns NULL for a sequence that exists but isn't OWNED BY the column -
+    # extension_version_change_seq on any target schema before that ownership link was added
+    # (every table here follows the <table>_seq naming convention once it has one, so that's a
+    # safe fallback rather than a guess - see V1_77__Repair_Renamed_Namespace_Version_Changes.sql).
+    # Needed regardless of whether the target ends up on a schema past that fix: a fresh target is
+    # deliberately migrated only to the dump's own Flyway version (see the -t option above), which
+    # can predate it even after this script is updated to know about it.
     cat <<SQL
 DO \$\$
 DECLARE
-  seq_name text := pg_get_serial_sequence('${t}', 'id');
+  seq_name text := coalesce(pg_get_serial_sequence('${t}', 'id'), to_regclass('public.${t}_seq')::text);
   max_id bigint;
 BEGIN
   IF seq_name IS NOT NULL THEN

@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2019 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx;
 
 import io.micrometer.core.aop.TimedAspect;
@@ -51,7 +54,10 @@ import static org.springframework.data.web.config.EnableSpringDataWebSupport.Pag
     }
 )
 @EnableScheduling
-@EnableResilientMethods
+// Class-based (CGLIB) proxying, not the default interface-based one: a @Retryable bean that also
+// implements an interface (e.g. LocalRegistryService/IExtensionRegistry) would otherwise get a proxy
+// assignable only to that interface, breaking every other bean wired to the concrete type.
+@EnableResilientMethods(proxyTargetClass = true)
 @EnableAsync
 @EnableConfigurationProperties(OAuth2AttributesConfig.class)
 // Need to enable serialization support for spring data's Page, see:

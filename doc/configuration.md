@@ -1560,6 +1560,14 @@ Download analytics keeps its time-series data in a **separate** database from th
 
 Whether to enable download analytics. When `false`, the time-series datasource, its migrations and its jOOQ context are not created at all, and none of the settings below are read.
 
+| Property      | `ovsx.analytics.ingestion.max-decompressed-bytes`
+|---------------|-------------------------
+| Type          | long
+| Default       | `536870912`
+| Compatibility | Unreleased
+
+The decompressed-size cap applied while parsing an access-log stream, whether read from the scheduled AWS source or uploaded to the admin backfill endpoint. A highly-compressible gzip file could otherwise grow the in-memory record list without bound; exceeding the limit fails the parse.
+
 | Property      | `ovsx.analytics.settled-cache.ttl`
 |---------------|-------------------------
 | Type          | ISO 8601 duration

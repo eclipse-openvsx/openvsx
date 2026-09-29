@@ -10,6 +10,8 @@ npm install --global ovsx
 
 `ovsx` uses open-vsx.org as default instance for publishing and downloading extensions. If you are using a different instance, specify it via the `--registryUrl` (or `-r`) argument or an environment variable named `OVSX_REGISTRY_URL`.
 
+If your registry sits behind a reverse proxy that requires its own HTTP Basic auth (separate from your Open VSX personal access token), set `OVSX_USERNAME` and `OVSX_PASSWORD`.
+
 Requests give up if they stop making progress for 30 seconds, so a registry that accepts a connection and then goes quiet does not leave the command hanging. `OVSX_TIMEOUT` changes that, in milliseconds; `OVSX_TIMEOUT=0` disables it. It measures inactivity rather than total time, so a large extension downloading slowly is not cut off, and it covers the ID token request made for trusted publishing as well as the registry's own.
 
 ### Publish Extensions

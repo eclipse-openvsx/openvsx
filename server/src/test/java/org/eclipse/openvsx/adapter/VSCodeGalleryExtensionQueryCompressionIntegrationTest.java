@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -40,6 +41,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * that a Spring Boot 3-era config would have had - the point of {@link VSCodeGalleryCompressionConfig}
  * is that the Gallery API's versioned Content-Type gets compressed anyway, without an operator ever
  * adding that literal. See <a href="https://github.com/eclipse-openvsx/openvsx/issues/2071">#2071</a>.
+ * <p>
+ * {@code @Isolated}: queries for the fixed "editorconfig" extension {@link org.eclipse.openvsx.IntegrationTest}
+ * publishes, colliding with it under concurrent execution.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
@@ -50,6 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ovsx.databasesearch.enabled=true"
     }
 )
+@Isolated
 class VSCodeGalleryExtensionQueryCompressionIntegrationTest extends AbstractPostgresContainerTest {
 
     private static final String QUERY_BODY = """

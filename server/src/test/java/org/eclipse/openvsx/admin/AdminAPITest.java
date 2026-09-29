@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2020 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.admin;
 
 import java.time.Duration;
@@ -43,6 +46,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -110,6 +114,7 @@ import org.eclipse.openvsx.storage.GoogleCloudStorageService;
 import org.eclipse.openvsx.storage.LocalStorageService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.HttpHeadersUtil;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
@@ -156,6 +161,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SearchExplainService.class,
         CacheInfoService.class,
         EclipseService.class,
+        RestTemplate.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,
         MailService.class,
@@ -324,6 +330,46 @@ class AdminAPITest {
                         .with(csrf().asHeader()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0]").value("offset: parameter must not be negative"));
+    }
+
+    @Test
+    void testSearchExplainWithBearerToken() throws Exception {
+        // No session/authority simulated: an anonymous, token-only request. SecurityConfig used to
+        // reject this before the controller (and its own token check) ever ran, because
+        // /admin/search-explain wasn't in the permitAll list alongside /admin/report.
+        var token = mockAdminToken();
+        mockMvc.perform(
+                get("/admin/search-explain")
+                        .param("query", "markdown")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testSearchExplainBlankQueryTokenFallsBackToSession() throws Exception {
+        // ?token= (present but empty) - e.g. a bookmarked/templated URL - must not be treated as a
+        // real token attempt; it has to fall back to the logged-in admin's session, same as omitting
+        // the parameter entirely.
+        mockAdminUser();
+        mockMvc.perform(
+                get("/admin/search-explain")
+                        .param("query", "markdown")
+                        .param("token", "")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testSearchExplainWithNonAdminBearerToken() throws Exception {
+        // SecurityConfig now lets the request through, but the controller's own admin check must
+        // still reject a non-admin token.
+        var token = mockNonAdminToken();
+        mockMvc.perform(
+                get("/admin/search-explain")
+                        .param("query", "markdown")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -1666,6 +1712,56 @@ class AdminAPITest {
     }
 
     @Test
+    void testReportBearerHeader() throws Exception {
+        // A non-admin token would 403 whether or not the header is actually consumed, so this uses
+        // a real admin token and asserts a genuine success response - the only outcome that proves
+        // the header was resolved rather than silently ignored.
+        var token = mockAdminToken();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/report?year={year}&month={month}", year, month)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(year))
+                .andExpect(jsonPath("$.month").value(month));
+    }
+
+    @Test
+    void testReportOpenVsxHeaderFallback() throws Exception {
+        var token = mockAdminToken();
+        var now = TimeUtil.getCurrentUTC();
+        var year = now.getYear();
+        var month = now.getMonthValue();
+        when(adminStatisticsService.computeAdminStatistics(year, month))
+                .thenReturn(currentMonthStatistics(year, month));
+
+        mockMvc.perform(
+                get("/admin/report?year={year}&month={month}", year, month)
+                        .header(HttpHeadersUtil.TOKEN_HEADER, token.getValue())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(year))
+                .andExpect(jsonPath("$.month").value(month));
+    }
+
+    @Test
+    void testReportNoTokenAtAll() throws Exception {
+        // Neither a header nor a query parameter: must not NPE (AdminService.checkAdminUser used to
+        // do Optional.of(tokenValue), which throws on null once the query parameter became optional).
+        mockMvc.perform(
+                get("/admin/report?year=2021&month=3")
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
+    }
+
+    @Test
     void testReportNegativeYearCsv() throws Exception {
         var token = mockAdminToken();
         mockMvc.perform(
@@ -2407,11 +2503,15 @@ class AdminAPITest {
                     "publishers": []
                 }
                 """;
+        // the token parameter is optional now that the token can also arrive via a header, so a
+        // request with neither is a 403 (not an admin), not a missing-parameter 400 - and must not
+        // NPE (see AdminService.checkAdminUser)
         mockMvc.perform(
                 post("/admin/api/publisher/bulk-revoke")
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
     }
 
     @Test
@@ -2421,11 +2521,17 @@ class AdminAPITest {
                     "publishers": []
                 }
                 """;
+        // /admin/api/** is CSRF-exempt (see SecurityConfig), so a request with no CSRF token still
+        // succeeds. Proving that needs a token that actually authenticates - an unauthenticated
+        // request would 403 before CSRF is ever evaluated, indistinguishable from
+        // testRevokeBulkPublishersMissingToken.
+        var token = mockAdminToken();
         mockMvc.perform(
                 post("/admin/api/publisher/bulk-revoke")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue())
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -2663,7 +2769,8 @@ class AdminAPITest {
         token.setValue(tokenValue);
         token.setUser(user);
         token.setType(PersonalAccessTokenType.LLT);
-        when(repositories.findPersonalAccessToken(tokenValue)).thenReturn(token);
+        // token.version defaults to 0 (never set below), so this is the v0 fallback lookup
+        when(repositories.findPersonalAccessToken(tokenValue, 0)).thenReturn(token);
 
         return token;
     }
@@ -2678,7 +2785,8 @@ class AdminAPITest {
         token.setValue(tokenValue);
         token.setUser(user);
         token.setType(PersonalAccessTokenType.LLT);
-        when(repositories.findPersonalAccessToken(tokenValue)).thenReturn(token);
+        // token.version defaults to 0 (never set below), so this is the v0 fallback lookup
+        when(repositories.findPersonalAccessToken(tokenValue, 0)).thenReturn(token);
 
         return token;
     }
@@ -2990,9 +3098,10 @@ class AdminAPITest {
         EclipseTokenService eclipseTokenService(
                 TransactionTemplate transactions,
                 EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository
+                ClientRegistrationRepository clientRegistrationRepository,
+                RestTemplate restTemplate
         ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository);
+            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
         }
 
         @Bean

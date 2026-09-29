@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.adapter;
 
 import java.net.URI;
@@ -545,24 +548,37 @@ public class LocalVSCodeService implements IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     ) {
         if (BuiltInExtensionUtil.isBuiltIn(namespaceName)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(builtinExtensionResponse());
         }
 
-        var extensionDownloadPath = webResources.getExtensionDownload(namespaceName, extensionName, null, version);
+        var extensionDownloadPath = webResources
+                .getExtensionDownload(namespaceName, extensionName, targetPlatform, version);
         if (extensionDownloadPath == null) {
             throw new NotFoundException();
         }
 
-        var file = getWebResource(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var file = getWebResource(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (file != null) {
             return storageUtil.getFileResponse(file);
         }
 
-        var node = webResources
-                .browseExtensionPackage(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var node = webResources.browseExtensionPackage(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (node != null) {
             return storageUtil.getFileResponse(node);
         }

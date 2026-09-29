@@ -59,6 +59,20 @@ class DownloadAnalyticsConfiguration {
         return new DownloadAnalyticsRepository(dsl);
     }
 
+    /** Registers download_stats_daily for backfill refreshes. */
+    @Bean
+    ContinuousAggregateSet coreDownloadAggregates() {
+        return () -> List.of("download_stats_daily");
+    }
+
+    @Bean
+    ContinuousAggregateRefresher continuousAggregateRefresher(
+            @Qualifier("timeseriesDsl") DSLContext dsl,
+            List<ContinuousAggregateSet> aggregateSets
+    ) {
+        return new ContinuousAggregateRefresher(dsl, aggregateSets);
+    }
+
     /**
      * How far back from now the series is treated as settled. Bound here rather than read from the
      * Environment inside the bean method so that the property is visible to the configuration

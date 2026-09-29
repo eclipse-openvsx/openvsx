@@ -263,6 +263,10 @@ spotless {
         // shared with scripts/ClosingBraceFix.java (the jbang path) via buildSrc,
         // see buildSrc/src/main/java/ClosingBraceFixStep.java
         addStep(ClosingBraceFixStep.create())
+
+        // shared with scripts/LicenseHeaderHarmonize.java (the jbang path) via buildSrc,
+        // see buildSrc/src/main/java/LicenseHeaderHarmonizeStep.java
+        addStep(LicenseHeaderHarmonizeStep.create())
     }
 }
 
@@ -295,6 +299,15 @@ test {
         if (System.getProperty(property) != null) {
             systemProperty property, System.getProperty(property)
         }
+    }
+
+    // junit-platform.properties lets test classes fan out one thread per core (a local machine has no
+    // reason to hold back), but GitHub Actions runners have less memory to absorb several heavy
+    // @SpringBootTest contexts building at once - a system property here overrides that file's
+    // `dynamic` strategy. CI sets the CI env var itself; this isn't something to set by hand locally.
+    if (System.getenv('CI') != null) {
+        systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'fixed'
+        systemProperty 'junit.jupiter.execution.parallel.config.fixed.parallelism', '2'
     }
 }
 

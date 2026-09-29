@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.cache;
 
 import java.util.ArrayList;
@@ -92,6 +95,35 @@ public class CacheService {
 
     public void evictSitemap() {
         afterCommit.execute(() -> invalidateCache(CACHE_SITEMAP));
+    }
+
+    /**
+     * Reads the cached malicious-extension list, or null on a cache miss or if the cache does not exist
+     * yet. Managed manually (not via {@code @Cacheable}) specifically so a cache hit can still update
+     * the caller's per-instance fallback - {@code @Cacheable}'s hit path skips the annotated method
+     * body entirely, so it has no opportunity to do that.
+     */
+    public List<String> getMaliciousExtensions() {
+        var cache = cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS);
+        if (cache == null) {
+            return null;
+        }
+
+        return cache.get(SimpleKey.EMPTY, List.class);
+    }
+
+    /**
+     * Overwrites the cached malicious-extension list with a freshly fetched one, so the daily
+     * extension-control job (which always fetches a fresh copy) keeps this cache warm at its own
+     * cadence, rather than leaving it to drift for up to its own, independently TTL'd 3 days.
+     */
+    public void refreshMaliciousExtensions(List<String> maliciousExtensionIds) {
+        var cache = cacheManager.getCache(CACHE_MALICIOUS_EXTENSIONS);
+        if (cache == null) {
+            return;
+        }
+
+        cache.put(SimpleKey.EMPTY, maliciousExtensionIds);
     }
 
     public void evictNamespaceDetails() {
