@@ -33,4 +33,3 @@ window.getComputedStyle = (element: Element, pseudoElt?: string | null) => {
         return document.createElement('div').style;
     }
 };
-
