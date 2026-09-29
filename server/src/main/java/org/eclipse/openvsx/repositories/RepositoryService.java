@@ -271,7 +271,7 @@ public class RepositoryService {
         return extensionRepo.findByActiveTrue();
     }
 
-    public Streamable<Extension> findDeprecatedExtensions() {
+    public Streamable<Extension> findAllDeprecatedExtensions() {
         return extensionRepo.findByDeprecatedTrue();
     }
 

@@ -65,7 +65,7 @@ class ExtensionControlJobRequestHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new ExtensionControlJobRequestHandler(settings, admin, service, repositories);
-        lenient().when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.empty());
+        lenient().when(repositories.findAllDeprecatedExtensions()).thenReturn(Streamable.empty());
     }
 
     private static Extension extension(String namespaceName, String extensionName, boolean deprecated) {
@@ -149,7 +149,7 @@ class ExtensionControlJobRequestHandlerTest {
         when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
                 {"malicious": [], "deprecated": {}}
                 """));
-        when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.of(extension("ns", "old", true)));
+        when(repositories.findAllDeprecatedExtensions()).thenReturn(Streamable.of(extension("ns", "old", true)));
 
         handler.run(new HandlerJobRequest<>());
 
@@ -161,7 +161,7 @@ class ExtensionControlJobRequestHandlerTest {
         when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
                 {"malicious": [], "deprecated": {"ns.keep": true}}
                 """));
-        when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.of(extension("ns", "keep", true)));
+        when(repositories.findAllDeprecatedExtensions()).thenReturn(Streamable.of(extension("ns", "keep", true)));
 
         handler.run(new HandlerJobRequest<>());
 
@@ -176,7 +176,7 @@ class ExtensionControlJobRequestHandlerTest {
         when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
                 {"malicious": [], "deprecated": {"ns.old": true}}
                 """));
-        when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.of(extension("NS", "Old", true)));
+        when(repositories.findAllDeprecatedExtensions()).thenReturn(Streamable.of(extension("NS", "Old", true)));
 
         handler.run(new HandlerJobRequest<>());
 

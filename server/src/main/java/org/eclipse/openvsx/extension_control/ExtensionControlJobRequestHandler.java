@@ -149,7 +149,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
      * deprecated forever: nothing else ever clears the flag. See #2260.
      */
     private void unDeprecateExtensionsNoLongerListed(Set<String> seenExtensionIds) {
-        for (var extension : repositories.findDeprecatedExtensions()) {
+        for (var extension : repositories.findAllDeprecatedExtensions()) {
             var extensionId = normalizedExtensionId(extension.getNamespace().getName(), extension.getName());
             if (seenExtensionIds.contains(extensionId)) {
                 continue;
