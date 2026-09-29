@@ -33,11 +33,11 @@ class SettingsAPITest {
         Mockito.when(settings.getSiteSettings())
                 .thenReturn(
                         Map.of(
-                                SettingsService.SETTING_BANNER_ENABLED,
+                                BannerSetting.KEY_ENABLED,
                                 true,
-                                SettingsService.SETTING_BANNER_MESSAGE,
+                                BannerSetting.KEY_MESSAGE,
                                 "Maintenance tonight",
-                                SettingsService.SETTING_BANNER_SEVERITY,
+                                BannerSetting.KEY_SEVERITY,
                                 "warning"));
 
         MockMvcBuilders.standaloneSetup(new SettingsAPI(settings))

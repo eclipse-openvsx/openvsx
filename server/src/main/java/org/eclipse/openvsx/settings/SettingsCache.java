@@ -12,9 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.Map;
 
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
@@ -44,7 +42,7 @@ public class SettingsCache {
      * since no setting is meaningfully absent-but-present.
      */
     @Cacheable(CACHE_SETTING)
-    public Map<String, Object> getAll() {
+    public SettingRows snapshot() {
         var settings = new LinkedHashMap<String, Object>();
         for (var setting : repository.findAll()) {
             var value = JsonMapper.shared().readValue(setting.getValue(), Object.class);
@@ -52,7 +50,7 @@ public class SettingsCache {
                 settings.put(setting.getKey(), value);
             }
         }
-        return Collections.unmodifiableMap(settings);
+        return new SettingRows(settings);
     }
 
     /** Jackson does the encoding, since the value column is jsonb rather than text. */

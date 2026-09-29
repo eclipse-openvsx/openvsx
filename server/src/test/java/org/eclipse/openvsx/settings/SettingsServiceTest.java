@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.settings;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -25,11 +26,6 @@ import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.eclipse.openvsx.settings.SettingsService.SETTING_BANNER_DISMISS_ID;
-import static org.eclipse.openvsx.settings.SettingsService.SETTING_BANNER_ENABLED;
-import static org.eclipse.openvsx.settings.SettingsService.SETTING_BANNER_MESSAGE;
-import static org.eclipse.openvsx.settings.SettingsService.SETTING_BANNER_SEVERITY;
-import static org.eclipse.openvsx.settings.SettingsService.SETTING_REGISTRY_READ_ONLY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -40,14 +36,20 @@ import static org.mockito.Mockito.when;
 class SettingsServiceTest {
 
     private final SettingsCache cache = mock(SettingsCache.class);
-    private final SettingsService settings = new SettingsService(null, cache);
+    private final SettingsUpdateChannel channel = mock(SettingsUpdateChannel.class);
+    private final ReadOnlySetting readOnly = new ReadOnlySetting(cache);
+    private final SettingsService settings = new SettingsService(
+            List.of(readOnly, new BannerSetting()),
+            readOnly,
+            cache,
+            channel);
 
     private void stored(Object... keyValues) {
         var map = new LinkedHashMap<String, Object>();
         for (var i = 0; i < keyValues.length; i += 2) {
             map.put((String) keyValues[i], keyValues[i + 1]);
         }
-        when(cache.getAll()).thenReturn(map);
+        when(cache.snapshot()).thenReturn(new SettingRows(map));
     }
 
     /** Builds an update the way a client does: only the settings it means to change. */
@@ -57,11 +59,11 @@ class SettingsServiceTest {
             var key = (String) keyValues[i];
             var value = keyValues[i + 1];
             switch (key) {
-                case SETTING_REGISTRY_READ_ONLY -> json.setReadOnly((Boolean) value);
-                case SETTING_BANNER_ENABLED -> json.setBannerEnabled((Boolean) value);
-                case SETTING_BANNER_MESSAGE -> json.setBannerMessage((String) value);
-                case SETTING_BANNER_SEVERITY -> json.setBannerSeverity((String) value);
-                case SETTING_BANNER_DISMISS_ID -> json.setBannerDismissId((String) value);
+                case ReadOnlySetting.KEY -> json.setReadOnly((Boolean) value);
+                case BannerSetting.KEY_ENABLED -> json.setBannerEnabled((Boolean) value);
+                case BannerSetting.KEY_MESSAGE -> json.setBannerMessage((String) value);
+                case BannerSetting.KEY_SEVERITY -> json.setBannerSeverity((String) value);
+                case BannerSetting.KEY_DISMISS_ID -> json.setBannerDismissId((String) value);
                 default -> throw new IllegalArgumentException("unknown setting " + key);
             }
         }
@@ -70,22 +72,22 @@ class SettingsServiceTest {
 
     @Test
     void siteSettingsHoldBackReadOnlyMode() {
-        stored(SETTING_REGISTRY_READ_ONLY, true, SETTING_BANNER_ENABLED, true, SETTING_BANNER_MESSAGE, "Hi");
+        stored(ReadOnlySetting.KEY, true, BannerSetting.KEY_ENABLED, true, BannerSetting.KEY_MESSAGE, "Hi");
 
-        assertThat(settings.getSiteSettings()).doesNotContainKey(SETTING_REGISTRY_READ_ONLY);
-        assertThat(settings.getSiteSettings()).containsEntry(SETTING_BANNER_MESSAGE, "Hi");
+        assertThat(settings.getSiteSettings()).doesNotContainKey(ReadOnlySetting.KEY);
+        assertThat(settings.getSiteSettings()).containsEntry(BannerSetting.KEY_MESSAGE, "Hi");
     }
 
     @Test
     void siteSettingsHoldBackADraftedBanner() {
-        stored(SETTING_BANNER_ENABLED, false, SETTING_BANNER_MESSAGE, "Security incident");
+        stored(BannerSetting.KEY_ENABLED, false, BannerSetting.KEY_MESSAGE, "Security incident");
 
         assertThat(settings.getSiteSettings()).isEmpty();
     }
 
     @Test
     void theAdminViewKeepsADraftedBanner() {
-        stored(SETTING_REGISTRY_READ_ONLY, true, SETTING_BANNER_MESSAGE, "Security incident");
+        stored(ReadOnlySetting.KEY, true, BannerSetting.KEY_MESSAGE, "Security incident");
 
         var json = settings.getCurrentSettings();
         assertThat(json.isReadOnly()).isTrue();
@@ -94,109 +96,194 @@ class SettingsServiceTest {
 
     @Test
     void aSettingLeftOutOfTheRequestIsNotTouched() {
-        stored(SETTING_REGISTRY_READ_ONLY, true);
+        stored(ReadOnlySetting.KEY, true);
 
-        settings.updateFromJson(update(SETTING_BANNER_MESSAGE, "Maintenance tonight"));
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "Maintenance tonight"));
 
-        verify(cache, never()).set(eq(SETTING_REGISTRY_READ_ONLY), any());
+        verify(cache, never()).set(eq(ReadOnlySetting.KEY), any());
     }
 
     @Test
     void updateWritesOnlyTheKeysThatChanged() {
-        stored(SETTING_BANNER_ENABLED, true, SETTING_BANNER_MESSAGE, "tonigth", SETTING_BANNER_DISMISS_ID, "token-1");
+        stored(
+                BannerSetting.KEY_ENABLED,
+                true,
+                BannerSetting.KEY_MESSAGE,
+                "tonigth",
+                BannerSetting.KEY_DISMISS_ID,
+                "token-1");
 
         settings.updateFromJson(
                 update(
-                        SETTING_BANNER_ENABLED,
+                        BannerSetting.KEY_ENABLED,
                         true,
-                        SETTING_BANNER_MESSAGE,
+                        BannerSetting.KEY_MESSAGE,
                         "tonight",
-                        SETTING_BANNER_DISMISS_ID,
+                        BannerSetting.KEY_DISMISS_ID,
                         "token-1"));
 
-        verify(cache).set(SETTING_BANNER_MESSAGE, "tonight");
-        verify(cache, never()).set(eq(SETTING_BANNER_ENABLED), any());
-        verify(cache, never()).set(eq(SETTING_BANNER_DISMISS_ID), any());
+        verify(cache).set(BannerSetting.KEY_MESSAGE, "tonight");
+        verify(cache, never()).set(eq(BannerSetting.KEY_ENABLED), any());
+        verify(cache, never()).set(eq(BannerSetting.KEY_DISMISS_ID), any());
     }
 
     @Test
     void enablingABannerWritesTheSwitchAfterTheMessage() {
         // Otherwise a reader between the two writes sees the switch on beside the drafted message.
-        stored(SETTING_BANNER_ENABLED, false, SETTING_BANNER_MESSAGE, "Drafted", SETTING_BANNER_DISMISS_ID, "token-1");
+        stored(
+                BannerSetting.KEY_ENABLED,
+                false,
+                BannerSetting.KEY_MESSAGE,
+                "Drafted",
+                BannerSetting.KEY_DISMISS_ID,
+                "token-1");
 
         settings.updateFromJson(
                 update(
-                        SETTING_BANNER_ENABLED,
+                        BannerSetting.KEY_ENABLED,
                         true,
-                        SETTING_BANNER_MESSAGE,
+                        BannerSetting.KEY_MESSAGE,
                         "Published",
-                        SETTING_BANNER_DISMISS_ID,
+                        BannerSetting.KEY_DISMISS_ID,
                         "token-1"));
 
         InOrder order = Mockito.inOrder(cache);
-        order.verify(cache).set(SETTING_BANNER_MESSAGE, "Published");
-        order.verify(cache).set(SETTING_BANNER_ENABLED, true);
+        order.verify(cache).set(BannerSetting.KEY_MESSAGE, "Published");
+        order.verify(cache).set(BannerSetting.KEY_ENABLED, true);
     }
 
     @Test
     void disablingABannerWritesTheSwitchFirst() {
-        stored(SETTING_BANNER_ENABLED, true, SETTING_BANNER_MESSAGE, "Published", SETTING_BANNER_DISMISS_ID, "token-1");
+        stored(
+                BannerSetting.KEY_ENABLED,
+                true,
+                BannerSetting.KEY_MESSAGE,
+                "Published",
+                BannerSetting.KEY_DISMISS_ID,
+                "token-1");
 
         settings.updateFromJson(
                 update(
-                        SETTING_BANNER_ENABLED,
+                        BannerSetting.KEY_ENABLED,
                         false,
-                        SETTING_BANNER_MESSAGE,
+                        BannerSetting.KEY_MESSAGE,
                         "Drafted next one",
-                        SETTING_BANNER_DISMISS_ID,
+                        BannerSetting.KEY_DISMISS_ID,
                         "token-1"));
 
         InOrder order = Mockito.inOrder(cache);
-        order.verify(cache).set(SETTING_BANNER_ENABLED, false);
-        order.verify(cache).set(SETTING_BANNER_MESSAGE, "Drafted next one");
+        order.verify(cache).set(BannerSetting.KEY_ENABLED, false);
+        order.verify(cache).set(BannerSetting.KEY_MESSAGE, "Drafted next one");
     }
 
     @Test
     void aRejectedValueLeavesNothingWritten() {
-        stored(SETTING_REGISTRY_READ_ONLY, false);
+        stored(ReadOnlySetting.KEY, false);
 
         assertThatThrownBy(
                 () -> settings.updateFromJson(
-                        update(SETTING_REGISTRY_READ_ONLY, true, SETTING_BANNER_MESSAGE, "<script>alert(1)</script>")))
+                        update(ReadOnlySetting.KEY, true, BannerSetting.KEY_MESSAGE, "<script>alert(1)</script>")))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(cache, never()).set(any(), any());
+        verify(channel, never()).publish();
+    }
+
+    @Test
+    void aSettingRefusingAfterAnotherOneChangedStillLeavesNothingWritten() {
+        // The rows a setting plans are held back until every setting has validated - checked with a
+        // refusing setting that sorts last, since the banner sorts ahead of every real setting.
+        var refusing = new WritableSetting<String>() {
+
+            @Override
+            public String getName() {
+                return "zz-refusing";
+            }
+
+            @Override
+            public String read(SettingRows stored) {
+                return "";
+            }
+
+            @Override
+            public String merge(String current, SettingRows update) {
+                return current;
+            }
+
+            @Override
+            public Map<String, Object> toRows(String value) {
+                return Map.of(getName(), value);
+            }
+
+            @Override
+            public void validate(String value, String current) {
+                throw WritableSetting.reject("nope");
+            }
+        };
+        var service = new SettingsService(List.of(readOnly, refusing), readOnly, cache, channel);
+        stored(ReadOnlySetting.KEY, false);
+
+        assertThatThrownBy(() -> service.updateFromJson(update(ReadOnlySetting.KEY, true)))
                 .isInstanceOf(ErrorResultException.class);
 
         verify(cache, never()).set(any(), any());
     }
 
     @Test
+    void theAdminViewFillsEveryFieldFromAnEmptyStore() {
+        // SettingsJson is NON_NULL, so a field a setting stops reporting vanishes off the wire.
+        stored();
+
+        var json = settings.getCurrentSettings();
+        assertThat(json.isReadOnly()).isFalse();
+        assertThat(json.isBannerEnabled()).isFalse();
+        assertThat(json.getBannerMessage()).isEmpty();
+        assertThat(json.getBannerSeverity()).isEqualTo("info");
+        assertThat(json.getBannerDismissId()).isEmpty();
+    }
+
+    @Test
+    void theAuditLineNamesEveryChangedRowAndQuotesNoMessage() {
+        stored(ReadOnlySetting.KEY, false, BannerSetting.KEY_MESSAGE, "tonigth");
+
+        var changes = settings
+                .updateFromJson(update(ReadOnlySetting.KEY, true, BannerSetting.KEY_MESSAGE, "tonight"));
+
+        // Settings in name order, and the message named rather than quoted: the log column caps at 512.
+        assertThat(changes).isEqualTo("banner-message, read-only -> true");
+        verify(channel).publish();
+    }
+
+    @Test
     void aCorrectedMessageKeepsTheDismissToken() {
-        stored(SETTING_BANNER_MESSAGE, "tonigth", SETTING_BANNER_DISMISS_ID, "token-1");
+        stored(BannerSetting.KEY_MESSAGE, "tonigth", BannerSetting.KEY_DISMISS_ID, "token-1");
 
         // A client that doesn't know about the token can't reset dismissals by leaving it out.
-        settings.updateFromJson(update(SETTING_BANNER_MESSAGE, "tonight"));
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "tonight"));
 
-        verify(cache, never()).set(eq(SETTING_BANNER_DISMISS_ID), any());
+        verify(cache, never()).set(eq(BannerSetting.KEY_DISMISS_ID), any());
     }
 
     @Test
     void aSuppliedDismissTokenIsStoredAsGiven() {
-        stored(SETTING_BANNER_MESSAGE, "tonight", SETTING_BANNER_DISMISS_ID, "token-1");
+        stored(BannerSetting.KEY_MESSAGE, "tonight", BannerSetting.KEY_DISMISS_ID, "token-1");
 
-        settings.updateFromJson(update(SETTING_BANNER_MESSAGE, "tonight", SETTING_BANNER_DISMISS_ID, "token-2"));
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "tonight", BannerSetting.KEY_DISMISS_ID, "token-2"));
 
-        verify(cache).set(SETTING_BANNER_DISMISS_ID, "token-2");
+        verify(cache).set(BannerSetting.KEY_DISMISS_ID, "token-2");
     }
 
     @Test
     void aBannerReplacingAClearedOneGetsAFreshToken() {
         // The admin page echoes the stored token back, so reusing it would hide the new banner
         // from everyone who dismissed the old one.
-        stored(SETTING_BANNER_MESSAGE, "", SETTING_BANNER_DISMISS_ID, "token-1");
+        stored(BannerSetting.KEY_MESSAGE, "", BannerSetting.KEY_DISMISS_ID, "token-1");
 
-        settings.updateFromJson(update(SETTING_BANNER_MESSAGE, "Something new", SETTING_BANNER_DISMISS_ID, "token-1"));
+        settings.updateFromJson(
+                update(BannerSetting.KEY_MESSAGE, "Something new", BannerSetting.KEY_DISMISS_ID, "token-1"));
 
         var captor = ArgumentCaptor.forClass(String.class);
-        verify(cache).set(eq(SETTING_BANNER_DISMISS_ID), captor.capture());
+        verify(cache).set(eq(BannerSetting.KEY_DISMISS_ID), captor.capture());
         assertThat(captor.getValue()).isNotBlank().isNotEqualTo("token-1");
     }
 
@@ -204,15 +291,15 @@ class SettingsServiceTest {
     void anEmptyBannerMintsNoDismissTokenAndWritesNoMessage() {
         stored();
 
-        settings.updateFromJson(update(SETTING_BANNER_MESSAGE, "", SETTING_BANNER_SEVERITY, "info"));
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "", BannerSetting.KEY_SEVERITY, "info"));
 
-        verify(cache, never()).set(eq(SETTING_BANNER_DISMISS_ID), any());
-        verify(cache, never()).set(eq(SETTING_BANNER_MESSAGE), any());
+        verify(cache, never()).set(eq(BannerSetting.KEY_DISMISS_ID), any());
+        verify(cache, never()).set(eq(BannerSetting.KEY_MESSAGE), any());
     }
 
     @Test
     void readOnlyModeReadsTheStoredFlag() {
-        stored(SETTING_REGISTRY_READ_ONLY, true);
+        stored(ReadOnlySetting.KEY, true);
         assertThat(settings.isReadOnly()).isTrue();
 
         stored();
