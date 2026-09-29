@@ -5,9 +5,11 @@ Operating rules for AI coding agents working on the Open VSX web UI
 standalone app under `src/default/`. Claude Code loads this file via
 `CLAUDE.md`; other agents read it directly.
 
-This is the short, must-follow contract. The change workflow lives in the
-`write-code` skill and test guidance in the `write-tests` skill. If any rule
-here conflicts with an explicit request from the user, ask before overriding it.
+Read the repo-root `AGENTS.md` first — it has the shared contract (git
+safety, commit conventions, comment style, license headers, testing
+philosophy). This file only covers what's specific to the webui. The change
+workflow lives in the `write-code` skill and test guidance in the
+`write-tests` skill.
 
 ## Non-negotiables
 
@@ -19,10 +21,6 @@ here conflicts with an explicit request from the user, ask before overriding it.
   entries go under `## [next]` in `CHANGELOG.md`.
 - **`yarn.lock` is the source of truth for dependencies.** Direct external deps
   stay pinned to exact versions; treat lockfile changes as reviewed code.
-- **New source files need the EPL-2.0 license header** (copy it from any
-  existing file).
-- **Never commit unless the user asks**, and stage only the files you changed
-  (`git add <path>`), never `git add -A` / `git add .`.
 
 ## Project shape
 
@@ -61,60 +59,19 @@ The Playwright smoke test in `test/e2e/` runs only when the user asks
 ## Workflow and code quality
 
 Follow the `write-code` skill: understand → implement → test → changelog → lint.
-The rules below always apply.
 
-- Read files in full before wide-ranging changes, before editing files you have
-  not inspected, and when investigating. Do not rely on search snippets.
 - No `any` unless absolutely necessary. Check `node_modules` for external API
   types; don't guess.
 - **No inline imports** (`await import()`, `import("pkg").Type`, dynamic type
   imports). Top-level imports only.
-- Keep code comments short (1–3 lines): state only the non-obvious constraint or
-  rationale, never narrate what the code does.
 - Inline single-line helpers that have only one call site.
 - Never remove or downgrade code to silence a type error from an outdated
   dependency — upgrade the dependency instead.
-- Ask before removing functionality or code that appears intentional. Do not
-  preserve backward compatibility unless the user asks for it.
-
-## Conventions
-
-- Commit subjects use a conventional-commit prefix: `feat:`, `fix:`, `chore:`,
-  `docs:`, `test:`, `style:`, or `ci:`.
-- No emojis in commits, pull requests, issues, or code. Keep prose concise,
-  direct, and technical — no cheerful filler (e.g. "Thanks @user", not "Thanks
-  so much @user!").
-- Answer a user's question before making edits or running implementation
-  commands.
-- When responding to feedback or an analysis, say whether you agree or disagree
-  before describing what you changed.
 
 ## Dependencies
 
 - Install locally with `yarn install`; clean/CI-style with
   `yarn install --immutable`. Don't run lifecycle scripts unless the user asks.
-
-## Git
-
-Multiple sessions may be running in this cwd at the same time, each modifying
-different files. Git operations that touch unstaged, staged, or untracked files
-outside your own changes will stomp on other sessions' work. Follow these rules:
-
-Committing:
-
-- Only commit files YOU changed in THIS session.
-- Stage explicit paths (`git add <path1> <path2>`); never `git add -A` / `git add .`.
-- Before committing, run `git status` and verify you are only staging your files.
-
-Never run (destroys other agents' work or bypasses checks):
-
-- `git reset --hard`, `git checkout .`, `git clean -fd`, `git stash`, `git add -A`, `git add .`, `git commit --no-verify`.
-
-If rebase conflicts occur:
-
-- Resolve conflicts only in files you modified.
-- If a conflict is in a file you did not modify, abort and ask the user.
-- Never force push.
 
 ## Changelog
 
