@@ -81,6 +81,9 @@ Sections under `## [next]`: `### Added`, `### Changed`, `### Fixed`, `### Remove
 
 Rules:
 
+- **Keep entries short — one line per change.** State what changed and why it
+  matters to a consumer of the package; link the issue/PR for detail instead
+  of writing the detail out.
 - All new entries go under `## [next]`. Read the full section first and append to existing subsections; never duplicate them; if subsection does not exist yet add it.
 - Released version sections (e.g. `## [0.5.0]`) are immutable; never modify them.
 - **Never describe a change against something that is itself unreleased.** If your

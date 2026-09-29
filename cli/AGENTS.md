@@ -26,6 +26,9 @@ philosophy). This file only covers what's specific to the CLI.
 
 Location: `CHANGELOG.md`.
 
+- **Keep entries short — one line per change.** State what changed and why it
+  matters to a user of the CLI; link the issue/PR for detail instead of
+  writing the detail out.
 - New entries go under `### [next] (unreleased)`, in `#### Added` /
   `#### Fixed` / `#### Changed` / `### Dependencies` as needed. A release
   commit renames that heading to the version and date — don't do that
