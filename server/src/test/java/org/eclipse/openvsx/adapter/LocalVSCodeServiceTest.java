@@ -187,6 +187,73 @@ public class LocalVSCodeServiceTest {
         assertThat(result.results()).hasSize(1);
     }
 
+    // Regression test: an extension that matches the query's id/name filter but has no active
+    // version for the requested target platform must be omitted from the result, not NPE in
+    // toQueryExtension via a null "latest" - see the `if (latest == null) continue;` guard.
+    @Test
+    void testExtensionQuery_extensionWithNoMatchingLatestForTargetPlatform_isSkippedNotThrown() {
+        var extensionWithVersion = mockExtension();
+        var extensionWithoutVersion = mockExtension(2, "test-2", "other-ext");
+        var extensionVersion = mockExtensionVersion(
+                extensionWithVersion,
+                1,
+                "0.1.0",
+                TargetPlatform.NAME_LINUX_X64);
+
+        var criteria = List.of(
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-1"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-2"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_TARGET, TargetPlatform.NAME_LINUX_X64));
+        var filter = new ExtensionQueryParam.Filter(criteria, 0, 0, 0, 0);
+        var param = new ExtensionQueryParam(List.of(filter), 0);
+
+        Mockito.when(repositories.findActiveExtensionsByPublicId(any(), any()))
+                .thenReturn(List.of(extensionWithVersion, extensionWithoutVersion));
+        // extensionWithoutVersion has no active version on linux-x64, so the bulk "latest per
+        // extension" query simply has no row for it - the real-world trigger for the null guard.
+        Mockito.when(repositories.findLatestVersions(any(), eq(TargetPlatform.NAME_LINUX_X64)))
+                .thenReturn(List.of(extensionVersion));
+
+        var result = vsCodeService.extensionQuery(param, 10);
+
+        var extensionIds = result.results().getFirst().extensions().stream()
+                .map(ExtensionQueryResult.Extension::extensionId)
+                .toList();
+        assertThat(extensionIds).containsExactly("test-1");
+    }
+
+    // Regression test: the pre-release rank cap ranks across ALL target platforms combined (see
+    // findAllActiveByExtensionIdAndTargetPlatform's Javadoc), so a platform whose only versions
+    // rank outside the cap can come back empty from the capped active-version fetch even though
+    // the extension does have a version for that platform. "latest" must still resolve correctly
+    // via the direct findLatestVersions query rather than reusing the (here, empty) capped list.
+    @Test
+    void testExtensionQuery_versionsFlagCapped_resolvesLatestDirectlyEvenWhenCappedFetchIsEmpty() {
+        vsCodeService.maxPreReleaseVersions = 2;
+
+        var extension = mockExtension();
+        var latestForPlatform = mockExtensionVersion(extension, 1, "0.1.0", TargetPlatform.NAME_LINUX_X64);
+
+        var criteria = List.of(
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-1"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_TARGET, TargetPlatform.NAME_LINUX_X64));
+        var filter = new ExtensionQueryParam.Filter(criteria, 0, 0, 0, 0);
+        var param = new ExtensionQueryParam(List.of(filter), FLAG_INCLUDE_VERSIONS);
+
+        Mockito.when(repositories.findActiveExtensionsByPublicId(any(), any()))
+                .thenReturn(List.of(extension));
+        Mockito.when(repositories.findActiveExtensionVersions(any(), eq(TargetPlatform.NAME_LINUX_X64), eq(2)))
+                .thenReturn(Collections.emptyList());
+        Mockito.when(repositories.findLatestVersions(any(), eq(TargetPlatform.NAME_LINUX_X64)))
+                .thenReturn(List.of(latestForPlatform));
+
+        var result = vsCodeService.extensionQuery(param, 10);
+
+        Mockito.verify(repositories, Mockito.times(1)).findLatestVersions(any(), eq(TargetPlatform.NAME_LINUX_X64));
+        var queried = result.results().getFirst().extensions().getFirst();
+        assertThat(queried.displayName()).isEqualTo(latestForPlatform.getDisplayName());
+    }
+
     @Test
     void testExtensionQuery_latestVersionOnlyNoTargetPlatform_stillFetchesActiveVersions() {
         var extension = mockExtension();
@@ -212,15 +279,19 @@ public class LocalVSCodeServiceTest {
     // ---------- UTILITY ----------//
 
     private Extension mockExtension() {
+        return mockExtension(1, "test-1", "vscode-yaml");
+    }
+
+    private Extension mockExtension(long id, String publicId, String name) {
         var namespace = new Namespace();
         namespace.setId(2);
         namespace.setPublicId("test-2");
         namespace.setName("redhat");
 
         var extension = new Extension();
-        extension.setId(1);
-        extension.setPublicId("test-1");
-        extension.setName("vscode-yaml");
+        extension.setId(id);
+        extension.setPublicId(publicId);
+        extension.setName(name);
         extension.setAverageRating(3.0);
         extension.setReviewCount(10L);
         extension.setDownloadCount(100);
