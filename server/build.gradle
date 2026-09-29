@@ -263,6 +263,10 @@ spotless {
         // shared with scripts/ClosingBraceFix.java (the jbang path) via buildSrc,
         // see buildSrc/src/main/java/ClosingBraceFixStep.java
         addStep(ClosingBraceFixStep.create())
+
+        // shared with scripts/LicenseHeaderHarmonize.java (the jbang path) via buildSrc,
+        // see buildSrc/src/main/java/LicenseHeaderHarmonizeStep.java
+        addStep(LicenseHeaderHarmonizeStep.create())
     }
 }
 
