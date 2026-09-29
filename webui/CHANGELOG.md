@@ -19,6 +19,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times: disabling retries handed fetch-retry an empty options object, which fell back to its defaults. Non-retriable requests now call native fetch directly ([#2237](https://github.com/eclipse-openvsx/openvsx/issues/2237))
 
+### Dependencies
+
+- Bump ip-address from 10.4.0 to 10.7.2
+
 ## [v1.2.0] (10/09/2026)
 
 ### Added
