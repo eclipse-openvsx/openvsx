@@ -33,9 +33,12 @@ public class LicenseHeaderHarmonizeCore {
         return canonicalHeader(DEFAULT_COPYRIGHT) + "\n" + source;
     }
 
+    private static final int WIDTH = 80;
+
     private static String canonicalHeader(String copyrightLine) {
-        String fence = "*".repeat(80);
-        return "/" + fence + "\n"
+        String openFence = "*".repeat(WIDTH - 1);
+        String closeFence = "*".repeat(WIDTH - 2);
+        return "/" + openFence + "\n"
             + " * " + copyrightLine + "\n"
             + " *\n"
             + " * See the NOTICE file(s) distributed with this work for additional\n"
@@ -43,9 +46,9 @@ public class LicenseHeaderHarmonizeCore {
             + " *\n"
             + " * This program and the accompanying materials are made available under the\n"
             + " * terms of the Eclipse Public License 2.0 which is available at\n"
-            + " * https://www.eclipse.org/legal/epl-2.0\n"
+            + " * https://www.eclipse.org/legal/epl-2.0.\n"
             + " *\n"
             + " * SPDX-License-Identifier: EPL-2.0\n"
-            + " " + fence + "/";
+            + " " + closeFence + "/";
     }
 }
