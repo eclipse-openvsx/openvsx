@@ -2,6 +2,12 @@
 
 This change log covers only the command line interface (CLI) of Open VSX.
 
+### [next] (unreleased)
+
+### Dependencies
+
+- Bump ip-address from 10.4.0 to 10.7.2
+
 ### [v1.2.0] (10/09/2026)
 
 #### Added
