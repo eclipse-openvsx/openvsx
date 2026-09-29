@@ -38,7 +38,7 @@ export const SettingsSection: FC<PropsWithChildren<SettingsSectionProps>> = ({
         <Paper
             variant='outlined'
             elevation={0}
-            sx={{ mt: 1, overflow: 'hidden', borderColor: changed ? 'red' : 'grey' }}>
+            sx={{ mt: 1, overflow: 'hidden', borderColor: changed ? 'warningAccent' : 'divider' }}>
             {children}
         </Paper>
     </Box>

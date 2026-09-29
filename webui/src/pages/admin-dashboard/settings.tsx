@@ -52,19 +52,27 @@ const FLAGS: Record<FlagKey, { title: string; description: string }> = {
     }
 };
 
-const SETTING_KEYS = [
-    'read-only',
+const BANNER_KEYS = [
     'banner-enabled',
     'banner-message',
-    'banner-severity',
-    'banner-dismiss-id'
+    'banner-severity'
 ] as const satisfies readonly (keyof Settings)[];
+
+// `banner-dismiss-id` is not edited: it is stamped into the patch at save time, when the admin
+// asks for the banner to be shown again to everyone who dismissed it.
+const SETTING_KEYS = ['read-only', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
+
+const hasMessage = (settings: Settings) => (settings['banner-message'] ?? '').trim().length > 0;
+
+/** Whether visitors would actually see a banner for these settings. */
+const bannerVisible = (settings: Settings) => Boolean(settings['banner-enabled']) && hasMessage(settings);
 
 export const RuntimeSettingsPage: FC = () => {
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
     const { mutate: saveSettings, isPending: saving } = useUpdateSettings();
 
     const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
+    const [showAgain, setShowAgain] = useState(true);
     const [errorDismissed, setErrorDismissed] = useState(false);
     const [notifications, setNotifications] = useState<NotificationState[]>([]);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -126,6 +134,15 @@ export const RuntimeSettingsPage: FC = () => {
     const edited = draftSettings !== null && settings != null;
     const flagsChanged = edited && (Object.keys(FLAGS) as FlagKey[]).some(k => draftSettings[k] !== settings[k]);
     const hasChanges = edited && SETTING_KEYS.some(key => draftSettings[key] !== settings[key]);
+    const bannerChanged = edited && BANNER_KEYS.some(key => draftSettings[key] !== settings[key]);
+    // The server rotates the token itself for a banner that was not there before, and nobody
+    // dismisses a banner they cannot see. In between, showing it again is the admin's call.
+    const canShowAgain = bannerChanged && bannerVisible(draftSettings ?? {}) && hasMessage(settings ?? {});
+
+    // The offer going away takes the answer with it, so the box is checked again next time it appears.
+    useEffect(() => {
+        if (!canShowAgain) setShowAgain(true);
+    }, [canShowAgain]);
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -140,6 +157,11 @@ export const RuntimeSettingsPage: FC = () => {
             (changed, key) => Object.assign(changed, { [key]: draftSettings[key] }),
             {}
         );
+        // A fresh token is what makes a dismissed banner come back; leaving the key out keeps the
+        // stored one, so the banner stays hidden for whoever dismissed it.
+        if (canShowAgain && showAgain) {
+            patch['banner-dismiss-id'] = crypto.randomUUID();
+        }
         saveSettings(patch, {
             onSuccess: flashSaved,
             onError: err => {
@@ -148,7 +170,7 @@ export const RuntimeSettingsPage: FC = () => {
                 });
             }
         });
-    }, [draftSettings, settings, saveSettings, addNotification, flashSaved]);
+    }, [draftSettings, settings, canShowAgain, showAgain, saveSettings, addNotification, flashSaved]);
 
     return (
         <>
@@ -191,10 +213,13 @@ export const RuntimeSettingsPage: FC = () => {
                 <SettingsSection title='Site settings' description='What visitors see on the web UI.'>
                     <SettingsBannerItem
                         settings={draftSettings ?? {}}
-                        resetPending={edited && draftSettings['banner-dismiss-id'] !== settings['banner-dismiss-id']}
+                        changed={bannerChanged}
+                        canShowAgain={canShowAgain}
+                        showAgain={showAgain}
                         loading={loading || !draftSettings}
                         disabled={loading || saving || !draftSettings}
                         onChange={handleBannerChange}
+                        onShowAgainChange={setShowAgain}
                     />
                 </SettingsSection>
 

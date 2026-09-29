@@ -8,7 +8,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Add a "Caches" page to the admin dashboard, with per-cache hit/eviction stats and a way to clear one or all without restarting the server (#2203)
 - Add a weekly downloads card to the extension detail page, with a hoverable sparkline of the year's weekly totals (#2135)
-- Add a configurable site banner to the admin dashboard's Settings page, with a Markdown message, severity and per-banner dismissal, served from `/api/-/settings` (#2257)
+- Add a configurable site banner to the admin dashboard's Settings page, with a Markdown message, severity, a live preview of what visitors will see and an opt-out for showing it again to everyone who dismissed it, served from `/api/-/settings` (#2257)
 - Prompt anonymous visitors to log in on an extension's reviews tab, where "Write a Review" was previously blank (#2148)
 
 ### Changed

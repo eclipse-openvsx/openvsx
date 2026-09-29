@@ -53,6 +53,8 @@ const save = async () => {
     await userEvent.click(screen.getByText('Apply'));
 };
 
+const SHOW_AGAIN = 'Show again to everyone who dismissed it';
+
 describe('RuntimeSettingsPage', () => {
     it('saves a banner message typed by the admin', async () => {
         const admin = mountPage();
@@ -71,7 +73,12 @@ describe('RuntimeSettingsPage', () => {
         await userEvent.click(await screen.findByText('Warning'));
         await save();
 
-        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-severity': 'warning' }));
+        await waitFor(() =>
+            expect(admin.updateSettings).toHaveBeenCalledWith({
+                'banner-severity': 'warning',
+                'banner-dismiss-id': expect.any(String)
+            })
+        );
     });
 
     it('turns the banner on and off without touching the message', async () => {
@@ -90,11 +97,11 @@ describe('RuntimeSettingsPage', () => {
         expect(emphasised.tagName).toBe('STRONG');
     });
 
-    it('rotates the dismiss token only when asked to show the banner again', async () => {
+    it('rotates the dismiss token by default once the banner is edited', async () => {
         const admin = mountPage(configured);
 
         await userEvent.type(await screen.findByLabelText('Message'), '!');
-        await userEvent.click(screen.getByText('Show again to everyone'));
+        expect(screen.getByLabelText(SHOW_AGAIN)).toBeChecked();
         await save();
 
         await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
@@ -104,13 +111,98 @@ describe('RuntimeSettingsPage', () => {
         expect(saved['banner-dismiss-id']).toHaveLength(36);
     });
 
-    it('sends only the settings it changed, so a concurrent edit is not reverted', async () => {
+    it('keeps the dismissals when the admin unchecks the offer', async () => {
         const admin = mountPage(configured);
 
         await userEvent.type(await screen.findByLabelText('Message'), '!');
+        await userEvent.click(screen.getByLabelText(SHOW_AGAIN));
         await save();
 
         await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-message': 'Heads up!' }));
+    });
+
+    it('checks the offer again once a reverted edit is redone', async () => {
+        mountPage(configured);
+
+        const message = await screen.findByLabelText('Message');
+        await userEvent.type(message, '!');
+        await userEvent.click(screen.getByLabelText(SHOW_AGAIN));
+        await userEvent.type(message, '{backspace}');
+
+        expect(screen.queryByLabelText(SHOW_AGAIN)).toBeNull();
+        await userEvent.type(message, '?');
+        expect(screen.getByLabelText(SHOW_AGAIN)).toBeChecked();
+    });
+
+    it('does not offer to show a first banner again, since nobody has dismissed it', async () => {
+        const admin = mountPage();
+
+        await userEvent.type(await screen.findByLabelText('Message'), 'Maintenance tonight');
+        await userEvent.click(screen.getByLabelText('Toggle banner'));
+
+        expect(screen.queryByLabelText(SHOW_AGAIN)).toBeNull();
+        await save();
+
+        await waitFor(() =>
+            expect(admin.updateSettings).toHaveBeenCalledWith({
+                'banner-message': 'Maintenance tonight',
+                'banner-enabled': true
+            })
+        );
+    });
+
+    it('does not offer to show a banner again while it is being switched off', async () => {
+        mountPage(configured);
+
+        await userEvent.click(await screen.findByLabelText('Toggle banner'));
+
+        expect(screen.queryByLabelText(SHOW_AGAIN)).toBeNull();
+        expect(screen.getByText('nobody will see a banner.')).toBeInTheDocument();
+    });
+
+    it('does not offer to show a banner again while its message is empty', async () => {
+        const admin = mountPage(configured);
+
+        await userEvent.clear(await screen.findByLabelText('Message'));
+
+        expect(screen.queryByLabelText(SHOW_AGAIN)).toBeNull();
+        expect(screen.getByText('nothing will be shown.')).toBeInTheDocument();
+        await save();
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-message': '' }));
+    });
+
+    it('says who the save reaches, and follows the offer', async () => {
+        mountPage(configured);
+
+        await userEvent.type(await screen.findByLabelText('Message'), '!');
+        expect(
+            screen.getByText('everyone will see this banner, including the people who dismissed it.')
+        ).toBeInTheDocument();
+
+        await userEvent.click(screen.getByLabelText(SHOW_AGAIN));
+        expect(screen.getByText('people who already dismissed this banner will not see it again.')).toBeInTheDocument();
+    });
+
+    it('says whether the preview is the live banner or the pending one', async () => {
+        mountPage(configured);
+
+        expect(await screen.findByText('Preview - what visitors see right now')).toBeInTheDocument();
+
+        await userEvent.type(screen.getByLabelText('Message'), '!');
+        expect(screen.getByText('Preview - what visitors will see after you save')).toBeInTheDocument();
+    });
+
+    it('leaves the banner alone when only a flag is saved', async () => {
+        const admin = mountPage(configured);
+
+        await userEvent.click(await screen.findByLabelText('Toggle Read-only mode'));
+
+        expect(screen.getByText('Preview - what visitors see right now')).toBeInTheDocument();
+        expect(screen.queryByText('On save:')).toBeNull();
+        await save();
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'read-only': true }));
     });
 
     it('keeps Save disabled until a setting actually changes', async () => {

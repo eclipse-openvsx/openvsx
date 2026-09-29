@@ -11,14 +11,24 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC } from 'react';
-import { Box, Button, Skeleton, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { FC, useId } from 'react';
+import {
+    Box,
+    Checkbox,
+    FormControlLabel,
+    Skeleton,
+    TextField,
+    ToggleButton,
+    ToggleButtonGroup,
+    Typography
+} from '@mui/material';
 import { styled } from '@mui/material/styles';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import { Banner } from '../../components/banner';
-import { SanitizedMarkdown } from '../../components/sanitized-markdown';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import type { BannerSeverity, Settings } from '../../extension-registry-types';
+import { SettingsBannerPreview } from './settings-banner-preview';
 import { SettingsSwitch } from './settings-switch';
 
 // Mirrors SettingsValidator on the server, which refuses a longer message.
@@ -29,19 +39,54 @@ const SEVERITIES: { value: BannerSeverity; label: string; Icon: typeof InfoOutli
     { value: 'warning', label: 'Warning', Icon: WarningAmberRoundedIcon }
 ];
 
-/** Frames the preview so it reads as a rendering of the banner rather than a real one. */
-const PreviewFrame = styled(Box)(({ theme }) => ({
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadiusCard,
-    overflow: 'hidden',
-    // The message is Markdown; drop the paragraph margins so it sits on the banner's line.
-    '& p': { marginTop: 0, marginBottom: 0 }
-}));
+/** What the draft would put in front of a visitor. Every line of copy below is derived from it. */
+type BannerState = 'live' | 'empty' | 'off';
 
-const EmptyPreview = styled(Box)(({ theme }) => ({
-    padding: theme.spacing(1.5, 2),
-    fontSize: theme.typography.body2.fontSize,
-    color: theme.palette.text.disabled
+const previewCaption = (state: BannerState, changed: boolean): string => {
+    switch (state) {
+        case 'live':
+            return changed
+                ? 'Preview - what visitors will see after you save'
+                : 'Preview - what visitors see right now';
+        case 'empty':
+            return 'Preview - nothing is shown while the message is empty';
+        case 'off':
+            return 'Preview - nobody sees this while the banner is off';
+    }
+};
+
+/** Spells out who the save reaches, so the consequence is read right before the Save button. */
+const saveOutcome = (
+    state: BannerState,
+    canShowAgain: boolean,
+    showAgain: boolean
+): { Icon: typeof VisibilityOutlinedIcon; text: string } => {
+    switch (state) {
+        case 'off':
+            return { Icon: VisibilityOffOutlinedIcon, text: 'nobody will see a banner.' };
+        case 'empty':
+            return { Icon: VisibilityOffOutlinedIcon, text: 'nothing will be shown.' };
+        case 'live':
+            if (!canShowAgain) {
+                return { Icon: VisibilityOutlinedIcon, text: 'everyone will see this banner.' };
+            }
+            return showAgain
+                ? {
+                      Icon: VisibilityOutlinedIcon,
+                      text: 'everyone will see this banner, including the people who dismissed it.'
+                  }
+                : {
+                      Icon: VisibilityOffOutlinedIcon,
+                      text: 'people who already dismissed this banner will not see it again.'
+                  };
+    }
+};
+
+const CardBody = styled(Box)(({ theme }) => ({
+    padding: theme.spacing(3),
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing(2.5)
 }));
 
 const HeaderRow = styled(Box)(({ theme }) => ({
@@ -52,32 +97,48 @@ const HeaderRow = styled(Box)(({ theme }) => ({
     flexWrap: 'wrap'
 }));
 
-const FooterRow = styled(Box)(({ theme }) => ({
+/** The severity toggles and, while the offer stands, who the save shows the banner to. */
+const ControlsRow = styled(Box)(({ theme }) => ({
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: theme.spacing(2),
-    flexWrap: 'wrap',
+    flexWrap: 'wrap'
+}));
+
+const OutcomeRow = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(1),
+    padding: theme.spacing(1.5, 3),
     borderTop: `1px solid ${theme.palette.divider}`,
-    paddingTop: theme.spacing(2)
+    backgroundColor: theme.palette.bg2
 }));
 
 export interface SettingsBannerItemProps {
     settings: Settings;
-    /** The draft already carries a fresh dismiss token, waiting to be saved. */
-    resetPending?: boolean;
+    /** The draft banner differs from the saved one, so saving would change what visitors see. */
+    changed?: boolean;
+    /** Whether showing the banner again to the people who dismissed it is the admin's to choose. */
+    canShowAgain?: boolean;
+    showAgain?: boolean;
     disabled?: boolean;
     loading?: boolean;
     onChange: (patch: Settings) => void;
+    onShowAgainChange: (showAgain: boolean) => void;
 }
 
 export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
     settings,
-    resetPending,
+    changed = false,
+    canShowAgain = false,
+    showAgain = true,
     disabled,
     loading,
-    onChange
+    onChange,
+    onShowAgainChange
 }) => {
+    const severityLabelId = useId();
     const enabled = settings['banner-enabled'] ?? false;
     const text = settings['banner-message'] ?? '';
     const severity = settings['banner-severity'] ?? 'info';
@@ -86,83 +147,103 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
     if (loading) {
         return (
             <Box sx={{ p: 3 }}>
-                <Skeleton variant='rounded' height={220} />
+                <Skeleton variant='rounded' height={280} />
             </Box>
         );
     }
 
+    const state: BannerState = !enabled ? 'off' : message ? 'live' : 'empty';
+    const { Icon: OutcomeIcon, text: outcome } = saveOutcome(state, canShowAgain, showAgain);
+
     return (
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-            <HeaderRow>
-                <Box>
-                    <Typography variant='subtitle1'>Banner</Typography>
-                    <Typography variant='body2' color='text.secondary'>
-                        A notice above the navbar on every page - maintenance windows, incidents, announcements.
-                    </Typography>
-                </Box>
-                <SettingsSwitch
-                    name='banner'
-                    checked={enabled}
-                    disabled={disabled}
-                    onChange={(_event, checked) => onChange({ 'banner-enabled': checked })}
+        <>
+            <CardBody>
+                <HeaderRow>
+                    <Box>
+                        <Typography variant='subtitle1'>Banner</Typography>
+                        <Typography variant='body2' color='text.secondary'>
+                            A notice above the navbar on every page - maintenance windows, incidents, announcements.
+                        </Typography>
+                    </Box>
+                    <SettingsSwitch
+                        name='banner'
+                        checked={enabled}
+                        disabled={disabled}
+                        onChange={(_event, checked) => onChange({ 'banner-enabled': checked })}
+                    />
+                </HeaderRow>
+
+                <SettingsBannerPreview
+                    caption={previewCaption(state, changed)}
+                    message={message}
+                    severity={severity}
+                    dimmed={state !== 'live'}
                 />
-            </HeaderRow>
 
-            <ToggleButtonGroup
-                exclusive
-                size='small'
-                value={severity}
-                disabled={disabled}
-                onChange={(_event, value: BannerSeverity | null) => value && onChange({ 'banner-severity': value })}>
-                {SEVERITIES.map(({ value, label, Icon }) => (
-                    <ToggleButton key={value} value={value} sx={{ gap: 1, px: 2 }}>
-                        <Icon fontSize='small' />
-                        {label}
-                    </ToggleButton>
-                ))}
-            </ToggleButtonGroup>
+                <TextField
+                    label='Message'
+                    value={text}
+                    onChange={event => onChange({ 'banner-message': event.target.value })}
+                    disabled={disabled}
+                    helperText={`Markdown is supported, HTML is not. ${text.length}/${MAX_MESSAGE_LENGTH}`}
+                    inputProps={{ maxLength: MAX_MESSAGE_LENGTH }}
+                    multiline
+                    minRows={2}
+                    fullWidth
+                />
 
-            <TextField
-                label='Message'
-                value={text}
-                onChange={event => onChange({ 'banner-message': event.target.value })}
-                disabled={disabled}
-                helperText={`Markdown is supported, HTML is not. ${text.length}/${MAX_MESSAGE_LENGTH}`}
-                inputProps={{ maxLength: MAX_MESSAGE_LENGTH }}
-                multiline
-                minRows={2}
-                fullWidth
-            />
+                <ControlsRow>
+                    <Box>
+                        <Typography variant='caption' component='p' color='text.secondary' id={severityLabelId}>
+                            Severity
+                        </Typography>
+                        <ToggleButtonGroup
+                            exclusive
+                            size='small'
+                            aria-labelledby={severityLabelId}
+                            value={severity}
+                            disabled={disabled}
+                            onChange={(_event, value: BannerSeverity | null) =>
+                                value && onChange({ 'banner-severity': value })
+                            }>
+                            {SEVERITIES.map(({ value, label, Icon }) => (
+                                <ToggleButton key={value} value={value} sx={{ gap: 1, px: 2 }}>
+                                    <Icon fontSize='small' />
+                                    {label}
+                                </ToggleButton>
+                            ))}
+                        </ToggleButtonGroup>
+                    </Box>
 
-            <Box>
-                <Typography variant='overline' color='text.secondary'>
-                    Preview
-                    {enabled ? '' : ' - turned off, nobody sees it'}
-                </Typography>
-                <PreviewFrame>
-                    {message ? (
-                        <Banner open color={severity}>
-                            <SanitizedMarkdown content={message} linkify={false} />
-                        </Banner>
-                    ) : (
-                        <EmptyPreview>Nothing to preview yet.</EmptyPreview>
+                    {canShowAgain && (
+                        <FormControlLabel
+                            sx={{ mr: 0 }}
+                            control={
+                                <Checkbox
+                                    color='secondary'
+                                    checked={showAgain}
+                                    disabled={disabled}
+                                    onChange={(_event, checked) => onShowAgainChange(checked)}
+                                />
+                            }
+                            label='Show again to everyone who dismissed it'
+                            slotProps={{ typography: { variant: 'body2' } }}
+                        />
                     )}
-                </PreviewFrame>
-            </Box>
+                </ControlsRow>
+            </CardBody>
 
-            <FooterRow>
-                <Typography variant='body2' color='text.secondary'>
-                    {resetPending
-                        ? 'Saving will show the banner again to everyone who dismissed it.'
-                        : 'Correcting the message leaves the banner hidden for anyone who dismissed it.'}
-                </Typography>
-                <Button
-                    variant='outlined'
-                    disabled={disabled || resetPending || message.length === 0}
-                    onClick={() => onChange({ 'banner-dismiss-id': crypto.randomUUID() })}>
-                    Show again to everyone
-                </Button>
-            </FooterRow>
-        </Box>
+            {/* Always mounted, so a screen reader announces the sentence appearing inside it. */}
+            <Box aria-live='polite'>
+                {changed && (
+                    <OutcomeRow>
+                        <OutcomeIcon fontSize='small' color='action' />
+                        <Typography variant='body2'>
+                            <strong>On save:</strong> {outcome}
+                        </Typography>
+                    </OutcomeRow>
+                )}
+            </Box>
+        </>
     );
 };
