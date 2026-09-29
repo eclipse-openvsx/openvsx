@@ -21,6 +21,8 @@ import { UserData } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
 
 const admin = { loginName: 'root', role: 'admin' } as UserData;
+const extensionManager = { loginName: 'sam', permissions: ['manage_extensions'] } as UserData;
+const noPermissions = { loginName: 'jo' } as UserData;
 
 const agentsPage: AdminPage = {
     path: 'analytics/agents',
@@ -36,9 +38,9 @@ const agentsPage: AdminPage = {
  * directly means the same route table resolves from the root instead, so a route here
  * is the contributed `path` without the dashboard prefix.
  */
-function renderDashboard(adminPages: AdminPage[] | undefined, route = '/') {
+function renderDashboard(adminPages: AdminPage[] | undefined, route = '/', user: UserData = admin) {
     const pageSettings = { elements: { adminPages } } as PageSettings;
-    const mainContext: Partial<MainContext> = { user: admin, pageSettings };
+    const mainContext: Partial<MainContext> = { user, pageSettings };
     return renderWithProviders(<AdminDashboard userLoading={false} />, { route, mainContext });
 }
 
@@ -92,5 +94,35 @@ describe('AdminDashboard contributed pages', () => {
         renderDashboard([{ ...agentsPage, path: '/', name: 'Rootless' }]);
 
         expect(screen.queryByText('Rootless')).not.toBeInTheDocument();
+    });
+});
+
+describe('AdminDashboard permission gating', () => {
+    it('shows the dashboard shell for a non-admin user with at least one granted permission', () => {
+        renderDashboard(undefined, '/', extensionManager);
+
+        // The sidebar is static nav config, so this confirms the shell rendered without needing
+        // role === 'admin' - the previous behavior would have shown "not authorized" instead.
+        expect(screen.getByText('Namespaces')).toBeInTheDocument();
+    });
+
+    it('still shows "not authorized" for a user with no role and no granted permissions', () => {
+        renderDashboard(undefined, '/', noPermissions);
+
+        expect(screen.getByText('You are not authorized as administrator.')).toBeInTheDocument();
+    });
+
+    // The route renders regardless of permission - only Guard, inside it, decides what shows - so
+    // this proves the missing permission is what's blocking access, not the route failing to match.
+    it('blocks a page the user lacks the permission for, without rendering it', () => {
+        renderDashboard(undefined, '/settings', extensionManager);
+
+        expect(screen.getByText('You are not authorized for this page.')).toBeInTheDocument();
+    });
+
+    it('does not block a page covered by the user\'s granted permission', () => {
+        renderDashboard(undefined, '/extensions', extensionManager);
+
+        expect(screen.queryByText('You are not authorized for this page.')).not.toBeInTheDocument();
     });
 });

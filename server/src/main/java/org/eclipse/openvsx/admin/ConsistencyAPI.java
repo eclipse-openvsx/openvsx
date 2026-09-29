@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.eclipse.openvsx.consistency.ConsistencyCheckService;
 import org.eclipse.openvsx.consistency.ConsistencyCheckSummary;
 import org.eclipse.openvsx.consistency.ConsistencyFinding;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.json.ConsistencyCheckJson;
 import org.eclipse.openvsx.json.ConsistencyCheckListJson;
 import org.eclipse.openvsx.json.ConsistencyFindingJson;
@@ -63,7 +64,7 @@ public class ConsistencyAPI {
     @Operation(summary = "Get an overview of every registered consistency check")
     public ResponseEntity<ConsistencyCheckListJson> listChecks() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_CONSISTENCY);
             var json = new ConsistencyCheckListJson();
             json.setChecks(
                     service.listSummaries().stream()
@@ -79,7 +80,7 @@ public class ConsistencyAPI {
     @Operation(summary = "Get the current findings of one consistency check")
     public ResponseEntity<ConsistencyFindingListJson> findings(@PathVariable String checkId) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_CONSISTENCY);
             var json = new ConsistencyFindingListJson();
             json.setFindings(
                     service.findings(checkId).stream()
@@ -99,7 +100,7 @@ public class ConsistencyAPI {
     @Operation(summary = "Fix every current finding of one consistency check")
     public ResponseEntity<ResultJson> fixAll(@PathVariable String checkId) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_CONSISTENCY);
             var fixed = service.fixAll(checkId);
             return ResponseEntity.ok(ResultJson.success("Fixed " + fixed + " finding(s) for check '" + checkId + "'."));
         } catch (NotFoundException exc) {
@@ -116,7 +117,7 @@ public class ConsistencyAPI {
     @Operation(summary = "Fix a single finding of one consistency check")
     public ResponseEntity<ResultJson> fixOne(@PathVariable String checkId, @PathVariable long entityId) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_CONSISTENCY);
             service.fixOne(checkId, entityId);
             return ResponseEntity.ok(ResultJson.success("Fixed entity " + entityId + " for check '" + checkId + "'."));
         } catch (NotFoundException exc) {

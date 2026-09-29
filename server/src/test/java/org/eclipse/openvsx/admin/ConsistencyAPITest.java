@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.eclipse.openvsx.consistency.ConsistencyCheckService;
 import org.eclipse.openvsx.consistency.ConsistencyCheckSummary;
 import org.eclipse.openvsx.consistency.ConsistencyFinding;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NotFoundException;
@@ -59,7 +60,7 @@ class ConsistencyAPITest {
 
     @Test
     void listChecks_requiresAdmin() throws Exception {
-        when(admins.checkAdminUser())
+        when(admins.checkPermission(Permission.MANAGE_CONSISTENCY))
                 .thenThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN));
 
         mockMvc.perform(get("/admin/consistency").accept(MediaType.APPLICATION_JSON))
@@ -68,7 +69,7 @@ class ConsistencyAPITest {
 
     @Test
     void listChecks_returnsOneSummaryPerRegisteredCheck() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_CONSISTENCY)).thenReturn(adminUser());
         when(service.listSummaries()).thenReturn(
                 List.of(
                         new ConsistencyCheckSummary(
@@ -85,7 +86,7 @@ class ConsistencyAPITest {
 
     @Test
     void findings_returnsNotFoundForUnknownCheck() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_CONSISTENCY)).thenReturn(adminUser());
         when(service.findings("does-not-exist")).thenThrow(new NotFoundException());
 
         mockMvc.perform(get("/admin/consistency/does-not-exist/findings").accept(MediaType.APPLICATION_JSON))
@@ -95,7 +96,7 @@ class ConsistencyAPITest {
 
     @Test
     void findings_returnsLiveFindings() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_CONSISTENCY)).thenReturn(adminUser());
         when(service.findings("extension-active-flag")).thenReturn(
                 List.of(
                         new ConsistencyFinding(42L, "acme.foo", "marked active, but no version of it is active")));
@@ -108,7 +109,7 @@ class ConsistencyAPITest {
 
     @Test
     void fixAll_fixesEveryCurrentFinding() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_CONSISTENCY)).thenReturn(adminUser());
         when(service.fixAll("extension-active-flag")).thenReturn(3);
 
         mockMvc.perform(post("/admin/consistency/extension-active-flag/fix").accept(MediaType.APPLICATION_JSON))
@@ -120,7 +121,7 @@ class ConsistencyAPITest {
 
     @Test
     void fixOne_fixesTheGivenEntity() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(adminUser());
+        when(admins.checkPermission(Permission.MANAGE_CONSISTENCY)).thenReturn(adminUser());
 
         mockMvc.perform(post("/admin/consistency/extension-active-flag/fix/42").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());

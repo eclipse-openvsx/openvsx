@@ -31,13 +31,16 @@ import org.eclipse.openvsx.entities.ExtensionVersionChange;
 import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -350,5 +353,80 @@ class AdminServiceTest {
         for (var extension : chain) {
             verify(extensions).purgeExtension(admin, extension, false);
         }
+    }
+
+    @Test
+    void updateUserPermissionGrantsIt() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var result = adminService.updateUserPermission("github", "amy", "manage_extensions", true, admin);
+
+        assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_EXTENSIONS);
+        assertThat(result.getSuccess()).contains("Granted manage_extensions");
+    }
+
+    @Test
+    void updateUserPermissionRevokesIt() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var result = adminService.updateUserPermission("github", "amy", "manage_extensions", false, admin);
+
+        assertThat(user.getPermissions()).isEmpty();
+        assertThat(result.getSuccess()).contains("Revoked manage_extensions");
+    }
+
+    @Test
+    void updateUserPermissionRejectsGrantingAPermissionAlreadyHeld() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        assertThatThrownBy(() -> adminService.updateUserPermission("github", "amy", "manage_extensions", true, admin))
+                .isInstanceOf(ErrorResultException.class);
+    }
+
+    @Test
+    void updateUserPermissionRejectsAnUnknownPermissionName() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        assertThatThrownBy(() -> adminService.updateUserPermission("github", "amy", "not-a-permission", true, admin))
+                .isInstanceOf(ErrorResultException.class);
+    }
+
+    @Test
+    void checkPermissionAllowsAUserIndividuallyGrantedIt() {
+        var user = new UserData();
+        user.getPermissions().add(Permission.MANAGE_CACHES);
+        when(users.findLoggedInUser()).thenReturn(user);
+
+        assertThat(adminService.checkPermission(Permission.MANAGE_CACHES)).isSameAs(user);
+    }
+
+    // Regression: ADMIN must keep implying every permission, including ones a currently-ADMIN user
+    // was never individually granted - see UserData#hasPermission.
+    @Test
+    void checkPermissionAllowsAdminRegardlessOfIndividualGrants() {
+        var user = new UserData();
+        user.setRole(UserData.Role.ADMIN);
+        when(users.findLoggedInUser()).thenReturn(user);
+
+        assertThat(adminService.checkPermission(Permission.MANAGE_SETTINGS)).isSameAs(user);
+    }
+
+    @Test
+    void checkPermissionRejectsAUserLackingThePermission() {
+        var user = new UserData();
+        when(users.findLoggedInUser()).thenReturn(user);
+
+        assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
+                .isInstanceOf(ErrorResultException.class);
     }
 }

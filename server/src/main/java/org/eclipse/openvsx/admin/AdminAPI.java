@@ -58,6 +58,7 @@ import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.NamespaceMembership;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.PersistedLog;
 import org.eclipse.openvsx.json.AdminStatisticsJson;
 import org.eclipse.openvsx.json.BulkPublisherRevokeRequestJson;
@@ -190,7 +191,7 @@ public class AdminAPI {
     }
 
     private AdminStatistics getReport(HttpServletRequest request, String tokenValue, int year, int month) {
-        admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
+        admins.checkPermission(HttpHeadersUtil.resolveAccessToken(request, tokenValue), Permission.VIEW_REPORTS);
         return admins.getAdminStatistics(year, month);
     }
 
@@ -230,7 +231,7 @@ public class AdminAPI {
             @RequestParam("month") int month
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.VIEW_REPORTS);
             return ResponseEntity.ok(admins.getAdminStatistics(year, month).toJson());
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(AdminStatisticsJson.class);
@@ -253,7 +254,7 @@ public class AdminAPI {
             @RequestParam("month") int month
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.VIEW_REPORTS);
             var csv = admins.getAdminStatistics(year, month).toCsv();
             var fileName = String.format("openvsx-statistics-%d-%02d.csv", year, month);
             return ResponseEntity.ok()
@@ -284,7 +285,7 @@ public class AdminAPI {
     )
     public ResponseEntity<StatsJson> getStats() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.VIEW_REPORTS);
 
             var json = new StatsJson();
             json.setUserCount(repositories.countUsers());
@@ -320,7 +321,7 @@ public class AdminAPI {
             ) String role
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_PUBLISHERS);
             return ResponseEntity.ok(admins.searchUsers(query, role, pageable));
         } catch (ErrorResultException exc) {
             var status = exc.getStatus() != null ? exc.getStatus() : HttpStatus.BAD_REQUEST;
@@ -348,7 +349,7 @@ public class AdminAPI {
             ) String periodString
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.VIEW_REPORTS);
 
             Streamable<PersistedLog> logs;
             if (StringUtils.isEmpty(periodString)) {
@@ -392,7 +393,7 @@ public class AdminAPI {
             ) String periodString
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.VIEW_REPORTS);
 
             if (pageable.getPageSize() > 1000) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page size must not exceed 1000");
@@ -441,7 +442,7 @@ public class AdminAPI {
     )
     public ResponseEntity<CachesJson> getCaches() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_CACHES);
 
             var json = new CachesJson();
             json.setStatisticsEnabled(caches.isStatisticsEnabled());
@@ -480,7 +481,7 @@ public class AdminAPI {
             @RequestParam(required = false) String cache
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_CACHES);
 
             // A cache is only identified by manager and name together, since the same name can be
             // registered with more than one manager, so one without the other cannot name a cache;
@@ -536,7 +537,7 @@ public class AdminAPI {
     )
     public ResponseEntity<SearchIndexJson> getSearchIndex() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SEARCH_INDEX);
 
             var stats = search.getIndexStats();
             var json = new SearchIndexJson();
@@ -598,9 +599,9 @@ public class AdminAPI {
             // working exactly as it did before token support was wired in here.
             var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
             if (tokenValue != null) {
-                admins.checkAdminUser(tokenValue);
+                admins.checkPermission(tokenValue, Permission.MANAGE_SEARCH_INDEX);
             } else {
-                admins.checkAdminUser();
+                admins.checkPermission(Permission.MANAGE_SEARCH_INDEX);
             }
             // Trimmed so " foo " and "foo" are not treated as different queries.
             var trimmed = query.trim();
@@ -630,7 +631,7 @@ public class AdminAPI {
     )
     public ResponseEntity<ResultJson> updateSearchIndex() {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_SEARCH_INDEX);
 
             // Only elasticsearch has an index to rebuild. Without this the call falls through to
             // SearchUtilService's default implementation, which is elasticsearch, and attempts index
@@ -683,7 +684,7 @@ public class AdminAPI {
             @Parameter(description = "Extension name", example = "language-julia") String extensionName
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             ExtensionJson json;
             var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
             if (latest != null) {
@@ -749,7 +750,9 @@ public class AdminAPI {
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
-            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
+            var adminUser = admins.checkPermission(
+                    HttpHeadersUtil.resolveAccessToken(request, tokenValue),
+                    Permission.MANAGE_EXTENSIONS);
             var targets = CollectionUtil.toArray(
                     targetVersions,
                     TargetPlatformVersionJson::toTargetPlatformVersion,
@@ -793,7 +796,7 @@ public class AdminAPI {
             @RequestBody List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var targets = CollectionUtil.toArray(
                     targetVersions,
                     TargetPlatformVersionJson::toTargetPlatformVersion,
@@ -843,7 +846,9 @@ public class AdminAPI {
             @RequestBody(required = false) List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
-            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
+            var adminUser = admins.checkPermission(
+                    HttpHeadersUtil.resolveAccessToken(request, tokenValue),
+                    Permission.MANAGE_EXTENSIONS);
             var targets = CollectionUtil.toArray(
                     targetVersions,
                     TargetPlatformVersionJson::toTargetPlatformVersion,
@@ -887,7 +892,7 @@ public class AdminAPI {
             @RequestBody List<TargetPlatformVersionJson> targetVersions
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var targets = CollectionUtil.toArray(
                     targetVersions,
                     TargetPlatformVersionJson::toTargetPlatformVersion,
@@ -928,7 +933,7 @@ public class AdminAPI {
             @PathVariable String loginName
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var result = admins.deleteReview(namespace, extension, loginName, provider);
             logs.logAction(adminUser, result);
             return ResponseEntity.ok(result);
@@ -973,6 +978,44 @@ public class AdminAPI {
         }
     }
 
+    @PostMapping(
+        path = "/user/{provider}/{loginName}/permission",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "Grant or revoke a single permission for a user")
+    @MutatingOperation
+    @ApiResponse(
+        responseCode = "200",
+        description = "A success message is returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = ResultJson.class)
+        )
+    )
+    @ApiResponse(
+        responseCode = "400",
+        description = "An error message is returned in JSON format",
+        content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    public ResponseEntity<ResultJson> updateUserPermission(
+            @PathVariable String provider,
+            @PathVariable String loginName,
+            @RequestParam
+            @Parameter(
+                description = "The permission to grant or revoke",
+                schema = @Schema(implementation = Permission.class)
+            ) String permission,
+            @RequestParam
+            @Parameter(description = "Whether to grant (true) or revoke (false) the permission") boolean grant
+    ) {
+        try {
+            var adminUser = admins.checkAdminUser();
+            return ResponseEntity.ok(admins.updateUserPermission(provider, loginName, permission, grant, adminUser));
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        }
+    }
+
     @GetMapping(
         path = "/namespace/{namespaceName}",
         produces = MediaType.APPLICATION_JSON_VALUE
@@ -1001,7 +1044,7 @@ public class AdminAPI {
             @Parameter(description = "Namespace name", example = "mtxr") String namespaceName
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_NAMESPACES);
 
             // Admins see all extensions of the namespace, including inactive/soft-deleted ones.
             var namespace = local.getNamespace(namespaceName, true);
@@ -1045,7 +1088,7 @@ public class AdminAPI {
     )
     public ResponseEntity<ResultJson> createNamespace(@RequestBody NamespaceJson namespace) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_NAMESPACES);
             var json = admins.createNamespace(namespace);
             var url = createAdminNamespaceUrl(namespace);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -1077,7 +1120,7 @@ public class AdminAPI {
     )
     public ResponseEntity<ResultJson> deleteNamespace(@PathVariable String namespaceName) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_NAMESPACES);
             return ResponseEntity.ok(admins.deleteNamespace(namespaceName, adminUser));
         } catch (NotFoundException exc) {
             var json = NamespaceJson.error("Namespace not found: " + namespaceName);
@@ -1109,7 +1152,7 @@ public class AdminAPI {
     )
     public ResponseEntity<ResultJson> changeNamespace(@RequestBody ChangeNamespaceJson json) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_NAMESPACES);
             admins.changeNamespace(json);
             return ResponseEntity.ok(
                     ResultJson.success(
@@ -1148,7 +1191,9 @@ public class AdminAPI {
             @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
-            admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
+            admins.checkPermission(
+                    HttpHeadersUtil.resolveAccessToken(request, tokenValue),
+                    Permission.MANAGE_NAMESPACES);
             var memberships = repositories.findMemberships(namespaceName);
             var membershipList = new NamespaceMembershipListJson();
             membershipList.setNamespaceMemberships(memberships.stream().map(NamespaceMembership::toJson).toList());
@@ -1181,7 +1226,7 @@ public class AdminAPI {
             @Parameter(description = "Namespace name", example = "mtxr") String namespaceName
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_NAMESPACES);
             var memberships = repositories.findMemberships(namespaceName);
             var membershipList = new NamespaceMembershipListJson();
             membershipList.setNamespaceMemberships(memberships.stream().map(NamespaceMembership::toJson).toList());
@@ -1228,7 +1273,9 @@ public class AdminAPI {
             @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
-            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
+            var adminUser = admins.checkPermission(
+                    HttpHeadersUtil.resolveAccessToken(request, tokenValue),
+                    Permission.MANAGE_NAMESPACES);
             var result = admins.editNamespaceMember(namespaceName, userName, provider, role, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1271,7 +1318,7 @@ public class AdminAPI {
             ) String role
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_NAMESPACES);
             var result = admins.editNamespaceMember(namespaceName, userName, provider, role, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1304,7 +1351,7 @@ public class AdminAPI {
             @Parameter(description = "User login name") String loginName
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_PUBLISHERS);
             var userPublishInfo = admins.getUserPublishInfo(provider, loginName);
             return ResponseEntity.ok(userPublishInfo);
         } catch (ErrorResultException exc) {
@@ -1338,7 +1385,7 @@ public class AdminAPI {
             @Parameter(description = "Login provider name", example = "github") String provider
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_PUBLISHERS);
             var result = admins.revokePublisherContributions(provider, loginName, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1373,7 +1420,9 @@ public class AdminAPI {
             return new ResponseEntity<>(json, HttpStatus.BAD_REQUEST);
         }
         try {
-            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(httpRequest, tokenValue));
+            var adminUser = admins.checkPermission(
+                    HttpHeadersUtil.resolveAccessToken(httpRequest, tokenValue),
+                    Permission.MANAGE_PUBLISHERS);
 
             var resultMap = new HashMap<String, ResultJson>();
             for (var publisher : request.publishers()) {
@@ -1422,7 +1471,7 @@ public class AdminAPI {
             @Parameter(description = "Login provider name", example = "github") String provider
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_PUBLISHERS);
             var result = admins.revokePublisherTokens(provider, loginName, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1463,7 +1512,9 @@ public class AdminAPI {
             @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String tokenValue
     ) {
         try {
-            var adminUser = admins.checkAdminUser(HttpHeadersUtil.resolveAccessToken(request, tokenValue));
+            var adminUser = admins.checkPermission(
+                    HttpHeadersUtil.resolveAccessToken(request, tokenValue),
+                    Permission.MANAGE_PUBLISHERS);
             var result = admins.forgetUser(provider, username, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1481,7 +1532,7 @@ public class AdminAPI {
             @PathVariable String authId
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_PUBLISHERS);
             var result = admins.forgetUser(provider, authId, adminUser);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -1509,7 +1560,7 @@ public class AdminAPI {
     )
     public ResponseEntity<SettingsJson> getSettings() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SETTINGS);
             return ResponseEntity.ok(settings.getCurrentSettings());
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(SettingsJson.class);
@@ -1537,7 +1588,7 @@ public class AdminAPI {
     )
     public ResponseEntity<SettingsJson> updateSettings(@RequestBody SettingsJson newSettings) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_SETTINGS);
 
             var changes = settings.updateFromJson(newSettings);
             var json = settings.getCurrentSettings();

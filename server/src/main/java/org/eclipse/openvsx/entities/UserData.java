@@ -14,15 +14,22 @@ package org.eclipse.openvsx.entities;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
 import org.jspecify.annotations.Nullable;
@@ -59,6 +66,12 @@ public class UserData implements Serializable {
     @Column(length = 32)
     @Convert(converter = UserRoleConverter.class)
     private Role role;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "user_data_permission", joinColumns = @JoinColumn(name = "user_data_id"))
+    @Column(name = "permission", length = 32)
+    @Convert(converter = PermissionConverter.class)
+    private Set<Permission> permissions = new HashSet<>();
 
     private String loginName;
 
@@ -126,6 +139,27 @@ public class UserData implements Serializable {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public Set<Permission> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(Set<Permission> permissions) {
+        this.permissions = permissions;
+    }
+
+    public Set<String> getPermissionsAsStrings() {
+        return permissions.stream().map(Permission::toString).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Whether this user is allowed to perform an admin action requiring {@code permission}.
+     * {@link Role#ADMIN} always has every permission, including ones added after the role was
+     * granted, so it never needs to be reflected in {@link #permissions} itself.
+     */
+    public boolean hasPermission(Permission permission) {
+        return Role.ADMIN.equals(role) || permissions.contains(permission);
     }
 
     public String getLoginName() {
@@ -202,7 +236,8 @@ public class UserData implements Serializable {
 
     // tokens and memberships are deliberately excluded below: each of their elements holds this
     // user back (PersonalAccessToken#user, NamespaceMembership#user), so hashing them here would
-    // recurse into this user's hashCode again, unconditionally.
+    // recurse into this user's hashCode again, unconditionally. permissions is excluded too since
+    // it is LAZY like they are, and equals/hashCode are called on detached instances in tests.
     @Override
     public boolean equals(Object o) {
         if (this == o) {
