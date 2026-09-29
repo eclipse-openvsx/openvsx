@@ -33,7 +33,7 @@ public class LicenseHeaderHarmonizeCore {
         return canonicalHeader(DEFAULT_COPYRIGHT) + "\n" + source;
     }
 
-    private static final int WIDTH = 80;
+    private static final int WIDTH = 79;
 
     private static String canonicalHeader(String copyrightLine) {
         String openFence = "*".repeat(WIDTH - 1);
