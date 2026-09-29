@@ -10,6 +10,9 @@
 package org.eclipse.openvsx.extension_control;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.lambdas.JobRequestHandler;
@@ -23,6 +26,7 @@ import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.settings.SettingsService;
 import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.NamingUtil;
 
 @Component
@@ -111,6 +115,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
             return;
         }
 
+        var seenExtensionIds = new HashSet<String>();
         node.properties().iterator().forEachRemaining(field -> {
             logger.info("deprecated: {}", field.getKey());
             var extensionId = NamingUtil.fromExtensionId(field.getKey());
@@ -118,6 +123,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
                 return;
             }
 
+            seenExtensionIds.add(normalizedExtensionId(extensionId.namespace(), extensionId.extension()));
             var value = field.getValue();
             if (value.isBoolean()) {
                 service.updateExtension(extensionId, value.asBoolean(), null, true);
@@ -133,5 +139,35 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
                 logger.error("field '{}' is not an object or a boolean", extensionId);
             }
         });
+
+        unDeprecateExtensionsNoLongerListed(seenExtensionIds);
+    }
+
+    /**
+     * The loop above only ever applies entries the control file still lists. An extension whose entry is
+     * removed from the file entirely (rather than flipped to {@code false}) would otherwise stay
+     * deprecated forever: nothing else ever clears the flag. See #2260.
+     */
+    private void unDeprecateExtensionsNoLongerListed(Set<String> seenExtensionIds) {
+        for (var extension : repositories.findDeprecatedExtensions()) {
+            var extensionId = normalizedExtensionId(extension.getNamespace().getName(), extension.getName());
+            if (seenExtensionIds.contains(extensionId)) {
+                continue;
+            }
+
+            logger.info("no longer deprecated: {}", NamingUtil.toExtensionId(extension));
+            service.updateExtension(
+                    new ExtensionId(extension.getNamespace().getName(), extension.getName()),
+                    false,
+                    null,
+                    true);
+        }
+    }
+
+    // Namespace/extension name matching is case-insensitive everywhere else (see
+    // ExtensionRepository#findByNameIgnoreCaseAndNamespaceNameIgnoreCase), so the control file and the
+    // database must be compared the same way, or a casing difference alone would look like removal.
+    private static String normalizedExtensionId(String namespace, String extension) {
+        return NamingUtil.toExtensionId(namespace, extension).toLowerCase(Locale.ROOT);
     }
 }

@@ -63,6 +63,8 @@ public interface ExtensionRepository extends Repository<Extension, Long> {
 
     Streamable<Extension> findByActiveTrue();
 
+    Streamable<Extension> findByDeprecatedTrue();
+
     Streamable<Extension> findByIdIn(Collection<Long> extensionIds);
 
     Streamable<Extension> findDistinctByVersionsPublishedBy(UserData user);

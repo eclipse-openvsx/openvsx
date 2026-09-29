@@ -19,18 +19,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.util.Streamable;
 import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.admin.AdminService;
+import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.settings.SettingsService;
 import org.eclipse.openvsx.util.ErrorResultException;
+import org.eclipse.openvsx.util.ExtensionId;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,6 +65,17 @@ class ExtensionControlJobRequestHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new ExtensionControlJobRequestHandler(settings, admin, service, repositories);
+        lenient().when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.empty());
+    }
+
+    private static Extension extension(String namespaceName, String extensionName, boolean deprecated) {
+        var namespace = new Namespace();
+        namespace.setName(namespaceName);
+        var extension = new Extension();
+        extension.setNamespace(namespace);
+        extension.setName(extensionName);
+        extension.setDeprecated(deprecated);
+        return extension;
     }
 
     @Test
@@ -126,5 +142,44 @@ class ExtensionControlJobRequestHandlerTest {
         handler.run(new HandlerJobRequest<>());
 
         verify(admin).purgeExtension(extensionControlUser, "ns", "alsoEvil");
+    }
+
+    @Test
+    void unDeprecatesExtensionNoLongerListedInControlFile() throws Exception {
+        when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
+                {"malicious": [], "deprecated": {}}
+                """));
+        when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.of(extension("ns", "old", true)));
+
+        handler.run(new HandlerJobRequest<>());
+
+        verify(service).updateExtension(new ExtensionId("ns", "old"), false, null, true);
+    }
+
+    @Test
+    void doesNotUnDeprecateExtensionStillListedInControlFile() throws Exception {
+        when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
+                {"malicious": [], "deprecated": {"ns.keep": true}}
+                """));
+        when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.of(extension("ns", "keep", true)));
+
+        handler.run(new HandlerJobRequest<>());
+
+        verify(service).updateExtension(new ExtensionId("ns", "keep"), true, null, true);
+        verify(service, never()).updateExtension(new ExtensionId("ns", "keep"), false, null, true);
+    }
+
+    @Test
+    void matchesControlFileEntriesCaseInsensitively() throws Exception {
+        // Namespace/extension matching is case-insensitive everywhere else; a casing difference alone
+        // between the control file and the stored extension must not look like a removed entry.
+        when(service.getExtensionControlJson()).thenReturn(JsonMapper.shared().readTree("""
+                {"malicious": [], "deprecated": {"ns.old": true}}
+                """));
+        when(repositories.findDeprecatedExtensions()).thenReturn(Streamable.of(extension("NS", "Old", true)));
+
+        handler.run(new HandlerJobRequest<>());
+
+        verify(service, never()).updateExtension(new ExtensionId("NS", "Old"), false, null, true);
     }
 }
