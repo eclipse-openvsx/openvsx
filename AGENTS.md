@@ -41,6 +41,8 @@ request from the user, ask before overriding it.
 
 - Commit subjects use a conventional-commit prefix: `feat:`, `fix:`,
   `chore:`, `docs:`, `test:`, `style:`, `build:`, or `ci:`.
+- Keep the commit body short: state what changed and why, not a walkthrough
+  of how you got there or what an earlier draft did.
 - No emojis in commits, pull requests, issues, or code. Keep prose concise,
   direct, and technical — no cheerful filler.
 - Answer a user's question before making edits or running implementation
