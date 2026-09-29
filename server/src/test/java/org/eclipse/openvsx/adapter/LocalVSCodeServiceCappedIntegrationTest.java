@@ -125,10 +125,14 @@ class LocalVSCodeServiceCappedIntegrationTest extends AbstractPostgresContainerT
         persistVersion(extension, "0.1.0", TargetPlatform.NAME_LINUX_X64, true, base.minusDays(1));
         em.flush();
 
+        // FLAG_INCLUDE_VERSIONS, not FLAG_INCLUDE_LATEST_VERSION_ONLY: the latter alone (with a
+        // concrete target platform) triggers canSkipFullFetchForLatestOnly, which bypasses the capped
+        // findActiveExtensionVersions query entirely - this would pass even if the capped branch under
+        // test were broken. FLAG_INCLUDE_VERSIONS forces the real capped fetch to run.
         var param = paramFor(
                 "it-ns3.cap-test",
                 TargetPlatform.NAME_LINUX_X64,
-                FLAG_INCLUDE_LATEST_VERSION_ONLY);
+                FLAG_INCLUDE_VERSIONS);
 
         var result = assertDoesNotThrow(() -> service.extensionQuery(param, 100));
         assertThat(result.results().getFirst().extensions())
@@ -136,9 +140,13 @@ class LocalVSCodeServiceCappedIntegrationTest extends AbstractPostgresContainerT
                         "linux-x64's only version must still be found as 'latest' even though the "
                                 + "cross-platform pre-release cap would exclude it from the capped active-version list")
                 .singleElement()
-                .satisfies(
-                        ext -> assertThat(ext.versions()).singleElement()
-                                .extracting(ExtensionQueryResult.ExtensionVersion::version)
-                                .isEqualTo("0.1.0"));
+                .satisfies(ext -> {
+                    // The capped active-version fetch (filtered to linux-x64) legitimately comes back
+                    // empty - rank 1-2 across the whole extension are both win32-x64 - so the "versions"
+                    // list is empty. What must still be correct is the "latest" metadata below, which
+                    // the direct findLatestVersions query resolves independently of that capped fetch.
+                    assertThat(ext.versions()).isEmpty();
+                    assertThat(ext.displayName()).isEqualTo("Display cap-test 0.1.0@" + TargetPlatform.NAME_LINUX_X64);
+                });
     }
 }

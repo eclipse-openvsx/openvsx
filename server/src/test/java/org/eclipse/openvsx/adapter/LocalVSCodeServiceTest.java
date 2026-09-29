@@ -223,6 +223,10 @@ public class LocalVSCodeServiceTest {
                 .map(ExtensionQueryResult.Extension::extensionId)
                 .toList();
         assertThat(extensionIds).containsExactly("test-1");
+        assertThat(
+                result.results().getFirst().resultMetadata().getFirst().metadataItems().getFirst().count())
+                .as("TotalCount must match what was actually returned, not the pre-filter match count")
+                .isEqualTo(1);
     }
 
     // Regression test: the pre-release rank cap ranks across ALL target platforms combined (see

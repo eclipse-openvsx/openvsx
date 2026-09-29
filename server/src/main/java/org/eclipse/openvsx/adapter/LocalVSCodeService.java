@@ -208,9 +208,6 @@ public class LocalVSCodeService implements IVSCodeService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exc.getMessage(), exc);
             }
         }
-        if (totalCount == null) {
-            totalCount = (long) extensionsList.size();
-        }
 
         var flags = param.flags();
         // when mapping the list of extensions to a map, we need to handle duplicate entries which can happen,
@@ -315,6 +312,13 @@ public class LocalVSCodeService implements IVSCodeService {
 
             var queryExt = toQueryExtension(extension, latest, queryVersions, flags);
             extensionQueryResults.add(queryExt);
+        }
+
+        // Search reports its own total across every page, independent of this page's result count.
+        // A direct id/name lookup has no such separate total; count what actually made it into the
+        // response, since the null-"latest" guard above can now drop entries from extensionsList.
+        if (totalCount == null) {
+            totalCount = (long) extensionQueryResults.size();
         }
 
         return toQueryResult(extensionQueryResults, totalCount);
