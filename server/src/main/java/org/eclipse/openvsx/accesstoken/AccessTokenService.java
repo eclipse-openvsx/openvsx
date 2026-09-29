@@ -281,10 +281,10 @@ public class AccessTokenService {
             token = findTokenHashedWithPreviousPepper(tokenValue);
         }
         if (token == null) {
-            // assume DB contains token v0; fetch and upgrade if found active token
-            token = repositories.findPersonalAccessToken(tokenValue);
-            if (token != null && token.getVersion() != TOKEN_CURRENT_VERSION) {
-                // upgrade token
+            // v0 rows store the raw value unhashed; scoped to that version so a leaked v1 hash (itself
+            // an exact value-column match) can never authenticate as a pass-the-hash credential here.
+            token = repositories.findPersonalAccessToken(tokenValue, TOKEN_VERSION_0);
+            if (token != null) {
                 upgradeToken(token);
             }
         }

@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software Ltd and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.analytics.ingestion;
 
 import java.time.Duration;
@@ -155,6 +158,46 @@ public class DownloadIngestionProcessor {
                 logger.error("could not store {} download events for analytics", events.size(), e);
                 metrics.recordFailedEvents(events.size());
             }
+        });
+    }
+
+    /** What a backfill wrote, and the time span it covers. */
+    public record BackfillResult(
+            int events,
+            long downloads,
+            int extensions,
+            int unresolvedRecords,
+            @Nullable Instant from,
+            @Nullable Instant to
+    ) {}
+
+    /**
+     * Stores the download events of a backfill log without incrementing the download counters or
+     * writing an ingestion entry. Analytics write failures propagate to the caller.
+     */
+    public BackfillResult backfill(String storageType, List<RawDownloadRecord> records) {
+        return Observation.createNotStarted("DownloadIngestionProcessor#backfill", observations).observe(() -> {
+            var repository = analyticsRepository.getIfAvailable();
+            if (repository == null) {
+                throw new IllegalStateException("download analytics is not enabled");
+            }
+
+            var resolved = resolveExtensions(storageType, records);
+            var events = aggregate(records, resolved);
+            if (!events.isEmpty()) {
+                repository.save(events);
+                metrics.recordLoaded(events.size(), events.stream().mapToInt(DownloadEvent::count).sum());
+            }
+
+            var unresolved = (int) records.stream().filter(record -> !resolved.containsKey(record.vsixFilename()))
+                    .count();
+            return new BackfillResult(
+                    events.size(),
+                    events.stream().mapToLong(DownloadEvent::count).sum(),
+                    (int) events.stream().map(DownloadEvent::extensionId).distinct().count(),
+                    unresolved,
+                    events.stream().map(DownloadEvent::time).min(Instant::compareTo).orElse(null),
+                    events.stream().map(DownloadEvent::time).max(Instant::compareTo).orElse(null));
         });
     }
 

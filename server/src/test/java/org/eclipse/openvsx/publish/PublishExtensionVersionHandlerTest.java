@@ -1,15 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2025 Contributors to the Eclipse Foundation
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information regarding copyright ownership.
  *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.publish;
 
 import java.io.IOException;
@@ -145,6 +145,61 @@ class PublishExtensionVersionHandlerTest {
             assertThat(result.getPublishedBy()).isEqualTo(user);
             assertThat(result.getExtension()).isSameAs(capturedExtension.getValue());
             assertThat(result.getExtension().getNamespace()).isSameAs(namespace);
+        }
+    }
+
+    @Test
+    void shouldFailWhenMaliciousListRefreshFailsButLastKnownListFlagsIt() throws IOException {
+        // getMaliciousExtensionIds() throws on a fetch failure rather than inventing a return value
+        // (see ExtensionControlService); isMalicious() must still catch that and fall back to the last
+        // known list rather than silently treating the extension as clean.
+        when(extensionControl.getMaliciousExtensionIds()).thenThrow(new IOException("connection reset"));
+        when(extensionControl.getLastKnownMaliciousExtensionIds())
+                .thenReturn(List.of(NamingUtil.toExtensionId("publisher", "demo")));
+
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("known malicious extension");
+        }
+    }
+
+    @Test
+    void shouldFailWhenMaliciousListLookupThrowsUncheckedExceptionButLastKnownListFlagsIt() throws IOException {
+        // getMaliciousExtensionIds() can also fail with a plain, unanticipated RuntimeException (not
+        // just its own IOException/JacksonException) - isMalicious()'s catch must be broad enough to
+        // fall back on that too, not escape and break the publish request outright.
+        when(extensionControl.getMaliciousExtensionIds())
+                .thenThrow(new RuntimeException("Redis connection refused"));
+        when(extensionControl.getLastKnownMaliciousExtensionIds())
+                .thenReturn(List.of(NamingUtil.toExtensionId("publisher", "demo")));
+
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("known malicious extension");
         }
     }
 

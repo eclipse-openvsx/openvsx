@@ -28,12 +28,14 @@ vi.mock('@vscode/vsce', () => ({ createVSIX: vi.fn() }));
 interface RecordedRequest {
     pathname: string;
     query: URLSearchParams;
+    headers: http.IncomingHttpHeaders;
 }
 
 interface RegistryStub {
     url: string;
     publishRequests: RecordedRequest[];
     tokenRequests: number;
+    versionRequests: number;
     close: () => Promise<void>;
 }
 
@@ -61,12 +63,13 @@ async function startRegistryStub(
     // Answers the nth publish with the nth entry, the last one repeating, so a first attempt can be
     // refused and the retry accepted.
     const publishAttempts = publishResponse.attempts;
-    const state = { tokenRequests: 0 };
+    const state = { tokenRequests: 0, versionRequests: 0 };
     const server = http.createServer((req, res) => {
         const url = new URL(req.url ?? '/', 'http://127.0.0.1');
         req.on('data', () => undefined);
         req.on('end', () => {
             if (url.pathname === '/api/version') {
+                state.versionRequests++;
                 res.writeHead(versionStatus, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(versionBody));
             } else if (url.pathname === '/api/-/trusted-publishing/token') {
@@ -75,7 +78,7 @@ async function startRegistryStub(
                 res.end(JSON.stringify({ value: `token-${state.tokenRequests}` }));
             } else {
                 const attempt = publishAttempts?.[Math.min(publishRequests.length, publishAttempts.length - 1)];
-                publishRequests.push({ pathname: url.pathname, query: url.searchParams });
+                publishRequests.push({ pathname: url.pathname, query: url.searchParams, headers: req.headers });
                 res.writeHead(attempt?.status ?? publishStatus, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(attempt?.body ?? publishBody));
             }
@@ -88,6 +91,9 @@ async function startRegistryStub(
         publishRequests,
         get tokenRequests() {
             return state.tokenRequests;
+        },
+        get versionRequests() {
+            return state.versionRequests;
         },
         close: () => new Promise<void>(resolve => server.close(() => resolve()))
     };
@@ -215,6 +221,26 @@ describe('publish', () => {
         expect(registry.publishRequests).toHaveLength(1);
     });
 
+    // The size-limit lookup and the token-header version check (Registry.tokenQuery) both fetch
+    // /api/version, and every target used to get its own Registry instance - looking that up once for
+    // the size limit and once per target added up fast for a wide fan-out. All targets now share the
+    // one Registry created up front, so this is a single request regardless of fan-out width.
+    it('looks up the registry version only once across a fan-out of targets', async () => {
+        const registry = await givenRegistry({ body: { version: '1.3.0' } });
+        const extensionFile = givenExtensionFile(200);
+
+        const results = await publish({
+            extensionFile,
+            pat: 'the.pat',
+            registryUrl: registry.url,
+            targets: ['linux-x64', 'darwin-arm64', 'win32-x64']
+        });
+
+        expect(results.every(result => result.status === 'fulfilled')).toBe(true);
+        expect(registry.publishRequests).toHaveLength(3);
+        expect(registry.versionRequests).toBe(1);
+    });
+
     // The trusted publishing token is short-lived and shared by every target platform of a release, so
     // a slow fan-out can outlive it and be refused partway through. Failing a release that was
     // authorised, over an expiry, would be the wrong call.
@@ -240,8 +266,8 @@ describe('publish', () => {
         expect(result.status).toBe('fulfilled');
         expect(registry.publishRequests).toHaveLength(2);
         // the retry carries the replacement, not the token that was just refused
-        expect(registry.publishRequests[0].query.get('token')).toBe('token-1');
-        expect(registry.publishRequests[1].query.get('token')).toBe('token-2');
+        expect(registry.publishRequests[0].headers.authorization).toBe('Bearer token-1');
+        expect(registry.publishRequests[1].headers.authorization).toBe('Bearer token-2');
         expect(registry.tokenRequests).toBe(2);
     });
 
@@ -303,7 +329,7 @@ describe('publish', () => {
         expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
         expect(registry.publishRequests).toHaveLength(3);
         expect(registry.tokenRequests).toBe(1);
-        expect(registry.publishRequests.map(request => request.query.get('token')))
-            .toEqual(['token-1', 'token-1', 'token-1']);
+        expect(registry.publishRequests.map(request => request.headers.authorization))
+            .toEqual(['Bearer token-1', 'Bearer token-1', 'Bearer token-1']);
     });
 });

@@ -48,6 +48,7 @@ def testExtensions = [
 ]
 
 tasks.register('downloadTestExtensions') {
+    notCompatibleWithConfigurationCache("uses the download plugin's extension, which holds a live Project reference")
     def buildLocalDir = rootProject.file('build-local').toString()
 
     doLast {

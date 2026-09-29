@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2020 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx;
 
 import java.time.Duration;
@@ -37,6 +40,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -71,6 +75,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
 import org.eclipse.openvsx.util.UUIDService;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -88,6 +93,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     types = {
         DSLContext.class,
         EclipseService.class,
+        RestTemplate.class,
         ClientRegistrationRepository.class,
         StorageUtilService.class,
         CacheService.class,
@@ -1219,9 +1225,10 @@ class UserAPITest {
         EclipseTokenService eclipseTokenService(
                 TransactionTemplate transactions,
                 EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository
+                ClientRegistrationRepository clientRegistrationRepository,
+                RestTemplate restTemplate
         ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository);
+            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
         }
 
         @Bean
@@ -1261,6 +1268,7 @@ class UserAPITest {
                     similarityCheckService,
                     new PublishingConfig(),
                     new TrustedPublishingConfig(),
+                    new WebUiProperties(),
                     Duration.ofSeconds(30));
         }
 

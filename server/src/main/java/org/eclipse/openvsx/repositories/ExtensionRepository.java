@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2019 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
 import java.util.Collection;
@@ -63,6 +66,8 @@ public interface ExtensionRepository extends Repository<Extension, Long> {
 
     Streamable<Extension> findByActiveTrue();
 
+    Streamable<Extension> findByDeprecatedTrue();
+
     Streamable<Extension> findByIdIn(Collection<Long> extensionIds);
 
     Streamable<Extension> findDistinctByVersionsPublishedBy(UserData user);
@@ -86,4 +91,16 @@ public interface ExtensionRepository extends Repository<Extension, Long> {
         nativeQuery = true
     )
     Streamable<Extension> findExtensionsWithInconsistentActiveFlag();
+
+    // Extensions whose last_updated_date - what the sitemap reports as `lastmod` - is older than their
+    // own latest active version. Same cross-transaction lost-update race as
+    // findExtensionsWithInconsistentActiveFlag; used by LastUpdatedDateCheck to fix rows already
+    // affected. See issue #2229.
+    @Query(
+        value = "select e.* from extension e where e.active = true and e.last_updated_date <"
+                + " (select max(v.timestamp) from extension_version v"
+                + " where v.extension_id = e.id and v.active = true)",
+        nativeQuery = true
+    )
+    Streamable<Extension> findExtensionsWithStaleLastUpdatedDate();
 }

@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.adapter;
 
 import java.io.IOException;
@@ -148,6 +151,7 @@ public class UpstreamVSCodeService implements IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     ) {
         var urlBuilder = new StringBuilder(
@@ -168,6 +172,13 @@ public class UpstreamVSCodeService implements IVSCodeService {
                 urlBuilder.append("/{").append(varName).append("}");
                 uriVariables.put(varName, segments[i]);
             }
+        }
+
+        // As a query parameter rather than the `<version>+<target>` form the client may have used:
+        // both are accepted upstream, and this one needs no escaping decisions.
+        if (StringUtils.isNotBlank(targetPlatform)) {
+            urlBuilder.append("?target={target}");
+            uriVariables.put("target", targetPlatform);
         }
 
         var method = HttpMethod.GET;
@@ -392,11 +403,12 @@ public class UpstreamVSCodeService implements IVSCodeService {
             return ResponseEntity.status(response.getStatusCode())
                     .headers(headers)
                     .body(outputStream -> {
-                        try (var in = Files.newInputStream(tempFile.getPath())) {
+                        // Delete tempFile here, not via try-with-resources on the outer method: this
+                        // lambda runs later, during async response writing, so this is the only place
+                        // that still runs (via close()) if the client aborts mid-transfer.
+                        try (tempFile; var in = Files.newInputStream(tempFile.getPath())) {
                             in.transferTo(outputStream);
                         }
-
-                        IOUtils.closeQuietly(tempFile);
                     });
         } catch (IOException e) {
             IOUtils.closeQuietly(tempFile);

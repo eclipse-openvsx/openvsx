@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2020 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.eclipse;
 
 import java.time.Instant;
@@ -46,16 +49,19 @@ public class EclipseTokenService {
     private final EntityManager entityManager;
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final JsonMapper jsonMapper;
+    private final RestTemplate restTemplate;
 
     public EclipseTokenService(
             TransactionTemplate transactions,
             EntityManager entityManager,
-            @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository
+            @Autowired(required = false) ClientRegistrationRepository clientRegistrationRepository,
+            RestTemplate restTemplate
     ) {
         this.transactions = transactions;
         this.entityManager = entityManager;
         this.clientRegistrationRepository = clientRegistrationRepository;
         this.jsonMapper = JsonMapper.builder().build();
+        this.restTemplate = restTemplate;
     }
 
     public AuthToken updateEclipseToken(long userId, OAuth2AccessToken accessToken, OAuth2RefreshToken refreshToken) {
@@ -134,7 +140,6 @@ public class EclipseTokenService {
 
         try {
             var request = new HttpEntity<>(data, headers);
-            var restTemplate = new RestTemplate();
             var response = restTemplate.postForObject(tokenUri, request, String.class);
             var root = jsonMapper.readTree(response);
             var newTokenValue = root.get("access_token").asString();

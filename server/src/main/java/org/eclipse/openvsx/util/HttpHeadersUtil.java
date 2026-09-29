@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.tika.Tika;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -32,6 +33,17 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.eclipse.openvsx.storage.StorageUtil;
 
 public class HttpHeadersUtil {
+
+    /**
+     * Fallback header for personal access tokens, used only when {@code Authorization} is already
+     * claimed by a standard auth scheme (e.g. the CLI's own Basic auth to a fronting reverse proxy).
+     * {@code Authorization: Bearer} is preferred (see {@link #resolveAccessToken}); this and the
+     * legacy {@code token} query parameter are the fallbacks.
+     */
+    public static final String TOKEN_HEADER = "X-OpenVSX-Token";
+
+    private static final String BEARER_PREFIX = "Bearer ";
+
     private static final MediaType APPLICATION_ZIP = MediaType.valueOf("application/zip");
     private static final MediaType TEXT_PLAIN_UTF8 = new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8);
 
@@ -74,6 +86,26 @@ public class HttpHeadersUtil {
     private HttpHeadersUtil() {
     }
 
+    /**
+     * Resolves a personal access token, checking in order: the {@code Authorization: Bearer} header,
+     * the {@value #TOKEN_HEADER} header, then {@code queryToken} (the legacy {@code token} query
+     * parameter). A blank value at any step is treated as absent and falls through to the next.
+     */
+    public static @Nullable String resolveAccessToken(HttpServletRequest request, @Nullable String queryToken) {
+        var authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authHeader != null && authHeader.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+            var bearerToken = authHeader.substring(BEARER_PREFIX.length()).trim();
+            if (!bearerToken.isBlank()) {
+                return bearerToken;
+            }
+        }
+        var headerToken = request.getHeader(TOKEN_HEADER);
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+        return (queryToken != null && !queryToken.isBlank()) ? queryToken : null;
+    }
+
     public static HttpHeaders getForwardedHeaders() {
         var headers = new HttpHeaders();
         try {
@@ -89,6 +121,9 @@ public class HttpHeadersUtil {
         }
         headers.remove(HttpHeaders.HOST);
         headers.remove(HttpHeaders.CONTENT_LENGTH);
+        // Neither credential is meant for the upstream this is forwarded to (see callers).
+        headers.remove(HttpHeaders.AUTHORIZATION);
+        headers.remove(TOKEN_HEADER);
         return headers;
     }
 

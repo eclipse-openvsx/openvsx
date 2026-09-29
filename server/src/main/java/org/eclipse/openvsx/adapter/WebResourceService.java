@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2024 Precies. Software OU and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.adapter;
 
 import java.io.IOException;
@@ -37,6 +40,7 @@ import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.FileUtil;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.SizeLimitInputStream;
+import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.UrlUtil;
 
 import static org.eclipse.openvsx.cache.CacheService.*;
@@ -147,7 +151,15 @@ public class WebResourceService {
                 return null;
             }
 
-            var baseUrl = UrlUtil.createApiUrl("", "vscode", "unpkg", namespace, extension, version);
+            // The listed URLs are followed as-is, so the target has to survive the round trip or
+            // walking into a subdirectory silently drops back to whichever version matches first. A
+            // resolved universal target has to be spelled out too when the version's own suffix would
+            // otherwise be misread as one, e.g. a universal build published as `1.2.3+web`.
+            var versionSuffixLooksLikeATarget = TargetPlatform.targetInVersionSuffix(version) != null;
+            var needsTargetSuffix = TargetPlatform.isValid(targetPlatform)
+                    && (!TargetPlatform.isUniversal(targetPlatform) || versionSuffixLooksLikeATarget);
+            var versionSegment = needsTargetSuffix ? version + "+" + targetPlatform : version;
+            var baseUrl = UrlUtil.createApiUrl("", "vscode", "unpkg", namespace, extension, versionSegment);
             var node = jsonMapper.createArrayNode();
             for (var entry : dirEntries) {
                 node.add(baseUrl + "/" + entry);

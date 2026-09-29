@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software Ltd and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx;
 
 import java.util.concurrent.TimeUnit;
@@ -21,6 +24,7 @@ import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
@@ -97,6 +101,9 @@ public class RestTemplateConfig {
                 })
                 .messageConverters(
                         new StringHttpMessageConverter(),
+                        // Needed for EclipseTokenService's application/x-www-form-urlencoded token
+                        // refresh request; the other consumers of this bean only ever post/receive JSON.
+                        new FormHttpMessageConverter(),
                         new JacksonJsonHttpMessageConverter())
                 .build();
     }
@@ -164,6 +171,7 @@ public class RestTemplateConfig {
     private HttpClientBuilder createHttpClientBuilder(HttpConnPoolConfig httpConnPoolConfig) {
         var connectionConfig = ConnectionConfig.custom()
                 .setConnectTimeout(Timeout.of(httpConnPoolConfig.connectTimeout(), TimeUnit.MILLISECONDS))
+                .setSocketTimeout(Timeout.of(httpConnPoolConfig.socketTimeout(), TimeUnit.MILLISECONDS))
                 .build();
         httpConnPoolConfig.connectionManager().setDefaultConnectionConfig(connectionConfig);
         var requestConfig = RequestConfig.custom()

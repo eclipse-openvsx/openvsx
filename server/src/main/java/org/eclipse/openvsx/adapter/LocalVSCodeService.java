@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2022 Precies. Software and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.adapter;
 
 import java.net.URI;
@@ -48,6 +51,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 import org.eclipse.openvsx.util.VersionService;
+import org.eclipse.openvsx.web.WebUiProperties;
 
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.*;
 import static org.eclipse.openvsx.adapter.ExtensionQueryParam.Criterion.*;
@@ -68,6 +72,7 @@ public class LocalVSCodeService implements IVSCodeService {
     private final ExtensionVersionIntegrityService integrityService;
     private final WebResourceService webResources;
     private final CacheService cache;
+    private final WebUiProperties webUi;
 
     private final Map<String, String> assets = Map.of(
             FILE_VSIX,
@@ -87,9 +92,6 @@ public class LocalVSCodeService implements IVSCodeService {
             FILE_SIGNATURE,
             DOWNLOAD_SIG);
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
-
     // See RepositoryService.findActiveExtensionVersions / ExtensionVersionJooqRepository -
     // caps how many of an extension's active pre-release versions the version listing below
     // fetches per extensionQuery request; regular releases are never capped. A negative value
@@ -105,7 +107,8 @@ public class LocalVSCodeService implements IVSCodeService {
             StorageUtilService storageUtil,
             ExtensionVersionIntegrityService integrityService,
             WebResourceService webResources,
-            CacheService cache
+            CacheService cache,
+            WebUiProperties webUi
     ) {
         this.repositories = repositories;
         this.versions = versions;
@@ -114,6 +117,7 @@ public class LocalVSCodeService implements IVSCodeService {
         this.integrityService = integrityService;
         this.webResources = webResources;
         this.cache = cache;
+        this.webUi = webUi;
     }
 
     @Override
@@ -204,27 +208,57 @@ public class LocalVSCodeService implements IVSCodeService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exc.getMessage(), exc);
             }
         }
-        if (totalCount == null) {
-            totalCount = (long) extensionsList.size();
-        }
 
         var flags = param.flags();
         // when mapping the list of extensions to a map, we need to handle duplicate entries which can happen,
         // see https://github.com/eclipse/openvsx/issues/1394
         var extensionsMap = extensionsList.stream()
                 .collect(Collectors.toMap(Extension::getId, Function.identity(), (a, b) -> a));
-        List<ExtensionVersion> allActiveExtensionVersions = repositories
-                .findActiveExtensionVersions(extensionsMap.keySet(), targetPlatform, maxPreReleaseVersions);
+
+        var canSkipFullFetchForLatestOnly = targetPlatform != null
+                && test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)
+                && !test(flags, FLAG_INCLUDE_VERSIONS)
+                && !test(flags, FLAG_INCLUDE_VERSION_PROPERTIES);
+
+        // "latest" is computed separately below without needing this list; when it's the only thing
+        // requested for a concrete target platform, the bulk findLatestVersions query below already
+        // returns exactly that per-extension row, so the full active-version fetch can be skipped.
+        var needsVersionList = !canSkipFullFetchForLatestOnly
+                && (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)
+                        || test(flags, FLAG_INCLUDE_VERSIONS)
+                        || test(flags, FLAG_INCLUDE_VERSION_PROPERTIES));
+        List<ExtensionVersion> allActiveExtensionVersions = needsVersionList
+                ? repositories
+                        .findActiveExtensionVersions(extensionsMap.keySet(), targetPlatform, maxPreReleaseVersions)
+                : Collections.emptyList();
+
+        // Reuse the already-fetched list for "latest" only when it's uncapped (complete) - a pre-release
+        // cap ranks across all target platforms combined, so a capped list can miss the true latest for
+        // this platform; that case queries the database directly instead.
+        Map<Long, ExtensionVersion> latestVersions;
+        if (needsVersionList && maxPreReleaseVersions < 0) {
+            latestVersions = allActiveExtensionVersions.stream()
+                    .collect(Collectors.groupingBy(ev -> ev.getExtension().getId()))
+                    .values()
+                    .stream()
+                    .map(list -> versions.getLatest(list, false))
+                    .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
+        } else {
+            latestVersions = repositories.findLatestVersions(extensionsMap.keySet(), targetPlatform).stream()
+                    .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
+        }
 
         List<ExtensionVersion> extensionVersions;
-        if (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)) {
+        if (canSkipFullFetchForLatestOnly) {
+            extensionVersions = new ArrayList<>(latestVersions.values());
+        } else if (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)) {
             extensionVersions = allActiveExtensionVersions.stream()
                     .collect(Collectors.groupingBy(ev -> ev.getExtension().getId() + "@" + ev.getTargetPlatform()))
                     .values()
                     .stream()
                     .map(list -> versions.getLatest(list, true))
                     .collect(Collectors.toList());
-        } else if (test(flags, FLAG_INCLUDE_VERSIONS) || test(flags, FLAG_INCLUDE_VERSION_PROPERTIES)) {
+        } else if (needsVersionList) {
             extensionVersions = allActiveExtensionVersions;
         } else {
             extensionVersions = Collections.emptyList();
@@ -262,22 +296,25 @@ public class LocalVSCodeService implements IVSCodeService {
             fileResources = Collections.emptyMap();
         }
 
-        var latestVersions = allActiveExtensionVersions.stream()
-                .collect(Collectors.groupingBy(ev -> ev.getExtension().getId()))
-                .values()
-                .stream()
-                .map(list -> versions.getLatest(list, false))
-                .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
-
         var extensionQueryResults = new ArrayList<ExtensionQueryResult.Extension>();
         for (var extension : extensionsList) {
             var latest = latestVersions.get(extension.getId());
+            if (latest == null) {
+                continue;
+            }
             var queryVersions = extensionVersionsMap.getOrDefault(extension.getId(), Collections.emptyList()).stream()
                     .map(extVer -> toQueryVersion(extVer, fileResources, flags))
                     .collect(Collectors.toList());
 
             var queryExt = toQueryExtension(extension, latest, queryVersions, flags);
             extensionQueryResults.add(queryExt);
+        }
+
+        // Search reports its own total across every page, independent of this page's result count.
+        // A direct id/name lookup has no such separate total; count what actually made it into the
+        // response, since the null-"latest" guard above can now drop entries from extensionsList.
+        if (totalCount == null) {
+            totalCount = (long) extensionQueryResults.size();
         }
 
         return toQueryResult(extensionQueryResults, totalCount);
@@ -466,6 +503,7 @@ public class LocalVSCodeService implements IVSCodeService {
             throw new NotFoundException();
         }
 
+        var webuiUrl = webUi.getUrl();
         return UrlUtil.createApiUrl(webuiUrl, "extension", extension.getNamespace().getName(), extension.getName());
     }
 
@@ -510,24 +548,37 @@ public class LocalVSCodeService implements IVSCodeService {
             String namespaceName,
             String extensionName,
             String version,
+            String targetPlatform,
             String path
     ) {
         if (BuiltInExtensionUtil.isBuiltIn(namespaceName)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(builtinExtensionResponse());
         }
 
-        var extensionDownloadPath = webResources.getExtensionDownload(namespaceName, extensionName, null, version);
+        var extensionDownloadPath = webResources
+                .getExtensionDownload(namespaceName, extensionName, targetPlatform, version);
         if (extensionDownloadPath == null) {
             throw new NotFoundException();
         }
 
-        var file = getWebResource(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var file = getWebResource(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (file != null) {
             return storageUtil.getFileResponse(file);
         }
 
-        var node = webResources
-                .browseExtensionPackage(namespaceName, extensionName, null, version, path, extensionDownloadPath);
+        var node = webResources.browseExtensionPackage(
+                namespaceName,
+                extensionName,
+                targetPlatform,
+                version,
+                path,
+                extensionDownloadPath);
         if (node != null) {
             return storageUtil.getFileResponse(node);
         }

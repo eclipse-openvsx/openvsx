@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2019 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
 import java.time.LocalDate;
@@ -272,12 +275,20 @@ public class RepositoryService {
         return extensionRepo.findByActiveTrue();
     }
 
+    public Streamable<Extension> findAllDeprecatedExtensions() {
+        return extensionRepo.findByDeprecatedTrue();
+    }
+
     public Streamable<Extension> findAllNotMatchingByExtensionId(List<String> extensionIds) {
         return extensionRepo.findAllNotMatchingByExtensionId(extensionIds);
     }
 
     public Streamable<Extension> findExtensionsWithInconsistentActiveFlag() {
         return extensionRepo.findExtensionsWithInconsistentActiveFlag();
+    }
+
+    public Streamable<Extension> findExtensionsWithStaleLastUpdatedDate() {
+        return extensionRepo.findExtensionsWithStaleLastUpdatedDate();
     }
 
     public long countExtensions() {
@@ -567,6 +578,10 @@ public class RepositoryService {
         return personalAccessTokenRepo.findByValue(value);
     }
 
+    public PersonalAccessToken findPersonalAccessToken(String value, int version) {
+        return personalAccessTokenRepo.findByValueAndVersion(value, version);
+    }
+
     public PersonalAccessToken findPersonalAccessToken(long id) {
         return personalAccessTokenRepo.findById(id);
     }
@@ -737,6 +752,23 @@ public class RepositoryService {
      */
     public Optional<ExtensionVersionChange> findLatestExtensionVersionChange(ExtensionVersion extVersion) {
         return extensionVersionChangeRepo.findFirstByExtensionVersionOrderByChangedAtDescIdDesc(extVersion);
+    }
+
+    /**
+     * Whether the changes feed last reported this version as available under its current namespace, and
+     * so has a transition to withdraw once it goes away (deleted, purged, or renamed again).
+     * <p>
+     * Scoped to the current namespace, not the single latest entry overall: a renamed version can carry
+     * entries under more than one namespace, and a newer entry for an abandoned one would otherwise
+     * answer for the wrong tuple. False when never reported under this namespace, or already
+     * {@code REMOVED} there.
+     */
+    public boolean wasReportedAsAvailable(ExtensionVersion extVersion) {
+        var namespace = extVersion.getExtension().getNamespace().getName();
+        return extensionVersionChangeRepo
+                .findFirstByExtensionVersionAndNamespaceOrderByChangedAtDescIdDesc(extVersion, namespace)
+                .map(latest -> latest.getState() != ExtensionVersionState.REMOVED)
+                .orElse(false);
     }
 
     public List<ExtensionVersion> findActiveExtensionVersions(
@@ -973,6 +1005,10 @@ public class RepositoryService {
 
     public List<ExtensionVersion> findLatestVersions(Collection<Long> extensionIds) {
         return extensionVersionJooqRepo.findLatest(extensionIds);
+    }
+
+    public List<ExtensionVersion> findLatestVersions(Collection<Long> extensionIds, String targetPlatform) {
+        return extensionVersionJooqRepo.findLatest(extensionIds, targetPlatform);
     }
 
     public Map<Long, Boolean> findLatestVersionsIsPreview(Collection<Long> extensionIds) {

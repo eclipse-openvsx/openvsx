@@ -1,12 +1,15 @@
-/** ******************************************************************************
+/******************************************************************************
  * Copyright (c) 2024 Precies. Software Ltd and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- * ****************************************************************************** */
+ *****************************************************************************/
 package org.eclipse.openvsx.web;
 
 import java.io.IOException;
@@ -22,7 +25,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
@@ -36,11 +38,11 @@ public class SitemapService {
 
     private final RepositoryService repositories;
 
-    @Value("${ovsx.webui.url:}")
-    String webuiUrl;
+    private final WebUiProperties webUi;
 
-    public SitemapService(RepositoryService repositories) {
+    public SitemapService(RepositoryService repositories, WebUiProperties webUi) {
         this.repositories = repositories;
+        this.webUi = webUi;
     }
 
     @Cacheable(CACHE_SITEMAP)
@@ -79,6 +81,7 @@ public class SitemapService {
 
     private String getBaseUrl() {
         String url;
+        var webuiUrl = webUi.getUrl();
         if (StringUtils.isEmpty(webuiUrl)) {
             url = UrlUtil.getBaseUrl();
         } else if (URI.create(webuiUrl).isAbsolute()) {

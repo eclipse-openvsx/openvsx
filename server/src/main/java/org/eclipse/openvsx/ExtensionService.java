@@ -1,12 +1,15 @@
-/********************************************************************************
+/******************************************************************************
  * Copyright (c) 2020 TypeFox and others
  *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
+ * terms of the Eclipse Public License 2.0 which is available at
+ * https://www.eclipse.org/legal/epl-2.0.
  *
  * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
+ *****************************************************************************/
 package org.eclipse.openvsx;
 
 import java.io.BufferedInputStream;
@@ -235,6 +238,7 @@ public class ExtensionService {
         cache.evictNamespaceDetails(extension);
         cache.evictLatestExtensionVersion(extension);
         cache.evictExtensionJsons(extension);
+        cache.evictSitemap();
 
         if (extension.getVersions().stream().anyMatch(ExtensionVersion::isActive)) {
             // There is at least one active version => activate the extension
@@ -660,7 +664,7 @@ public class ExtensionService {
         // Read before the version is marked as removed below, and only reported for a version the feed
         // announced as available -- deleting one it never reported has nothing to withdraw, exactly as
         // purging one does not, see recordPurge.
-        var reported = wasReportedAsAvailable(extVersion);
+        var reported = repositories.wasReportedAsAvailable(extVersion);
         var now = TimeUtil.getCurrentUTC();
         extVersion.setActive(false);
         extVersion.setRemoved(true);
@@ -819,7 +823,7 @@ public class ExtensionService {
      * {@link RepositoryService#detachExtensionVersionChanges}.
      */
     private void recordPurge(ExtensionVersion extVersion) {
-        if (wasReportedAsAvailable(extVersion)) {
+        if (repositories.wasReportedAsAvailable(extVersion)) {
             repositories.recordPurgedExtensionVersionChange(
                     extVersion,
                     ExtensionVersionState.REMOVED,
@@ -829,24 +833,5 @@ public class ExtensionService {
         // Unconditional, and in particular also on the paths that append nothing above: whatever the log
         // already holds for this version has to stop pointing at it before it is deleted.
         repositories.detachExtensionVersionChanges(extVersion);
-    }
-
-    /**
-     * Whether the changes feed last reported this version as being available, and so has a transition to
-     * withdraw once the version goes away.
-     * <p>
-     * False for a version the feed never reported -- one whose publication never made it public, for
-     * instance because a scan quarantined it, or one that predates the feed and was already hidden when
-     * it was seeded. Reporting its removal would withdraw a publication that consumers were never told
-     * about, which is the one thing the append-only log is not allowed to say.
-     * <p>
-     * False as well once the feed has reported the version as gone: a version is deleted before it can be
-     * purged, and the purge only drops the tombstone the deletion kept, which is invisible from the
-     * outside, so a second entry would report a transition that never happened.
-     */
-    private boolean wasReportedAsAvailable(ExtensionVersion extVersion) {
-        return repositories.findLatestExtensionVersionChange(extVersion)
-                .map(latest -> latest.getState() != ExtensionVersionState.REMOVED)
-                .orElse(false);
     }
 }
