@@ -143,7 +143,13 @@ public class ExtensionControlService {
         var oldReplacement = extension.getReplacement();
         extension.setDeprecated(deprecated);
         extension.setDownloadable(downloadable);
-        if (replacementId != null) {
+        if (!deprecated) {
+            // A replacement only makes sense on a deprecated extension. Without this, un-deprecating
+            // (whether via an explicit `false` entry or the control file dropping the entry entirely)
+            // would leave the old pointer in place, and LocalRegistryService#toReplacementJson surfaces
+            // it regardless of the deprecated flag.
+            extension.setReplacement(null);
+        } else if (replacementId != null) {
             var replacement = repositories.findExtension(replacementId.extension(), replacementId.namespace());
             if (replacement == null || !replacement.isActive()) {
                 // Never point at a replacement that does not exist or has no active version; such a

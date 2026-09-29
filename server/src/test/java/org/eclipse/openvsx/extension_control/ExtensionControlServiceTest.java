@@ -170,6 +170,23 @@ class ExtensionControlServiceTest {
     }
 
     @Test
+    void clearsReplacementWhenUnDeprecated() {
+        var replacement = extension("replacement", false, true);
+        var extension = extension("ext", true, true); // deprecated, with a replacement on record
+        extension.setReplacement(replacement);
+        mockExtension(extension);
+
+        // Un-deprecating passes no replacementId, whether from an explicit `false` control-file entry
+        // or the reconciliation pass for an entry removed from the file entirely.
+        service.updateExtension(new ExtensionId(NAMESPACE, "ext"), false, null, true);
+
+        assertThat(extension.getReplacement())
+                .as("a stale replacement must not survive un-deprecation")
+                .isNull();
+        verifyCachesEvicted(extension);
+    }
+
+    @Test
     void doesNotEvictCachesWhenNothingChanged() {
         var replacement = extension("replacement", false, true);
         var extension = extension("ext", true, true); // already deprecated
