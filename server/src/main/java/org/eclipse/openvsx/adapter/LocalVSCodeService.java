@@ -220,11 +220,9 @@ public class LocalVSCodeService implements IVSCodeService {
                 && !test(flags, FLAG_INCLUDE_VERSIONS)
                 && !test(flags, FLAG_INCLUDE_VERSION_PROPERTIES);
 
-        // Version details (and thus the potentially unbounded active-version history) are only needed
-        // for these flags; "latest" is computed separately below without fetching this list. When a
-        // concrete target platform is requested and only the latest version is needed, the bulk
-        // findLatestVersions query below already returns exactly that per-extension row for this
-        // platform, so the full active-version fetch can be skipped entirely.
+        // "latest" is computed separately below without needing this list; when it's the only thing
+        // requested for a concrete target platform, the bulk findLatestVersions query below already
+        // returns exactly that per-extension row, so the full active-version fetch can be skipped.
         var needsVersionList = !canSkipFullFetchForLatestOnly
                 && (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)
                         || test(flags, FLAG_INCLUDE_VERSIONS)
@@ -236,9 +234,7 @@ public class LocalVSCodeService implements IVSCodeService {
 
         // Reuse the already-fetched list for "latest" only when it's uncapped (complete) - a pre-release
         // cap ranks across all target platforms combined, so a capped list can miss the true latest for
-        // this platform; that case still queries the database directly. When canSkipFullFetchForLatestOnly
-        // is true, needsVersionList is false here, so this always takes the direct-query branch below -
-        // the single query that extensionVersions also reuses just after.
+        // this platform; that case queries the database directly instead.
         Map<Long, ExtensionVersion> latestVersions;
         if (needsVersionList && maxPreReleaseVersions < 0) {
             latestVersions = allActiveExtensionVersions.stream()
