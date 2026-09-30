@@ -93,6 +93,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
         extVersion.setVersion("3.1.2-rc1+armhf");
         extVersion.setTargetPlatform("targetPlatform");
         extVersion.setExtension(extension);
+        extVersion.setPublishedBy(userData);
         var personalAccessToken = new PersonalAccessToken();
         personalAccessToken.setType(PersonalAccessTokenType.LLT);
         var keyPair = new SignatureKeyPair();

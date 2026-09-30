@@ -36,6 +36,7 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 import org.eclipse.openvsx.storage.StorageUtilService;
 
@@ -210,6 +211,10 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
             extVersion.setTargetPlatform("universal");
             extVersion.setExtension(seeded);
             extVersion.setActive(true);
+            var publisher = new UserData();
+            publisher.setLoginName("publisher");
+            entityManager.persist(publisher);
+            extVersion.setPublishedBy(publisher);
             entityManager.persist(extVersion);
             return seeded;
         });

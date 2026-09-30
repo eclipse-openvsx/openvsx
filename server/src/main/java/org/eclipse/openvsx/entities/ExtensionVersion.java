@@ -27,6 +27,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
@@ -91,7 +92,8 @@ public class ExtensionVersion implements Serializable {
     /**
      * Who published this version.
      */
-    @ManyToOne
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "published_by_id", nullable = false)
     private UserData publishedBy;
 
     @Column(nullable = true)

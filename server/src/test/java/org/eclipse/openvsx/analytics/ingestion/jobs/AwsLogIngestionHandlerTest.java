@@ -51,6 +51,7 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.UserData;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -286,6 +287,10 @@ class AwsLogIngestionHandlerTest extends AbstractPostgresContainerTest {
             extVersion.setTargetPlatform("universal");
             extVersion.setExtension(extension);
             extVersion.setActive(true);
+            var publisher = new UserData();
+            publisher.setLoginName("publisher");
+            entityManager.persist(publisher);
+            extVersion.setPublishedBy(publisher);
             entityManager.persist(extVersion);
 
             var resource = new FileResource();
