@@ -844,7 +844,7 @@ class PublishExtensionVersionHandlerTest {
             when(processor.getExtensionName()).thenReturn("demo");
             when(processor.getVersion()).thenReturn("2.0.0");
             when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
-            when(processor.getDisplayName()).thenReturn("Demo OK");
+            when(processor.getDeclaredDisplayName()).thenReturn("Demo OK");
             when(repositories.findNamespace("publisher")).thenReturn(namespace);
             when(users.hasPublishPermission(user, namespace)).thenReturn(true);
             when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
@@ -868,7 +868,7 @@ class PublishExtensionVersionHandlerTest {
             when(processor.getExtensionName()).thenReturn("demo");
             when(processor.getVersion()).thenReturn("2.0.0");
             when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
-            when(processor.getDisplayName()).thenReturn("Demo OK");
+            when(processor.getDeclaredDisplayName()).thenReturn("Demo OK");
             when(repositories.findNamespace("publisher")).thenReturn(namespace);
             when(users.hasPublishPermission(user, namespace)).thenReturn(true);
             when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
@@ -878,6 +878,94 @@ class PublishExtensionVersionHandlerTest {
 
             assertThatCode(() -> handler.checkPublishPreconditions(processor, user)).doesNotThrowAnyException();
 
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldNotCheckTheDisplayNameOfAPackageDeclaringNone() throws IOException {
+        // A package declaring no display name adopts none, so there is nothing to check it against.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+            metadata.setDisplayName(null);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", null));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldNotCheckFurtherVersionsOfAnExtensionThatShowsNoDisplayName() throws IOException {
+        // Such an extension stores no display name on any version, so a further version carries the
+        // same nothing it already shows. Standing the extension name in on one side of that
+        // comparison only would make every routine bump look like a rename onto that name, and hand
+        // the publisher a permanent conflict with whichever extension happens to display it.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+            metadata.setDisplayName(null);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var existingExtension = buildExtension("publisher", "demo");
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", null));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
+            when(repositories.findLatestVersion(existingExtension, null, false, true))
+                    .thenReturn(buildVersionShowing(null));
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldPassPreconditionsForAFurtherVersionOfAnExtensionThatShowsNoDisplayName() {
+        // The same version bump seen by the early copy of the check, which runs only on the paths
+        // that scan: a divergence would reject with scanning enabled what publishes fine without it.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+
+            when(processor.getNamespace()).thenReturn("publisher");
+            when(processor.getExtensionName()).thenReturn("demo");
+            when(processor.getVersion()).thenReturn("2.0.0");
+            when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
+            when(processor.getDeclaredDisplayName()).thenReturn(null);
+            // What the real processor stands in for the absent name, so a gate reading the labelling
+            // accessor fails this test rather than passing on a bare mock's null.
+            lenient().when(processor.getDisplayNameOrExtensionName()).thenReturn("demo");
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
+                    .thenReturn(null);
+            when(repositories.findLatestVersion("publisher", "demo", null, false, true))
+                    .thenReturn(buildVersionShowing(null));
+
+            assertThatCode(() -> handler.checkPublishPreconditions(processor, user)).doesNotThrowAnyException();
+
+            // Not merely tolerated by the lookup returning nothing: the extension name is never held
+            // up as a display name in the first place.
             verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
         }
     }
@@ -894,7 +982,7 @@ class PublishExtensionVersionHandlerTest {
             when(processor.getExtensionName()).thenReturn("demo");
             when(processor.getVersion()).thenReturn("2.0.0");
             when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
-            when(processor.getDisplayName()).thenReturn("Demo OK");
+            when(processor.getDeclaredDisplayName()).thenReturn("Demo OK");
             when(repositories.findNamespace("publisher")).thenReturn(namespace);
             when(users.hasPublishPermission(user, namespace)).thenReturn(true);
             when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
@@ -925,14 +1013,21 @@ class PublishExtensionVersionHandlerTest {
             when(processor.getIconPath()).thenReturn(iconPath);
         }
 
-        // Lenient: the tests that fail before an extension row is reached never read it
-        lenient().when(processor.getDisplayName()).thenReturn("Demo OK");
-
         var ev = new ExtensionVersion();
         ev.setDisplayName("Demo OK");
         ev.setVersion("2.0.0");
         ev.setTargetPlatform("any");
         when(processor.getMetadata(anyInt(), anyInt())).thenReturn(ev);
+
+        // Answered from the metadata rather than restated, so the two cannot drift apart in the
+        // fixture, and lazily so that a test adjusting the display name afterwards moves both.
+        // Lenient: the tests that fail before an extension row is reached never read them.
+        lenient().when(processor.getDeclaredDisplayName()).thenAnswer(invocation -> ev.getDisplayName());
+
+        // With the fallback the real processor applies, so a gate reading the labelling accessor is
+        // caught here rather than seeing the null a bare mock would return.
+        lenient().when(processor.getDisplayNameOrExtensionName())
+                .thenAnswer(invocation -> ev.getDisplayName() != null ? ev.getDisplayName() : name);
 
         return ev;
     }

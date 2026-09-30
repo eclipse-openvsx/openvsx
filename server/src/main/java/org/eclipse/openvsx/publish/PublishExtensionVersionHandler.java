@@ -190,9 +190,10 @@ public class PublishExtensionVersionHandler {
         }
         var latestVersion = repositories
                 .findLatestVersion(namespace.getName(), extensionName, null, false, true);
-        if (adoptsDisplayName(latestVersion, processor.getDisplayName())) {
-            checkDisplayNameConflict(namespace.getName(), processor.getDisplayName(), userData);
-        }
+        // The declared name, not the labelling fallback: gating on a name the package does not carry
+        // would make this copy stricter than the one in createExtensionVersion that enforces it.
+        checkDisplayNameAdoption(
+                namespace.getName(), processor.getDeclaredDisplayName(), latestVersion, userData);
     }
 
     private Namespace checkPublishPermission(ExtensionProcessor processor, UserData user) {
@@ -300,7 +301,7 @@ public class PublishExtensionVersionHandler {
             // is no constraint that could enforce it, the rule being over the latest active version and
             // scoped to the publisher's own namespaces -- so the remaining race is acceptable, and
             // leaves behind a duplicate an admin can resolve.
-            checkDisplayNameConflict(namespaceName, displayName, au.userData());
+            checkDisplayNameAdoption(namespaceName, displayName, null, au.userData());
 
             extension = new Extension();
             extension.setActive(false);
@@ -326,9 +327,7 @@ public class PublishExtensionVersionHandler {
             // popular extension in its next version -- the manifest being the source of truth for the
             // name the registry shows.
             var latestVersion = repositories.findLatestVersion(extension, null, false, true);
-            if (adoptsDisplayName(latestVersion, displayName)) {
-                checkDisplayNameConflict(namespaceName, displayName, au.userData());
-            }
+            checkDisplayNameAdoption(namespaceName, displayName, latestVersion, au.userData());
         }
 
         extension.setLastUpdatedDate(extVersion.getTimestamp());
@@ -362,6 +361,30 @@ public class PublishExtensionVersionHandler {
         if (isMalicious(namespaceName, extensionName)) {
             throw new ErrorResultException(
                     NamingUtil.toExtensionId(namespaceName, extensionName) + " is a known malicious extension");
+        }
+    }
+
+    /**
+     * The display name gate: rejects a publication that adopts a display name another extension
+     * already shows.
+     * <p>
+     * The one place the rule is applied. {@link #checkPublishPreconditions} runs it early to fail
+     * before scanning a package that can not be published anyway, and {@link #createExtensionVersion}
+     * runs it again under the extension lock; the early copy only stays a subset of the authoritative
+     * one while both are handed the same display name.
+     *
+     * @param displayName   the name the publication carries, {@code null} when it declares none,
+     *                      which adopts nothing
+     * @param latestVersion the version the registry currently shows, {@code null} when it shows none
+     */
+    private void checkDisplayNameAdoption(
+            String namespaceName,
+            String displayName,
+            ExtensionVersion latestVersion,
+            UserData user
+    ) {
+        if (adoptsDisplayName(latestVersion, displayName)) {
+            checkDisplayNameConflict(namespaceName, displayName, user);
         }
     }
 
