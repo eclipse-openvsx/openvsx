@@ -300,7 +300,7 @@ class AwsLogIngestionHandlerTest extends AbstractPostgresContainerTest {
             resource.setExtension(extVersion);
             entityManager.persist(resource);
 
-            seededEntities.addAll(List.of(namespace, extension, extVersion, resource));
+            seededEntities.addAll(List.of(namespace, extension, publisher, extVersion, resource));
             return extension;
         });
     }

@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.analytics;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -85,6 +86,7 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
         new JdbcTemplate(dataSource).execute("TRUNCATE download_event");
         if (extension != null) {
             inTransaction(() -> {
+                var users = new ArrayList<>();
                 var managed = entityManager.find(Extension.class, extension.getId());
                 managed.getVersions().forEach(extVersion -> {
                     entityManager
@@ -92,7 +94,10 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
                             .setParameter("extVersion", extVersion)
                             .executeUpdate();
                     entityManager.remove(extVersion);
+                    // FK extVersion -> userData; doing it last
+                    users.add(extVersion.getPublishedBy());
                 });
+                users.forEach(user -> entityManager.remove(user));
                 var namespace = managed.getNamespace();
                 entityManager.remove(managed);
                 entityManager.remove(namespace);
