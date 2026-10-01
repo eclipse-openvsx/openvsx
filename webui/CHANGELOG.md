@@ -24,7 +24,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump ip-address from 10.4.0 to 10.7.2
 - Bump undici from 8.9.0 to 8.11.2
 - Bump markdown-it from 14.2.0 to 14.3.1
-- Bump brace-expansion from 1.1.18 to 1.1.21
+- Bump brace-expansion from 1.1.18 to 1.1.21, 2.1.7, 5.0.12
 - Bump dompurify from 3.4.13 to 3.4.16
 
 ## [v1.2.0] (10/09/2026)
