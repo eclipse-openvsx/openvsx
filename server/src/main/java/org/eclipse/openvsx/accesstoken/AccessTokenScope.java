@@ -13,7 +13,6 @@
 package org.eclipse.openvsx.accesstoken;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.Namespace;
@@ -57,7 +56,7 @@ public sealed interface AccessTokenScope {
         public boolean allowsAction(AccessTokenAction accessTokenAction) {
             requireNonNull(accessTokenAction);
             return accessTokenAction.namespace().isPresent()
-                    && Objects.equals(namespace.getName(), accessTokenAction.namespace().get());
+                    && namespace.getName().equalsIgnoreCase(accessTokenAction.namespace().get());
         }
     }
 
@@ -70,8 +69,8 @@ public sealed interface AccessTokenScope {
         public boolean allowsAction(AccessTokenAction accessTokenAction) {
             requireNonNull(accessTokenAction);
             return accessTokenAction.namespace().isPresent() && accessTokenAction.extension().isPresent() &&
-                    Objects.equals(extension.getNamespace().getName(), accessTokenAction.namespace().get()) &&
-                    Objects.equals(extension.getName(), accessTokenAction.extension().get());
+                    extension.getNamespace().getName().equalsIgnoreCase(accessTokenAction.namespace().get()) &&
+                    extension.getName().equalsIgnoreCase(accessTokenAction.extension().get());
         }
     }
 
