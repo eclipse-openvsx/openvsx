@@ -8,6 +8,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 - Bump ip-address from 10.4.0 to 10.7.2
 - Bump brace-expansion to 1.1.21, 2.1.7, 5.0.12
+- Bump markdown-it from 14.2.0 to 14.3.2
 
 ### [v1.2.0] (10/09/2026)
 
