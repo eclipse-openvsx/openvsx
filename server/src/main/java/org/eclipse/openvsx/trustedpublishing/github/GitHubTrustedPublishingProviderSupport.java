@@ -43,6 +43,9 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
     private static final String CLAIM_ENVIRONMENT = "environment"; // "prod"; optional
     private static final String CLAIM_RUNNER_ENVIRONMENT = "runner_environment"; // "github-hosted"; for self-hosted GH runners this claim may not be included
     private static final String CLAIM_WORKFLOW_REF = "workflow_ref"; // "octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main"
+    private static final String CLAIM_JOB_WORKFLOW_REF = "job_workflow_ref"; // the executing (possibly reusable) workflow; recorded only
+    private static final String CLAIM_RUN_ID = "run_id"; // "1658821493"; recorded only
+    private static final String CLAIM_WORKFLOW_SHA = "workflow_sha"; // commit of the workflow file; recorded only
 
     private static final String REG_OWNER = "owner";
     private static final String REG_REPO = "repo";
@@ -72,7 +75,7 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
     @Override
     protected Map<String, String> extractClaims(Jwt jwt) {
         requireNonNull(jwt);
-        HashMap<String, String> result = new HashMap<>(7);
+        HashMap<String, String> result = new HashMap<>(10);
         mustClaim(jwt, JwtClaimNames.SUB, result);
         mustClaim(jwt, CLAIM_REPOSITORY, result);
         mustClaim(jwt, CLAIM_REPOSITORY_ID, result);
@@ -81,6 +84,9 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
         mayClaim(jwt, CLAIM_ENVIRONMENT, result);
         mayClaim(jwt, CLAIM_RUNNER_ENVIRONMENT, result);
         mustClaim(jwt, CLAIM_WORKFLOW_REF, result);
+        mayClaim(jwt, CLAIM_JOB_WORKFLOW_REF, result);
+        mayClaim(jwt, CLAIM_RUN_ID, result);
+        mayClaim(jwt, CLAIM_WORKFLOW_SHA, result);
         return result;
     }
 
