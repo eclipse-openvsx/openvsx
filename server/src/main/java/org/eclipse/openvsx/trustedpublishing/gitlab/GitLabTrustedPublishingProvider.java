@@ -58,6 +58,9 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
     private static final String CLAIM_ENVIRONMENT = "environment"; // "prod"; optional
     private static final String CLAIM_RUNNER_ENVIRONMENT = "runner_environment"; // "gitlab-hosted"
     private static final String CLAIM_CI_CONFIG_REF_URI = "ci_config_ref_uri"; // "gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main"
+    private static final String CLAIM_PIPELINE_ID = "pipeline_id"; // "1234"; recorded only
+    private static final String CLAIM_JOB_ID = "job_id"; // "5678"; recorded only
+    private static final String CLAIM_SHA = "sha"; // commit the pipeline was for; recorded only
 
     private static final String API_RESOLVE_REQUEST = "/api/v4/projects/{path}";
 
@@ -105,7 +108,7 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
     @Override
     protected Map<String, String> extractClaims(Jwt jwt) {
         requireNonNull(jwt);
-        HashMap<String, String> result = new HashMap<>(7);
+        HashMap<String, String> result = new HashMap<>(10);
         mustClaim(jwt, JwtClaimNames.SUB, result);
         mustClaim(jwt, CLAIM_NAMESPACE_ID, result);
         mustClaim(jwt, CLAIM_NAMESPACE_PATH, result);
@@ -114,6 +117,9 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
         mayClaim(jwt, CLAIM_ENVIRONMENT, result);
         mustClaim(jwt, CLAIM_RUNNER_ENVIRONMENT, result);
         mustClaim(jwt, CLAIM_CI_CONFIG_REF_URI, result);
+        mayClaim(jwt, CLAIM_PIPELINE_ID, result);
+        mayClaim(jwt, CLAIM_JOB_ID, result);
+        mayClaim(jwt, CLAIM_SHA, result);
         return result;
     }
 
