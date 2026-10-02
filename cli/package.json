@@ -42,7 +42,6 @@
         "is-ci": "^2.0.0",
         "leven": "^3.1.0",
         "semver": "^7.6.0",
-        "tmp": "^0.2.3",
         "yauzl-promise": "^4.0.0"
     },
     "devDependencies": {
@@ -53,7 +52,6 @@
         "@types/is-ci": "^2.0.0",
         "@types/node": "^22.0.0",
         "@types/semver": "^7.5.8",
-        "@types/tmp": "^0.2.2",
         "@types/yauzl-promise": "^4",
         "@types/yazl": "^3.3.1",
         "@typescript-eslint/eslint-plugin": "^8.15.0",

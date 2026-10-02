@@ -8,9 +8,10 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
+import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import * as tmp from 'tmp';
 import * as http from 'http';
 import { RegistryOptions } from './registry-options';
 import { TrustedPublishingOptions } from './trusted-publishing-options';
@@ -97,15 +98,11 @@ export function makeDirs(path: fs.PathLike): Promise<void> {
     });
 }
 
-export function createTempFile(options: tmp.TmpNameOptions): Promise<string> {
-    return new Promise((resolve, reject) => {
-        tmp.tmpName(options, (err: Error | null, name: string) => {
-            if (err)
-                reject(err);
-            else
-                resolve(name);
-        });
-    });
+/**
+ * Returns a random, not-yet-created file path ending in `postfix`, directly in the OS temp directory.
+ */
+export async function createTempFile(options: { postfix?: string } = {}): Promise<string> {
+    return path.join(os.tmpdir(), `ovsx-${crypto.randomUUID()}${options.postfix ?? ''}`);
 }
 
 export function rejectError(err: any) {
