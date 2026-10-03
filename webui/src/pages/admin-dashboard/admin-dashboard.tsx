@@ -20,6 +20,7 @@ import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import StorageIcon from '@mui/icons-material/Storage';
+import StraightenIcon from '@mui/icons-material/Straighten';
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
 import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
@@ -40,6 +41,7 @@ import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
 import { Tiers } from './tiers/tiers';
+import { SizeOverrides } from './size-overrides/size-overrides';
 import { Customers } from './customers/customers';
 import { CustomerDetails } from './customers/customer-details';
 import { Logs } from './logs/logs';
@@ -123,6 +125,12 @@ const navConfig: NavEntry[] = [
         name: 'Caches',
         icon: <StorageIcon />,
         description: 'Inspect the application caches and clear them'
+    },
+    {
+        path: AdminDashboardRoutes.SIZE_OVERRIDES,
+        name: 'Size overrides',
+        icon: <StraightenIcon />,
+        description: 'Per-namespace and per-extension upload size limits'
     },
     {
         path: AdminDashboardRoutes.SEARCH_INDEX,
@@ -279,6 +287,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/logs' element={<Logs />} />
                                     <Route path='/consistency' element={<DataConsistency />} />
                                     <Route path='/caches' element={<CachesAdmin />} />
+                                    <Route path='/size-overrides' element={<SizeOverrides />} />
                                     <Route path='/search-index' element={<SearchIndexAdmin />} />
                                     <Route path='/search-explain' element={<SearchExplainAdmin />} />
                                     {/* Splat so a contributed page can render nested routes; it also matches the bare path. */}
