@@ -12,13 +12,22 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
+import java.util.List;
+
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import org.eclipse.openvsx.cache.CacheService;
+import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionSizeOverride;
+import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 @Service
 @CacheConfig(cacheManager = "localCacheManager")
@@ -29,15 +38,18 @@ public class ExtensionSizeLimitService {
     private final SettingsService settings;
     private final ExtensionSizeOverrideRepository overrides;
     private final RepositoryService repositories;
+    private final PublishingConfig publishingConfig;
 
     public ExtensionSizeLimitService(
             SettingsService settings,
             ExtensionSizeOverrideRepository overrides,
-            RepositoryService repositories
+            RepositoryService repositories,
+            PublishingConfig publishingConfig
     ) {
         this.settings = settings;
         this.overrides = overrides;
         this.repositories = repositories;
+        this.publishingConfig = publishingConfig;
     }
 
     public long getDefaultLimit() {
@@ -73,5 +85,94 @@ public class ExtensionSizeLimitService {
             namespaceWide = override.getMaxSize();
         }
         return namespaceWide >= 0 ? namespaceWide : getDefaultLimit();
+    }
+
+    public List<ExtensionSizeOverride> listOverrides() {
+        return overrides.findAllByOrderByIdAsc();
+    }
+
+    public ExtensionSizeOverride createOverride(
+            String namespaceName,
+            @Nullable String extensionName,
+            long maxSize
+    ) {
+        var namespace = requireNamespace(namespaceName);
+        var extension = extensionName == null ? null : requireExtension(namespace, extensionName);
+        requireValidSize(maxSize);
+
+        var extensionId = extension == null ? null : extension.getId();
+        for (var existing : overrides.findByScope(namespace.getId(), extensionId)) {
+            var sameScope = extension == null
+                    ? existing.getScopeExtension() == null
+                    : existing.getScopeExtension() != null;
+            if (sameScope) {
+                throw new ErrorResultException(
+                        "A size override already exists for " + describeScope(namespaceName, extensionName) + ".",
+                        HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        var override = new ExtensionSizeOverride();
+        override.setScopeNamespace(namespace);
+        override.setScopeExtension(extension);
+        override.setMaxSize(maxSize);
+        var saved = overrides.save(override);
+        settings.invalidateCache();
+        return saved;
+    }
+
+    public ExtensionSizeOverride updateOverride(long id, long maxSize) {
+        var override = requireOverride(id);
+        requireValidSize(maxSize);
+        override.setMaxSize(maxSize);
+        var saved = overrides.save(override);
+        settings.invalidateCache();
+        return saved;
+    }
+
+    public ExtensionSizeOverride deleteOverride(long id) {
+        var override = requireOverride(id);
+        overrides.delete(override);
+        settings.invalidateCache();
+        return override;
+    }
+
+    private Namespace requireNamespace(String namespaceName) {
+        var namespace = repositories.findNamespace(namespaceName);
+        if (namespace == null) {
+            throw new ErrorResultException("Unknown namespace: " + namespaceName, HttpStatus.BAD_REQUEST);
+        }
+        return namespace;
+    }
+
+    private Extension requireExtension(Namespace namespace, String extensionName) {
+        var extension = repositories.findExtension(extensionName, namespace);
+        if (extension == null) {
+            throw new ErrorResultException(
+                    "Unknown extension: " + describeScope(namespace.getName(), extensionName),
+                    HttpStatus.BAD_REQUEST);
+        }
+        return extension;
+    }
+
+    private ExtensionSizeOverride requireOverride(long id) {
+        return overrides.findById(id)
+                .orElseThrow(() -> new ErrorResultException("Unknown size override: " + id, HttpStatus.NOT_FOUND));
+    }
+
+    private void requireValidSize(long maxSize) {
+        if (maxSize <= 0) {
+            throw new ErrorResultException("The size override must be greater than zero.", HttpStatus.BAD_REQUEST);
+        }
+        var ceiling = publishingConfig.getMaxOverrideSize();
+        if (maxSize > ceiling) {
+            throw new ErrorResultException(
+                    "The size override exceeds the maximum of " + ceiling + " bytes.",
+                    HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private static String describeScope(String namespaceName, @Nullable String extensionName) {
+        return extensionName == null ? namespaceName : namespaceName + "." + extensionName;
     }
 }
