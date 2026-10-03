@@ -10,7 +10,7 @@
 import * as fs from 'fs';
 import { createVSIX, IPackageOptions } from '@vscode/vsce';
 import { getPAT } from './pat';
-import { createTempFile, addEnvOptions, addTrustedPublishingEnvOptions, formatBytes, StatusError } from './util';
+import { getTempFilePath, addEnvOptions, addTrustedPublishingEnvOptions, formatBytes, StatusError } from './util';
 import { Extension, Registry } from './registry';
 import { checkLicense } from './check-license';
 import { readVSIXPackage } from './zip';
@@ -171,7 +171,7 @@ async function packageExtension(options: InternalPublishOptions, registry: Regis
         await checkLicense(options.packagePath!);
     }
 
-    options.extensionFile = await createTempFile({ postfix: '.vsix' });
+    options.extensionFile = getTempFilePath('.vsix');
     const packageOptions: IPackageOptions = {
         packagePath: options.extensionFile,
         target: options.target,

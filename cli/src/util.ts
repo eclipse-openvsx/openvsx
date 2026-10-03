@@ -101,8 +101,8 @@ export function makeDirs(path: fs.PathLike): Promise<void> {
 /**
  * Returns a random, not-yet-created file path ending in `postfix`, directly in the OS temp directory.
  */
-export async function createTempFile(options: { postfix?: string } = {}): Promise<string> {
-    return path.join(os.tmpdir(), `ovsx-${crypto.randomUUID()}${options.postfix ?? ''}`);
+export function getTempFilePath(postfix = ''): string {
+    return path.join(os.tmpdir(), `ovsx-${crypto.randomUUID()}${postfix}`);
 }
 
 export function rejectError(err: any) {

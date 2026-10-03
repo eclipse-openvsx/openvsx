@@ -14,7 +14,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { Registry, Extension } from './registry';
-import { addEnvOptions, createTempFile } from './util';
+import { addEnvOptions, getTempFilePath } from './util';
 import { readVSIXPackage, readZip } from './zip';
 import { VerifyOptions } from './verify-options';
 
@@ -82,7 +82,7 @@ async function resolveVersion(registry: Registry, extension: Extension, version:
 }
 
 async function downloadSignature(registry: Registry, url: string): Promise<Buffer> {
-    const sigzipPath = await createTempFile({ postfix: '.sigzip' });
+    const sigzipPath = getTempFilePath('.sigzip');
     try {
         await registry.download(sigzipPath, new URL(url));
         const entries = await readZip(sigzipPath, name => name === SIGNATURE_ENTRY);
@@ -97,7 +97,7 @@ async function downloadSignature(registry: Registry, url: string): Promise<Buffe
 }
 
 async function downloadPublicKey(registry: Registry, url: string): Promise<string> {
-    const publicKeyPath = await createTempFile({ postfix: '.pem' });
+    const publicKeyPath = getTempFilePath('.pem');
     try {
         await registry.download(publicKeyPath, new URL(url));
         return await fs.promises.readFile(publicKeyPath, 'utf-8');
