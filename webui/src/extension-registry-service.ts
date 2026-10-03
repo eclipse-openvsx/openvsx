@@ -674,6 +674,11 @@ export class ExtensionRegistryService {
         const endpoint = createAbsoluteURL([this.serverUrl, 'api', 'version']);
         return sendRequest({ abortController, endpoint });
     }
+
+    async getSiteSettings(abortController: AbortController): Promise<Readonly<Settings>> {
+        const endpoint = createAbsoluteURL([this.serverUrl, 'api', '-', 'settings']);
+        return sendStrictRequest({ abortController, endpoint });
+    }
 }
 
 export interface AdminService {

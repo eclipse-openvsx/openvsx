@@ -12,13 +12,15 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
+import java.util.LinkedHashMap;
+
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
-import org.eclipse.openvsx.entities.Setting;
 import org.eclipse.openvsx.repositories.SettingRepository;
 import org.eclipse.openvsx.util.TimeUtil;
 
@@ -34,19 +36,28 @@ public class SettingsCache {
         this.repository = repository;
     }
 
-    @Cacheable(value = CACHE_SETTING, key = "#key")
-    public Boolean getBoolean(String key, boolean defaultValue) {
-        return repository
-                .findByKey(key)
-                .map(Setting::getValue)
-                .map(Boolean::parseBoolean)
-                .orElse(defaultValue);
+    /**
+     * The whole store in one cache entry, read in a single query. Values keep their stored JSON
+     * type: a boolean comes back a Boolean, a string a String. A JSON {@code null} is skipped,
+     * since no setting is meaningfully absent-but-present.
+     */
+    @Cacheable(CACHE_SETTING)
+    public SettingRows snapshot() {
+        var settings = new LinkedHashMap<String, Object>();
+        for (var setting : repository.findAll()) {
+            var value = JsonMapper.shared().readValue(setting.getValue(), Object.class);
+            if (value != null) {
+                settings.put(setting.getKey(), value);
+            }
+        }
+        return new SettingRows(settings);
     }
 
+    /** Jackson does the encoding, since the value column is jsonb rather than text. */
     @Transactional
-    @CacheEvict(value = CACHE_SETTING, key = "#key")
-    public void setBoolean(String key, boolean value) {
-        repository.upsert(key, String.valueOf(value), TimeUtil.getCurrentUTC());
+    @CacheEvict(value = CACHE_SETTING, allEntries = true)
+    public void set(String key, Object value) {
+        repository.upsert(key, JsonMapper.shared().writeValueAsString(value), TimeUtil.getCurrentUTC());
     }
 
     @CacheEvict(value = CACHE_SETTING, allEntries = true)

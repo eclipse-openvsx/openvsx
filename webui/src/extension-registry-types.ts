@@ -626,8 +626,19 @@ export interface LogPageableList {
     };
 }
 
+export type BannerSeverity = 'info' | 'warning';
+
+/**
+ * Runtime settings, one entry per setting key, exactly as the registry stores them. A key is
+ * absent until an admin sets it. The public endpoint additionally omits `read-only`, and omits
+ * every `banner-*` key while the banner is switched off.
+ */
 export interface Settings {
-    readOnly: boolean;
+    'read-only'?: boolean;
+    'banner-enabled'?: boolean;
+    'banner-message'?: string;
+    'banner-severity'?: BannerSeverity;
+    'banner-dismiss-id'?: string;
 }
 
 export interface SearchIndex {
