@@ -4,6 +4,10 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 ### [next] (unreleased)
 
+#### Changed
+
+- `publish` now warns about an oversized package instead of refusing to upload it. The limit from `/api/version` is the registry default and carries no namespace context, so with per-namespace size overrides it can be lower than what the registry would actually accept; the server's response decides ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+
 ### Dependencies
 
 - Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`

@@ -128,7 +128,7 @@ The global default (`max-extension-size`) is a single field added to the existin
 
 Confirmed in `cli/src/publish.ts:28-55,72,153-165`: `maxExtensionSize` is fetched once from `/api/version` before any manifest is parsed, and `ensureWithinSizeLimit` throws if the local file exceeds it. With namespace/extension overrides in place, this becomes a false negative — the CLI could refuse an upload the server would accept.
 
-`/api/version` has no namespace context and gains none here (a namespace-aware variant is a larger protocol change, not required for correctness). Instead, the check becomes advisory: `ensureWithinSizeLimit`'s `throw` becomes a `console.warn`, and the upload proceeds. The server's 413 — now carrying the actual applicable limit per the Enforcement section above — is authoritative either way. This is the smallest change that removes the false-negative risk, at the cost of a possibly-wrong local warning, which the issue accepts as preferable.
+`/api/version` has no namespace context and gains none here (a namespace-aware variant is a larger protocol change, not required for correctness). Instead, the check becomes advisory: the `throw` becomes a `console.warn` and the upload proceeds — as built, `ensureWithinSizeLimit` is renamed `warnIfAboveSizeLimit`, since the old name promised a guarantee it no longer provides. The server's 413 — now carrying the actual applicable limit per the Enforcement section above — is authoritative either way. This is the smallest change that removes the false-negative risk, at the cost of a possibly-wrong local warning, which the issue accepts as preferable.
 
 ## Open items not resolved by this design
 
