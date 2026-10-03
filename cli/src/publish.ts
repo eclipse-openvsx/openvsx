@@ -75,13 +75,28 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
         delete options.packagePath;
         delete options.target;
     }
-    if (!options.extensionFile) {
-        await packageExtension(options, registry);
-        console.log(); // new line
-    } else if (options.preRelease) {
-        console.warn("Ignoring option '--pre-release' for prepackaged extension.");
+    // Only a package created here is a temp file; one the user supplied must never be deleted.
+    const packaged = !options.extensionFile;
+    try {
+        if (packaged) {
+            await packageExtension(options, registry);
+            console.log(); // new line
+        } else if (options.preRelease) {
+            console.warn("Ignoring option '--pre-release' for prepackaged extension.");
+        }
+        await publishExtensionFile(registry, options);
+    } finally {
+        if (packaged && options.extensionFile) {
+            // Caught rather than awaited plainly: a failure here (e.g. the temp dir is locked or
+            // read-only) must not replace whatever error publishExtensionFile already threw above.
+            await fs.promises.rm(options.extensionFile, { force: true }).catch(err => {
+                console.warn(`Could not delete temporary file ${options.extensionFile}: ${err.message}`);
+            });
+        }
     }
+}
 
+async function publishExtensionFile(registry: Registry, options: InternalPublishOptions): Promise<void> {
     // Read up front rather than only when a token has to be obtained: the size limit is looked up per
     // namespace, and the namespace lives in the manifest.
     const manifest = await readVSIXPackage(options.extensionFile!);

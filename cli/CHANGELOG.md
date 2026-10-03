@@ -8,6 +8,10 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 - `publish` checks a package against the size limit that applies to its own namespace, which a size override can raise above the registry default, and refuses an oversized upload before sending it. Against a registry older than 1.3.0, which cannot report that limit, it warns against the default and publishes anyway; if a registry that should be able to report it does not answer, it says the check did not happen rather than passing silently ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
+#### Fixed
+
+- `publish` now deletes the `.vsix` it packages into the temp directory once publishing finishes or fails, instead of leaving one behind per package and target
+
 ### Dependencies
 
 - Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`
