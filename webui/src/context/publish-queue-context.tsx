@@ -124,7 +124,7 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
     const queryClient = useQueryClient();
     const [items, setItems] = useState<PublishItem[]>([]);
     const nextId = useRef(0);
-    const maxSize = useRegistryValue(version => version.maxExtensionSize);
+    const maxSize = useRegistryValue(version => version.maxExtensionSizeCeiling);
     // A poll outlives the provider only if the app is being torn down; stop it rather than
     // carrying on against a queue nobody can see.
     const stopped = useRef(false);
@@ -269,8 +269,11 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
                 return;
             }
             const queued = files.filter(isVsixFile).map(file => {
-                // The registry rejects an oversized package anyway, and uploading it first only wastes
-                // the user's bandwidth. Unknown limit (the version has not loaded): let the server say.
+                // Checked against the ceiling, not the default: a namespace with a size override may
+                // publish more than the default allows, and only the registry knows which applies -
+                // it cannot tell until it has parsed the package. Above the ceiling no namespace can
+                // publish, so rejecting here wastes nobody's bandwidth. Unknown limit (the version has
+                // not loaded): let the server say.
                 const tooLarge = maxSize !== undefined && file.size > maxSize;
                 return {
                     id: nextId.current++,

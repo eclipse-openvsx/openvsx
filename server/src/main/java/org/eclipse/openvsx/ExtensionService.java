@@ -46,11 +46,11 @@ import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.*;
 import org.eclipse.openvsx.util.auth.AuthenticatedUser;
 
@@ -61,7 +61,7 @@ public class ExtensionService {
 
     private static final Logger logger = LoggerFactory.getLogger(ExtensionService.class);
 
-    private final PublishingConfig publishingConfig;
+    private final ExtensionSizeLimitService sizeLimits;
     private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final SearchUtilService search;
@@ -73,7 +73,7 @@ public class ExtensionService {
     private final ExtensionScanPersistenceService scanPersistenceService;
 
     public ExtensionService(
-            PublishingConfig publishingConfig,
+            ExtensionSizeLimitService sizeLimits,
             EntityManager entityManager,
             RepositoryService repositories,
             SearchUtilService search,
@@ -84,7 +84,7 @@ public class ExtensionService {
             ExtensionScanService scanService,
             ExtensionScanPersistenceService scanPersistenceService
     ) {
-        this.publishingConfig = publishingConfig;
+        this.sizeLimits = sizeLimits;
         this.entityManager = entityManager;
         this.repositories = repositories;
         this.search = search;
@@ -97,7 +97,7 @@ public class ExtensionService {
     }
 
     private long getMaxContentSize() {
-        return publishingConfig.getMaxContentSize();
+        return sizeLimits.getCeiling();
     }
 
     @Transactional

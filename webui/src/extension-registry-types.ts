@@ -364,7 +364,10 @@ export interface TargetPlatformVersion {
 
 export interface RegistryVersion {
     version: string;
+    /** Default limit in bytes, applied when the namespace has no size override. */
     maxExtensionSize?: number;
+    /** Largest package the registry accepts from any namespace: the default raised by the highest override. */
+    maxExtensionSizeCeiling?: number;
     analyticsEnabled?: boolean;
 }
 
@@ -567,6 +570,19 @@ export interface TierList {
     tiers: Tier[];
 }
 
+export interface SizeOverride {
+    id: number;
+    namespace: string;
+    /** Absent means the override applies to the whole namespace. */
+    extension?: string;
+    /** Maximum package size in bytes. */
+    maxSize: number;
+}
+
+export interface SizeOverrideList {
+    sizeOverrides: SizeOverride[];
+}
+
 export enum EnforcementState {
     EVALUATION = 'EVALUATION',
     ENFORCEMENT = 'ENFORCEMENT'
@@ -628,6 +644,8 @@ export interface LogPageableList {
 
 export interface Settings {
     readOnly: boolean;
+    /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
+    maxExtensionSize: number;
 }
 
 export interface SearchIndex {

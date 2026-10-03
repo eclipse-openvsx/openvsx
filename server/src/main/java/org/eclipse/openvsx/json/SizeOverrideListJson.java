@@ -12,28 +12,10 @@
  *****************************************************************************/
 package org.eclipse.openvsx.json;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonInclude(Include.NON_NULL)
-public class SettingsJson extends ResultJson {
-
-    private boolean readOnly;
-    private long maxExtensionSize;
-
-    public boolean isReadOnly() {
-        return readOnly;
-    }
-
-    public void setReadOnly(boolean readOnly) {
-        this.readOnly = readOnly;
-    }
-
-    public long getMaxExtensionSize() {
-        return maxExtensionSize;
-    }
-
-    public void setMaxExtensionSize(long maxExtensionSize) {
-        this.maxExtensionSize = maxExtensionSize;
-    }
-}
+public record SizeOverrideListJson(List<SizeOverrideJson> sizeOverrides) {}

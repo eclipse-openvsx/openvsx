@@ -188,17 +188,20 @@ describe('publish', () => {
         expect(registry.publishRequests).toHaveLength(1);
     });
 
-    it('rejects locally, without uploading, when the package exceeds the registry size limit', async () => {
+    // The limit from /api/version is the registry default; it has no namespace context, so a
+    // namespace or extension override can legitimately allow more than it reports. Blocking here
+    // would refuse uploads the server would have accepted.
+    it('warns but still uploads when the package exceeds the size limit the registry reports', async () => {
         const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 100 } });
         const extensionFile = givenExtensionFile(200);
 
         const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
 
-        expect(result.status).toBe('rejected');
-        expect((result as PromiseRejectedResult).reason.message).toBe(
-            `The extension package (200 bytes) exceeds the size limit of 100 bytes accepted by the registry at ${registry.url}.`
+        expect(result.status).toBe('fulfilled');
+        expect(registry.publishRequests).toHaveLength(1);
+        expect(console.warn).toHaveBeenCalledWith(
+            expect.stringContaining('(200 bytes) exceeds the default size limit of 100 bytes')
         );
-        expect(registry.publishRequests).toHaveLength(0);
     });
 
     it('proceeds when the registry does not report a size limit', async () => {

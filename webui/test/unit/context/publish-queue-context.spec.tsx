@@ -147,9 +147,12 @@ describe('publish queue', () => {
         expect(result.current.items[0].error).toBe('Bad Request (Unsupported manifest)');
     });
 
-    it('fails an oversized package on its card instead of uploading it', async () => {
+    it('fails a package above the ceiling on its card instead of uploading it', async () => {
         const publishExtension = vi.fn().mockResolvedValue(published());
-        const { result } = renderQueue({ publishExtension }, { version: { version: '1.0.0', maxExtensionSize: 4 } });
+        const { result } = renderQueue(
+            { publishExtension },
+            { version: { version: '1.0.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 4 } }
+        );
 
         act(() => result.current.publish([vsix('big.vsix'), new File(['x'], 'small.vsix')]));
 
@@ -159,6 +162,24 @@ describe('publish queue', () => {
         // The rest of the drop is unaffected.
         await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
         expect(publishExtension).toHaveBeenCalledWith(expect.objectContaining({ name: 'small.vsix' }));
+    });
+
+    /**
+     * The default limit says nothing about a namespace that has a size override: only the registry
+     * knows which applies, and it cannot say until it has parsed the package. Blocking on the default
+     * refused uploads the registry would have accepted.
+     */
+    it('uploads a package above the default limit but below the ceiling', async () => {
+        const publishExtension = vi.fn().mockResolvedValue(published());
+        const { result } = renderQueue(
+            { publishExtension },
+            { version: { version: '1.0.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 1024 } }
+        );
+
+        act(() => result.current.publish([vsix('big.vsix')]));
+
+        await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
+        expect(result.current.items[0].status).not.toBe('failed');
     });
 
     it('leaves the extension list holding what it read while following the package', async () => {

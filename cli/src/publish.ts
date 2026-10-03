@@ -43,11 +43,11 @@ export async function publish(options: PublishOptions = {}): Promise<PromiseSett
 }
 
 /**
- * Looks up the registry's configured extension size limit, so an oversized package can be rejected
- * locally before the upload instead of after transferring the whole payload.
+ * Looks up the registry's default extension size limit, so an oversized package can be flagged
+ * before the upload instead of after transferring the whole payload.
  *
  * Best-effort: registries that don't expose `/api/version`, or don't report a limit, return
- * `undefined` here, and the upload proceeds to let the server enforce its own limit as before.
+ * `undefined` here, and nothing is said about the size.
  */
 async function getMaxExtensionSize(registry: Registry): Promise<number | undefined> {
     try {
@@ -71,7 +71,7 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
         console.warn("Ignoring option '--pre-release' for prepackaged extension.");
     }
 
-    await ensureWithinSizeLimit(options.extensionFile!, options.maxExtensionSize, registry.url);
+    await warnIfAboveSizeLimit(options.extensionFile!, options.maxExtensionSize, registry.url);
 
     // Set only when this publish obtained the token itself through trusted publishing, which is the one
     // case where a refusal can be answered by asking for a new token.
@@ -147,21 +147,25 @@ async function doRegistryPublish(
 }
 
 /**
- * Fails fast with an actionable message when the packaged extension is already known to exceed the
- * registry's configured size limit, rather than uploading the whole file only to have the server
- * reject it. `maxSize` is `undefined` when the limit couldn't be determined, in which case the check
- * is skipped and the upload is left to the server to accept or reject.
+ * Warns when the packaged extension exceeds the size limit the registry reports, so an upload that
+ * is likely to be refused says so before transferring the whole file.
+ *
+ * Advisory only. `/api/version` has no namespace context, so the limit it reports is the registry
+ * default; a namespace or extension override can allow more. Refusing here would block uploads the
+ * server would have accepted, so the upload proceeds either way and the server's 413 is what
+ * decides. `maxSize` is `undefined` when the limit couldn't be determined.
  */
-async function ensureWithinSizeLimit(extensionFile: string, maxSize: number | undefined, registryUrl: string): Promise<void> {
+async function warnIfAboveSizeLimit(extensionFile: string, maxSize: number | undefined, registryUrl: string): Promise<void> {
     if (!maxSize) {
         return;
     }
 
     const { size } = await fs.promises.stat(extensionFile);
     if (size > maxSize) {
-        throw new Error(
-            `The extension package (${formatBytes(size)}) exceeds the size limit of ${formatBytes(maxSize)} `
-            + `accepted by the registry at ${registryUrl}.`
+        console.warn(
+            `The extension package (${formatBytes(size)}) exceeds the default size limit of ${formatBytes(maxSize)} `
+            + `reported by the registry at ${registryUrl}. Publishing anyway: the namespace may have a higher `
+            + `limit configured, and the registry decides.`
         );
     }
 }
@@ -210,8 +214,9 @@ interface InternalPublishOptions extends PublishCommonOptions {
     dependencies?: boolean;
 
     /**
-     * The registry's configured extension size limit in bytes, looked up once via `/api/version` and
-     * shared across every target/package being published. `undefined` when it couldn't be determined.
+     * The registry's default extension size limit in bytes, looked up once via `/api/version` and
+     * shared across every target/package being published. Advisory: a namespace override can allow
+     * more. `undefined` when it couldn't be determined.
      */
     maxExtensionSize?: number;
 }

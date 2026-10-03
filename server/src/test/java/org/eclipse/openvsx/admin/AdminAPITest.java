@@ -54,6 +54,7 @@ import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.LocalRegistryService;
 import org.eclipse.openvsx.MockTransactionTemplate;
+import org.eclipse.openvsx.TestSizeLimits;
 import org.eclipse.openvsx.UpstreamRegistryService;
 import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.accesstoken.AccessTokenConfig;
@@ -85,13 +86,13 @@ import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.NamespaceMembershipJson;
 import org.eclipse.openvsx.json.NamespaceMembershipListJson;
 import org.eclipse.openvsx.json.ResultJson;
+import org.eclipse.openvsx.json.SettingsJson;
 import org.eclipse.openvsx.json.UserJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -137,6 +138,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -212,6 +214,14 @@ class AdminAPITest {
     @Autowired
     CacheInfoService caches;
 
+    // registered as a mock through the @MockitoBean types list above
+    @Autowired
+    SettingsService settings;
+
+    // registered as a mock through the @MockitoBean types list above
+    @Autowired
+    LogService logs;
+
     // The document count next to the number of extensions it is built from is the point of this page:
     // an index that quietly lost entries looks exactly like a registry with nothing in it otherwise.
     @Test
@@ -249,6 +259,44 @@ class AdminAPITest {
                 // omitted rather than zero: there is no index to have counted
                 .andExpect(jsonPath("$.indexedDocuments").doesNotExist())
                 .andExpect(jsonPath("$.activeExtensions").value(1234));
+    }
+
+    @Test
+    void testGetSettingsReportsMaxExtensionSize() throws Exception {
+        mockAdminUser();
+        var currentSettings = new SettingsJson();
+        currentSettings.setReadOnly(false);
+        currentSettings.setMaxExtensionSize(536_870_912L);
+        Mockito.when(settings.getCurrentSettings()).thenReturn(currentSettings);
+
+        mockMvc.perform(
+                get("/admin/settings")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.readOnly").value(false))
+                .andExpect(jsonPath("$.maxExtensionSize").value(536870912));
+    }
+
+    @Test
+    void testUpdateSettingsAppliesMaxExtensionSizeAndLogsIt() throws Exception {
+        var admin = mockAdminUser();
+        Mockito.when(settings.updateFromJson(Mockito.any())).thenReturn("maxExtensionSize -> 1073741824");
+        var updatedSettings = new SettingsJson();
+        updatedSettings.setReadOnly(false);
+        updatedSettings.setMaxExtensionSize(1_073_741_824L);
+        Mockito.when(settings.getCurrentSettings()).thenReturn(updatedSettings);
+
+        mockMvc.perform(
+                put("/admin/settings")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"readOnly\":false,\"maxExtensionSize\":1073741824}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maxExtensionSize").value(1073741824));
+
+        Mockito.verify(logs).logAction(Mockito.eq(admin), Mockito.any());
     }
 
     @Test
@@ -3168,7 +3216,7 @@ class AdminAPITest {
                     cache,
                     integrityService,
                     similarityCheckService,
-                    new PublishingConfig(),
+                    TestSizeLimits.atConfigDefault(),
                     new TrustedPublishingConfig(),
                     new WebUiProperties(),
                     Duration.ofSeconds(30));
@@ -3206,7 +3254,7 @@ class AdminAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
-                    new PublishingConfig(),
+                    TestSizeLimits.atConfigDefault(),
                     entityManager,
                     repositories,
                     search,

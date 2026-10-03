@@ -24,6 +24,7 @@ import {
     DialogTitle,
     Paper,
     Stack,
+    TextField,
     Typography
 } from '@mui/material';
 import type { Settings } from '../../extension-registry-types';
@@ -40,6 +41,7 @@ interface NotificationState {
 }
 
 const NOTIFICATION_TIMEOUT = 2000;
+const BYTES_PER_MB = 1024 * 1024;
 
 const SETTINGS: Record<keyof Settings, { title: string; description: string }> = {
     readOnly: {
@@ -103,10 +105,22 @@ export const RuntimeSettingsPage: FC = () => {
         [clearSaved]
     );
 
+    const handleMaxExtensionSizeChange = useCallback(
+        (event: ChangeEvent<HTMLInputElement>) => {
+            const mb = Math.max(0, Number.parseInt(event.target.value, 10) || 0);
+            setDraftSettings(current => (current ? { ...current, maxExtensionSize: mb * BYTES_PER_MB } : current));
+            clearSaved();
+        },
+        [clearSaved]
+    );
+
     const hasChanges =
         draftSettings !== null &&
         settings != null &&
-        (Object.keys(SETTINGS) as (keyof Settings)[]).some(k => draftSettings[k] !== settings[k]);
+        ((Object.keys(SETTINGS) as (keyof Settings)[]).some(k => draftSettings[k] !== settings[k]) ||
+            draftSettings.maxExtensionSize !== settings.maxExtensionSize);
+
+    const maxExtensionSizeValid = draftSettings !== null && draftSettings.maxExtensionSize > 0;
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -162,11 +176,32 @@ export const RuntimeSettingsPage: FC = () => {
                     )}
                 </Paper>
 
+                <Paper variant='outlined' elevation={0} sx={{ p: 3 }}>
+                    <Typography variant='subtitle1' gutterBottom>
+                        Default max extension size
+                    </Typography>
+                    <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                        The largest extension package accepted for publishing when no namespace or extension override
+                        applies.
+                    </Typography>
+                    <TextField
+                        label='Max extension size (MB)'
+                        type='number'
+                        value={draftSettings ? Math.round(draftSettings.maxExtensionSize / BYTES_PER_MB) : ''}
+                        onChange={handleMaxExtensionSizeChange}
+                        disabled={loading || saving || !draftSettings}
+                        error={!maxExtensionSizeValid}
+                        helperText={maxExtensionSizeValid ? undefined : 'Must be greater than 0'}
+                        inputProps={{ min: '1' }}
+                        sx={{ maxWidth: 240 }}
+                    />
+                </Paper>
+
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <SaveButton
                         size='large'
                         saved={saveSuccess}
-                        disabled={!hasChanges || saving}
+                        disabled={!hasChanges || saving || !maxExtensionSizeValid}
                         onClick={handleSaveClick}
                     />
                 </Box>

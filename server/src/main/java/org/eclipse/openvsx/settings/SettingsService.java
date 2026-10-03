@@ -25,11 +25,14 @@ import redis.clients.jedis.RedisClusterClient;
 
 import org.eclipse.openvsx.cache.jedis.JedisClusterChannelListener;
 import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.publish.PublishingConfig;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 @Service
 public class SettingsService {
 
     public static final String SETTING_REGISTRY_READ_ONLY = "read-only";
+    public static final String SETTING_MAX_EXTENSION_SIZE = "max-extension-size";
     private static final String SETTINGS_UPDATE_CHANNEL = "settings.update";
 
     private final Logger logger = LoggerFactory.getLogger(SettingsService.class);
@@ -37,10 +40,16 @@ public class SettingsService {
     private final @Nullable RedisClusterClient redisClusterClient;
     private final SettingsUpdateListener settingsUpdateListener;
     private final SettingsCache cache;
+    private final PublishingConfig publishingConfig;
 
-    public SettingsService(@Nullable RedisClusterClient redisClusterClient, SettingsCache cache) {
+    public SettingsService(
+            @Nullable RedisClusterClient redisClusterClient,
+            SettingsCache cache,
+            PublishingConfig publishingConfig
+    ) {
         this.redisClusterClient = redisClusterClient;
         this.cache = cache;
+        this.publishingConfig = publishingConfig;
 
         if (redisClusterClient != null) {
             settingsUpdateListener = new SettingsUpdateListener(redisClusterClient);
@@ -68,20 +77,46 @@ public class SettingsService {
         return cache.getBoolean(SETTING_REGISTRY_READ_ONLY, false);
     }
 
+    public long getMaxExtensionSize() {
+        return cache.getLong(SETTING_MAX_EXTENSION_SIZE, publishingConfig.getMaxContentSize());
+    }
+
     public SettingsJson getCurrentSettings() {
         var json = new SettingsJson();
         json.setReadOnly(isReadOnly());
+        json.setMaxExtensionSize(getMaxExtensionSize());
         return json;
     }
 
     public String updateFromJson(SettingsJson newSettings) {
+        if (newSettings.getMaxExtensionSize() <= 0) {
+            throw new ErrorResultException("Max extension size must be greater than zero.");
+        }
+
         var changes = new ArrayList<>();
         if (newSettings.isReadOnly() != isReadOnly()) {
             changes.add("readOnly -> " + newSettings.isReadOnly());
             cache.setBoolean(SETTING_REGISTRY_READ_ONLY, newSettings.isReadOnly());
         }
+        if (newSettings.getMaxExtensionSize() != getMaxExtensionSize()) {
+            changes.add("maxExtensionSize -> " + newSettings.getMaxExtensionSize());
+            cache.setLong(SETTING_MAX_EXTENSION_SIZE, newSettings.getMaxExtensionSize());
+            // The derived size ceiling is cached under its own key, so evict the whole settings
+            // cache rather than just this one entry.
+            cache.clear();
+        }
         publishSettingsUpdate();
         return Strings.join(changes, ',');
+    }
+
+    /**
+     * Drop every cached setting on this node and tell the other nodes to do the same. Callers that
+     * change data the settings cache derives from — notably the size ceiling, which is cached under its
+     * own key — must call this; evicting a single key is not enough.
+     */
+    public void invalidateCache() {
+        cache.clear();
+        publishSettingsUpdate();
     }
 
     private void publishSettingsUpdate() {

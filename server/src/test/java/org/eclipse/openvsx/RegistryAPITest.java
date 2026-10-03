@@ -3911,7 +3911,7 @@ class RegistryAPITest {
                     cache,
                     integrityService,
                     similarityCheckService,
-                    publishingConfig,
+                    TestSizeLimits.atConfigDefault(),
                     trustedPublishingConfig,
                     new WebUiProperties(),
                     CHANGES_FEED_LAG);
@@ -3955,7 +3955,6 @@ class RegistryAPITest {
 
         @Bean
         ExtensionService extensionService(
-                PublishingConfig publishingConfig,
                 EntityManager entityManager,
                 RepositoryService repositories,
                 SearchUtilService search,
@@ -3967,7 +3966,7 @@ class RegistryAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
-                    publishingConfig,
+                    TestSizeLimits.atConfigDefault(),
                     entityManager,
                     repositories,
                     search,
