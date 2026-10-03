@@ -419,4 +419,21 @@ class LocalRegistryServiceTest {
 
         verify(extensions, never()).publishVersion(any(ExtensionProcessor.class), any());
     }
+
+    /**
+     * The two size fields answer different questions and come from different sources: the default is
+     * what applies without an override, the ceiling is the most any namespace could publish. Swapping
+     * them would be invisible on a registry that has no overrides configured.
+     */
+    @Test
+    void shouldReportBothTheDefaultLimitAndTheCeiling() {
+        registryService.registryVersion = "1.3.0";
+        when(sizeLimits.getDefaultLimit()).thenReturn(512L);
+        when(sizeLimits.getCeiling()).thenReturn(2048L);
+
+        var json = registryService.getRegistryVersion();
+
+        assertThat(json.getMaxExtensionSize()).isEqualTo(512L);
+        assertThat(json.getMaxExtensionSizeCeiling()).isEqualTo(2048L);
+    }
 }

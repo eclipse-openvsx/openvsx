@@ -20,6 +20,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Fixed
 
 - Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times (#2237)
+- The publish page no longer refuses a package larger than the registry's default limit without asking the server. A namespace with a size override may publish more than the default allows, so the upload is now only blocked above the registry's ceiling — the largest any namespace could publish ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
 ### Dependencies
 

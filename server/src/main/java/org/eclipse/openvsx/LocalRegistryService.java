@@ -1435,6 +1435,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         var json = new RegistryVersionJson();
         json.setVersion(registryVersion);
         json.setMaxExtensionSize(sizeLimits.getDefaultLimit());
+        json.setMaxExtensionSizeCeiling(sizeLimits.getCeiling());
         json.setTrustedPublishingAudience(
                 trustedPublishingConfig.isEnabled() ? trustedPublishingConfig.getAudience() : null);
         json.setAnalyticsEnabled(analyticsEnabled);
