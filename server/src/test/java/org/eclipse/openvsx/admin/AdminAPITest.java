@@ -54,6 +54,7 @@ import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.LocalRegistryService;
 import org.eclipse.openvsx.MockTransactionTemplate;
+import org.eclipse.openvsx.TestSizeLimits;
 import org.eclipse.openvsx.UpstreamRegistryService;
 import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.accesstoken.AccessTokenConfig;
@@ -92,7 +93,6 @@ import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -3216,7 +3216,7 @@ class AdminAPITest {
                     cache,
                     integrityService,
                     similarityCheckService,
-                    new PublishingConfig(),
+                    TestSizeLimits.atConfigDefault(),
                     new TrustedPublishingConfig(),
                     new WebUiProperties(),
                     Duration.ofSeconds(30));
@@ -3254,7 +3254,7 @@ class AdminAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
-                    new PublishingConfig(),
+                    TestSizeLimits.atConfigDefault(),
                     entityManager,
                     repositories,
                     search,

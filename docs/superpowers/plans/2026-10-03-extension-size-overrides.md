@@ -40,7 +40,7 @@ These are deliberate; do not "correct" them back to the spec text.
 |---|---|
 | `server/src/main/resources/db/migration/V1_79__Extension_Size_Override.sql` | Schema: sequence, table, unique scope index |
 | `server/src/main/java/org/eclipse/openvsx/entities/ExtensionSizeOverride.java` | JPA entity for one override row |
-| `server/src/main/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepository.java` | Scope lookup + `MAX(max_size)` |
+| `server/src/main/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepository.java` | Scope lookup + `MAX(max_size)` |
 | `server/src/main/java/org/eclipse/openvsx/settings/ExtensionSizeLimitService.java` | Cached ceiling + per-publish resolution |
 | `server/src/main/java/org/eclipse/openvsx/settings/SettingsService.java` | Modify: flush cache when the default changes |
 | `server/src/main/java/org/eclipse/openvsx/ExtensionService.java` | Modify: stream against the ceiling |
@@ -261,8 +261,8 @@ git commit -m "feat: add extension_size_override table and entity"
 ### Task 2: Override repository
 
 **Files:**
-- Create: `server/src/main/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepository.java`
-- Test: `server/src/test/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepositoryTest.java` (new, `@Tag("integration")`)
+- Create: `server/src/main/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepository.java`
+- Test: `server/src/test/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepositoryTest.java` (new, `@Tag("integration")`)
 
 **Interfaces:**
 - Produces: `ExtensionSizeOverrideRepository.findByScope(long namespaceId, @Nullable Long extensionId): List<ExtensionSizeOverride>` and `findHighestMaxSize(): @Nullable Long`. Task 3 consumes both.
@@ -270,7 +270,7 @@ git commit -m "feat: add extension_size_override table and entity"
 
 - [ ] **Step 1: Write the repository**
 
-Create `server/src/main/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepository.java`:
+Create `server/src/main/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepository.java`:
 
 ```java
 /******************************************************************************
@@ -285,7 +285,7 @@ Create `server/src/main/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideR
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
-package org.eclipse.openvsx.settings;
+package org.eclipse.openvsx.repositories;
 
 import java.util.List;
 
@@ -321,7 +321,7 @@ When `:extensionId` is `null`, `e.id = :extensionId` is never true, so only the 
 
 - [ ] **Step 2: Write the integration test**
 
-Create `server/src/test/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepositoryTest.java`, with the EPL-2.0 header, then:
+Create `server/src/test/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepositoryTest.java`, with the EPL-2.0 header, then:
 
 ```java
 package org.eclipse.openvsx.settings;
@@ -439,8 +439,8 @@ Expected: PASS (5 tests). **This needs Docker.** If no Docker daemon is availabl
 - [ ] **Step 4: Commit**
 
 ```bash
-git add server/src/main/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepository.java \
-        server/src/test/java/org/eclipse/openvsx/settings/ExtensionSizeOverrideRepositoryTest.java
+git add server/src/main/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepository.java \
+        server/src/test/java/org/eclipse/openvsx/repositories/ExtensionSizeOverrideRepositoryTest.java
 git commit -m "feat: add repository for extension size override scope lookups"
 ```
 
@@ -745,80 +745,62 @@ git commit -m "feat: resolve extension size limits from namespace and extension 
 **Files:**
 - Modify: `server/src/main/java/org/eclipse/openvsx/ExtensionService.java:64-101` (field, constructor, `getMaxContentSize`)
 - Modify: `server/src/main/java/org/eclipse/openvsx/LocalRegistryService.java:853`, `:858-873`, `:1409`
-- Test: `server/src/test/java/org/eclipse/openvsx/ExtensionSizeEnforcementTest.java` (new)
+- Test: `server/src/test/java/org/eclipse/openvsx/ExtensionServiceTest.java` (migrate the existing size-limit tests)
+- Test: `server/src/test/java/org/eclipse/openvsx/TestSizeLimits.java` (new shared fixture)
 
 **Interfaces:**
 - Consumes: `ExtensionSizeLimitService.getCeiling()/getDefaultLimit()/resolveLimit(String, String)` (Task 3); `ExtensionProcessor.getNamespace()/getExtensionName()`; `NamingUtil.toExtensionId(String, String)`; `ErrorResultException(String, HttpStatusCode)`.
 - Produces: no new API. Behaviour change only.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Migrate the existing enforcement tests**
 
-Create `server/src/test/java/org/eclipse/openvsx/ExtensionSizeEnforcementTest.java`, with the EPL-2.0 header, then:
+Do **not** write a new enforcement test. `ExtensionServiceTest` already covers this behaviour through the real `publishVersion` path, driven by a `PublishingConfig` mock: `shouldRejectAPackageExceedingTheMaxContentSize` asserts the 413 and the "exceeds the size limit" message, and `shouldNotScanWhenPublishPreconditionsFail` stubs the limit too. A separate test would duplicate that coverage with a weaker version of it.
+
+In `server/src/test/java/org/eclipse/openvsx/ExtensionServiceTest.java`:
+
+- replace `import org.eclipse.openvsx.publish.PublishingConfig;` with `import org.eclipse.openvsx.settings.ExtensionSizeLimitService;`
+- replace the field `@Mock PublishingConfig publishingConfig;` with `@Mock ExtensionSizeLimitService sizeLimits;`
+- replace the constructor argument `publishingConfig,` with `sizeLimits,`
+- replace both `Mockito.when(publishingConfig.getMaxContentSize())` stubs with `Mockito.when(sizeLimits.getCeiling())`
+
+Then create the shared fixture every other test config needs, `server/src/test/java/org/eclipse/openvsx/TestSizeLimits.java`, with the EPL-2.0 header:
 
 ```java
 package org.eclipse.openvsx;
 
-import java.io.ByteArrayInputStream;
-import java.nio.file.Files;
-
-import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.http.HttpStatus;
 
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
-import org.eclipse.openvsx.util.ErrorResultException;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
+public final class TestSizeLimits {
 
-class ExtensionSizeEnforcementTest {
-
-    @Test
-    void createExtensionFileAcceptsAPackageUpToTheCeiling() throws Exception {
-        var limits = Mockito.mock(ExtensionSizeLimitService.class);
-        when(limits.getCeiling()).thenReturn(10L);
-        var service = newExtensionService(limits);
-
-        try (var file = service.createExtensionFile(new ByteArrayInputStream(new byte[10]))) {
-            assertThat(Files.size(file.getPath())).isEqualTo(10L);
-        }
+    private TestSizeLimits() {
     }
 
-    @Test
-    void createExtensionFileRejectsAPackageAboveTheCeilingWith413() {
+    /**
+     * A size-limit service behaving like a registry with no admin override and no per-namespace
+     * overrides: every limit is the configured {@code ovsx.publishing.max-content-size} default.
+     */
+    public static ExtensionSizeLimitService atConfigDefault() {
+        var defaultSize = new PublishingConfig().getMaxContentSize();
         var limits = Mockito.mock(ExtensionSizeLimitService.class);
-        when(limits.getCeiling()).thenReturn(10L);
-        var service = newExtensionService(limits);
-
-        assertThatThrownBy(() -> service.createExtensionFile(new ByteArrayInputStream(new byte[11])))
-                .isInstanceOf(ErrorResultException.class)
-                .hasMessageContaining("size limit")
-                .extracting(e -> ((ErrorResultException) e).getStatus())
-                .isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
-    }
-
-    private ExtensionService newExtensionService(ExtensionSizeLimitService limits) {
-        return new ExtensionService(
-                limits,
-                Mockito.mock(jakarta.persistence.EntityManager.class),
-                Mockito.mock(org.eclipse.openvsx.repositories.RepositoryService.class),
-                Mockito.mock(org.eclipse.openvsx.search.SearchUtilService.class),
-                Mockito.mock(org.eclipse.openvsx.cache.CacheService.class),
-                Mockito.mock(org.eclipse.openvsx.util.LogService.class),
-                Mockito.mock(org.eclipse.openvsx.publish.PublishExtensionVersionHandler.class),
-                Mockito.mock(org.jobrunr.scheduling.JobRequestScheduler.class),
-                Mockito.mock(org.eclipse.openvsx.scanning.ExtensionScanService.class),
-                Mockito.mock(org.eclipse.openvsx.scanning.ExtensionScanPersistenceService.class));
+        // Lenient: this is a shared fixture, and no single test exercises every accessor.
+        Mockito.lenient().when(limits.getCeiling()).thenReturn(defaultSize);
+        Mockito.lenient().when(limits.getDefaultLimit()).thenReturn(defaultSize);
+        Mockito.lenient()
+                .when(limits.resolveLimit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(defaultSize);
+        return limits;
     }
 }
 ```
 
-`ErrorResultException.getStatus()` returns `HttpStatusCode` (`ErrorResultException.java:55`), so the assertion above compiles as written.
+The stubs must be `lenient()`: Mockito's strict-stubs mode fails any test that does not exercise all three.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd server && ./gradlew test --tests org.eclipse.openvsx.ExtensionSizeEnforcementTest`
+Run: `cd server && ./gradlew unitTests --tests org.eclipse.openvsx.ExtensionServiceTest`
 
 Expected: compile failure — `ExtensionService`'s constructor still takes `PublishingConfig` as its first parameter.
 
@@ -876,7 +858,7 @@ Replace the import `import org.eclipse.openvsx.publish.PublishingConfig;` with `
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd server && ./gradlew test --tests org.eclipse.openvsx.ExtensionSizeEnforcementTest`
+Run: `cd server && ./gradlew unitTests --tests org.eclipse.openvsx.ExtensionServiceTest`
 
 Expected: PASS (2 tests).
 
@@ -965,7 +947,8 @@ Run: `cd server && ./gradlew spotlessCheck` (run `spotlessApply` first if it fai
 ```bash
 git add server/src/main/java/org/eclipse/openvsx/ExtensionService.java \
         server/src/main/java/org/eclipse/openvsx/LocalRegistryService.java \
-        server/src/test/java/org/eclipse/openvsx/ExtensionSizeEnforcementTest.java
+        server/src/test/java/org/eclipse/openvsx/ExtensionServiceTest.java \
+        server/src/test/java/org/eclipse/openvsx/TestSizeLimits.java
 git commit -m "feat: enforce per-namespace extension size overrides when publishing"
 ```
 
