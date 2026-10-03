@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 public class SettingsJson extends ResultJson {
 
     private boolean readOnly;
+    private long maxExtensionSize;
 
     public boolean isReadOnly() {
         return readOnly;
@@ -26,5 +27,13 @@ public class SettingsJson extends ResultJson {
 
     public void setReadOnly(boolean readOnly) {
         this.readOnly = readOnly;
+    }
+
+    public long getMaxExtensionSize() {
+        return maxExtensionSize;
+    }
+
+    public void setMaxExtensionSize(long maxExtensionSize) {
+        this.maxExtensionSize = maxExtensionSize;
     }
 }

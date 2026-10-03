@@ -49,6 +49,17 @@ public class SettingsCache {
         repository.upsert(key, String.valueOf(value), TimeUtil.getCurrentUTC());
     }
 
+    @Cacheable(value = CACHE_SETTING, key = "#key")
+    public Long getLong(String key, long defaultValue) {
+        return repository.findByKey(key).map(Setting::getValue).map(Long::parseLong).orElse(defaultValue);
+    }
+
+    @Transactional
+    @CacheEvict(value = CACHE_SETTING, key = "#key")
+    public void setLong(String key, long value) {
+        repository.upsert(key, String.valueOf(value), TimeUtil.getCurrentUTC());
+    }
+
     @CacheEvict(value = CACHE_SETTING, allEntries = true)
     public void clear() {
     }
