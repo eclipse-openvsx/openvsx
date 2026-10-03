@@ -57,7 +57,6 @@ CREATE TABLE extension_size_override (
   scope_namespace_id  BIGINT NOT NULL REFERENCES namespace(id) ON DELETE CASCADE,
   scope_extension_id  BIGINT REFERENCES extension(id) ON DELETE CASCADE,  -- NULL = namespace-wide
   max_size            BIGINT NOT NULL,
-  created_by_id       BIGINT NOT NULL REFERENCES user_data(id),
   created_at          TIMESTAMP NOT NULL,
   updated_at          TIMESTAMP NOT NULL
 );
@@ -119,7 +118,7 @@ Per `RepositoryService.isVerified` (`server/src/main/java/org/eclipse/openvsx/re
 Cloned from the `tiers/` template (`webui/src/pages/admin-dashboard/tiers/`), confirmed as a clean, minimal pattern to follow:
 
 - `use-size-overrides.ts` — one `useQuery` (key `['admin','sizeOverrides']`) + `useCreateSizeOverride`/`useUpdateSizeOverride`/`useDeleteSizeOverride` mutations, each invalidating the query key on success. Same shape as `use-tiers.ts`.
-- `size-overrides.tsx` — `DataGrid` list page: columns namespace, extension (optional, blank = namespace-wide), max size, created by/at, verified-namespace badge, edit/delete actions. "Create override" button opens the form dialog with no selection; edit opens it pre-filled.
+- `size-overrides.tsx` — `DataGrid` list page: columns namespace, extension (optional, blank = namespace-wide), max size, created at, verified-namespace badge, edit/delete actions. There is no "created by" column: the table stores no `created_by`, because every mutation is already audited through `LogService` into `PersistedLog`. "Create override" button opens the form dialog with no selection; edit opens it pre-filled.
 - `size-override-form-dialog.tsx` — namespace autocomplete (required), extension autocomplete (optional, scoped to the chosen namespace), a size field using the tier form's value+unit-dropdown pattern (bytes/KB/MB/GB, recombined to bytes on submit) rather than a raw byte count, validated client-side against the hard ceiling in addition to server-side validation.
 - `delete-size-override-dialog.tsx` — confirm dialog, same shape as `delete-tier-dialog.tsx`.
 
