@@ -364,7 +364,10 @@ export interface TargetPlatformVersion {
 
 export interface RegistryVersion {
     version: string;
+    /** Default limit in bytes, applied when the namespace has no size override. */
     maxExtensionSize?: number;
+    /** Largest package the registry accepts from any namespace: the default raised by the highest override. */
+    maxExtensionSizeCeiling?: number;
     analyticsEnabled?: boolean;
 }
 
