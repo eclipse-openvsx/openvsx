@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionSizeOverride;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
 
 import static org.assertj.core.api.Assertions.assertThat;

@@ -15,6 +15,7 @@ package org.eclipse.openvsx;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.exception.ConstraintViolationException;
@@ -47,13 +49,13 @@ import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.ExtensionSearch;
 import org.eclipse.openvsx.search.ISearchService;
 import org.eclipse.openvsx.search.SearchResult;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
 import org.eclipse.openvsx.util.ChangesCursor;
@@ -83,6 +85,8 @@ public class LocalRegistryService implements IExtensionRegistry {
 
     private static final String ACCESS_TOKEN_ERROR = "Invalid access token.";
 
+    private static final String SIZE_LIMIT_DOCS_URL = "https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions#size-limits";
+
     private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final ExtensionService extensions;
@@ -96,7 +100,7 @@ public class LocalRegistryService implements IExtensionRegistry {
     private final CacheService cache;
     private final ExtensionVersionIntegrityService integrityService;
     private final SimilarityCheckService similarityCheckService;
-    private final PublishingConfig publishingConfig;
+    private final ExtensionSizeLimitService sizeLimits;
     private final TrustedPublishingConfig trustedPublishingConfig;
     private final WebUiProperties webUi;
 
@@ -119,7 +123,7 @@ public class LocalRegistryService implements IExtensionRegistry {
             CacheService cache,
             ExtensionVersionIntegrityService integrityService,
             @Nullable SimilarityCheckService similarityCheckService,
-            PublishingConfig publishingConfig,
+            ExtensionSizeLimitService sizeLimits,
             TrustedPublishingConfig trustedPublishingConfig,
             WebUiProperties webUi,
             @Value("${ovsx.changes-feed.lag:PT30S}") Duration changesFeedLag
@@ -137,7 +141,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         this.cache = cache;
         this.integrityService = integrityService;
         this.similarityCheckService = similarityCheckService;
-        this.publishingConfig = publishingConfig;
+        this.sizeLimits = sizeLimits;
         this.trustedPublishingConfig = trustedPublishingConfig;
         this.webUi = webUi;
         this.changesFeedLag = changesFeedLag;
@@ -850,7 +854,7 @@ public class LocalRegistryService implements IExtensionRegistry {
         // doesn't see an early response to a request whose body is still arriving and mistake it
         // for a 50x. Capped at the same max upload size a successful publish already reads in full,
         // so an oversized/abusive body doesn't tie up the request thread and bandwidth beyond that.
-        try (var content = new DrainOnCloseInputStream(rawContent, publishingConfig.getMaxContentSize())) {
+        try (var content = new DrainOnCloseInputStream(rawContent, sizeLimits.getCeiling())) {
             var tempFile = extensions.createExtensionFile(content);
             try {
                 AuthenticatedUser au = auth;
@@ -869,6 +873,28 @@ public class LocalRegistryService implements IExtensionRegistry {
                     }
                     // Check whether the user has a valid publisher agreement
                     eclipse.checkPublisherAgreement(au.userData());
+
+                    // Stage two: the stream was only capped at the global ceiling, because the
+                    // namespace is not known until the manifest has been parsed. Now it is.
+                    var limit = sizeLimits.resolveLimit(processor.getNamespace(), processor.getExtensionName());
+                    long actualSize;
+                    try {
+                        actualSize = Files.size(tempFile.getPath());
+                    } catch (IOException e) {
+                        // Rewrapped rather than left to the outer IOException handler, which sits
+                        // outside the block that deletes tempFile.
+                        throw new ErrorResultException("Failed to read extension file", e);
+                    }
+                    if (actualSize > limit) {
+                        throw new ErrorResultException(
+                                "The extension package exceeds the size limit of "
+                                        + FileUtils.byteCountToDisplaySize(limit) + " for "
+                                        + NamingUtil.toExtensionId(
+                                                processor.getNamespace(),
+                                                processor.getExtensionName())
+                                        + ". See " + SIZE_LIMIT_DOCS_URL + " for details.",
+                                HttpStatus.CONTENT_TOO_LARGE);
+                    }
 
                     extVersion = extensions.publishVersion(processor, au);
                 }
@@ -1406,7 +1432,7 @@ public class LocalRegistryService implements IExtensionRegistry {
 
         var json = new RegistryVersionJson();
         json.setVersion(registryVersion);
-        json.setMaxExtensionSize(publishingConfig.getMaxContentSize());
+        json.setMaxExtensionSize(sizeLimits.getDefaultLimit());
         json.setTrustedPublishingAudience(
                 trustedPublishingConfig.isEnabled() ? trustedPublishingConfig.getAudience() : null);
         json.setAnalyticsEnabled(analyticsEnabled);

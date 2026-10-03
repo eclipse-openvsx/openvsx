@@ -32,11 +32,11 @@ import org.springframework.http.HttpStatus;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.DrainOnCloseInputStream;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
@@ -49,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ExtensionServiceTest {
 
     @Mock
-    PublishingConfig publishingConfig;
+    ExtensionSizeLimitService sizeLimits;
     @Mock
     EntityManager entityManager;
     @Mock
@@ -74,7 +74,7 @@ class ExtensionServiceTest {
     @BeforeEach
     void setUp() {
         svc = new ExtensionService(
-                publishingConfig,
+                sizeLimits,
                 entityManager,
                 repositories,
                 search,
@@ -316,7 +316,7 @@ class ExtensionServiceTest {
      */
     @Test
     void shouldNotScanWhenPublishPreconditionsFail() {
-        Mockito.when(publishingConfig.getMaxContentSize()).thenReturn(1024L);
+        Mockito.when(sizeLimits.getCeiling()).thenReturn(1024L);
         Mockito.when(scanService.isEnabled()).thenReturn(true);
         Mockito.doThrow(new ErrorResultException("Insufficient access rights for publisher: redhat"))
                 .when(publishHandler).checkPublishPreconditions(Mockito.any(), Mockito.any());
@@ -342,7 +342,7 @@ class ExtensionServiceTest {
     @Test
     void shouldRejectAPackageExceedingTheMaxContentSize() {
         var maxContentSize = 10L;
-        Mockito.when(publishingConfig.getMaxContentSize()).thenReturn(maxContentSize);
+        Mockito.when(sizeLimits.getCeiling()).thenReturn(maxContentSize);
 
         var token = mockToken();
         var raw = new ByteArrayInputStream(
