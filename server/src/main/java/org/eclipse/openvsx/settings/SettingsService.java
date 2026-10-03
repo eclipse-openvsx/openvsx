@@ -109,6 +109,16 @@ public class SettingsService {
         return Strings.join(changes, ',');
     }
 
+    /**
+     * Drop every cached setting on this node and tell the other nodes to do the same. Callers that
+     * change data the settings cache derives from — notably the size ceiling, which is cached under its
+     * own key — must call this; evicting a single key is not enough.
+     */
+    public void invalidateCache() {
+        cache.clear();
+        publishSettingsUpdate();
+    }
+
     private void publishSettingsUpdate() {
         if (redisClusterClient != null) {
             logger.debug("Publish settings update");

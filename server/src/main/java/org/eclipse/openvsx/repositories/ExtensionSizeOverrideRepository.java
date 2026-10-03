@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.repositories;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.jpa.repository.Query;
@@ -40,4 +41,12 @@ public interface ExtensionSizeOverrideRepository extends Repository<ExtensionSiz
     @Query("SELECT MAX(o.maxSize) FROM ExtensionSizeOverride o")
     @Nullable
     Long findHighestMaxSize();
+
+    List<ExtensionSizeOverride> findAllByOrderByIdAsc();
+
+    Optional<ExtensionSizeOverride> findById(long id);
+
+    ExtensionSizeOverride save(ExtensionSizeOverride override);
+
+    void delete(ExtensionSizeOverride override);
 }
