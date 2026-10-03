@@ -61,6 +61,11 @@ public class Sequences {
     public static final Sequence<Long> EXTENSION_SEQ = Internal.createSequence("extension_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
+     * The sequence <code>public.extension_size_override_seq</code>
+     */
+    public static final Sequence<Long> EXTENSION_SIZE_OVERRIDE_SEQ = Internal.createSequence("extension_size_override_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
+
+    /**
      * The sequence <code>public.extension_threat_seq</code>
      */
     public static final Sequence<Long> EXTENSION_THREAT_SEQ = Internal.createSequence("extension_threat_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);

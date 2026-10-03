@@ -22,6 +22,7 @@ import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
+import org.eclipse.openvsx.jooq.tables.ExtensionSizeOverride;
 import org.eclipse.openvsx.jooq.tables.ExtensionThreat;
 import org.eclipse.openvsx.jooq.tables.ExtensionValidationFailure;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
@@ -142,6 +143,11 @@ public class Public extends SchemaImpl {
      * The table <code>public.extension_scan</code>.
      */
     public final ExtensionScan EXTENSION_SCAN = ExtensionScan.EXTENSION_SCAN;
+
+    /**
+     * The table <code>public.extension_size_override</code>.
+     */
+    public final ExtensionSizeOverride EXTENSION_SIZE_OVERRIDE = ExtensionSizeOverride.EXTENSION_SIZE_OVERRIDE;
 
     /**
      * The table <code>public.extension_threat</code>.
@@ -283,6 +289,7 @@ public class Public extends SchemaImpl {
             Sequences.EXTENSION_REVIEW_SEQ,
             Sequences.EXTENSION_SCAN_SEQ,
             Sequences.EXTENSION_SEQ,
+            Sequences.EXTENSION_SIZE_OVERRIDE_SEQ,
             Sequences.EXTENSION_THREAT_SEQ,
             Sequences.EXTENSION_VALIDATION_FAILURE_SEQ,
             Sequences.EXTENSION_VERSION_CHANGE_SEQ,
@@ -325,6 +332,7 @@ public class Public extends SchemaImpl {
             Extension.EXTENSION,
             ExtensionReview.EXTENSION_REVIEW,
             ExtensionScan.EXTENSION_SCAN,
+            ExtensionSizeOverride.EXTENSION_SIZE_OVERRIDE,
             ExtensionThreat.EXTENSION_THREAT,
             ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE,
             ExtensionVersion.EXTENSION_VERSION,
