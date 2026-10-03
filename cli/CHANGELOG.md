@@ -4,6 +4,10 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 ### [next] (unreleased)
 
+#### Fixed
+
+- `publish` now deletes the `.vsix` it packages into the temp directory once publishing finishes or fails, instead of leaving one behind per package and target
+
 ### Dependencies
 
 - Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`
