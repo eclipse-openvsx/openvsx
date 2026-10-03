@@ -45,6 +45,8 @@ import {
     FileDecisionDeleteRequest,
     FileDecisionDeleteResponse,
     Tier,
+    SizeOverride,
+    SizeOverrideList,
     TierList,
     Customer,
     CustomerList,
@@ -771,6 +773,10 @@ export interface AdminService {
     createTier(tier: Tier): Promise<Readonly<Tier>>;
     updateTier(name: string, tier: Tier): Promise<Readonly<Tier>>;
     deleteTier(name: string): Promise<Readonly<SuccessResult>>;
+    getSizeOverrides(abortController: AbortController): Promise<Readonly<SizeOverrideList>>;
+    createSizeOverride(override: SizeOverride): Promise<Readonly<SizeOverride>>;
+    updateSizeOverride(id: number, override: SizeOverride): Promise<Readonly<SizeOverride>>;
+    deleteSizeOverride(id: number): Promise<Readonly<SuccessResult>>;
     getCustomers(abortController: AbortController): Promise<Readonly<CustomerList>>;
     getCustomer(abortController: AbortController, name: string): Promise<Readonly<Customer>>;
     createCustomer(customer: Customer): Promise<Readonly<Customer>>;
@@ -1357,6 +1363,67 @@ export class AdminServiceImpl implements AdminService {
             method: 'DELETE',
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'tiers', name]),
+            headers
+        });
+    }
+
+    async getSizeOverrides(abortController: AbortController): Promise<Readonly<SizeOverrideList>> {
+        return sendStrictRequest({
+            abortController,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'size-overrides']),
+            credentials: true
+        });
+    }
+
+    async createSizeOverride(override: SizeOverride): Promise<Readonly<SizeOverride>> {
+        const csrfResponse = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        return sendStrictRequest({
+            method: 'POST',
+            payload: override,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'size-overrides', 'create']),
+            headers
+        });
+    }
+
+    async updateSizeOverride(id: number, override: SizeOverride): Promise<Readonly<SizeOverride>> {
+        const csrfResponse = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        return sendStrictRequest({
+            method: 'PUT',
+            payload: override,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'size-overrides', String(id)]),
+            headers
+        });
+    }
+
+    async deleteSizeOverride(id: number): Promise<Readonly<SuccessResult>> {
+        const csrfResponse = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        return sendStrictRequest({
+            method: 'DELETE',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'size-overrides', String(id)]),
             headers
         });
     }
