@@ -628,6 +628,8 @@ export interface LogPageableList {
 
 export interface Settings {
     readOnly: boolean;
+    /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
+    maxExtensionSize: number;
 }
 
 export interface SearchIndex {
