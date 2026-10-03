@@ -567,6 +567,19 @@ export interface TierList {
     tiers: Tier[];
 }
 
+export interface SizeOverride {
+    id: number;
+    namespace: string;
+    /** Absent means the override applies to the whole namespace. */
+    extension?: string;
+    /** Maximum package size in bytes. */
+    maxSize: number;
+}
+
+export interface SizeOverrideList {
+    sizeOverrides: SizeOverride[];
+}
+
 export enum EnforcementState {
     EVALUATION = 'EVALUATION',
     ENFORCEMENT = 'ENFORCEMENT'
