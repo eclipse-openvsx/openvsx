@@ -32,6 +32,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
@@ -45,9 +46,11 @@ import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -59,6 +62,7 @@ import org.eclipse.openvsx.web.WebUiProperties;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -107,6 +111,9 @@ class LocalRegistryServiceTest {
     @Mock
     SimilarityCheckService similarityCheckService;
 
+    @Mock
+    ExtensionSizeLimitService sizeLimits;
+
     private LocalRegistryService registryService;
 
     private TempFile tempFile;
@@ -127,7 +134,7 @@ class LocalRegistryServiceTest {
                 cacheService,
                 integrityService,
                 similarityCheckService,
-                TestSizeLimits.atConfigDefault(),
+                sizeLimits,
                 new TrustedPublishingConfig(),
                 new WebUiProperties(),
                 Duration.ofSeconds(30));
@@ -135,6 +142,12 @@ class LocalRegistryServiceTest {
         // A permissive default for a void method rather than a per-test expectation: the tests of
         // visibleUntil exercise a pure function and touch no mock at all.
         lenient().doNothing().when(eclipse).checkPublisherAgreement(any());
+
+        // Behave like a registry with no override configured unless a test says otherwise.
+        var configDefault = new PublishingConfig().getMaxContentSize();
+        lenient().when(sizeLimits.getCeiling()).thenReturn(configDefault);
+        lenient().when(sizeLimits.getDefaultLimit()).thenReturn(configDefault);
+        lenient().when(sizeLimits.resolveLimit(anyString(), anyString())).thenReturn(configDefault);
     }
 
     /**
@@ -375,5 +388,35 @@ class LocalRegistryServiceTest {
         membership.setNamespace(namespace);
         membership.setUser(user);
         return membership;
+    }
+
+    /**
+     * Stage two of the size check: the request body is streamed against the global ceiling, because
+     * the namespace is unknown until the manifest is parsed. Once it is known, the resolved limit for
+     * that namespace/extension applies, and a package over it is rejected before being published.
+     */
+    @Test
+    void shouldRejectAPackageOverTheLimitResolvedForItsNamespace() throws IOException {
+        tempFile = new TempFile("extension_", ".vsix");
+        var content = createExtensionPackage("bar", "1.0.0");
+        Files.write(tempFile.getPath(), content);
+
+        var token = new PersonalAccessToken();
+        token.setUser(new UserData());
+        token.setType(PersonalAccessTokenType.LLT);
+        var tau = new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null);
+
+        when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tau);
+        when(sizeLimits.resolveLimit("foo", "bar")).thenReturn((long) content.length - 1);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("exceeds the size limit")
+                .hasMessageContaining("foo.bar")
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+
+        verify(extensions, never()).publishVersion(any(ExtensionProcessor.class), any());
     }
 }
