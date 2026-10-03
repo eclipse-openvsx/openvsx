@@ -101,6 +101,9 @@ public class SettingsService {
         if (newSettings.getMaxExtensionSize() != getMaxExtensionSize()) {
             changes.add("maxExtensionSize -> " + newSettings.getMaxExtensionSize());
             cache.setLong(SETTING_MAX_EXTENSION_SIZE, newSettings.getMaxExtensionSize());
+            // The derived size ceiling is cached under its own key, so evict the whole settings
+            // cache rather than just this one entry.
+            cache.clear();
         }
         publishSettingsUpdate();
         return Strings.join(changes, ',');

@@ -99,4 +99,30 @@ class SettingsServiceTest {
 
         assertThatThrownBy(() -> settings.updateFromJson(newSettings)).isInstanceOf(ErrorResultException.class);
     }
+
+    @Test
+    void updateFromJsonFlushesTheCacheWhenMaxExtensionSizeChanges() {
+        when(cache.getLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong()))
+                .thenReturn(512L * 1024 * 1024);
+
+        var newSettings = new SettingsJson();
+        newSettings.setMaxExtensionSize(1024L * 1024 * 1024);
+
+        settings.updateFromJson(newSettings);
+
+        verify(cache).clear();
+    }
+
+    @Test
+    void updateFromJsonDoesNotFlushTheCacheWhenMaxExtensionSizeIsUnchanged() {
+        when(cache.getLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong()))
+                .thenReturn(512L * 1024 * 1024);
+
+        var newSettings = new SettingsJson();
+        newSettings.setMaxExtensionSize(512L * 1024 * 1024);
+
+        settings.updateFromJson(newSettings);
+
+        verify(cache, Mockito.never()).clear();
+    }
 }
