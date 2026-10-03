@@ -85,8 +85,6 @@ public class LocalRegistryService implements IExtensionRegistry {
 
     private static final String ACCESS_TOKEN_ERROR = "Invalid access token.";
 
-    private static final String SIZE_LIMIT_DOCS_URL = "https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions#size-limits";
-
     private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final ExtensionService extensions;
@@ -886,13 +884,17 @@ public class LocalRegistryService implements IExtensionRegistry {
                         throw new ErrorResultException("Failed to read extension file", e);
                     }
                     if (actualSize > limit) {
+                        // Named sizes and who to ask: this reaches a publisher, who cannot change
+                        // the limit themselves and has no use for the server's configuration.
                         throw new ErrorResultException(
-                                "The extension package exceeds the size limit of "
+                                "The extension package (" + FileUtils.byteCountToDisplaySize(actualSize)
+                                        + ") exceeds the size limit of "
                                         + FileUtils.byteCountToDisplaySize(limit) + " for "
                                         + NamingUtil.toExtensionId(
                                                 processor.getNamespace(),
                                                 processor.getExtensionName())
-                                        + ". See " + SIZE_LIMIT_DOCS_URL + " for details.",
+                                        + ". Contact the registry administrators if this extension needs a "
+                                        + "higher limit.",
                                 HttpStatus.CONTENT_TOO_LARGE);
                     }
 
