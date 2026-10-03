@@ -64,13 +64,24 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
         delete options.packagePath;
         delete options.target;
     }
-    if (!options.extensionFile) {
-        await packageExtension(options, registry);
-        console.log(); // new line
-    } else if (options.preRelease) {
-        console.warn("Ignoring option '--pre-release' for prepackaged extension.");
+    // Only a package created here is a temp file; one the user supplied must never be deleted.
+    const packaged = !options.extensionFile;
+    try {
+        if (packaged) {
+            await packageExtension(options, registry);
+            console.log(); // new line
+        } else if (options.preRelease) {
+            console.warn("Ignoring option '--pre-release' for prepackaged extension.");
+        }
+        await publishExtensionFile(registry, options);
+    } finally {
+        if (packaged && options.extensionFile) {
+            await fs.promises.rm(options.extensionFile, { force: true });
+        }
     }
+}
 
+async function publishExtensionFile(registry: Registry, options: InternalPublishOptions): Promise<void> {
     await ensureWithinSizeLimit(options.extensionFile!, options.maxExtensionSize, registry.url);
 
     // Set only when this publish obtained the token itself through trusted publishing, which is the one

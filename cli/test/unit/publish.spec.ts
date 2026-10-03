@@ -178,6 +178,122 @@ describe('publish', () => {
         });
     });
 
+    describe('removes the package it created', () => {
+
+        // Records where vsce was asked to write, so the test can check that file is gone afterwards.
+        function givenPackaging(): string[] {
+            const written: string[] = [];
+            vi.mocked(createVSIX).mockImplementation(async (options) => {
+                written.push(options!.packagePath!);
+                tmpFiles.push(options!.packagePath!);
+                fs.writeFileSync(options!.packagePath!, await buildZip({
+                    'extension/package.json': Buffer.from(JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' }))
+                }));
+            });
+            return written;
+        }
+
+        it('after publishing it', async () => {
+            const registry = await givenRegistry();
+            const written = givenPackaging();
+
+            const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('fulfilled');
+            expect(written).toHaveLength(1);
+            expect(fs.existsSync(written[0])).toBe(false);
+        });
+
+        it('when the registry rejects it', async () => {
+            const registry = await givenRegistry({}, { status: 400, body: { error: 'Something went wrong.' } });
+            const written = givenPackaging();
+
+            const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('rejected');
+            expect(written).toHaveLength(1);
+            expect(fs.existsSync(written[0])).toBe(false);
+        });
+
+        it('when it is skipped as a duplicate', async () => {
+            const registry = await givenRegistry({}, { status: 400, body: { error: 'foo.bar 1.0.0 is already published.' } });
+            const written = givenPackaging();
+
+            const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url, skipDuplicate: true });
+
+            expect(result.status).toBe('fulfilled');
+            expect(written).toHaveLength(1);
+            expect(fs.existsSync(written[0])).toBe(false);
+        });
+
+        it('when it exceeds the registry size limit', async () => {
+            const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 1 } });
+            const written = givenPackaging();
+
+            const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('rejected');
+            expect(registry.publishRequests).toHaveLength(0);
+            expect(fs.existsSync(written[0])).toBe(false);
+        });
+
+        it('when packaging fails after writing part of it', async () => {
+            const registry = await givenRegistry();
+            const written: string[] = [];
+            vi.mocked(createVSIX).mockImplementation(async (options) => {
+                written.push(options!.packagePath!);
+                tmpFiles.push(options!.packagePath!);
+                fs.writeFileSync(options!.packagePath!, 'partial');
+                throw new Error('Packaging failed.');
+            });
+
+            const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('rejected');
+            expect(registry.publishRequests).toHaveLength(0);
+            expect(fs.existsSync(written[0])).toBe(false);
+        });
+
+        it('for every target of a fan-out', async () => {
+            const registry = await givenRegistry();
+            const written = givenPackaging();
+
+            const results = await publish({
+                packagePath: ['.'],
+                pat: 'the.pat',
+                registryUrl: registry.url,
+                targets: ['linux-x64', 'darwin-arm64']
+            });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled']);
+            expect(written).toHaveLength(2);
+            expect(written.filter(file => fs.existsSync(file))).toEqual([]);
+        });
+    });
+
+    describe('keeps a package the user supplied', () => {
+
+        it('given as --packagePath', async () => {
+            const registry = await givenRegistry();
+            const packagePath = givenExtensionFile(100);
+
+            const [result] = await publish({ packagePath: [packagePath], pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('fulfilled');
+            expect(fs.existsSync(packagePath)).toBe(true);
+        });
+
+        it('given as --extensionFile, even when the registry rejects it', async () => {
+            const registry = await givenRegistry({}, { status: 400, body: { error: 'Something went wrong.' } });
+            const extensionFile = givenExtensionFile(100);
+
+            const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('rejected');
+            expect(fs.existsSync(extensionFile)).toBe(true);
+        });
+    });
+
     it('publishes a package that is within the registry size limit', async () => {
         const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 1024 } });
         const extensionFile = givenExtensionFile(100);
