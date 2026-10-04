@@ -59,7 +59,8 @@
         "limiter": "^2.1.0",
         "rimraf": "^6.0.1",
         "typescript": "^5.6.3",
-        "vitest": "^4.1.11",
+        "vite": "^8.3.2",
+        "vitest": "^5.0.3",
         "yazl": "^3.3.1"
     },
     "scripts": {

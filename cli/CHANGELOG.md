@@ -15,6 +15,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 ### Dependencies
 
 - Bump @vscode/vsce from 3.7.1 to 4.0.0
+- Bump vitest from 4.1.11 to 5.0.3, adding `vite` as a direct dev dependency - vitest 5 no longer bundles it, only requires it as a peer
 - Remove `leven`; the command-suggestion distance check now uses a vendored Levenshtein implementation, the same way `@vscode/vsce` itself replaced its own `leven` dependency in 4.0.0
 - Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`
 - Bump ip-address from 10.4.0 to 10.7.2
