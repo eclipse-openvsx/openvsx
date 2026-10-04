@@ -72,6 +72,34 @@ describe('SizeOverrides', () => {
         expect(screen.queryByText(/no size overrides are configured/i)).not.toBeInTheDocument();
     });
 
+    /**
+     * A refetch that fails still has the rows from the load that succeeded. Blanking the page over a
+     * failed background refresh throws away data the admin can still use, and the alert alone leaves
+     * nothing behind once it is dismissed.
+     */
+    it('keeps showing the rows when a refetch fails after a change', async () => {
+        const user = userEvent.setup();
+        const admin = {
+            getSizeOverrides: vi
+                .fn()
+                .mockResolvedValueOnce({ sizeOverrides: [{ id: 7, namespace: 'foo', maxSize: 100 }] })
+                .mockRejectedValue({ error: 'boom' }),
+            deleteSizeOverride: vi.fn().mockResolvedValue({ success: 'ok' }),
+            getNamespace: vi.fn()
+        };
+        renderWithProviders(<SizeOverrides />, {
+            mainContext: { service: { admin } as unknown as ExtensionRegistryService }
+        });
+
+        expect(await screen.findByText('foo')).toBeInTheDocument();
+
+        await user.click(await screen.findByTitle('Delete size override'));
+        await user.click(await screen.findByRole('button', { name: /^delete$/i }));
+
+        expect(await screen.findByText(/boom/i)).toBeInTheDocument();
+        expect(screen.getByText('foo')).toBeInTheDocument();
+    });
+
     it('deletes the override whose row action was used', async () => {
         const user = userEvent.setup();
         const admin = mountPage([{ id: 7, namespace: 'foo', maxSize: 100 }]);

@@ -127,9 +127,10 @@ export const SizeOverrides: FC = () => {
         if (loading && sizeOverrides.length === 0) {
             return <CircularProgress />;
         }
-        if (loadError) {
-            // Nothing was loaded, so claiming there are none would be a statement about data we do
-            // not have. The alert above already says what went wrong.
+        if (loadError && sizeOverrides.length === 0) {
+            // Nothing was ever loaded, so claiming there are none would be a statement about data we
+            // do not have. The alert above already says what went wrong. A refetch that fails while
+            // rows are already held keeps showing them - stale beats blank.
             return null;
         }
         if (sizeOverrides.length === 0) {
