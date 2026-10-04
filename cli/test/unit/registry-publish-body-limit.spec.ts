@@ -37,6 +37,18 @@ describe('Registry.publishBodyLimit', () => {
         expect(registry.publishBodyLimit(sevenHundredMiB)).toBe(sevenHundredMiB);
     });
 
+    /**
+     * The fallback path against an older registry passes the package's own size as the allowance, so
+     * a registry whose default is above 512 MiB can actually receive one - "publishing anyway, the
+     * registry decides" has to mean the transport lets it through.
+     */
+    it('admits a package larger than the default when that is the allowance it is given', () => {
+        const registry = new Registry({ registryUrl: 'https://registry.test' });
+        const sevenHundredMiB = 700 * 1024 * 1024;
+
+        expect(registry.publishBodyLimit(sevenHundredMiB)).toBeGreaterThanOrEqual(sevenHundredMiB);
+    });
+
     it('keeps a pinned publish size authoritative', () => {
         const registry = new Registry({ registryUrl: 'https://registry.test', maxPublishSize: 1024 });
 

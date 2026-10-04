@@ -157,7 +157,9 @@ async function doRegistryPublish(
 }
 
 /**
- * Refuses a package the registry would reject anyway, before uploading it.
+ * Refuses a package the registry would reject anyway, before uploading it, and reports how many
+ * bytes it has concluded may be sent - the caller raises the transport cap to that, so nothing we
+ * decided to upload is then refused locally.
  *
  * The limit is the one that applies to this package's namespace and extension, which a size override
  * can raise above the registry default. Registries older than
@@ -182,7 +184,10 @@ async function ensureWithinSizeLimit(
                 + `limit configured, and the registry decides.`
             );
         }
-        return undefined;
+        // The allowance is this package, not the built-in publish size: having decided to send it and
+        // let the registry answer, the transport cap must not be what refuses it instead. An older
+        // registry whose default is above 512 MiB would otherwise reject a package it would accept.
+        return size;
     }
 
     if (size > limit) {
