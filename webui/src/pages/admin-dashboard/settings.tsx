@@ -43,7 +43,16 @@ interface NotificationState {
 const NOTIFICATION_TIMEOUT = 2000;
 const BYTES_PER_MB = 1024 * 1024;
 
-const SETTINGS: Record<keyof Settings, { title: string; description: string }> = {
+/**
+ * The settings rendered as toggles. Keyed by the boolean members of `Settings` only: a numeric
+ * setting such as `maxExtensionSize` has its own control and must not be routed through the toggle
+ * handler, which would write a boolean into it.
+ */
+type BooleanSettingKey = {
+    [K in keyof Settings]: Settings[K] extends boolean ? K : never;
+}[keyof Settings];
+
+const SETTINGS: Record<BooleanSettingKey, { title: string; description: string }> = {
     readOnly: {
         title: 'Read-only mode',
         description: 'Blocks write operations while keeping browsing, search, and downloads available.'
@@ -98,7 +107,7 @@ export const RuntimeSettingsPage: FC = () => {
     };
 
     const handleFlagChange = useCallback(
-        (key: keyof Settings) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
+        (key: BooleanSettingKey) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
             setDraftSettings(current => (current ? { ...current, [key]: checked } : current));
             clearSaved();
         },
@@ -117,7 +126,7 @@ export const RuntimeSettingsPage: FC = () => {
     const hasChanges =
         draftSettings !== null &&
         settings != null &&
-        ((Object.keys(SETTINGS) as (keyof Settings)[]).some(k => draftSettings[k] !== settings[k]) ||
+        ((Object.keys(SETTINGS) as BooleanSettingKey[]).some(k => draftSettings[k] !== settings[k]) ||
             draftSettings.maxExtensionSize !== settings.maxExtensionSize);
 
     const maxExtensionSizeValid = draftSettings !== null && draftSettings.maxExtensionSize > 0;
@@ -161,7 +170,7 @@ export const RuntimeSettingsPage: FC = () => {
                     variant='outlined'
                     elevation={0}
                     sx={{ overflow: 'hidden', borderColor: hasChanges ? 'red' : 'grey' }}>
-                    {(Object.entries(SETTINGS) as [keyof Settings, { title: string; description: string }][]).map(
+                    {(Object.entries(SETTINGS) as [BooleanSettingKey, { title: string; description: string }][]).map(
                         ([key, flag]) => (
                             <SettingsItem
                                 key={key}

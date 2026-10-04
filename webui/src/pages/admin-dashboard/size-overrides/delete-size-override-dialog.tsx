@@ -67,7 +67,8 @@ export const DeleteSizeOverrideDialog: FC<DeleteSizeOverrideDialogProps> = ({
                     Delete the size override for <strong>{scope}</strong>?
                 </Typography>
                 <Typography sx={{ mt: 1 }} color='warning.main'>
-                    Future uploads will use the registry default limit again.
+                    Future uploads will use whichever limit applies next: the namespace override if one exists,
+                    otherwise the registry default.
                 </Typography>
             </DialogContent>
             <DialogActions>

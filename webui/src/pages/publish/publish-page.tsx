@@ -73,6 +73,9 @@ export const PublishPage: FunctionComponent = () => {
     const { over, dropProps } = usePublishDrop();
     const navigate = useNavigate();
     const fileInput = useRef<HTMLInputElement>(null);
+    // The default, not the ceiling: this page cannot know which namespace a package belongs to, and
+    // quoting the ceiling would promise a size most namespaces cannot publish. The queue gates on the
+    // ceiling, so an override holder is never blocked by the smaller number shown here.
     const maxSize = useRegistryValue(version => version.maxExtensionSize);
 
     const onFilesChosen = (event: ChangeEvent<HTMLInputElement>) => {
@@ -116,7 +119,7 @@ export const PublishPage: FunctionComponent = () => {
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.875rem', color: 'text.disabled' }}>
                                     or click to select <code>.vsix</code> packages
-                                    {maxSize ? ` — up to ${formatFileSize(maxSize)} each` : null}
+                                    {maxSize ? ` — typically up to ${formatFileSize(maxSize)} each` : null}
                                 </Typography>
                             </DropPrompt>
                             {items.length > 0 ? (
