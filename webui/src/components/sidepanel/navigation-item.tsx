@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, PropsWithChildren, ReactNode, useContext, useRef, useState } from 'react';
+import { FunctionComponent, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Collapse, List, ListItemButton, ListItemIcon, ListItemText, Popover, Tooltip } from '@mui/material';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -25,6 +25,15 @@ export const NavigationItem: FunctionComponent<PropsWithChildren<NavigationProps
     const navigate = useNavigate();
 
     const isGroup = !!props.children;
+
+    // The dashboard stays mounted across route changes, so a group that becomes the active
+    // one after mount (an in-app navigation, not a fresh page load) needs to expand too -
+    // without collapsing a group the user expanded manually in the meantime.
+    useEffect(() => {
+        if (props.defaultExpanded) {
+            setGroupExpanded(true);
+        }
+    }, [props.defaultExpanded]);
 
     const handleClick = () => {
         if (isGroup) {
