@@ -27,6 +27,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Dependencies
 
 - Bump vitest from 4.1.11 to 5.0.3
+- Bump vite from 8.2.1 to 8.3.2
 - Bump ip-address from 10.4.0 to 10.7.2
 - Bump undici from 8.9.0 to 8.11.2
 - Bump markdown-it from 14.2.0 to 14.3.1
