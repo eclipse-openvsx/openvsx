@@ -12,12 +12,20 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
+import jakarta.transaction.Transactional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.resilience.annotation.Retryable;
+import org.springframework.resilience.retry.MethodRetryPredicate;
 import org.springframework.stereotype.Service;
 
 import org.eclipse.openvsx.cache.CacheService;
@@ -100,6 +108,18 @@ public class ExtensionSizeLimitService {
         return overrides.findAllByOrderByIdAsc();
     }
 
+    // The scope check below and the insert are a check-then-act pair with no serialization point
+    // between them, so two concurrent requests for the same scope can both pass the check under READ
+    // COMMITTED. extension_size_override_scope_idx closes that at the database level; a losing request
+    // retries once, re-reads the now-committed sibling row and reports "already exists" rather than
+    // failing with a 500 the caller cannot act on.
+    @Retryable(
+        includes = DataIntegrityViolationException.class,
+        predicate = DuplicateScopePredicate.class,
+        maxRetries = 1,
+        delay = 100
+    )
+    @Transactional(rollbackOn = ErrorResultException.class)
     public ExtensionSizeOverride createOverride(
             String namespaceName,
             @Nullable String extensionName,
@@ -140,17 +160,26 @@ public class ExtensionSizeLimitService {
     /** The updated override together with the size it replaced, so the change can be audited. */
     public record UpdatedOverride(ExtensionSizeOverride override, long previousMaxSize) {}
 
+    /**
+     * Transactional so the row is loaded and written in one persistence context: the entity stays
+     * managed, the setter is what persists it, and the size this reports as the previous one is the
+     * one the write actually replaced. Loading and saving in separate transactions made the write a
+     * merge of a detached copy, which rewrites every column from a snapshot another request may
+     * already have moved on from - see the rule on {@code EntityManager.merge} in {@code AGENTS.md}.
+     */
+    @Transactional(rollbackOn = ErrorResultException.class)
     public UpdatedOverride updateOverride(long id, long maxSize) {
         var override = requireOverride(id);
         requireValidSize(maxSize);
-        // Captured before the setter: saving mutates the loaded entity, losing the old value.
+        // Captured before the setter, which is what persists the new value.
         var previousMaxSize = override.getMaxSize();
         override.setMaxSize(maxSize);
-        var saved = overrides.save(override);
         settings.invalidateCache();
-        return new UpdatedOverride(saved, previousMaxSize);
+        return new UpdatedOverride(override, previousMaxSize);
     }
 
+    /** Transactional for the same reason as {@link #updateOverride}: the row is removed as loaded. */
+    @Transactional(rollbackOn = ErrorResultException.class)
     public ExtensionSizeOverride deleteOverride(long id) {
         var override = requireOverride(id);
         overrides.delete(override);
@@ -170,7 +199,13 @@ public class ExtensionSizeLimitService {
      * The namespace-wide override is the old namespace's own, so it only moves when that identity is
      * going away and the new namespace has none of its own; otherwise the new namespace's own setting
      * stands, exactly as memberships are merged. Anything left behind goes with the old row.
+     * <p>
+     * {@code MANDATORY} because the re-pointing below is a bare setter: it persists through dirty
+     * checking on entities the caller's transaction keeps managed, and would be discarded in silence
+     * without one. Joining the caller's transaction is also what makes the move and the namespace
+     * change it belongs to commit together.
      */
+    @Transactional(Transactional.TxType.MANDATORY)
     public void moveOverridesToNamespace(Namespace oldNamespace, Namespace newNamespace, boolean oldNamespaceRemoved) {
         var existing = overrides.findByScopeNamespace(oldNamespace);
         if (existing.isEmpty()) {
@@ -222,6 +257,34 @@ public class ExtensionSizeLimitService {
             throw new ErrorResultException(
                     "The size override exceeds the maximum of " + ceiling + " bytes.",
                     HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /** Retries only the concurrent-create collision, leaving every other integrity failure to fail. */
+    public static class DuplicateScopePredicate implements MethodRetryPredicate {
+
+        // Unique index on extension_size_override(scope_namespace_id, COALESCE(scope_extension_id, 0)),
+        // see the V1_79 migration.
+        private static final String UNIQUE_SCOPE = "extension_size_override_scope_idx";
+
+        private static final Logger logger = LoggerFactory.getLogger(DuplicateScopePredicate.class);
+
+        @Override
+        public boolean shouldRetry(Method method, Throwable exception) {
+            for (var cause = exception; cause != null; cause = cause.getCause()) {
+                var isDuplicateScope = cause instanceof ConstraintViolationException violation
+                        && UNIQUE_SCOPE.equals(violation.getConstraintName());
+                // The constraint name is not always available, so fall back to the reported message.
+                isDuplicateScope |= cause.getMessage() != null
+                        && cause.getMessage().contains('"' + UNIQUE_SCOPE + '"');
+
+                if (isDuplicateScope) {
+                    logger.warn("Size override was created concurrently, retrying to report the duplicate", exception);
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
