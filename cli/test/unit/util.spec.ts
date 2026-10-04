@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getTempFilePath } from '../../src/util';
+import { getTempFilePath, levenshtein } from '../../src/util';
 
 describe('getTempFilePath', () => {
 
@@ -50,5 +50,30 @@ describe('getTempFilePath', () => {
         const second = givenTempFilePath('.pem');
 
         expect(first).not.toBe(second);
+    });
+});
+
+describe('levenshtein', () => {
+
+    it('returns 0 for identical strings', () => {
+        expect(levenshtein('publish', 'publish')).toBe(0);
+    });
+
+    it('counts a single substitution', () => {
+        expect(levenshtein('cat', 'cot')).toBe(1);
+    });
+
+    it('counts insertions needed to turn the shorter string into the longer one', () => {
+        expect(levenshtein('cat', 'cats')).toBe(1);
+    });
+
+    it('is symmetric regardless of which string is longer', () => {
+        expect(levenshtein('kitten', 'sitting')).toBe(levenshtein('sitting', 'kitten'));
+        expect(levenshtein('kitten', 'sitting')).toBe(3);
+    });
+
+    // main.ts suggests a command when its distance to the typo is under 40% of the command's length.
+    it('stays under the 40%-of-length threshold main.ts suggests a command at', () => {
+        expect(levenshtein('publish', 'pubilsh')).toBeLessThan('publish'.length * 0.4);
     });
 });

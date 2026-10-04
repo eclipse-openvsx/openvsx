@@ -9,12 +9,11 @@
  ********************************************************************************/
 
 import * as commander from 'commander';
-import * as leven from 'leven';
 import { createNamespace } from './create-namespace';
 import { verifyPat } from './verify-pat';
 import { publish } from './publish';
 import { unpublish } from './unpublish';
-import { handleError, parseNonNegativeInt } from './util';
+import { handleError, levenshtein, parseNonNegativeInt } from './util';
 import { getExtension } from './get';
 import { list } from './list';
 import { DEFAULT_SEARCH_SIZE, SORT_KEYS, SORT_ORDERS, search } from './search';
@@ -210,7 +209,7 @@ module.exports = function (argv: string[]): void {
             const availableCommands = program.commands.map((c: any) => c._name) as string[];
             const actualCommand = cmd.args[0];
             if (actualCommand) {
-                const suggestion = availableCommands.find(c => leven(c, actualCommand) < c.length * 0.4);
+                const suggestion = availableCommands.find(c => levenshtein(c, actualCommand) < c.length * 0.4);
                 if (suggestion)
                     console.error(`Unknown command '${actualCommand}', did you mean '${suggestion}'?\n`);
                 else

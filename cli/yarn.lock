@@ -3028,13 +3028,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"leven@npm:^3.1.0":
-  version: 3.1.0
-  resolution: "leven@npm:3.1.0"
-  checksum: 10/638401d534585261b6003db9d99afd244dfe82d75ddb6db5c0df412842d5ab30b2ef18de471aaec70fe69a46f17b4ae3c7f01d8a4e6580ef7adb9f4273ad1e55
-  languageName: node
-  linkType: hard
-
 "levn@npm:^0.4.1":
   version: 0.4.1
   resolution: "levn@npm:0.4.1"
@@ -3609,7 +3602,6 @@ __metadata:
     eslint: "npm:^9.15.0"
     follow-redirects: "npm:^1.16.0"
     is-ci: "npm:^2.0.0"
-    leven: "npm:^3.1.0"
     limiter: "npm:^2.1.0"
     rimraf: "npm:^6.0.1"
     semver: "npm:^7.6.0"
