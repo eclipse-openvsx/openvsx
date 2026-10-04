@@ -10,6 +10,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 #### Fixed
 
+- `--version` reads the version from `package.json` at runtime instead of a generated `src/version.ts`, so it can no longer report a stale version
 - `publish` now deletes the `.vsix` it packages into the temp directory once publishing finishes or fails, instead of leaving one behind per package and target
 
 ### Dependencies

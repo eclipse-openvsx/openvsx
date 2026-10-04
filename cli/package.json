@@ -65,12 +65,11 @@
     },
     "scripts": {
         "clean": "rimraf lib",
-        "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
         "build": "tsc -p ./tsconfig.json && yarn run lint",
         "watch": "tsc -w -p ./tsconfig.json",
         "test": "vitest run",
         "lint": "eslint -c ./configs/eslintrc.mjs src test",
-        "prepare": "yarn run clean && yarn run prebuild && yarn run build",
+        "prepare": "yarn run clean && yarn run build",
         "publish:next": "yarn npm publish --tag next",
         "publish:latest": "yarn npm publish --tag latest",
         "load-extensions": "node scripts/load-test-extensions.js"
