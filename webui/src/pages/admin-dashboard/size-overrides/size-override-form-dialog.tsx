@@ -103,8 +103,10 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
         }
     };
 
-    const maxSize = Number.parseInt(sizeValue, 10) * UNIT_MULTIPLIERS[sizeUnit];
-    const canSubmit = namespaceConfirmed && Number.isFinite(maxSize) && maxSize > 0 && !saving;
+    // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be submitted as 1 and
+    // 1e3 as 1, neither of which is what the field showed.
+    const maxSize = Number(sizeValue) * UNIT_MULTIPLIERS[sizeUnit];
+    const canSubmit = namespaceConfirmed && Number.isSafeInteger(maxSize) && maxSize > 0 && !saving;
 
     const handleSubmit = async () => {
         if (!canSubmit) {

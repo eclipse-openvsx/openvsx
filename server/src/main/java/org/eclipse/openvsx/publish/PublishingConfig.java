@@ -119,6 +119,13 @@ public class PublishingConfig {
         this.maxInternalTags = maxInternalTags;
     }
 
+    /**
+     * The two sizes are deliberately not compared: an operator may already run a
+     * {@code max-content-size} above this property's default, and failing startup over that would
+     * break an upgrade for a deployment with no overrides at all. They are independent anyway - the
+     * stream-time ceiling is derived from the default and the configured overrides, never from this
+     * property, which only bounds what the admin API will store.
+     */
     @PostConstruct
     public void validate() {
         if (maxContentSize <= 0) {
@@ -128,11 +135,6 @@ public class PublishingConfig {
         if (maxOverrideSize <= 0) {
             throw new IllegalArgumentException(
                     "ovsx.publishing.max-override-size must be greater than zero, got: " + maxOverrideSize);
-        }
-        if (maxOverrideSize < maxContentSize) {
-            throw new IllegalArgumentException(
-                    "ovsx.publishing.max-override-size must not be smaller than ovsx.publishing.max-content-size ("
-                            + maxContentSize + "), got: " + maxOverrideSize);
         }
     }
 }

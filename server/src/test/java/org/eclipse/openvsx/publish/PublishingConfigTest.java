@@ -58,19 +58,24 @@ class PublishingConfigTest {
                                 .hasMessageContaining("ovsx.publishing.max-override-size"));
     }
 
+    /**
+     * Deployments configured with a content size above this property's default predate it, and must
+     * keep starting: the two limits bound different things and are not compared.
+     */
     @Test
-    void refusesAnOverrideCeilingBelowTheDefaultContentSize() {
+    void acceptsAnOverrideCeilingBelowTheConfiguredContentSize() {
         contextRunner
                 .withPropertyValues(
-                        "ovsx.publishing.max-content-size=1048576",
-                        "ovsx.publishing.max-override-size=1024")
-                .run(
-                        context -> assertThat(context)
-                                .hasFailed()
-                                .getFailure()
-                                .rootCause()
-                                .isInstanceOf(IllegalArgumentException.class)
-                                .hasMessageContaining("must not be smaller than"));
+                        "ovsx.publishing.max-content-size=2147483648",
+                        "ovsx.publishing.max-override-size=1073741824")
+                .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void startsWithALargeContentSizeAndNoOverrideSizeConfigured() {
+        contextRunner
+                .withPropertyValues("ovsx.publishing.max-content-size=2147483648")
+                .run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test

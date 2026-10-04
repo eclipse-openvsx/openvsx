@@ -337,6 +337,27 @@ class AccessTokenServiceTest {
         verify(entityManager, never()).remove(any());
     }
 
+    /**
+     * The size-limit preflight runs with whatever token the publish will use, and for trusted
+     * publishing that is a TPT. Refusing it there costs nothing visible - the CLI falls back to its
+     * advisory warning - so a scope that excluded this action would silently disable the check for
+     * every trusted publishing user.
+     */
+    @Test
+    void allowsATrustedPublishingTokenToCheckWhetherItCouldPublish() {
+        var user = new UserData();
+        var token = trustedPublishingToken(user);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        var tau = accessTokenService
+                .useAccessToken("tok", new AccessTokenAction.VerifyPublishVersion("foo", "bar"));
+
+        assertThat(tau).isNotNull();
+        assertThat(tau.type()).isEqualTo(PersonalAccessTokenType.TPT);
+        // checking is not using: the token has to survive for the publish it was checked for
+        verify(entityManager, never()).remove(any());
+    }
+
     // A release commonly publishes one version per target platform, and each is its own publish request.
     // The CLI exchanges the CI identity once and shares the token across them (cli/src/trusted-publishing.ts
     // caches it per extension), so consuming it on first use failed every target but one - and since the

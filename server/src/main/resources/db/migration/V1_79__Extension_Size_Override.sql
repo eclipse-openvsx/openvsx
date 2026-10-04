@@ -10,5 +10,10 @@ CREATE TABLE IF NOT EXISTS public.extension_size_override
     updated_at TIMESTAMP without time zone NOT NULL
 );
 
+-- Without this pg_get_serial_sequence cannot find the sequence, which silently defeats
+-- scripts/import-db-dump.sh's sequence reset after loading a dump - the problem V1_77 had to repair
+-- for extension_version_change_seq.
+ALTER SEQUENCE extension_size_override_seq OWNED BY public.extension_size_override.id;
+
 CREATE UNIQUE INDEX IF NOT EXISTS extension_size_override_scope_idx
     ON public.extension_size_override (scope_namespace_id, COALESCE(scope_extension_id, 0));

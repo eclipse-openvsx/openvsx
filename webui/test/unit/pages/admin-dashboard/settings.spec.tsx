@@ -55,6 +55,27 @@ describe('RuntimeSettingsPage', () => {
         expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
     });
 
+    // parseInt stopped at the decimal point, so this used to save 1 MB while the field still read
+    // 1.5 - a limit nobody chose, applied silently.
+    it('keeps a fractional MB value instead of truncating it', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(settings({ maxExtensionSize: 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '1.5');
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() =>
+            expect(admin.updateSettings).toHaveBeenCalledWith(
+                expect.objectContaining({ maxExtensionSize: 1.5 * 1024 * 1024 })
+            )
+        );
+    });
+
     it('converts the typed MB value to bytes and saves it', async () => {
         const user = userEvent.setup();
         const admin = mountPage(settings({ maxExtensionSize: 512 * 1024 * 1024 }));

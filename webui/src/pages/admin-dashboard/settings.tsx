@@ -116,8 +116,11 @@ export const RuntimeSettingsPage: FC = () => {
 
     const handleMaxExtensionSizeChange = useCallback(
         (event: ChangeEvent<HTMLInputElement>) => {
-            const mb = Math.max(0, Number.parseInt(event.target.value, 10) || 0);
-            setDraftSettings(current => (current ? { ...current, maxExtensionSize: mb * BYTES_PER_MB } : current));
+            // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be stored as
+            // 1 MB and 1e3 as 1 MB while the field kept showing what was typed.
+            const mb = Number(event.target.value);
+            const bytes = Number.isFinite(mb) ? mb * BYTES_PER_MB : Number.NaN;
+            setDraftSettings(current => (current ? { ...current, maxExtensionSize: bytes } : current));
             clearSaved();
         },
         [clearSaved]
@@ -129,7 +132,10 @@ export const RuntimeSettingsPage: FC = () => {
         ((Object.keys(SETTINGS) as BooleanSettingKey[]).some(k => draftSettings[k] !== settings[k]) ||
             draftSettings.maxExtensionSize !== settings.maxExtensionSize);
 
-    const maxExtensionSizeValid = draftSettings !== null && draftSettings.maxExtensionSize > 0;
+    const maxExtensionSizeValid =
+        draftSettings !== null &&
+        Number.isSafeInteger(draftSettings.maxExtensionSize) &&
+        draftSettings.maxExtensionSize > 0;
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -196,11 +202,17 @@ export const RuntimeSettingsPage: FC = () => {
                     <TextField
                         label='Max extension size (MB)'
                         type='number'
-                        value={draftSettings ? Math.round(draftSettings.maxExtensionSize / BYTES_PER_MB) : ''}
+                        value={
+                            draftSettings && Number.isFinite(draftSettings.maxExtensionSize)
+                                ? draftSettings.maxExtensionSize / BYTES_PER_MB
+                                : ''
+                        }
                         onChange={handleMaxExtensionSizeChange}
                         disabled={loading || saving || !draftSettings}
                         error={!maxExtensionSizeValid}
-                        helperText={maxExtensionSizeValid ? undefined : 'Must be greater than 0'}
+                        helperText={
+                            maxExtensionSizeValid ? undefined : 'Must be a whole number of bytes, greater than 0'
+                        }
                         inputProps={{ min: '1' }}
                         sx={{ maxWidth: 240 }}
                     />

@@ -50,6 +50,24 @@ describe('SizeOverrideFormDialog', () => {
         );
     });
 
+    it('keeps a fractional size instead of truncating it', async () => {
+        const user = userEvent.setup();
+        const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: {} });
+        const { onSubmit } = mountDialog(getNamespace);
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+        await user.click(screen.getByRole('button', { name: /look up/i }));
+        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
+
+        await user.clear(screen.getByLabelText(/max size/i));
+        await user.type(screen.getByLabelText(/max size/i), '1.5');
+        await user.click(screen.getByRole('button', { name: /create/i }));
+
+        await waitFor(() =>
+            expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ maxSize: 1.5 * 1024 * 1024 }))
+        );
+    });
+
     it('offers the looked-up namespace extensions to choose from', async () => {
         const user = userEvent.setup();
         const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: { bar: 'u', baz: 'u' } });

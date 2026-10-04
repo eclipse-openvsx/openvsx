@@ -378,7 +378,12 @@ public class AccessTokenService {
             scope = new AccessTokenScope.Unrestricted();
         }
         if (token.getType() == PersonalAccessTokenType.TPT) {
-            scope = scope.and(new AccessTokenScope.ActionScoped(AccessTokenAction.PublishVersion.class));
+            // VerifyPublishVersion asks whether this token could publish, which is strictly less than
+            // publishing and is what the size-limit preflight runs before the publish itself.
+            scope = scope.and(
+                    new AccessTokenScope.ActionScoped(
+                            AccessTokenAction.PublishVersion.class,
+                            AccessTokenAction.VerifyPublishVersion.class));
         }
         return scope;
     }
