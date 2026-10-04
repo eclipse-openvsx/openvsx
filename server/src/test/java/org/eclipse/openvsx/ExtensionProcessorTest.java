@@ -198,6 +198,44 @@ class ExtensionProcessorTest {
         }
     }
 
+    @Test
+    void testDeclaredDisplayName() throws Exception {
+        try (
+                var file = writeToTempFile("util/todo-tree.zip");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThat(processor.getDeclaredDisplayName()).isEqualTo("Todo Tree");
+            assertThat(processor.getDisplayNameOrExtensionName()).isEqualTo("Todo Tree");
+        }
+    }
+
+    @Test
+    void testDisplayNameOfAPackageDeclaringNone() throws Exception {
+        // A package declaring no display name holds none, and what gets persisted has to say so.
+        // Only the labelling accessor stands the extension name in for it.
+        try (
+                var file = writeDisplayNameToTempFile("");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThat(processor.getDeclaredDisplayName()).isNull();
+            assertThat(processor.getMetadata(NO_LIMIT, NO_LIMIT).getDisplayName()).isNull();
+            assertThat(processor.getDisplayNameOrExtensionName()).isEqualTo("todo-tree");
+        }
+    }
+
+    @Test
+    void testDisplayNameOfAPackageDeclaringOnlyWhitespace() throws Exception {
+        // Whitespace is no more of a display name than nothing at all.
+        try (
+                var file = writeDisplayNameToTempFile("   ");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThat(processor.getDeclaredDisplayName()).isNull();
+            assertThat(processor.getMetadata(NO_LIMIT, NO_LIMIT).getDisplayName()).isNull();
+            assertThat(processor.getDisplayNameOrExtensionName()).isEqualTo("todo-tree");
+        }
+    }
+
     private List<String> tags(int count) {
         // Named so that the alphabetical order the tags are stored in matches the declaration order.
         return IntStream.rangeClosed(1, count).mapToObj(i -> String.format("tag-%03d", i)).toList();
@@ -231,6 +269,36 @@ class ExtensionProcessorTest {
                     content = content.replace(
                             "<Tags>todo,task,tasklist,multi-root ready</Tags>",
                             "<Tags>" + String.join(",", tags) + "</Tags>");
+                }
+
+                out.putNextEntry(new ZipEntry(name));
+                out.write(content.getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+        }
+
+        return target;
+    }
+
+    /**
+     * Writes a package declaring the given display name, based on an existing extension so that the
+     * rest of the manifest stays valid.
+     */
+    private TempFile writeDisplayNameToTempFile(String displayName) throws IOException {
+        var target = new TempFile("test", ".zip");
+        try (
+                var source = writeToTempFile("util/todo-tree.zip");
+                var zipFile = new ZipFile(source.getPath().toFile());
+                var out = new ZipOutputStream(Files.newOutputStream(target.getPath()))
+        ) {
+            for (var name : List.of("extension.vsixmanifest", "extension/package.json")) {
+                var content = new String(
+                        zipFile.getInputStream(zipFile.getEntry(name)).readAllBytes(),
+                        StandardCharsets.UTF_8);
+                if (name.equals("extension.vsixmanifest")) {
+                    content = content.replace(
+                            "<DisplayName>Todo Tree</DisplayName>",
+                            "<DisplayName>" + displayName + "</DisplayName>");
                 }
 
                 out.putNextEntry(new ZipEntry(name));

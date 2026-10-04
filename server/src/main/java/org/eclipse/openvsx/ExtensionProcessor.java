@@ -318,10 +318,7 @@ public class ExtensionProcessor implements AutoCloseable {
         extVersion.setTargetPlatform(getTargetPlatform());
         extVersion.setPreview(isPreview());
         extVersion.setPreRelease(isPreRelease());
-        var displayName = vsixManifest.path(MANIFEST_METADATA).path("DisplayName").asString();
-        if (StringUtils.isNotBlank(displayName)) {
-            extVersion.setDisplayName(displayName);
-        }
+        extVersion.setDisplayName(getDeclaredDisplayName());
         extVersion.setDescription(vsixManifest.path(MANIFEST_METADATA).path("Description").path("").asString());
         extVersion.setEngines(getEngines(packageJson.path("engines")));
         extVersion.setCategories(asStringList(vsixManifest.path(MANIFEST_METADATA).path("Categories").asString(), ","));
@@ -366,13 +363,26 @@ public class ExtensionProcessor implements AutoCloseable {
         return targetPlatform;
     }
 
-    public String getDisplayName() {
+    /**
+     * The display name the package declares, or {@code null} when it declares none.
+     * <p>
+     * Anything deciding whether a publication may go ahead has to use this one: a package declaring
+     * no display name holds none, and must not be held up against a name it does not carry.
+     */
+    public String getDeclaredDisplayName() {
         loadVsixManifest();
         var displayName = vsixManifest.path(MANIFEST_METADATA).path("DisplayName").asString();
-        if (StringUtils.isBlank(displayName)) {
-            return getExtensionName();
-        }
-        return displayName;
+        return StringUtils.isNotBlank(displayName) ? displayName : null;
+    }
+
+    /**
+     * The display name to label this package with, falling back to the extension name when it
+     * declares none -- which is what clients show for such an extension anyway. For display only: it
+     * synthesizes a name the package does not carry, so it cannot decide a publication.
+     */
+    public String getDisplayNameOrExtensionName() {
+        var displayName = getDeclaredDisplayName();
+        return displayName != null ? displayName : getExtensionName();
     }
 
     private List<String> getTags(int maxTags, int maxInternalTags) {
