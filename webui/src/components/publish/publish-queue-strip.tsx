@@ -85,6 +85,10 @@ const StatusChip = styled(TagChip)({
 /** What the queue as a whole is waiting on: uploads first, then the registry's checks. */
 const queueLabel = (items: PublishItem[]): string => {
     const count = (status: PublishStatus) => items.filter(item => item.status === status).length;
+    const checking = count('checking');
+    if (checking > 0) {
+        return `Checking ${checking}`;
+    }
     const uploading = count('uploading');
     if (uploading > 0) {
         return `Publishing ${uploading}`;

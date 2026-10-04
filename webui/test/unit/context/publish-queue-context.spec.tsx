@@ -207,6 +207,43 @@ describe('publish queue', () => {
      * refused uploads the registry would have accepted.
      */
     /**
+     * The drop navigates to this page immediately and does not wait for the queue, so a page that
+     * shows nothing while the ceiling is re-read reads as a drop that failed - and the obvious
+     * response is to drop the same package again, which publishes it twice.
+     */
+    it('shows the package while the ceiling is being re-read', async () => {
+        let release: (value: unknown) => void = () => undefined;
+        const getRegistryVersion = vi.fn().mockImplementation(
+            () =>
+                new Promise(resolve => {
+                    release = resolve;
+                })
+        );
+        const { result } = renderQueue(
+            { publishExtension: vi.fn().mockResolvedValue(published()), getRegistryVersion },
+            { version: { version: '1.3.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 4 } }
+        );
+
+        // deliberately not awaited: the re-read is still in flight
+        let publishing: Promise<void>;
+        act(() => {
+            publishing = result.current.publish([vsix('big.vsix')]);
+        });
+
+        await waitFor(() => expect(result.current.items).toHaveLength(1));
+        expect(result.current.items[0].fileName).toBe('big.vsix');
+        expect(result.current.items[0].status).toBe('checking');
+
+        await act(async () => {
+            release({ version: '1.3.0', maxExtensionSizeCeiling: 4 });
+            await publishing;
+        });
+
+        expect(result.current.items[0].status).toBe('failed');
+        expect(result.current.items[0].error).toBe('Larger than the 4 B limit.');
+    });
+
+    /**
      * The ceiling is read once when the app starts and never refreshed, so the tab a publisher
      * already had open still holds the old one. That is exactly the tab they retry in after asking
      * an admin for the override - refusing there would block the package the override was created

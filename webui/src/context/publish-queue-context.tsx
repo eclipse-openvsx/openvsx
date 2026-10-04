@@ -40,8 +40,12 @@ const REVIEW_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 // them) appear after the response. Worth a short wait, but plenty of extensions have no icon.
 const ASSET_POLL_TIMEOUT_MS = 60 * 1000;
 
-/** `blocked` is accepted-but-held: the registry has the package, and clearing what holds it back is the user's to do. */
-export type PublishStatus = 'uploading' | 'reviewing' | 'published' | 'blocked' | 'rejected' | 'failed';
+/**
+ * `checking` is before the upload: the queue is re-reading the registry's ceiling to find out whether
+ * the package may be sent at all. `blocked` is accepted-but-held: the registry has the package, and
+ * clearing what holds it back is the user's to do.
+ */
+export type PublishStatus = 'checking' | 'uploading' | 'reviewing' | 'published' | 'blocked' | 'rejected' | 'failed';
 
 export interface PublishItem {
     id: number;
@@ -78,7 +82,8 @@ export const usePublishQueue = (): PublishQueue => useContext(PublishQueueContex
 export const isVsixFile = (file: File): boolean => file.name.toLowerCase().endsWith('.vsix');
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const isFinished = (item: PublishItem): boolean => item.status !== 'uploading' && item.status !== 'reviewing';
+export const isFinished = (item: PublishItem): boolean =>
+    item.status !== 'checking' && item.status !== 'uploading' && item.status !== 'reviewing';
 
 const statusOf = (extension: Readonly<Extension>): PublishStatus => {
     // The registry parks a conflicting namespace under review, but only the user claiming it clears
@@ -298,21 +303,12 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
             // that override was created for. Re-read it before refusing anything - only then, so the
             // common path still costs nothing.
             let ceiling = maxSize;
-            if (ceiling !== undefined && candidates.some(file => file.size > ceiling!)) {
-                ceiling = await currentCeiling(ceiling);
-            }
-            const queued = candidates.map(file => {
-                // the limit it exceeded, so the message can name it without widening the type again
-                const exceeded = ceiling !== undefined && file.size > ceiling ? ceiling : undefined;
-                return {
-                    id: nextId.current++,
-                    fileName: file.name,
-                    size: file.size,
-                    status: exceeded !== undefined ? ('failed' as const) : ('uploading' as const),
-                    error: exceeded !== undefined ? `Larger than the ${formatFileSize(exceeded)} limit.` : undefined,
-                    file
-                };
-            });
+            const queued = candidates.map(file => ({
+                id: nextId.current++,
+                fileName: file.name,
+                size: file.size,
+                file
+            }));
             if (queued.length === 0) {
                 // Dropping a folder, or anything else that is not a package, would otherwise look
                 // like the app simply ignored the drop.
@@ -321,8 +317,42 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
                 }
                 return;
             }
-            setItems(current => [...queued.map(({ file: _file, ...item }) => item), ...current]);
-            queued.forEach(({ id, file, status }) => {
+
+            // Only when something looks too big, so the common drop still reaches the registry in one
+            // go. The re-read is a network round trip, and the drop has already navigated here by
+            // now: a page showing nothing reads as a drop that failed, and the obvious response is to
+            // drop the same package again. So the cards go up first and are settled afterwards.
+            const revalidating = ceiling !== undefined && queued.some(file => file.size > ceiling!);
+            if (revalidating) {
+                setItems(current => [
+                    ...queued.map(({ file: _file, ...item }) => ({ ...item, status: 'checking' as const })),
+                    ...current
+                ]);
+                ceiling = await currentCeiling(ceiling!);
+            }
+
+            const settled = queued.map(item => {
+                // the limit it exceeded, so the message can name it without widening the type again
+                const exceeded = ceiling !== undefined && item.size > ceiling ? ceiling : undefined;
+                return {
+                    ...item,
+                    status: exceeded !== undefined ? ('failed' as const) : ('uploading' as const),
+                    error: exceeded !== undefined ? `Larger than the ${formatFileSize(exceeded)} limit.` : undefined
+                };
+            });
+
+            if (revalidating) {
+                const byId = new Map(settled.map(item => [item.id, item]));
+                setItems(current =>
+                    current.map(item => {
+                        const resolved = byId.get(item.id);
+                        return resolved ? { ...item, status: resolved.status, error: resolved.error } : item;
+                    })
+                );
+            } else {
+                setItems(current => [...settled.map(({ file: _file, ...item }) => item), ...current]);
+            }
+            settled.forEach(({ id, file, status }) => {
                 if (status === 'uploading') {
                     upload(id, file);
                 }
