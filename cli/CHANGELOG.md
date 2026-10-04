@@ -6,6 +6,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 ### Dependencies
 
+- Bump @vscode/vsce from 3.7.1 to 4.0.0
 - Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`
 - Bump ip-address from 10.4.0 to 10.7.2
 - Bump brace-expansion to 1.1.21, 2.1.7, 5.0.12
