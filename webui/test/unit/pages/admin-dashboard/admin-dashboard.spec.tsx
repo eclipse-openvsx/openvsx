@@ -83,7 +83,7 @@ describe('AdminDashboard contributed pages', () => {
         renderDashboard(undefined);
 
         // Each group label appears twice: once in the side panel, once as an overview section heading.
-        for (const group of ['Content', 'Search', 'Infrastructure', 'Rate Limiting', 'Analytics']) {
+        for (const group of ['Content', 'Search', 'Maintenance', 'Administration', 'Rate Limiting', 'Analytics']) {
             expect(screen.getAllByText(group).length).toBeGreaterThan(0);
         }
     });

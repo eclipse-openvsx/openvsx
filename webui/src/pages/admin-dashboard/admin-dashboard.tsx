@@ -13,12 +13,13 @@ import { Box, Container, CssBaseline, Typography, IconButton } from '@mui/materi
 import { styled } from '@mui/material/styles';
 import { Route, Routes, useNavigate } from 'react-router';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
-import DnsIcon from '@mui/icons-material/Dns';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
@@ -118,8 +119,8 @@ const navConfig: NavEntry[] = [
         ]
     },
     {
-        name: 'Infrastructure',
-        icon: <DnsIcon />,
+        name: 'Maintenance',
+        icon: <BuildIcon />,
         children: [
             {
                 path: AdminDashboardRoutes.CACHES,
@@ -132,7 +133,13 @@ const navConfig: NavEntry[] = [
                 name: 'Data Consistency',
                 icon: <FactCheckIcon />,
                 description: 'Check the database for known inconsistencies and fix them'
-            },
+            }
+        ]
+    },
+    {
+        name: 'Administration',
+        icon: <AdminPanelSettingsIcon />,
+        children: [
             {
                 path: AdminDashboardRoutes.LOGS,
                 name: 'Logs',
