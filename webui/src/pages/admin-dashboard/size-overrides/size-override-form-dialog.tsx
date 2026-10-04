@@ -51,7 +51,8 @@ const UNVERIFIED_MESSAGE = 'Not verified - a size override can only be granted t
 type NamespaceCheck =
     | { state: 'idle' }
     | { state: 'checking' }
-    | { state: 'verified'; extensions: string[] }
+    // carries the name as checked, which is what gets submitted - the field may hold stray whitespace
+    | { state: 'verified'; name: string; extensions: string[] }
     | { state: 'rejected'; reason: string };
 
 const splitSize = (bytes: number): { value: number; unit: string } => {
@@ -99,7 +100,11 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
             setExtension(sizeOverride.extension ?? null);
             // An existing override is on a namespace that was verified when it was granted; the name
             // cannot be edited here, so there is nothing to re-check.
-            setCheck({ state: 'verified', extensions: sizeOverride.extension ? [sizeOverride.extension] : [] });
+            setCheck({
+                state: 'verified',
+                name: sizeOverride.namespace,
+                extensions: sizeOverride.extension ? [sizeOverride.extension] : []
+            });
             setSizeValue(String(split.value));
             setSizeUnit(split.unit);
         } else {
@@ -133,7 +138,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
                 }
                 setCheck(
                     found.verified
-                        ? { state: 'verified', extensions: Object.keys(found.extensions) }
+                        ? { state: 'verified', name, extensions: Object.keys(found.extensions) }
                         : { state: 'rejected', reason: UNVERIFIED_MESSAGE }
                 );
             } catch (err) {
@@ -157,7 +162,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
     const canSubmit = check.state === 'verified' && Number.isSafeInteger(maxSize) && maxSize > 0 && !saving;
 
     const handleSubmit = async () => {
-        if (!canSubmit) {
+        if (!canSubmit || check.state !== 'verified') {
             return;
         }
         setSaving(true);
@@ -165,7 +170,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
         try {
             await onSubmit({
                 id: sizeOverride?.id ?? 0,
-                namespace,
+                namespace: check.name,
                 extension: extension ?? undefined,
                 maxSize
             });

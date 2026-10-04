@@ -58,6 +58,23 @@ describe('SizeOverrideFormDialog', () => {
         );
     });
 
+    /**
+     * The name is trimmed before it is checked, so submitting the raw field would ask the server to
+     * save an override for a namespace it would not find - after the form said it was verified.
+     */
+    it('submits the same name it checked, not the raw field', async () => {
+        const user = userEvent.setup();
+        const getNamespace = vi.fn().mockResolvedValue(namespaceResult());
+        const { onSubmit } = mountDialog(getNamespace);
+
+        await user.type(screen.getByLabelText(/namespace/i), '  foo  ');
+        await screen.findByText(/verified namespace/i);
+        await user.click(screen.getByRole('button', { name: /create/i }));
+
+        expect(getNamespace).toHaveBeenCalledWith(expect.anything(), 'foo');
+        await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ namespace: 'foo' })));
+    });
+
     it('keeps a fractional size instead of truncating it', async () => {
         const user = userEvent.setup();
         const { onSubmit } = mountDialog(vi.fn().mockResolvedValue(namespaceResult()));
