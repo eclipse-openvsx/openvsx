@@ -543,6 +543,81 @@ export interface FileDecisionDeleteResponse {
     results: FileDecisionDeleteResult[];
 }
 
+// Name squatting moderation types (used by the admin name squatting UI)
+
+/**
+ * What became of a flagged extension after the name squatting check ran. `PUBLISHED` and
+ * `DEACTIVATED` extensions exist and can be moderated; `REJECTED` ones were never created because
+ * the check blocked publication, so there is nothing to act on.
+ */
+export type NameSquattingState = 'PUBLISHED' | 'DEACTIVATED' | 'REJECTED';
+
+export interface NameSquattingFinding {
+    id: string;
+    scanId: string;
+    version: string;
+    targetPlatform: string;
+    scanStatus: string;
+    ruleName: string;
+    reason: string;
+    dateDetected: string;
+    enforcedFlag: boolean;
+}
+
+export interface NameSquattingFlag {
+    namespace: string;
+    extensionName: string;
+    displayName: string;
+    publisher: string;
+    publisherUrl?: string;
+    state: NameSquattingState;
+    activeVersionCount: number;
+    findingCount: number;
+    dateFirstDetected: string;
+    dateLastDetected: string;
+    findings: NameSquattingFinding[];
+}
+
+export interface NameSquattingFlagList {
+    success?: string;
+    warning?: string;
+    error?: string;
+    offset: number;
+    totalSize: number;
+    flags: NameSquattingFlag[];
+}
+
+export interface NameSquattingCounts {
+    total: number;
+    published: number;
+    deactivated: number;
+    rejected: number;
+}
+
+export interface NameSquattingTarget {
+    namespace: string;
+    extension: string;
+}
+
+export interface NameSquattingActionRequest {
+    targets: NameSquattingTarget[];
+}
+
+export interface NameSquattingActionResult {
+    namespace: string;
+    extension: string;
+    success: boolean;
+    message?: string;
+    error?: string;
+}
+
+export interface NameSquattingActionResponse {
+    processed: number;
+    successful: number;
+    failed: number;
+    results: NameSquattingActionResult[];
+}
+
 export enum TierType {
     FREE = 'FREE',
     SAFETY = 'SAFETY',
