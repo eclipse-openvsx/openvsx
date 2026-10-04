@@ -875,6 +875,17 @@ public class LocalRegistryService implements IExtensionRegistry {
         // for a 50x. Capped at the same max upload size a successful publish already reads in full,
         // so an oversized/abusive body doesn't tie up the request thread and bandwidth beyond that.
         try (var content = new DrainOnCloseInputStream(rawContent, sizeLimits.getCeiling())) {
+            // Before the body is written anywhere: a request whose token is missing, unknown,
+            // expired or deactivated ends in this same 401 once the package has been parsed, so
+            // there is nothing to learn from doing the work first - and the work is a file of up to
+            // the ceiling plus a zip parse, which no caller should be able to impose without a live
+            // token. Liveness only, never scope: every scope judges an action against the namespace
+            // its token is bound to, and that namespace is still inside the package, so the scope is
+            // checked below where it always was. Closing the stream drains whatever is in flight.
+            if (auth == null && !tokens.isTokenLive(tokenValue)) {
+                throw new ErrorResultException(ACCESS_TOKEN_ERROR, HttpStatus.UNAUTHORIZED);
+            }
+
             var tempFile = extensions.createExtensionFile(content);
             try {
                 AuthenticatedUser au = auth;

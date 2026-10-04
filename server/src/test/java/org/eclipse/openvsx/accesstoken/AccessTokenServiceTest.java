@@ -338,6 +338,52 @@ class AccessTokenServiceTest {
     }
 
     /**
+     * Publishing asks this before it reads the package, since no scope can be judged until the
+     * namespace has been parsed out of it. A scoped token has to pass: a trusted publishing token is
+     * extension scoped and exists to publish, so refusing it here would refuse every release.
+     */
+    @Test
+    void reportsAScopedTokenAsLiveWithoutJudgingItsScope() {
+        var user = new UserData();
+        var token = trustedPublishingToken(user);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.isTokenLive("tok")).isTrue();
+        // asking is not using: the token has to survive for the publish that follows
+        assertThat(token.getAccessedTimestamp()).isNull();
+        verify(entityManager, never()).remove(any());
+    }
+
+    @Test
+    void reportsAnUnknownTokenAsNotLive() {
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(null);
+        when(repositories.findPersonalAccessToken(anyString(), Mockito.anyInt())).thenReturn(null);
+
+        assertThat(accessTokenService.isTokenLive("nope")).isFalse();
+    }
+
+    @Test
+    void reportsADeactivatedTokenAsNotLive() {
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        token.setActive(false);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.isTokenLive("tok")).isFalse();
+    }
+
+    /** Expiry is enforced by the same gauntlet, so it is answered here too. */
+    @Test
+    void reportsAnExpiredTokenAsNotLive() {
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        token.setExpiresTimestamp(LocalDateTime.now(ZoneId.of("UTC")).minusDays(1));
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.isTokenLive("tok")).isFalse();
+    }
+
+    /**
      * The size-limit preflight runs with whatever token the publish will use, and for trusted
      * publishing that is a TPT. Refusing it there costs nothing visible - the CLI falls back to its
      * advisory warning - so a scope that excluded this action would silently disable the check for

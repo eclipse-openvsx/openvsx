@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
@@ -68,6 +69,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -144,6 +146,10 @@ class LocalRegistryServiceTest {
         // visibleUntil exercise a pure function and touch no mock at all.
         lenient().doNothing().when(eclipse).checkPublisherAgreement(any());
 
+        // Publish tests supply a token that is meant to be live; the ones about an unusable token
+        // say so for their own value.
+        lenient().when(tokens.isTokenLive(anyString())).thenReturn(true);
+
         // Behave like a registry with no override configured unless a test says otherwise.
         var configDefault = new PublishingConfig().getMaxContentSize();
         lenient().when(sizeLimits.getCeiling()).thenReturn(configDefault);
@@ -205,7 +211,9 @@ class LocalRegistryServiceTest {
         tempFile = new TempFile("extension_", ".vsix");
         Files.write(tempFile.getPath(), createExtensionPackage("bar", "1.0.0"));
 
+        when(tokens.isTokenLive("tok")).thenReturn(true);
         when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        // live, but its scope does not cover this package - rejected after the parse, before handoff
         when(tokens.useAccessToken(eq("tok"), any())).thenReturn(null);
 
         assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
@@ -389,6 +397,24 @@ class LocalRegistryServiceTest {
         membership.setNamespace(namespace);
         membership.setUser(user);
         return membership;
+    }
+
+    /**
+     * A token that is missing, unknown, expired or deactivated ends in this 401 either way, so the
+     * package is not worth writing to disk and parsing first - that is a file of up to the ceiling
+     * for a caller with nothing usable. Liveness is all that can be asked: every scope judges an
+     * action against the namespace its token is bound to, and that is still inside the package.
+     */
+    @Test
+    void shouldRefuseAPublishOnAnUnusableTokenBeforeWritingThePackage() {
+        when(tokens.isTokenLive("bogus")).thenReturn(false);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "bogus"))
+                .isInstanceOf(ErrorResultException.class)
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        verifyNoInteractions(extensions);
     }
 
     /**
