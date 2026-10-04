@@ -113,8 +113,13 @@ class SettingsServiceTest {
         assertThat(changes).contains("maxExtensionSize -> 1073741824");
     }
 
+    /**
+     * On a registry where nothing has been stored yet, the value read back is the configuration
+     * fallback, so storing that same number is exactly the act of pinning it against a later change
+     * to the configuration file. Comparing first turned that into a no-op.
+     */
     @Test
-    void updateFromJsonSkipsWritingWhenMaxExtensionSizeIsUnchanged() {
+    void updateFromJsonStoresMaxExtensionSizeEvenWhenItMatchesWhatIsReadBack() {
         when(cache.getLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong()))
                 .thenReturn(512L * 1024 * 1024);
 
@@ -123,8 +128,8 @@ class SettingsServiceTest {
 
         var changes = settings.updateFromJson(newSettings);
 
-        verify(cache, Mockito.never()).setLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong());
-        assertThat(changes).doesNotContain("maxExtensionSize");
+        verify(cache).setLong(SettingsService.SETTING_MAX_EXTENSION_SIZE, 512L * 1024 * 1024);
+        assertThat(changes).contains("maxExtensionSize -> 536870912");
     }
 
     /**
@@ -184,8 +189,9 @@ class SettingsServiceTest {
         verify(cache).clear();
     }
 
+    /** The value read back can be a stale local cache entry, so the derived ceiling goes regardless. */
     @Test
-    void updateFromJsonDoesNotFlushTheCacheWhenMaxExtensionSizeIsUnchanged() {
+    void updateFromJsonFlushesTheCacheEvenWhenMaxExtensionSizeMatchesWhatIsReadBack() {
         when(cache.getLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong()))
                 .thenReturn(512L * 1024 * 1024);
 
@@ -194,6 +200,17 @@ class SettingsServiceTest {
 
         settings.updateFromJson(newSettings);
 
-        verify(cache, Mockito.never()).clear();
+        verify(cache).clear();
+    }
+
+    /** A setting the request does not carry is still left alone - that is what partial updates are. */
+    @Test
+    void updateFromJsonWritesNothingForAnOmittedSetting() {
+        var newSettings = new SettingsJson();
+        newSettings.setMaxExtensionSize(1024L * 1024 * 1024);
+
+        settings.updateFromJson(newSettings);
+
+        verify(cache, Mockito.never()).setBoolean(anyString(), anyBoolean());
     }
 }

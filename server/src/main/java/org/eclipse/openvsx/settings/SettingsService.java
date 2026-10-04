@@ -104,12 +104,18 @@ public class SettingsService {
             throw new ErrorResultException("Max extension size must be greater than zero.");
         }
 
+        // Every setting the request carries is written, even one that matches what is read back now.
+        // The comparison would be against a node-local cache entry that can be a minute stale, or
+        // against the configuration fallback on a registry where nothing has been stored yet - so
+        // skipping the write dropped real changes: restoring a value another node had just moved
+        // away from, and storing the setting that is meant to shadow the configuration file. The
+        // upsert is idempotent, so writing unconditionally costs only the statement.
         var changes = new ArrayList<>();
-        if (readOnly != null && readOnly != isReadOnly()) {
+        if (readOnly != null) {
             changes.add("readOnly -> " + readOnly);
             cache.setBoolean(SETTING_REGISTRY_READ_ONLY, readOnly);
         }
-        if (maxExtensionSize != null && maxExtensionSize != getMaxExtensionSize()) {
+        if (maxExtensionSize != null) {
             changes.add("maxExtensionSize -> " + maxExtensionSize);
             cache.setLong(SETTING_MAX_EXTENSION_SIZE, maxExtensionSize);
             // The derived size ceiling is cached under its own key, so evict the whole settings
