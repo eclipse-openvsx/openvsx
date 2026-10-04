@@ -109,6 +109,30 @@ describe('SizeOverrideFormDialog', () => {
         expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
     });
 
+    /**
+     * The superseded request skips its own reset, so reopening has to clear the in-progress flag -
+     * otherwise the button stays disabled for the life of the component and the dialog is unusable.
+     */
+    it('frees the lookup button when the dialog is reopened mid-lookup', async () => {
+        const user = userEvent.setup();
+        // never settles: the request is still in flight when the dialog closes
+        const getNamespace = vi.fn().mockImplementation(() => new Promise(() => undefined));
+        const props = { sizeOverride: undefined, onClose: vi.fn(), onSubmit: vi.fn() };
+        const { rerender } = renderWithProviders(<SizeOverrideFormDialog open {...props} />, {
+            mainContext: { service: { admin: { getNamespace } } as unknown as ExtensionRegistryService }
+        });
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+        await user.click(screen.getByRole('button', { name: /look up/i }));
+        expect(screen.getByRole('button', { name: /look up/i })).toBeDisabled();
+
+        rerender(<SizeOverrideFormDialog open={false} {...props} />);
+        rerender(<SizeOverrideFormDialog open {...props} />);
+        await user.type(screen.getByLabelText(/namespace/i), 'bar');
+
+        expect(screen.getByRole('button', { name: /look up/i })).toBeEnabled();
+    });
+
     it('reports an unknown namespace instead of enabling submit', async () => {
         const user = userEvent.setup();
         const getNamespace = vi.fn().mockRejectedValue({ error: 'Namespace not found: nope' });

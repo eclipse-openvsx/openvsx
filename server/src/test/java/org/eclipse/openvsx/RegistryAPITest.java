@@ -1830,6 +1830,23 @@ class RegistryAPITest {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * A blank parameter would otherwise reach {@code VerifyPublishVersion}, whose constructor rejects
+     * it with an IllegalArgumentException the endpoint does not catch - a client mistake reported as
+     * a server error.
+     */
+    @Test
+    void testSizeLimitRejectsABlankNamespace() throws Exception {
+        mockMvc.perform(get("/api/-/size-limit?namespace={ns}&extension={ext}&token={token}", "", "bar", "my_token"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testSizeLimitRejectsABlankExtension() throws Exception {
+        mockMvc.perform(get("/api/-/size-limit?namespace={ns}&extension={ext}&token={token}", "foo", "", "my_token"))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test
     void testVerifyTokenNoNamespace() throws Exception {
         mockAccessToken();

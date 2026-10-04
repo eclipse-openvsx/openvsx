@@ -127,6 +127,11 @@ export const SizeOverrides: FC = () => {
         if (loading && sizeOverrides.length === 0) {
             return <CircularProgress />;
         }
+        if (loadError) {
+            // Nothing was loaded, so claiming there are none would be a statement about data we do
+            // not have. The alert above already says what went wrong.
+            return null;
+        }
         if (sizeOverrides.length === 0) {
             return (
                 <Paper variant='outlined' sx={{ p: 3 }}>

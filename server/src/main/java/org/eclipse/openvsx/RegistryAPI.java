@@ -35,6 +35,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -200,8 +201,10 @@ public class RegistryAPI {
     public ResponseEntity<SizeLimitJson> getSizeLimit(
             HttpServletRequest request,
             @RequestParam
+            @NotBlank(message = "namespace must not be blank")
             @Parameter(description = "Namespace", example = "redhat") String namespace,
             @RequestParam
+            @NotBlank(message = "extension must not be blank")
             @Parameter(description = "Extension name", example = "java") String extension,
             @RequestParam(required = false)
             @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token

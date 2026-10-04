@@ -74,6 +74,9 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
         }
         setError(undefined);
         lookupGeneration.current++;
+        // A lookup still in flight from the previous opening will skip its own reset, having been
+        // superseded by the bump above - without this the button would stay disabled for good.
+        setLookingUp(false);
         if (sizeOverride) {
             const split = splitSize(sizeOverride.maxSize);
             setNamespace(sizeOverride.namespace);

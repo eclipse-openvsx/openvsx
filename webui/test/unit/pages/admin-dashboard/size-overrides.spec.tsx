@@ -57,6 +57,21 @@ describe('SizeOverrides', () => {
         expect(await screen.findByText(/no size overrides are configured/i)).toBeInTheDocument();
     });
 
+    // An empty list and a failed load look identical in the data; only one of them justifies telling
+    // an admin that nothing is configured.
+    it('does not claim there are no overrides when the list failed to load', async () => {
+        renderWithProviders(<SizeOverrides />, {
+            mainContext: {
+                service: {
+                    admin: { getSizeOverrides: vi.fn().mockRejectedValue({ error: 'boom' }) }
+                } as unknown as ExtensionRegistryService
+            }
+        });
+
+        expect(await screen.findByText(/boom/i)).toBeInTheDocument();
+        expect(screen.queryByText(/no size overrides are configured/i)).not.toBeInTheDocument();
+    });
+
     it('deletes the override whose row action was used', async () => {
         const user = userEvent.setup();
         const admin = mountPage([{ id: 7, namespace: 'foo', maxSize: 100 }]);
