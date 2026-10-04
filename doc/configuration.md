@@ -86,6 +86,7 @@ Two consequences worth knowing:
 
 - **The runtime default shadows the configuration file, one way.** Once the Settings field is set, that value is stored in the database and used on every node. Editing `ovsx.publishing.max-content-size` afterwards changes nothing until the stored setting is removed. A registry whose admins never touch the field behaves exactly as it did before overrides existed.
 - **Every override is bounded by `ovsx.publishing.max-override-size`.** The admin API refuses to store an override above that ceiling, so no namespace can be granted an unlimited upload size through the dashboard.
+- **Overrides are only granted to verified namespaces.** The admin API refuses to create one for an unverified namespace. An existing override is not revoked if the namespace later loses verification - it stays in force, and the dashboard surfaces it for manual review.
 
 Enforcement happens in two stages, because the request body is streamed before the package has been parsed and the namespace is therefore not yet known:
 
