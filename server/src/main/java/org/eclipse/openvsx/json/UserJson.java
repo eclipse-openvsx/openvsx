@@ -14,6 +14,7 @@ package org.eclipse.openvsx.json;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -45,6 +46,9 @@ public class UserJson extends ResultJson {
 
     @Schema(hidden = true)
     private String role;
+
+    @Schema(hidden = true)
+    private Set<String> permissions;
 
     @Schema(description = "Full name")
     private String fullName;
@@ -94,6 +98,14 @@ public class UserJson extends ResultJson {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public Set<String> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(Set<String> permissions) {
+        this.permissions = permissions;
     }
 
     public String getFullName() {
@@ -212,6 +224,7 @@ public class UserJson extends ResultJson {
                 && Objects.equals(tokensUrl, userJson.tokensUrl)
                 && Objects.equals(createTokenUrl, userJson.createTokenUrl)
                 && Objects.equals(role, userJson.role)
+                && Objects.equals(permissions, userJson.permissions)
                 && Objects.equals(fullName, userJson.fullName)
                 && Objects.equals(avatarUrl, userJson.avatarUrl)
                 && Objects.equals(homepage, userJson.homepage)
@@ -227,6 +240,7 @@ public class UserJson extends ResultJson {
                 tokensUrl,
                 createTokenUrl,
                 role,
+                permissions,
                 fullName,
                 avatarUrl,
                 homepage,

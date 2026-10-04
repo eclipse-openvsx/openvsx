@@ -144,7 +144,7 @@ public class ScanAPI {
             ) List<String> threatScannerName
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var stats = new ScanStatisticsJson();
 
@@ -412,7 +412,7 @@ public class ScanAPI {
             ) List<String> adminDecision
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var statusFilter = parseStatusFilter(status);
             var normalizedPublisher = normalizeSearch(publisher);
@@ -597,7 +597,7 @@ public class ScanAPI {
     )
     public ResponseEntity<ScanFilterOptionsJson> getScanFilterOptions() {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var options = new ScanFilterOptionsJson();
 
@@ -639,7 +639,7 @@ public class ScanAPI {
             @Parameter(description = "Scan ID", example = "123") long scanId
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var scan = repositories.findExtensionScan(scanId);
             if (scan == null) {
@@ -689,7 +689,7 @@ public class ScanAPI {
             @Parameter(description = "Scan ID", example = "123") long scanId
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_SCANS);
 
             var scan = Optional.ofNullable(repositories.findExtensionScan(scanId))
                     .orElseThrow(() -> new ErrorResultException("Scan not found: " + scanId, HttpStatus.NOT_FOUND));
@@ -742,7 +742,7 @@ public class ScanAPI {
             @RequestBody ScanDecisionRequest request
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_SCANS);
 
             if (request.getScanIds() == null || request.getScanIds().isEmpty()) {
                 throw new ErrorResultException("Scan IDs are required", HttpStatus.BAD_REQUEST);
