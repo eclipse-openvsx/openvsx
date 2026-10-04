@@ -118,7 +118,10 @@ public class ExtensionService {
     public TempFile createExtensionFile(InputStream content) {
         requireNonNull(content);
         long maxContentSize = getMaxContentSize();
-        try (var input = ByteStreams.limit(new BufferedInputStream(content), maxContentSize + 1)) {
+        // Saturating: the ceiling is an unrestricted positive long, and at Long.MAX_VALUE the extra
+        // byte wraps negative, which ByteStreams.limit rejects - failing every publish.
+        var readLimit = maxContentSize == Long.MAX_VALUE ? Long.MAX_VALUE : maxContentSize + 1;
+        try (var input = ByteStreams.limit(new BufferedInputStream(content), readLimit)) {
             long size;
             var extensionFile = new TempFile("extension_", ".vsix");
             try (var out = Files.newOutputStream(extensionFile.getPath())) {
@@ -724,6 +727,10 @@ public class ExtensionService {
         for (var review : repositories.findAllReviews(extension)) {
             entityManager.remove(review);
         }
+
+        // Removing the extension cascades any size override scoped to it, which can lower the
+        // ceiling - that is cached per node and published over Redis, so it has to be told.
+        sizeLimits.invalidateCeiling();
 
         var deprecatedExtensions = repositories.findDeprecatedExtensions(extension);
         for (var deprecatedExtension : deprecatedExtensions) {

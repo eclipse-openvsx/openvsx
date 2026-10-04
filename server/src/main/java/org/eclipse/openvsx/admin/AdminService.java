@@ -61,6 +61,7 @@ import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
@@ -96,6 +97,7 @@ public class AdminService {
     private final CacheService cache;
     private final JobRequestScheduler scheduler;
     private final MailService mail;
+    private final ExtensionSizeLimitService sizeLimits;
     private final LogService logs;
     private final AdminStatisticsService statistics;
 
@@ -112,6 +114,7 @@ public class AdminService {
             CacheService cache,
             JobRequestScheduler scheduler,
             MailService mail,
+            ExtensionSizeLimitService sizeLimits,
             LogService logs,
             AdminStatisticsService statistics
     ) {
@@ -127,6 +130,7 @@ public class AdminService {
         this.cache = cache;
         this.scheduler = scheduler;
         this.mail = mail;
+        this.sizeLimits = sizeLimits;
         this.logs = logs;
         this.statistics = statistics;
     }
@@ -263,6 +267,10 @@ public class AdminService {
         }
 
         entityManager.remove(namespace);
+
+        // Removing the namespace cascades any size override scoped to it, which can lower the
+        // ceiling - that is cached per node and published over Redis, so it has to be told.
+        sizeLimits.invalidateCeiling();
 
         // Clear cache for the namespace
         cache.evictNamespaceDetails(namespace);

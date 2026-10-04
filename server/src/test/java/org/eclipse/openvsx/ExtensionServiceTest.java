@@ -339,6 +339,25 @@ class ExtensionServiceTest {
                 .publishAsync(Mockito.any(), Mockito.any(), Mockito.any());
     }
 
+    /**
+     * The ceiling is an unrestricted positive long. The read limit is one byte above it, which at
+     * Long.MAX_VALUE wraps negative and is rejected outright - every publish would fail on a registry
+     * configured with no practical limit.
+     */
+    @Test
+    void shouldStillPublishWhenTheCeilingIsTheLargestLong() throws Exception {
+        Mockito.when(sizeLimits.getCeiling()).thenReturn(Long.MAX_VALUE);
+
+        var token = mockToken();
+        var content = new ByteArrayInputStream("extension package".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(
+                () -> svc.publishVersion(
+                        content,
+                        new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null)))
+                .isNotInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     void shouldRejectAPackageExceedingTheMaxContentSize() {
         var maxContentSize = 10L;

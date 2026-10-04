@@ -87,6 +87,15 @@ public class ExtensionSizeLimitService {
         return namespaceWide >= 0 ? namespaceWide : getDefaultLimit();
     }
 
+    /**
+     * Drops the cached ceiling across the cluster. For workflows that remove overrides through the
+     * database cascade rather than {@link #deleteOverride}, which is otherwise the only deletion path
+     * that invalidates.
+     */
+    public void invalidateCeiling() {
+        settings.invalidateCache();
+    }
+
     public List<ExtensionSizeOverride> listOverrides() {
         return overrides.findAllByOrderByIdAsc();
     }

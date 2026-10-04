@@ -106,6 +106,7 @@ import org.eclipse.openvsx.search.SimilarityService;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.settings.SettingsService;
 import org.eclipse.openvsx.storage.AwsStorageService;
 import org.eclipse.openvsx.storage.AzureBlobStorageService;
@@ -171,7 +172,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ExtensionScanService.class,
         ExtensionScanPersistenceService.class,
         LogService.class,
-        SettingsService.class
+        SettingsService.class,
+        ExtensionSizeLimitService.class
     }
 )
 class AdminAPITest {
@@ -3166,6 +3168,7 @@ class AdminAPITest {
                 CacheService cache,
                 JobRequestScheduler scheduler,
                 MailService mail,
+                ExtensionSizeLimitService sizeLimits,
                 LogService logs,
                 AdminStatisticsService statistics
         ) {
@@ -3182,6 +3185,7 @@ class AdminAPITest {
                     cache,
                     scheduler,
                     mail,
+                    sizeLimits,
                     logs,
                     statistics);
         }

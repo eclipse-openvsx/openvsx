@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import {
     Alert,
     Button,
@@ -40,6 +40,14 @@ export const DeleteSizeOverrideDialog: FC<DeleteSizeOverrideDialogProps> = ({
 }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | undefined>();
+
+    // The component stays mounted, so a failed deletion's message would greet the next open - under
+    // whichever scope that one is for.
+    useEffect(() => {
+        if (open) {
+            setError(undefined);
+        }
+    }, [open]);
 
     const scope = sizeOverride?.extension
         ? `${sizeOverride.namespace}.${sizeOverride.extension}`

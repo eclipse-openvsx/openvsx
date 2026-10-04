@@ -34,6 +34,25 @@ describe('DeleteSizeOverrideDialog', () => {
     });
 
     /**
+     * A failed deletion's message would otherwise greet the next open, describing an operation on a
+     * scope the admin may no longer be looking at.
+     */
+    it('does not carry a failure into the next time it is opened', async () => {
+        const user = userEvent.setup();
+        const onConfirm = vi.fn().mockRejectedValue({ error: 'deletion exploded' });
+        const props = { sizeOverride, onClose: vi.fn(), onConfirm };
+        const { rerender } = renderWithProviders(<DeleteSizeOverrideDialog open {...props} />);
+
+        await user.click(screen.getByRole('button', { name: /^delete$/i }));
+        expect(await screen.findByText(/deletion exploded/i)).toBeInTheDocument();
+
+        rerender(<DeleteSizeOverrideDialog open={false} {...props} />);
+        rerender(<DeleteSizeOverrideDialog open {...props} />);
+
+        expect(screen.queryByText(/deletion exploded/i)).not.toBeInTheDocument();
+    });
+
+    /**
      * Closing mid-delete lets another row be opened, and the first request's own onClose then shuts
      * that confirmation - the admin would be confirming one deletion and watching a different one
      * disappear. The buttons are asserted here; the backdrop and Escape paths are closed by passing
