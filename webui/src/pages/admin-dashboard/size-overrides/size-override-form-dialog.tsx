@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC, useContext, useEffect, useState } from 'react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Autocomplete,
@@ -63,12 +63,17 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
     const [lookingUp, setLookingUp] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | undefined>();
+    // Bumped by every lookup, by typing a different namespace, and by reopening the dialog, so an
+    // answer that arrives after any of those is dropped instead of confirming a namespace nobody
+    // looked up.
+    const lookupGeneration = useRef(0);
 
     useEffect(() => {
         if (!open) {
             return;
         }
         setError(undefined);
+        lookupGeneration.current++;
         if (sizeOverride) {
             const split = splitSize(sizeOverride.maxSize);
             setNamespace(sizeOverride.namespace);
@@ -88,18 +93,27 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
     }, [open, sizeOverride]);
 
     const handleLookup = async () => {
+        const generation = ++lookupGeneration.current;
         setLookingUp(true);
         setError(undefined);
         try {
             const found = await service.admin.getNamespace(new AbortController(), namespace);
+            if (generation !== lookupGeneration.current) {
+                return;
+            }
             setExtensionNames(Object.keys(found.extensions));
             setNamespaceConfirmed(true);
         } catch (err) {
+            if (generation !== lookupGeneration.current) {
+                return;
+            }
             setExtensionNames([]);
             setNamespaceConfirmed(false);
             setError(handleError(err));
         } finally {
-            setLookingUp(false);
+            if (generation === lookupGeneration.current) {
+                setLookingUp(false);
+            }
         }
     };
 
@@ -142,6 +156,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
                             fullWidth
                             disabled={isEditMode}
                             onChange={event => {
+                                lookupGeneration.current++;
                                 setNamespace(event.target.value);
                                 setNamespaceConfirmed(false);
                                 setExtension(null);

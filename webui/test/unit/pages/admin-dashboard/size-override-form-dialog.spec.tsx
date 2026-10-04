@@ -83,6 +83,32 @@ describe('SizeOverrideFormDialog', () => {
         expect(screen.getByText('baz')).toBeInTheDocument();
     });
 
+    /**
+     * Looking up one namespace and typing another before the answer lands used to confirm whichever
+     * name was in the box, so an override could be created for a namespace nobody looked up.
+     */
+    it('ignores a lookup answer that arrives after the namespace changed', async () => {
+        const user = userEvent.setup();
+        let release: (value: unknown) => void = () => undefined;
+        const getNamespace = vi.fn().mockImplementation(
+            () =>
+                new Promise(resolve => {
+                    release = resolve;
+                })
+        );
+        mountDialog(getNamespace);
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+        await user.click(screen.getByRole('button', { name: /look up/i }));
+        await user.type(screen.getByLabelText(/namespace/i), 'bar');
+
+        release({ name: 'foo', extensions: { one: 'u' } });
+        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
+
+        // the stale answer must not confirm the name now in the box
+        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+    });
+
     it('reports an unknown namespace instead of enabling submit', async () => {
         const user = userEvent.setup();
         const getNamespace = vi.fn().mockRejectedValue({ error: 'Namespace not found: nope' });

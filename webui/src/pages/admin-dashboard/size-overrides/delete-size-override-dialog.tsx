@@ -72,11 +72,14 @@ export const DeleteSizeOverrideDialog: FC<DeleteSizeOverrideDialogProps> = ({
                 </Typography>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={onClose} disabled={loading}>
+                    Cancel
+                </Button>
                 <Button
                     variant='contained'
                     color='error'
                     onClick={handleConfirm}
+                    disabled={loading}
                     startIcon={loading ? <CircularProgress size={20} /> : undefined}>
                     Delete
                 </Button>
