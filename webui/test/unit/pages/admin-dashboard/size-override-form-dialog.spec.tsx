@@ -133,6 +133,33 @@ describe('SizeOverrideFormDialog', () => {
         expect(screen.getByRole('button', { name: /look up/i })).toBeEnabled();
     });
 
+    /**
+     * Closing mid-save lets a second override be opened, and the first request's own onClose then
+     * shuts that one - with the state of an operation the admin has already moved on from. Cancel is
+     * asserted here; the backdrop and Escape paths are closed by passing no onClose to the Dialog
+     * while saving, which cannot be asserted without reaching for the backdrop node directly.
+     */
+    it('locks Cancel while a save is in flight', async () => {
+        const user = userEvent.setup();
+        const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: {} });
+        const onClose = vi.fn();
+        // never settles: the save is still pending when the dismissal is attempted
+        const onSubmit = vi.fn().mockImplementation(() => new Promise(() => undefined));
+        renderWithProviders(
+            <SizeOverrideFormDialog open sizeOverride={undefined} onClose={onClose} onSubmit={onSubmit} />,
+            { mainContext: { service: { admin: { getNamespace } } as unknown as ExtensionRegistryService } }
+        );
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+        await user.click(screen.getByRole('button', { name: /look up/i }));
+        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
+        await user.click(screen.getByRole('button', { name: /create/i }));
+        await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+
+        expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled();
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
     it('reports an unknown namespace instead of enabling submit', async () => {
         const user = userEvent.setup();
         const getNamespace = vi.fn().mockRejectedValue({ error: 'Namespace not found: nope' });

@@ -74,9 +74,10 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
         }
         setError(undefined);
         lookupGeneration.current++;
-        // A lookup still in flight from the previous opening will skip its own reset, having been
-        // superseded by the bump above - without this the button would stay disabled for good.
+        // Work still in flight from the previous opening will skip its own reset, having been
+        // superseded by the bump above - without these the buttons would stay disabled for good.
         setLookingUp(false);
+        setSaving(false);
         if (sizeOverride) {
             const split = splitSize(sizeOverride.maxSize);
             setNamespace(sizeOverride.namespace);
@@ -147,7 +148,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
     };
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
+        <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth='sm' fullWidth>
             <DialogTitle>{isEditMode ? 'Edit size override' : 'Create size override'}</DialogTitle>
             <DialogContent>
                 <Stack spacing={2} sx={{ mt: 1 }}>
@@ -211,7 +212,9 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
                 </Stack>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={onClose} disabled={saving}>
+                    Cancel
+                </Button>
                 <Button
                     variant='contained'
                     onClick={handleSubmit}

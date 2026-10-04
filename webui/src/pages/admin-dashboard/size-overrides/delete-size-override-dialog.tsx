@@ -59,7 +59,7 @@ export const DeleteSizeOverrideDialog: FC<DeleteSizeOverrideDialogProps> = ({
     };
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
+        <Dialog open={open} onClose={loading ? undefined : onClose} maxWidth='sm' fullWidth>
             <DialogTitle>Delete size override</DialogTitle>
             <DialogContent>
                 {error && <Alert severity='error'>{error}</Alert>}
