@@ -36,7 +36,7 @@
     "dependencies": {
         "@inquirer/prompts": "^7.10.1",
         "@vscode/vsce": "^4.0.0",
-        "commander": "^6.2.1",
+        "commander": "^14.0.3",
         "cross-keychain": "^1.1.0",
         "follow-redirects": "^1.16.0",
         "is-ci": "^2.0.0",
@@ -68,7 +68,7 @@
         "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
         "build": "tsc -p ./tsconfig.json && yarn run lint",
         "watch": "tsc -w -p ./tsconfig.json",
-        "test": "vitest run",
+        "test": "yarn run prebuild && vitest run",
         "lint": "eslint -c ./configs/eslintrc.mjs src test",
         "prepare": "yarn run clean && yarn run prebuild && yarn run build",
         "publish:next": "yarn npm publish --tag next",
