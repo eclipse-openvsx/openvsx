@@ -6,7 +6,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 #### Changed
 
-- `publish` now warns about an oversized package instead of refusing to upload it. The limit from `/api/version` is the registry default and carries no namespace context, so with per-namespace size overrides it can be lower than what the registry would actually accept; the server's response decides ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- `publish` checks a package against the size limit that applies to its own namespace, which a size override can raise above the registry default, and refuses an oversized upload before sending it. Against a registry older than 1.3.0, which cannot report that limit, it warns against the default and publishes anyway ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
 ### Dependencies
 

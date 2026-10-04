@@ -8,14 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 import * as fs from 'fs';
+import * as semver from 'semver';
 import { createVSIX, IPackageOptions } from '@vscode/vsce';
 import { getPAT } from './pat';
 import { getTempFilePath, addEnvOptions, addTrustedPublishingEnvOptions, formatBytes, StatusError } from './util';
 import { Extension, Registry } from './registry';
 import { checkLicense } from './check-license';
-import { readVSIXPackage } from './zip';
+import { Manifest, readVSIXPackage } from './zip';
 import { PublishOptions, PublishCommonOptions } from './publish-options';
 import { getTrustedPublishingToken, refreshTrustedPublishingToken, useTrustedPublishing } from './trusted-publishing';
+
+/** Registries older than this cannot report the limit that applies to a namespace. */
+const MIN_SIZE_LIMIT_REGISTRY_VERSION = '1.3.0';
 
 /**
  * Publishes an extension.
@@ -71,13 +75,14 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
         console.warn("Ignoring option '--pre-release' for prepackaged extension.");
     }
 
-    await warnIfAboveSizeLimit(options.extensionFile!, options.maxExtensionSize, registry.url);
+    // Read up front rather than only when a token has to be obtained: the size limit is looked up per
+    // namespace, and the namespace lives in the manifest.
+    const manifest = await readVSIXPackage(options.extensionFile!);
 
     // Set only when this publish obtained the token itself through trusted publishing, which is the one
     // case where a refusal can be answered by asking for a new token.
     let exchanged: { namespace: string; extension: string } | undefined;
     if (!options.pat) {
-        const manifest = await readVSIXPackage(options.extensionFile!);
         if (useTrustedPublishing(options)) {
             exchanged = { namespace: manifest.publisher, extension: manifest.name };
             options.pat = await getTrustedPublishingToken(registry, manifest.publisher, manifest.name, options);
@@ -85,6 +90,10 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
             options.pat = await getPAT(manifest.publisher, options);
         }
     }
+
+    // After the token is resolved, because the lookup is authenticated - and by here a token always
+    // exists, whether supplied, fetched, or exchanged through trusted publishing.
+    await ensureWithinSizeLimit(registry, options, manifest);
 
     let extension: Extension | undefined;
     try {
@@ -147,26 +156,60 @@ async function doRegistryPublish(
 }
 
 /**
- * Warns when the packaged extension exceeds the size limit the registry reports, so an upload that
- * is likely to be refused says so before transferring the whole file.
+ * Refuses a package the registry would reject anyway, before uploading it.
  *
- * Advisory only. `/api/version` has no namespace context, so the limit it reports is the registry
- * default; a namespace or extension override can allow more. Refusing here would block uploads the
- * server would have accepted, so the upload proceeds either way and the server's 413 is what
- * decides. `maxSize` is `undefined` when the limit couldn't be determined.
+ * The limit is the one that applies to this package's namespace and extension, which a size override
+ * can raise above the registry default. Registries older than
+ * {@link MIN_SIZE_LIMIT_REGISTRY_VERSION} cannot report it, so there the check stays advisory: it
+ * warns against the default and publishes, rather than refusing an upload those registries would
+ * have accepted.
  */
-async function warnIfAboveSizeLimit(extensionFile: string, maxSize: number | undefined, registryUrl: string): Promise<void> {
-    if (!maxSize) {
+async function ensureWithinSizeLimit(
+    registry: Registry,
+    options: InternalPublishOptions,
+    manifest: Manifest
+): Promise<void> {
+    const { size } = await fs.promises.stat(options.extensionFile!);
+    const limit = await resolveSizeLimit(registry, options, manifest);
+
+    if (limit === undefined) {
+        const fallback = options.maxExtensionSize;
+        if (fallback && size > fallback) {
+            console.warn(
+                `The extension package (${formatBytes(size)}) exceeds the default size limit of ${formatBytes(fallback)} `
+                + `reported by the registry at ${registry.url}. Publishing anyway: the namespace may have a higher `
+                + `limit configured, and the registry decides.`
+            );
+        }
         return;
     }
 
-    const { size } = await fs.promises.stat(extensionFile);
-    if (size > maxSize) {
-        console.warn(
-            `The extension package (${formatBytes(size)}) exceeds the default size limit of ${formatBytes(maxSize)} `
-            + `reported by the registry at ${registryUrl}. Publishing anyway: the namespace may have a higher `
-            + `limit configured, and the registry decides.`
+    if (size > limit) {
+        throw new Error(
+            `The extension package (${formatBytes(size)}) exceeds the size limit of ${formatBytes(limit)} `
+            + `for ${manifest.publisher}.${manifest.name} at ${registry.url}.`
         );
+    }
+}
+
+/** The limit for this namespace/extension, or `undefined` when the registry cannot report one. */
+async function resolveSizeLimit(
+    registry: Registry,
+    options: InternalPublishOptions,
+    manifest: Manifest
+): Promise<number | undefined> {
+    const reported = await registry.getRegistryVersion().catch(() => undefined);
+    const version = reported?.version ? semver.coerce(reported.version) : undefined;
+    if (!version || semver.lt(version, MIN_SIZE_LIMIT_REGISTRY_VERSION)) {
+        return undefined;
+    }
+
+    try {
+        return (await registry.getSizeLimit(manifest.publisher, manifest.name, options.pat!)).maxSize;
+    } catch {
+        // The registry claims to be new enough but could not answer. It enforces the limit itself
+        // regardless, so publish rather than refusing on a failed lookup.
+        return undefined;
     }
 }
 

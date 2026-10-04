@@ -94,7 +94,16 @@ Enforcement happens in two stages, because the request body is streamed before t
 
 The trade-off: an oversized upload from a namespace with no override is accepted up to the ceiling before being rejected. The namespace is not in the request, so there is nothing earlier to check it against.
 
-The `ovsx` CLI warns before uploading when a package exceeds the limit `/api/version` reports, but does not refuse: that endpoint has no namespace context, so the limit it reports is the default and a namespace override may well permit more. The server's response is what decides.
+### What clients can see
+
+Two endpoints report limits, and they answer different questions:
+
+- **`GET /api/version`** reports `maxExtensionSize`, the default, and `maxExtensionSizeCeiling`, the ceiling. Both are registry-wide and need no authentication.
+- **`GET /api/-/size-limit?namespace=…&extension=…`** reports the limit that would apply to one package. It requires an access token, and — when the namespace already exists — one with publish permission for it. Neither the namespace nor the extension has to exist yet, so a first publish can ask before creating either.
+
+The `ovsx` CLI reads a package's manifest before uploading, so it knows which namespace it is publishing to and asks the second endpoint for the real limit, refusing an oversized upload locally. Against a registry older than 1.3.0, which cannot answer, it falls back to warning against the default and publishing anyway.
+
+The web UI cannot do the same: the namespace lives inside the package and nothing in the browser parses it, so the publish page checks against the ceiling instead. That never blocks an upload a namespace override would have allowed; anything under the ceiling is sent and answered by the server.
 
 ## Server URL
 

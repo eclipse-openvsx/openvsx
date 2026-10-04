@@ -88,6 +88,21 @@ export class Registry {
     }
 
     /**
+     * The size limit that applies to this namespace/extension, which a size override can raise above
+     * the registry default. Neither needs to exist yet - a first publish asks about both before
+     * creating either.
+     */
+    async getSizeLimit(namespace: string, extension: string, pat: string): Promise<SizeLimit> {
+        try {
+            const query = { namespace, extension, ...(await this.tokenQuery(pat)) };
+            const url = this.getUrl(['api', '-', 'size-limit'], query);
+            return await this.getJson(url, this.tokenHeaders(pat));
+        } catch (err) {
+            return rejectError(err);
+        }
+    }
+
+    /**
      * Cached per `Registry` instance - callers like `tokenQuery` and `unpublish`'s own version check
      * would otherwise each fetch it separately, doubling the round trip for a single command.
      */
@@ -518,6 +533,10 @@ export interface RegistryVersion extends Response {
     version: string;
     maxExtensionSize: number;
     trustedPublishingAudience?: string;
+}
+
+export interface SizeLimit extends Response {
+    maxSize: number;
 }
 
 export interface AccessToken extends Response {

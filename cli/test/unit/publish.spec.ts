@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
@@ -43,7 +44,7 @@ interface RegistryStub {
  * Stands in for the registry's `/api/version` and `/api/-/publish` endpoints.
  */
 async function startRegistryStub(
-    version: { status?: number; body?: unknown } = {},
+    version: { status?: number; body?: unknown; sizeLimit?: number } = {},
     publishResponse: {
         status?: number;
         body?: unknown;
@@ -72,6 +73,15 @@ async function startRegistryStub(
                 state.versionRequests++;
                 res.writeHead(versionStatus, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(versionBody));
+            } else if (url.pathname === '/api/-/size-limit') {
+                // Absent means a registry too old to answer, which is a 404 rather than a limit.
+                if (version.sizeLimit === undefined) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Not found' }));
+                } else {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ maxSize: version.sizeLimit }));
+                }
             } else if (url.pathname === '/api/-/trusted-publishing/token') {
                 state.tokenRequests++;
                 res.writeHead(201, { 'Content-Type': 'application/json' });
@@ -116,7 +126,7 @@ describe('publish', () => {
     });
 
     async function givenRegistry(
-        version?: { status?: number; body?: unknown },
+        version?: { status?: number; body?: unknown; sizeLimit?: number },
         publishResponse?: {
             status?: number;
             body?: unknown;
@@ -141,12 +151,26 @@ describe('publish', () => {
         return file;
     }
 
-    function givenExtensionFile(sizeInBytes: number): string {
+    /**
+     * A real package padded with random bytes to roughly `fillerBytes`. It has to be a real one:
+     * publish reads the manifest to learn which namespace to ask for a size limit, so a buffer of
+     * zeros is not something that could ever reach a registry. Random, because zeros would compress
+     * away and the file would not actually be large.
+     */
+    async function givenExtensionFile(fillerBytes: number): Promise<string> {
+        const zip = await buildZip({
+            'extension/package.json': Buffer.from(
+                JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' })
+            ),
+            'extension/filler.bin': crypto.randomBytes(fillerBytes)
+        });
         const file = path.join(os.tmpdir(), `ovsx-publish-test-${Math.random().toString(36).slice(2)}.vsix`);
-        fs.writeFileSync(file, Buffer.alloc(sizeInBytes));
+        fs.writeFileSync(file, zip);
         tmpFiles.push(file);
         return file;
     }
+
+    const sizeOf = (file: string): number => fs.statSync(file).size;
 
     // The packaging options ovsx hands to vsce are the whole of its packaging behaviour, so the ones a
     // caller sets have to arrive there intact - `--follow-symlinks` above all, which is what makes the
@@ -178,9 +202,12 @@ describe('publish', () => {
         });
     });
 
-    it('publishes a package that is within the registry size limit', async () => {
-        const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 1024 } });
-        const extensionFile = givenExtensionFile(100);
+    it('publishes a package the namespace limit allows', async () => {
+        const extensionFile = await givenExtensionFile(2000);
+        const registry = await givenRegistry({
+            body: { version: '1.3.0', maxExtensionSize: 100 },
+            sizeLimit: sizeOf(extensionFile) + 1
+        });
 
         const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
 
@@ -188,25 +215,41 @@ describe('publish', () => {
         expect(registry.publishRequests).toHaveLength(1);
     });
 
-    // The limit from /api/version is the registry default; it has no namespace context, so a
-    // namespace or extension override can legitimately allow more than it reports. Blocking here
-    // would refuse uploads the server would have accepted.
-    it('warns but still uploads when the package exceeds the size limit the registry reports', async () => {
+    // The namespace limit is authoritative, so there is no false negative left to worry about and
+    // the upload can be refused before it is sent.
+    it('refuses a package above the limit the registry reports for its namespace', async () => {
+        const extensionFile = await givenExtensionFile(2000);
+        const registry = await givenRegistry({
+            body: { version: '1.3.0', maxExtensionSize: 10_000_000 },
+            sizeLimit: sizeOf(extensionFile) - 1
+        });
+
+        const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
+
+        expect(result.status).toBe('rejected');
+        expect((result as PromiseRejectedResult).reason.message).toContain('exceeds the size limit');
+        expect((result as PromiseRejectedResult).reason.message).toContain('foo.bar');
+        expect(registry.publishRequests).toHaveLength(0);
+    });
+
+    // ovsx publishes to registries of every age. A release that refused to publish anywhere without
+    // the new endpoint would be worse than the false negative it is fixing.
+    it('falls back to warning when the registry predates the size-limit endpoint', async () => {
+        const extensionFile = await givenExtensionFile(2000);
         const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 100 } });
-        const extensionFile = givenExtensionFile(200);
 
         const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
 
         expect(result.status).toBe('fulfilled');
         expect(registry.publishRequests).toHaveLength(1);
         expect(console.warn).toHaveBeenCalledWith(
-            expect.stringContaining('(200 bytes) exceeds the default size limit of 100 bytes')
+            expect.stringContaining('exceeds the default size limit of 100 bytes')
         );
     });
 
     it('proceeds when the registry does not report a size limit', async () => {
+        const extensionFile = await givenExtensionFile(200);
         const registry = await givenRegistry({ body: { version: '1.2.0' } });
-        const extensionFile = givenExtensionFile(200);
 
         const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
 
@@ -216,7 +259,7 @@ describe('publish', () => {
 
     it('proceeds when the registry does not expose `/api/version`', async () => {
         const registry = await givenRegistry({ status: 404, body: {} });
-        const extensionFile = givenExtensionFile(200);
+        const extensionFile = await givenExtensionFile(200);
 
         const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
 
@@ -230,7 +273,7 @@ describe('publish', () => {
     // one Registry created up front, so this is a single request regardless of fan-out width.
     it('looks up the registry version only once across a fan-out of targets', async () => {
         const registry = await givenRegistry({ body: { version: '1.3.0' } });
-        const extensionFile = givenExtensionFile(200);
+        const extensionFile = await givenExtensionFile(200);
 
         const results = await publish({
             extensionFile,
