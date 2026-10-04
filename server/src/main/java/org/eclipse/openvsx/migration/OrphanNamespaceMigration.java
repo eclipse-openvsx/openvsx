@@ -26,6 +26,7 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 
 @Component
 public class OrphanNamespaceMigration {
@@ -34,10 +35,16 @@ public class OrphanNamespaceMigration {
 
     private final EntityManager entityManager;
     private final RepositoryService repositories;
+    private final ExtensionSizeLimitService sizeLimits;
 
-    public OrphanNamespaceMigration(EntityManager entityManager, RepositoryService repositories) {
+    public OrphanNamespaceMigration(
+            EntityManager entityManager,
+            RepositoryService repositories,
+            ExtensionSizeLimitService sizeLimits
+    ) {
         this.entityManager = entityManager;
         this.repositories = repositories;
+        this.sizeLimits = sizeLimits;
     }
 
     @Transactional
@@ -62,6 +69,9 @@ public class OrphanNamespaceMigration {
         });
 
         if (count[0] > 0) {
+            // A deleted namespace takes any size override with it through the cascade, so the
+            // ceiling derived from those overrides may no longer be the highest one configured.
+            sizeLimits.invalidateCeiling();
             logger.info("Deleted {} namespaces that were orphaned and empty.", count[0]);
         }
         if (count[1] > 0) {

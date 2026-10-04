@@ -12,12 +12,16 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import org.eclipse.openvsx.json.SettingsJson;
 import org.eclipse.openvsx.publish.PublishingConfig;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,7 +47,37 @@ class SettingsServiceTest {
         // isReadOnly() unboxes SettingsCache#getBoolean's Boolean return value; an unstubbed mock
         // would hand back null here and NPE on every call that reaches it.
         when(cache.getBoolean(anyString(), anyBoolean())).thenReturn(false);
-        settings = new SettingsService(null, cache, publishingConfig);
+        settings = new SettingsService(null, cache, publishingConfig, new AfterCommitExecutor());
+    }
+
+    @AfterEach
+    void endTransaction() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    // A clear issued before the commit lets any node refill the ceiling from the rows as they still
+    // are, leaving an entry staler than if nothing had been evicted.
+    @Test
+    void invalidateCacheWaitsForTheCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        settings.invalidateCache();
+        verify(cache, Mockito.never()).clear();
+
+        var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        TransactionSynchronizationManager.clearSynchronization();
+        synchronizations.forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+
+        verify(cache).clear();
+    }
+
+    @Test
+    void invalidateCacheClearsStraightAwayWithoutATransaction() {
+        settings.invalidateCache();
+
+        verify(cache).clear();
     }
 
     @Test

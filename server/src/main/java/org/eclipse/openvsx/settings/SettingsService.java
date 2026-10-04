@@ -26,6 +26,7 @@ import redis.clients.jedis.RedisClusterClient;
 import org.eclipse.openvsx.cache.jedis.JedisClusterChannelListener;
 import org.eclipse.openvsx.json.SettingsJson;
 import org.eclipse.openvsx.publish.PublishingConfig;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 @Service
@@ -41,15 +42,18 @@ public class SettingsService {
     private final SettingsUpdateListener settingsUpdateListener;
     private final SettingsCache cache;
     private final PublishingConfig publishingConfig;
+    private final AfterCommitExecutor afterCommit;
 
     public SettingsService(
             @Nullable RedisClusterClient redisClusterClient,
             SettingsCache cache,
-            PublishingConfig publishingConfig
+            PublishingConfig publishingConfig,
+            AfterCommitExecutor afterCommit
     ) {
         this.redisClusterClient = redisClusterClient;
         this.cache = cache;
         this.publishingConfig = publishingConfig;
+        this.afterCommit = afterCommit;
 
         if (redisClusterClient != null) {
             settingsUpdateListener = new SettingsUpdateListener(redisClusterClient);
@@ -120,10 +124,15 @@ public class SettingsService {
      * Drop every cached setting on this node and tell the other nodes to do the same. Callers that
      * change data the settings cache derives from — notably the size ceiling, which is cached under its
      * own key — must call this; evicting a single key is not enough.
+     * <p>
+     * Deferred to after the commit: these callers change rows the ceiling is derived from, and a clear
+     * issued before their commit lets any node refill the ceiling from the rows as they still are.
      */
     public void invalidateCache() {
-        cache.clear();
-        publishSettingsUpdate();
+        afterCommit.execute(() -> {
+            cache.clear();
+            publishSettingsUpdate();
+        });
     }
 
     private void publishSettingsUpdate() {
