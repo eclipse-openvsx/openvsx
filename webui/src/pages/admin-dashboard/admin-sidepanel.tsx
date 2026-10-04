@@ -26,12 +26,18 @@ export const AdminSidepanel: FunctionComponent<AdminSidepanelProps> = ({ items }
     const [open, setOpen] = useLocalStorage('openvsx-admin-sidepanel-open', true);
     const { pathname } = useLocation();
 
+    const firstGroupIndex = items.findIndex(isNavGroup);
+
     return (
         <Sidepanel open={open} onToggle={() => setOpen(prev => !prev)}>
-            {items.map(entry => {
+            {items.map((entry, index) => {
                 if (isNavGroup(entry)) {
                     return (
-                        <NavigationItem key={entry.name} label={entry.name} icon={entry.icon}>
+                        <NavigationItem
+                            key={entry.name}
+                            label={entry.name}
+                            icon={entry.icon}
+                            defaultExpanded={index === firstGroupIndex}>
                             {entry.children.map(child => (
                                 <NavigationItem
                                     key={child.path}

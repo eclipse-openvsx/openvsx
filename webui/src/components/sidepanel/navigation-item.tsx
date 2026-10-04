@@ -18,7 +18,7 @@ import { SidebarContext } from './sidebar-context';
 const EXPANDED_CONTEXT = { collapsed: false };
 
 export const NavigationItem: FunctionComponent<PropsWithChildren<NavigationProps>> = props => {
-    const [groupExpanded, setGroupExpanded] = useState(false);
+    const [groupExpanded, setGroupExpanded] = useState(!!props.defaultExpanded);
     const [popoverOpen, setPopoverOpen] = useState(false);
     const anchorRef = useRef<HTMLDivElement>(null);
     const { collapsed } = useContext(SidebarContext);
@@ -103,4 +103,6 @@ export interface NavigationProps {
     icon?: ReactNode;
     label: string;
     active?: boolean;
+    /** Whether a group starts expanded in the inline (non-collapsed) side panel. */
+    defaultExpanded?: boolean;
 }
