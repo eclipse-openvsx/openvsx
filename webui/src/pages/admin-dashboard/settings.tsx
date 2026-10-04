@@ -75,6 +75,9 @@ export const RuntimeSettingsPage: FC = () => {
     const { mutate: saveSettings, isPending: saving } = useUpdateSettings();
 
     const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
+    // The field holds what was typed, not the draft's number rendered back. Deriving it meant an
+    // emptied field parsed as 0 and was immediately rewritten as "0", so it could not be cleared.
+    const [sizeInput, setSizeInput] = useState('');
     const [errorDismissed, setErrorDismissed] = useState(false);
     const [notifications, setNotifications] = useState<NotificationState[]>([]);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -84,6 +87,7 @@ export const RuntimeSettingsPage: FC = () => {
     useEffect(() => {
         if (settings) {
             setDraftSettings(settings);
+            setSizeInput(String(settings.maxExtensionSize / BYTES_PER_MB));
         }
     }, [settings]);
 
@@ -127,9 +131,12 @@ export const RuntimeSettingsPage: FC = () => {
 
     const handleMaxExtensionSizeChange = useCallback(
         (event: ChangeEvent<HTMLInputElement>) => {
+            const typed = event.target.value;
+            setSizeInput(typed);
             // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be stored as
-            // 1 MB and 1e3 as 1 MB while the field kept showing what was typed.
-            const mb = Number(event.target.value);
+            // 1 MB and 1e3 as 1 MB while the field kept showing what was typed. An empty field is not
+            // zero either - Number('') is - so it is held as invalid until something is typed.
+            const mb = typed.trim() === '' ? Number.NaN : Number(typed);
             const bytes = Number.isFinite(mb) ? mb * BYTES_PER_MB : Number.NaN;
             setDraftSettings(current => (current ? { ...current, maxExtensionSize: bytes } : current));
             clearSaved();
@@ -222,11 +229,7 @@ export const RuntimeSettingsPage: FC = () => {
                     <TextField
                         label='Max extension size (MB)'
                         type='number'
-                        value={
-                            draftSettings && Number.isFinite(draftSettings.maxExtensionSize)
-                                ? draftSettings.maxExtensionSize / BYTES_PER_MB
-                                : ''
-                        }
+                        value={sizeInput}
                         onChange={handleMaxExtensionSizeChange}
                         disabled={loading || saving || !draftSettings}
                         error={!maxExtensionSizeValid}

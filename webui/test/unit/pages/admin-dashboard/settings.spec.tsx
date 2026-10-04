@@ -116,6 +116,24 @@ describe('RuntimeSettingsPage', () => {
         expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['readOnly']);
     });
 
+    /**
+     * Number('') is 0, so deriving the field's value from the draft rewrote an emptied field as "0"
+     * on the keystroke that cleared it - the admin could not retype the number without selecting all
+     * of it first.
+     */
+    it('lets the size field be cleared instead of filling it with a zero', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxExtensionSize: 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+
+        expect(input).toHaveValue(null);
+        // empty is not a size, so there is nothing to save
+        expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    });
+
     it('converts the typed MB value to bytes and saves it', async () => {
         const user = userEvent.setup();
         const admin = mountPage(settings({ maxExtensionSize: 512 * 1024 * 1024 }));
