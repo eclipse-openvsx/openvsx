@@ -251,7 +251,7 @@ describe('publish', () => {
         });
 
         it('when it exceeds the registry size limit', async () => {
-            const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 1 } });
+            const registry = await givenRegistry({ body: { version: '1.3.0', maxExtensionSize: 10_000_000 }, sizeLimit: 1 });
             const written = givenPackaging();
 
             const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url });
@@ -293,13 +293,26 @@ describe('publish', () => {
             expect(written).toHaveLength(2);
             expect(written.filter(file => fs.existsSync(file))).toEqual([]);
         });
+
+        // A locked or read-only temp dir failing to clean up is a separate problem from whatever
+        // publishExtensionFile already threw, and must not hide it.
+        it('does not let a cleanup failure mask the original publish error', async () => {
+            const registry = await givenRegistry({}, { status: 400, body: { error: 'Something went wrong.' } });
+            givenPackaging();
+            vi.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('EBUSY: resource busy or locked'));
+
+            const [result] = await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url });
+
+            expect(result.status).toBe('rejected');
+            expect((result as PromiseRejectedResult).reason.message).toContain('Something went wrong');
+        });
     });
 
     describe('keeps a package the user supplied', () => {
 
         it('given as --packagePath', async () => {
             const registry = await givenRegistry();
-            const packagePath = givenExtensionFile(100);
+            const packagePath = await givenExtensionFile(100);
 
             const [result] = await publish({ packagePath: [packagePath], pat: 'the.pat', registryUrl: registry.url });
 
@@ -309,7 +322,7 @@ describe('publish', () => {
 
         it('given as --extensionFile, even when the registry rejects it', async () => {
             const registry = await givenRegistry({}, { status: 400, body: { error: 'Something went wrong.' } });
-            const extensionFile = givenExtensionFile(100);
+            const extensionFile = await givenExtensionFile(100);
 
             const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
 
