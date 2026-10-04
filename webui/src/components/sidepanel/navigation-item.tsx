@@ -112,6 +112,10 @@ export interface NavigationProps {
     icon?: ReactNode;
     label: string;
     active?: boolean;
-    /** Whether a group starts expanded in the inline (non-collapsed) side panel. */
+    /**
+     * Whether a group is expanded in the inline (non-collapsed) side panel. One-way: becoming
+     * `true` (even after mount) expands the group, but becoming `false` never collapses it, so
+     * it won't fight a manual toggle.
+     */
     defaultExpanded?: boolean;
 }

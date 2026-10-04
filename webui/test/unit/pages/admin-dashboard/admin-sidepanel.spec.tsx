@@ -62,4 +62,21 @@ describe('AdminSidepanel', () => {
         expect(screen.getByText('B Page')).toBeInTheDocument();
         expect(screen.getByText('A Page')).toBeInTheDocument();
     });
+
+    // A plain `pathname.startsWith(child.path)` would treat '/search-index-v2' as inside
+    // '/search-index', wrongly expanding a sibling group that merely shares a path prefix.
+    it('does not expand a group whose child path is only a text prefix of the current page', () => {
+        const prefixItems: NavEntry[] = [
+            { name: 'First', icon: <span />, children: [{ path: '/a', name: 'A Page', icon: <span /> }] },
+            {
+                name: 'Second',
+                icon: <span />,
+                children: [{ path: '/search-index', name: 'Search Index', icon: <span /> }]
+            }
+        ];
+
+        renderWithProviders(<AdminSidepanel items={prefixItems} />, { route: '/search-index-v2' });
+
+        expect(screen.queryByText('Search Index')).not.toBeInTheDocument();
+    });
 });
