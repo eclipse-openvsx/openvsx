@@ -907,11 +907,14 @@ public class LocalRegistryService implements IExtensionRegistry {
                     }
                     if (actualSize > limit) {
                         // Named sizes and who to ask: this reaches a publisher, who cannot change
-                        // the limit themselves and has no use for the server's configuration.
+                        // the limit themselves and has no use for the server's configuration. Exact
+                        // byte counts as well as the friendly ones, because the latter round down to
+                        // whole units - a package one byte over would otherwise read as "1 MB
+                        // exceeds the size limit of 1 MB".
                         throw new ErrorResultException(
-                                "The extension package (" + FileUtils.byteCountToDisplaySize(actualSize)
-                                        + ") exceeds the size limit of "
-                                        + FileUtils.byteCountToDisplaySize(limit) + " for "
+                                "The extension package (" + FileUtils.byteCountToDisplaySize(actualSize) + ", "
+                                        + actualSize + " bytes) exceeds the size limit of "
+                                        + FileUtils.byteCountToDisplaySize(limit) + " (" + limit + " bytes) for "
                                         + NamingUtil.toExtensionId(
                                                 processor.getNamespace(),
                                                 processor.getExtensionName())

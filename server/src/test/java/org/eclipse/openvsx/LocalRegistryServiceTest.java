@@ -415,6 +415,9 @@ class LocalRegistryServiceTest {
                 .isInstanceOf(ErrorResultException.class)
                 .hasMessageContaining("exceeds the size limit")
                 .hasMessageContaining("foo.bar")
+                // exact counts, or one byte over reads as "1 MB exceeds the size limit of 1 MB"
+                .hasMessageContaining(content.length + " bytes")
+                .hasMessageContaining((content.length - 1) + " bytes")
                 .extracting(exc -> ((ErrorResultException) exc).getStatus())
                 .isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
 

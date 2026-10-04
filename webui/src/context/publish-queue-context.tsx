@@ -267,7 +267,8 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
     const currentCeiling = useCallback(
         async (fallback: number): Promise<number> => {
             try {
-                const version = await service.getRegistryVersion(new AbortController());
+                // revalidate, or the five-minute cache hands back the very value being bypassed
+                const version = await service.getRegistryVersion(new AbortController(), { revalidate: true });
                 return version.maxExtensionSizeCeiling ?? fallback;
             } catch {
                 // Refusing on the stale value is still better than letting a doomed upload run.

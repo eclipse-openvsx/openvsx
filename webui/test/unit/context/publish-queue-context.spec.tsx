@@ -205,7 +205,8 @@ describe('publish queue', () => {
             await result.current.publish([vsix('big.vsix')]);
         });
 
-        expect(getRegistryVersion).toHaveBeenCalled();
+        // revalidated, or the cached copy would answer with the ceiling being bypassed
+        expect(getRegistryVersion).toHaveBeenCalledWith(expect.anything(), { revalidate: true });
         await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
         expect(result.current.items[0].status).not.toBe('failed');
     });
