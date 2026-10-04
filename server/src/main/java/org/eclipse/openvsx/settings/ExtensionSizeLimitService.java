@@ -97,6 +97,13 @@ public class ExtensionSizeLimitService {
             long maxSize
     ) {
         var namespace = requireNamespace(namespaceName);
+        // Creation only: an existing override deliberately survives the namespace's verification
+        // lapsing, so resolution must not apply this check.
+        if (!repositories.isVerified(namespace)) {
+            throw new ErrorResultException(
+                    "Namespace is not verified: " + namespaceName,
+                    HttpStatus.BAD_REQUEST);
+        }
         var extension = extensionName == null ? null : requireExtension(namespace, extensionName);
         requireValidSize(maxSize);
 
@@ -121,13 +128,18 @@ public class ExtensionSizeLimitService {
         return saved;
     }
 
-    public ExtensionSizeOverride updateOverride(long id, long maxSize) {
+    /** The updated override together with the size it replaced, so the change can be audited. */
+    public record UpdatedOverride(ExtensionSizeOverride override, long previousMaxSize) {}
+
+    public UpdatedOverride updateOverride(long id, long maxSize) {
         var override = requireOverride(id);
         requireValidSize(maxSize);
+        // Captured before the setter: saving mutates the loaded entity, losing the old value.
+        var previousMaxSize = override.getMaxSize();
         override.setMaxSize(maxSize);
         var saved = overrides.save(override);
         settings.invalidateCache();
-        return saved;
+        return new UpdatedOverride(saved, previousMaxSize);
     }
 
     public ExtensionSizeOverride deleteOverride(long id) {

@@ -35,6 +35,7 @@ import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -122,14 +123,17 @@ class ExtensionSizeOverrideAPITest {
     void updateChangesTheSize() throws Exception {
         var admin = adminUser();
         when(admins.checkAdminUser()).thenReturn(admin);
-        when(limits.updateOverride(1L, 200L)).thenReturn(override("foo", null, 200L));
+        when(limits.updateOverride(1L, 200L))
+                .thenReturn(new ExtensionSizeLimitService.UpdatedOverride(override("foo", null, 200L), 100L));
 
         mockMvc.perform(
                 put("/admin/size-overrides/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maxSize\":200}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.maxSize").value(200));
+                .andExpect(jsonPath("$.maxSize").value(200))
+                // the audit entry has to name the size it replaced, not only the new one
+                .andExpect(jsonPath("$.success").value(containsString("from 100 to 200")));
 
         Mockito.verify(logs).logAction(Mockito.eq(admin), Mockito.any());
     }

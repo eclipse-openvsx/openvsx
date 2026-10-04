@@ -131,6 +131,7 @@ class ExtensionSizeLimitServiceTest {
         when(publishingConfig.getMaxOverrideSize()).thenReturn(1000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(true);
 
         assertThatThrownBy(() -> limits.createOverride("foo", null, 1001L))
                 .isInstanceOf(ErrorResultException.class)
@@ -141,6 +142,7 @@ class ExtensionSizeLimitServiceTest {
     void createRejectsANonPositiveSize() {
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(true);
 
         assertThatThrownBy(() -> limits.createOverride("foo", null, 0L))
                 .isInstanceOf(ErrorResultException.class)
@@ -152,6 +154,7 @@ class ExtensionSizeLimitServiceTest {
         when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(true);
         when(overrides.findByScope(eq(1L), eq(null))).thenReturn(List.of(override(null, 100L)));
 
         assertThatThrownBy(() -> limits.createOverride("foo", null, 200L))
@@ -164,6 +167,7 @@ class ExtensionSizeLimitServiceTest {
         when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(true);
         when(repositories.findExtension(eq("ghost"), any(Namespace.class))).thenReturn(null);
 
         assertThatThrownBy(() -> limits.createOverride("foo", "ghost", 200L))
@@ -171,11 +175,27 @@ class ExtensionSizeLimitServiceTest {
                 .hasMessageContaining("Unknown extension");
     }
 
+    /**
+     * Overrides are only granted to verified namespaces. An existing override deliberately survives
+     * verification lapsing, so this is checked on creation only.
+     */
+    @Test
+    void createRejectsAnUnverifiedNamespace() {
+        var ns = namespace("foo", 1L);
+        when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(false);
+
+        assertThatThrownBy(() -> limits.createOverride("foo", null, 100L))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("not verified");
+    }
+
     @Test
     void createSavesTheOverrideAndInvalidatesTheCeiling() {
         when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(true);
         when(overrides.findByScope(eq(1L), eq(null))).thenReturn(List.of());
         when(overrides.save(any(ExtensionSizeOverride.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -205,7 +225,8 @@ class ExtensionSizeLimitServiceTest {
 
         var updated = limits.updateOverride(42L, 200L);
 
-        assertThat(updated.getMaxSize()).isEqualTo(200L);
+        assertThat(updated.override().getMaxSize()).isEqualTo(200L);
+        assertThat(updated.previousMaxSize()).isEqualTo(100L);
         verify(settings).invalidateCache();
     }
 

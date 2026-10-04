@@ -102,9 +102,12 @@ public class ExtensionSizeOverrideAPI {
         try {
             var adminUser = admins.checkAdminUser();
             var updated = limits.updateOverride(id, request.getMaxSize());
-            var result = toJson(updated);
+            var override = updated.override();
+            var result = toJson(override);
+            // Both values: the audit trail has to show what the limit was, not only what it became.
             result.setSuccess(
-                    "Updated size override for " + scopeOf(updated) + " to " + updated.getMaxSize() + " bytes");
+                    "Updated size override for " + scopeOf(override) + " from "
+                            + updated.previousMaxSize() + " to " + override.getMaxSize() + " bytes");
             logs.logAction(adminUser, result);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
@@ -121,7 +124,8 @@ public class ExtensionSizeOverrideAPI {
         try {
             var adminUser = admins.checkAdminUser();
             var deleted = limits.deleteOverride(id);
-            var result = ResultJson.success("Deleted size override for " + scopeOf(deleted));
+            var result = ResultJson.success(
+                    "Deleted size override for " + scopeOf(deleted) + " of " + deleted.getMaxSize() + " bytes");
             logs.logAction(adminUser, result);
             return ResponseEntity.ok(result);
         } catch (ErrorResultException exc) {
