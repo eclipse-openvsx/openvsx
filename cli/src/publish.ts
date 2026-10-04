@@ -11,10 +11,17 @@ import * as fs from 'fs';
 import * as semver from 'semver';
 import { createVSIX, IPackageOptions } from '@vscode/vsce';
 import { getPAT } from './pat';
-import { getTempFilePath, addEnvOptions, addTrustedPublishingEnvOptions, formatBytes, StatusError } from './util';
+import {
+    getTempFilePath,
+    addEnvOptions,
+    addTrustedPublishingEnvOptions,
+    formatBytes,
+    Manifest,
+    StatusError
+} from './util';
 import { Extension, Registry } from './registry';
 import { checkLicense } from './check-license';
-import { Manifest, readVSIXPackage } from './zip';
+import { readVSIXPackage } from './zip';
 import { PublishOptions, PublishCommonOptions } from './publish-options';
 import { getTrustedPublishingToken, refreshTrustedPublishingToken, useTrustedPublishing } from './trusted-publishing';
 
