@@ -32,12 +32,13 @@ export const AdminSidepanel: FunctionComponent<AdminSidepanelProps> = ({ items }
         <Sidepanel open={open} onToggle={() => setOpen(prev => !prev)}>
             {items.map((entry, index) => {
                 if (isNavGroup(entry)) {
+                    const isActiveGroup = entry.children.some(child => pathname.startsWith(child.path));
                     return (
                         <NavigationItem
                             key={entry.name}
                             label={entry.name}
                             icon={entry.icon}
-                            defaultExpanded={index === firstGroupIndex}>
+                            defaultExpanded={index === firstGroupIndex || isActiveGroup}>
                             {entry.children.map(child => (
                                 <NavigationItem
                                     key={child.path}
