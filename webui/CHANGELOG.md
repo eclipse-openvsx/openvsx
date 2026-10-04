@@ -16,6 +16,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - Return to the page a login started from, instead of always landing on the front page (#2148)
 - Load an extension's icon only when it comes near the viewport, instead of every icon on the page at once (#2213)
+- Group the admin dashboard's sidebar into Content, Search, Infrastructure, Rate Limiting, and Analytics sections instead of one flat list ([#2278](https://github.com/eclipse-openvsx/openvsx/issues/2278))
 
 ### Fixed
 

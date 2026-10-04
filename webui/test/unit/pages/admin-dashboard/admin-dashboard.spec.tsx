@@ -79,6 +79,15 @@ describe('AdminDashboard contributed pages', () => {
         expect(screen.getAllByText('Customers').length).toBeGreaterThan(0);
     });
 
+    it('groups the built-in pages into logical sections instead of leaving them ungrouped', () => {
+        renderDashboard(undefined);
+
+        // Each group label appears twice: once in the side panel, once as an overview section heading.
+        for (const group of ['Content', 'Search', 'Infrastructure', 'Rate Limiting', 'Analytics']) {
+            expect(screen.getAllByText(group).length).toBeGreaterThan(0);
+        }
+    });
+
     // adminPages is consumer-provided, and a leading slash used to leave the shadowing check looking
     // at an empty first segment, so this slipped past it and sat in the nav beside the built-in page.
     it('ignores a shadowing page however its path is written', () => {

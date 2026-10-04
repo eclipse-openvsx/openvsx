@@ -13,12 +13,16 @@ import { Box, Container, CssBaseline, Typography, IconButton } from '@mui/materi
 import { styled } from '@mui/material/styles';
 import { Route, Routes, useNavigate } from 'react-router';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import CategoryIcon from '@mui/icons-material/Category';
+import DnsIcon from '@mui/icons-material/Dns';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
+import SearchIcon from '@mui/icons-material/Search';
 import StorageIcon from '@mui/icons-material/Storage';
 import StraightenIcon from '@mui/icons-material/Straighten';
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
@@ -60,28 +64,88 @@ const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => (
 
 const navConfig: NavEntry[] = [
     {
-        path: AdminDashboardRoutes.NAMESPACE_ADMIN,
-        name: 'Namespaces',
-        icon: <AssignmentIndIcon />,
-        description: 'Manage user roles and create new namespaces'
+        name: 'Content',
+        icon: <CategoryIcon />,
+        children: [
+            {
+                path: AdminDashboardRoutes.NAMESPACE_ADMIN,
+                name: 'Namespaces',
+                icon: <AssignmentIndIcon />,
+                description: 'Manage user roles and create new namespaces'
+            },
+            {
+                path: AdminDashboardRoutes.EXTENSION_ADMIN,
+                name: 'Extensions',
+                icon: <ExtensionSharpIcon />,
+                description: 'Search for extensions and remove certain versions'
+            },
+            {
+                path: AdminDashboardRoutes.PUBLISHER_ADMIN,
+                name: 'Publisher',
+                icon: <PersonIcon />,
+                description: 'Search for publishers, update roles, and revoke their contributions'
+            },
+            {
+                path: AdminDashboardRoutes.SCANS_ADMIN,
+                name: 'Scans',
+                icon: <SecurityIcon />,
+                description: 'View security scan results and manage quarantined extensions'
+            },
+            {
+                path: AdminDashboardRoutes.SIZE_OVERRIDES,
+                name: 'Size overrides',
+                icon: <StraightenIcon />,
+                description: 'Per-namespace and per-extension upload size limits'
+            }
+        ]
     },
     {
-        path: AdminDashboardRoutes.EXTENSION_ADMIN,
-        name: 'Extensions',
-        icon: <ExtensionSharpIcon />,
-        description: 'Search for extensions and remove certain versions'
+        name: 'Search',
+        icon: <SearchIcon />,
+        children: [
+            {
+                path: AdminDashboardRoutes.SEARCH_INDEX,
+                name: 'Search Index',
+                icon: <ManageSearchIcon />,
+                description: 'Inspect the search index and rebuild it'
+            },
+            {
+                path: AdminDashboardRoutes.SEARCH_EXPLAIN,
+                name: 'Search Explain',
+                icon: <TroubleshootIcon />,
+                description: "Run a search and see what each result's score is made of"
+            }
+        ]
     },
     {
-        path: AdminDashboardRoutes.PUBLISHER_ADMIN,
-        name: 'Publisher',
-        icon: <PersonIcon />,
-        description: 'Search for publishers, update roles, and revoke their contributions'
-    },
-    {
-        path: AdminDashboardRoutes.SCANS_ADMIN,
-        name: 'Scans',
-        icon: <SecurityIcon />,
-        description: 'View security scan results and manage quarantined extensions'
+        name: 'Infrastructure',
+        icon: <DnsIcon />,
+        children: [
+            {
+                path: AdminDashboardRoutes.CACHES,
+                name: 'Caches',
+                icon: <StorageIcon />,
+                description: 'Inspect the application caches and clear them'
+            },
+            {
+                path: AdminDashboardRoutes.CONSISTENCY,
+                name: 'Data Consistency',
+                icon: <FactCheckIcon />,
+                description: 'Check the database for known inconsistencies and fix them'
+            },
+            {
+                path: AdminDashboardRoutes.LOGS,
+                name: 'Logs',
+                icon: <HistoryIcon />,
+                description: 'Browse admin activity logs'
+            },
+            {
+                path: AdminDashboardRoutes.SETTINGS,
+                name: 'Settings',
+                icon: <SettingsIcon />,
+                description: 'Manage runtime settings for the registry'
+            }
+        ]
     },
     {
         name: 'Rate Limiting',
@@ -108,47 +172,16 @@ const navConfig: NavEntry[] = [
         ]
     },
     {
-        path: AdminDashboardRoutes.SETTINGS,
-        name: 'Settings',
-        icon: <SettingsIcon />,
-        description: 'Manage runtime settings for the registry'
-    },
-    { path: AdminDashboardRoutes.LOGS, name: 'Logs', icon: <HistoryIcon />, description: 'Browse admin activity logs' },
-    {
-        path: AdminDashboardRoutes.CONSISTENCY,
-        name: 'Data Consistency',
-        icon: <FactCheckIcon />,
-        description: 'Check the database for known inconsistencies and fix them'
-    },
-    {
-        path: AdminDashboardRoutes.CACHES,
-        name: 'Caches',
-        icon: <StorageIcon />,
-        description: 'Inspect the application caches and clear them'
-    },
-    {
-        path: AdminDashboardRoutes.SIZE_OVERRIDES,
-        name: 'Size overrides',
-        icon: <StraightenIcon />,
-        description: 'Per-namespace and per-extension upload size limits'
-    },
-    {
-        path: AdminDashboardRoutes.SEARCH_INDEX,
-        name: 'Search Index',
-        icon: <ManageSearchIcon />,
-        description: 'Inspect the search index and rebuild it'
-    },
-    {
-        path: AdminDashboardRoutes.SEARCH_EXPLAIN,
-        name: 'Search Explain',
-        icon: <TroubleshootIcon />,
-        description: "Run a search and see what each result's score is made of"
-    },
-    {
-        path: AdminDashboardRoutes.STATISTICS,
-        name: 'Statistics',
-        icon: <AssessmentIcon />,
-        description: 'Registry statistics per month, with a CSV export'
+        name: 'Analytics',
+        icon: <AnalyticsIcon />,
+        children: [
+            {
+                path: AdminDashboardRoutes.STATISTICS,
+                name: 'Statistics',
+                icon: <AssessmentIcon />,
+                description: 'Registry statistics per month, with a CSV export'
+            }
+        ]
     }
 ];
 
