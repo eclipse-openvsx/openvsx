@@ -12,11 +12,17 @@
  *****************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SizeOverrideFormDialog } from '../../../../src/pages/admin-dashboard/size-overrides/size-override-form-dialog';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 import { renderWithProviders } from '../../support/test-providers';
+
+const namespaceResult = (extensions: Record<string, string> = {}, verified = true) => ({
+    name: 'foo',
+    extensions,
+    verified
+});
 
 // not named render*, so the testing-library naming rule does not treat the stubs it returns as a
 // render result
@@ -29,16 +35,18 @@ const mountDialog = (getNamespace = vi.fn(), onSubmit = vi.fn().mockResolvedValu
     return { admin, onSubmit };
 };
 
+/** Types a namespace and waits for the debounced check to report it as verified. */
+const enterVerifiedNamespace = async (user: ReturnType<typeof userEvent.setup>, name = 'foo') => {
+    await user.type(screen.getByLabelText(/namespace/i), name);
+    await screen.findByText(/verified namespace/i);
+};
+
 describe('SizeOverrideFormDialog', () => {
     it('converts the typed value and unit to bytes on submit', async () => {
         const user = userEvent.setup();
-        const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: {} });
-        const { onSubmit } = mountDialog(getNamespace);
+        const { onSubmit } = mountDialog(vi.fn().mockResolvedValue(namespaceResult()));
 
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
-
+        await enterVerifiedNamespace(user);
         await user.clear(screen.getByLabelText(/max size/i));
         await user.type(screen.getByLabelText(/max size/i), '100');
         await user.click(screen.getByRole('button', { name: /create/i }));
@@ -52,13 +60,9 @@ describe('SizeOverrideFormDialog', () => {
 
     it('keeps a fractional size instead of truncating it', async () => {
         const user = userEvent.setup();
-        const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: {} });
-        const { onSubmit } = mountDialog(getNamespace);
+        const { onSubmit } = mountDialog(vi.fn().mockResolvedValue(namespaceResult()));
 
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
-
+        await enterVerifiedNamespace(user);
         await user.clear(screen.getByLabelText(/max size/i));
         await user.type(screen.getByLabelText(/max size/i), '1.5');
         await user.click(screen.getByRole('button', { name: /create/i }));
@@ -68,15 +72,11 @@ describe('SizeOverrideFormDialog', () => {
         );
     });
 
-    it('offers the looked-up namespace extensions to choose from', async () => {
+    it('offers the namespace extensions to choose from once it checks out', async () => {
         const user = userEvent.setup();
-        const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: { bar: 'u', baz: 'u' } });
-        mountDialog(getNamespace);
+        mountDialog(vi.fn().mockResolvedValue(namespaceResult({ bar: 'u', baz: 'u' })));
 
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
-
+        await enterVerifiedNamespace(user);
         await user.click(screen.getByLabelText(/extension/i));
 
         expect(await screen.findByText('bar')).toBeInTheDocument();
@@ -84,78 +84,84 @@ describe('SizeOverrideFormDialog', () => {
     });
 
     /**
-     * Looking up one namespace and typing another before the answer lands used to confirm whichever
-     * name was in the box, so an override could be created for a namespace nobody looked up.
+     * The check runs on its own as the admin types; nothing has to be pressed first. Before it has
+     * cleared the namespace there is nothing to create an override for.
      */
-    it('ignores a lookup answer that arrives after the namespace changed', async () => {
+    it('will not submit until the namespace checks out', async () => {
         const user = userEvent.setup();
-        let release: (value: unknown) => void = () => undefined;
+        mountDialog(vi.fn().mockResolvedValue(namespaceResult()));
+
+        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+
+        await screen.findByText(/verified namespace/i);
+        expect(screen.getByRole('button', { name: /create/i })).toBeEnabled();
+    });
+
+    /**
+     * The server refuses an override on an unverified namespace, so saying so here beats letting the
+     * admin fill the form in and discover it from the submit response.
+     */
+    it('rejects an unverified namespace without asking the server to save', async () => {
+        const user = userEvent.setup();
+        const { onSubmit } = mountDialog(vi.fn().mockResolvedValue(namespaceResult({}, false)));
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+
+        expect(await screen.findByText(/not verified/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+        expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('reports an unknown namespace instead of enabling submit', async () => {
+        const user = userEvent.setup();
+        const { onSubmit } = mountDialog(vi.fn().mockRejectedValue({ error: 'Namespace not found: nope' }));
+
+        await user.type(screen.getByLabelText(/namespace/i), 'nope');
+
+        expect(await screen.findByText(/not found/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+        expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    /** One request per pause in typing, not one per keystroke. */
+    it('checks once for a name typed in one go', async () => {
+        const user = userEvent.setup();
+        const { admin } = mountDialog(vi.fn().mockResolvedValue(namespaceResult()));
+
+        await enterVerifiedNamespace(user, 'foo');
+
+        expect(admin.getNamespace).toHaveBeenCalledTimes(1);
+        expect(admin.getNamespace).toHaveBeenCalledWith(expect.anything(), 'foo');
+    });
+
+    /**
+     * Looking up one namespace and typing another before the answer lands must not confirm whichever
+     * name is in the box, or an override could be created for a namespace nobody checked.
+     */
+    it('ignores an answer that arrives after the namespace changed', async () => {
+        const user = userEvent.setup();
+        const releases: ((value: unknown) => void)[] = [];
         const getNamespace = vi.fn().mockImplementation(
             () =>
                 new Promise(resolve => {
-                    release = resolve;
+                    releases.push(resolve);
                 })
         );
         mountDialog(getNamespace);
 
         await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
+        await waitFor(() => expect(getNamespace).toHaveBeenCalledTimes(1));
         await user.type(screen.getByLabelText(/namespace/i), 'bar');
 
-        release({ name: 'foo', extensions: { one: 'u' } });
-        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
+        await act(async () => {
+            releases[0](namespaceResult({ one: 'u' }));
+        });
 
         // the stale answer must not confirm the name now in the box
         expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
-    });
-
-    /**
-     * Typing a different namespace invalidates the request in flight. The button still has to come
-     * back, or the name now in the box can never be checked and the open dialog is stuck.
-     */
-    it('frees the lookup button when the namespace changes mid-lookup', async () => {
-        const user = userEvent.setup();
-        let release: (value: unknown) => void = () => undefined;
-        const getNamespace = vi.fn().mockImplementation(
-            () =>
-                new Promise(resolve => {
-                    release = resolve;
-                })
-        );
-        mountDialog(getNamespace);
-
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-        expect(screen.getByRole('button', { name: /look up/i })).toBeDisabled();
-
-        await user.type(screen.getByLabelText(/namespace/i), 'bar');
-        release({ name: 'foo', extensions: {} });
-
-        await waitFor(() => expect(screen.getByRole('button', { name: /look up/i })).toBeEnabled());
-    });
-
-    /**
-     * A request from the previous opening settles against a dialog that has already been reset, so
-     * reopening has to clear the in-progress flag itself rather than wait for it.
-     */
-    it('frees the lookup button when the dialog is reopened mid-lookup', async () => {
-        const user = userEvent.setup();
-        // never settles: the request is still in flight when the dialog closes
-        const getNamespace = vi.fn().mockImplementation(() => new Promise(() => undefined));
-        const props = { sizeOverride: undefined, onClose: vi.fn(), onSubmit: vi.fn() };
-        const { rerender } = renderWithProviders(<SizeOverrideFormDialog open {...props} />, {
-            mainContext: { service: { admin: { getNamespace } } as unknown as ExtensionRegistryService }
-        });
-
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-        expect(screen.getByRole('button', { name: /look up/i })).toBeDisabled();
-
-        rerender(<SizeOverrideFormDialog open={false} {...props} />);
-        rerender(<SizeOverrideFormDialog open {...props} />);
-        await user.type(screen.getByLabelText(/namespace/i), 'bar');
-
-        expect(screen.getByRole('button', { name: /look up/i })).toBeEnabled();
     });
 
     /**
@@ -166,18 +172,21 @@ describe('SizeOverrideFormDialog', () => {
      */
     it('locks Cancel while a save is in flight', async () => {
         const user = userEvent.setup();
-        const getNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: {} });
         const onClose = vi.fn();
         // never settles: the save is still pending when the dismissal is attempted
         const onSubmit = vi.fn().mockImplementation(() => new Promise(() => undefined));
         renderWithProviders(
             <SizeOverrideFormDialog open sizeOverride={undefined} onClose={onClose} onSubmit={onSubmit} />,
-            { mainContext: { service: { admin: { getNamespace } } as unknown as ExtensionRegistryService } }
+            {
+                mainContext: {
+                    service: {
+                        admin: { getNamespace: vi.fn().mockResolvedValue(namespaceResult()) }
+                    } as unknown as ExtensionRegistryService
+                }
+            }
         );
 
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-        await waitFor(() => expect(getNamespace).toHaveBeenCalled());
+        await enterVerifiedNamespace(user);
         await user.click(screen.getByRole('button', { name: /create/i }));
         await waitFor(() => expect(onSubmit).toHaveBeenCalled());
 
@@ -185,25 +194,20 @@ describe('SizeOverrideFormDialog', () => {
         expect(onClose).not.toHaveBeenCalled();
     });
 
-    it('reports an unknown namespace instead of enabling submit', async () => {
-        const user = userEvent.setup();
-        const getNamespace = vi.fn().mockRejectedValue({ error: 'Namespace not found: nope' });
-        const { onSubmit } = mountDialog(getNamespace);
+    /** Editing cannot change the scope, so the fixed namespace is not re-checked. */
+    it('does not check the namespace when editing an existing override', async () => {
+        const getNamespace = vi.fn();
+        renderWithProviders(
+            <SizeOverrideFormDialog
+                open
+                sizeOverride={{ id: 1, namespace: 'foo', extension: 'bar', maxSize: 1024 * 1024 }}
+                onClose={vi.fn()}
+                onSubmit={vi.fn()}
+            />,
+            { mainContext: { service: { admin: { getNamespace } } as unknown as ExtensionRegistryService } }
+        );
 
-        await user.type(screen.getByLabelText(/namespace/i), 'nope');
-        await user.click(screen.getByRole('button', { name: /look up/i }));
-
-        expect(await screen.findByText(/not found/i)).toBeInTheDocument();
-        expect(onSubmit).not.toHaveBeenCalled();
-    });
-
-    it('will not submit before the namespace has been looked up', async () => {
-        const user = userEvent.setup();
-        mountDialog();
-
-        await user.type(screen.getByLabelText(/namespace/i), 'foo');
-
-        // typing a namespace is not enough: it has to be confirmed to exist first
-        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+        expect(await screen.findByRole('button', { name: /update/i })).toBeEnabled();
+        expect(getNamespace).not.toHaveBeenCalled();
     });
 });

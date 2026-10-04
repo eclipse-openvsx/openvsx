@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC, useContext, useEffect, useRef, useState } from 'react';
+import { FC, useContext, useEffect, useState } from 'react';
 import {
     Alert,
     Autocomplete,
@@ -21,10 +21,13 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    InputAdornment,
     MenuItem,
     Stack,
     TextField
 } from '@mui/material';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { MainContext } from '../../../context';
 import type { SizeOverride } from '../../../extension-registry-types';
 import { handleError } from '../../../utils';
@@ -36,11 +39,33 @@ const UNIT_MULTIPLIERS: Record<string, number> = {
     GB: 1024 * 1024 * 1024
 };
 
+/** Idle period after a keystroke before the namespace is looked up. */
+const LOOKUP_DEBOUNCE_MS = 400;
+
+const UNVERIFIED_MESSAGE = 'Not verified - a size override can only be granted to a verified namespace';
+
+/**
+ * What the registry says about the namespace currently typed. `verified` is the only state the form
+ * can be submitted from, so the server's own precondition is what gates the dialog.
+ */
+type NamespaceCheck =
+    | { state: 'idle' }
+    | { state: 'checking' }
+    | { state: 'verified'; extensions: string[] }
+    | { state: 'rejected'; reason: string };
+
 const splitSize = (bytes: number): { value: number; unit: string } => {
     const unit = ['GB', 'MB', 'KB'].find(
         candidate => bytes >= UNIT_MULTIPLIERS[candidate] && bytes % UNIT_MULTIPLIERS[candidate] === 0
     );
     return unit ? { value: bytes / UNIT_MULTIPLIERS[unit], unit } : { value: bytes, unit: 'bytes' };
+};
+
+const describeVerified = (extensions: string[]): string => {
+    if (extensions.length === 0) {
+        return 'Verified namespace, no extensions yet';
+    }
+    return `Verified namespace, ${extensions.length} extension${extensions.length === 1 ? '' : 's'}`;
 };
 
 export interface SizeOverrideFormDialogProps {
@@ -56,76 +81,80 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
 
     const [namespace, setNamespace] = useState('');
     const [extension, setExtension] = useState<string | null>(null);
-    const [extensionNames, setExtensionNames] = useState<string[]>([]);
-    const [namespaceConfirmed, setNamespaceConfirmed] = useState(false);
+    const [check, setCheck] = useState<NamespaceCheck>({ state: 'idle' });
     const [sizeValue, setSizeValue] = useState('100');
     const [sizeUnit, setSizeUnit] = useState('MB');
-    const [lookingUp, setLookingUp] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | undefined>();
-    // Bumped by every lookup, by typing a different namespace, and by reopening the dialog, so an
-    // answer that arrives after any of those is dropped instead of confirming a namespace nobody
-    // looked up.
-    const lookupGeneration = useRef(0);
 
     useEffect(() => {
         if (!open) {
             return;
         }
         setError(undefined);
-        lookupGeneration.current++;
-        // This instance is reused across openings, so work still in flight from the previous one
-        // would otherwise keep its buttons disabled until it settles.
-        setLookingUp(false);
         setSaving(false);
         if (sizeOverride) {
             const split = splitSize(sizeOverride.maxSize);
             setNamespace(sizeOverride.namespace);
             setExtension(sizeOverride.extension ?? null);
-            setExtensionNames(sizeOverride.extension ? [sizeOverride.extension] : []);
-            setNamespaceConfirmed(true);
+            // An existing override is on a namespace that was verified when it was granted; the name
+            // cannot be edited here, so there is nothing to re-check.
+            setCheck({ state: 'verified', extensions: sizeOverride.extension ? [sizeOverride.extension] : [] });
             setSizeValue(String(split.value));
             setSizeUnit(split.unit);
         } else {
             setNamespace('');
             setExtension(null);
-            setExtensionNames([]);
-            setNamespaceConfirmed(false);
+            setCheck({ state: 'idle' });
             setSizeValue('100');
             setSizeUnit('MB');
         }
     }, [open, sizeOverride]);
 
-    const handleLookup = async () => {
-        const generation = ++lookupGeneration.current;
-        setLookingUp(true);
-        setError(undefined);
-        try {
-            const found = await service.admin.getNamespace(new AbortController(), namespace);
-            if (generation !== lookupGeneration.current) {
-                return;
-            }
-            setExtensionNames(Object.keys(found.extensions));
-            setNamespaceConfirmed(true);
-        } catch (err) {
-            if (generation !== lookupGeneration.current) {
-                return;
-            }
-            setExtensionNames([]);
-            setNamespaceConfirmed(false);
-            setError(handleError(err));
-        } finally {
-            // Not guarded by the generation: that decides whether a result still applies, not whether
-            // the button comes back. Only one lookup can be in flight, since the button is disabled
-            // while this is true.
-            setLookingUp(false);
+    // Checks the namespace as it is typed. The cleanup drops both the pending timer and the answer to
+    // a request already superseded, so only the name currently in the field can decide the outcome.
+    useEffect(() => {
+        if (!open || isEditMode) {
+            return;
         }
-    };
+        const name = namespace.trim();
+        if (name.length === 0) {
+            setCheck({ state: 'idle' });
+            return;
+        }
+
+        setCheck({ state: 'checking' });
+        let superseded = false;
+        const timer = setTimeout(async () => {
+            try {
+                const found = await service.admin.getNamespace(new AbortController(), name);
+                if (superseded) {
+                    return;
+                }
+                setCheck(
+                    found.verified
+                        ? { state: 'verified', extensions: Object.keys(found.extensions) }
+                        : { state: 'rejected', reason: UNVERIFIED_MESSAGE }
+                );
+            } catch (err) {
+                if (!superseded) {
+                    setCheck({ state: 'rejected', reason: handleError(err) });
+                }
+            }
+        }, LOOKUP_DEBOUNCE_MS);
+
+        return () => {
+            superseded = true;
+            clearTimeout(timer);
+        };
+    }, [open, isEditMode, namespace, service]);
+
+    const extensionNames = check.state === 'verified' ? check.extensions : [];
 
     // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be submitted as 1 and
     // 1e3 as 1, neither of which is what the field showed.
     const maxSize = Number(sizeValue) * UNIT_MULTIPLIERS[sizeUnit];
-    const canSubmit = namespaceConfirmed && Number.isSafeInteger(maxSize) && maxSize > 0 && !saving;
+    const canSubmit = check.state === 'verified' && Number.isSafeInteger(maxSize) && maxSize > 0 && !saving;
 
     const handleSubmit = async () => {
         if (!canSubmit) {
@@ -148,37 +177,55 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
         }
     };
 
+    const namespaceStatusIcon = () => {
+        switch (check.state) {
+            case 'checking':
+                return <CircularProgress size={20} />;
+            case 'verified':
+                return <CheckCircleOutlineIcon color='success' fontSize='small' />;
+            case 'rejected':
+                return <ErrorOutlineIcon color='error' fontSize='small' />;
+            default:
+                return undefined;
+        }
+    };
+
+    const namespaceHelperText = () => {
+        switch (check.state) {
+            case 'verified':
+                return describeVerified(check.extensions);
+            case 'rejected':
+                return check.reason;
+            default:
+                return ' ';
+        }
+    };
+
     return (
         <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth='sm' fullWidth>
             <DialogTitle>{isEditMode ? 'Edit size override' : 'Create size override'}</DialogTitle>
             <DialogContent>
                 <Stack spacing={2} sx={{ mt: 1 }}>
                     {error && <Alert severity='error'>{error}</Alert>}
-                    <Stack direction='row' spacing={1}>
-                        <TextField
-                            label='Namespace'
-                            value={namespace}
-                            fullWidth
-                            disabled={isEditMode}
-                            onChange={event => {
-                                lookupGeneration.current++;
-                                setNamespace(event.target.value);
-                                setNamespaceConfirmed(false);
-                                setExtension(null);
-                                setExtensionNames([]);
-                            }}
-                        />
-                        <Button
-                            onClick={handleLookup}
-                            disabled={isEditMode || namespace.length === 0 || lookingUp}
-                            startIcon={lookingUp ? <CircularProgress size={20} /> : undefined}>
-                            Look up
-                        </Button>
-                    </Stack>
+                    <TextField
+                        label='Namespace'
+                        value={namespace}
+                        fullWidth
+                        disabled={isEditMode}
+                        error={check.state === 'rejected'}
+                        helperText={namespaceHelperText()}
+                        onChange={event => {
+                            setNamespace(event.target.value);
+                            setExtension(null);
+                        }}
+                        InputProps={{
+                            endAdornment: <InputAdornment position='end'>{namespaceStatusIcon()}</InputAdornment>
+                        }}
+                    />
                     <Autocomplete
                         options={extensionNames}
                         value={extension}
-                        disabled={!namespaceConfirmed || isEditMode}
+                        disabled={check.state !== 'verified' || isEditMode}
                         onChange={(_event, value) => setExtension(value)}
                         renderInput={params => (
                             <TextField
