@@ -47,7 +47,9 @@ The maximum content size the server accepts when publishing an extension. This i
 | Default       | `1024 * 1024 * 1024` = `1GB`
 | Compatibility | Since 1.3.0
 
-The absolute ceiling on any single size override. The admin API refuses an override above it, so no namespace can be granted a limit beyond this however the override is created. Must be greater than zero and not smaller than `ovsx.publishing.max-content-size`; the server refuses to start otherwise.
+The absolute ceiling on any single size override. The admin API refuses an override above it, so no namespace can be granted a limit beyond this however the override is created. Must be greater than zero.
+
+Set it at or above the limit most namespaces get, that is the runtime default or `ovsx.publishing.max-content-size` when no runtime default has been set. The two are deliberately not compared at startup - a deployment already running a larger `max-content-size` than this property's default has to keep starting - but a value below the effective default makes overrides useless, because no override may then exceed what every namespace already has. It does not affect the limit that gets enforced: the stream-time ceiling is derived from the default and the overrides that exist, never from this property.
 
 | Property      | `ovsx.publishing.unsupported-icon-formats`
 |---------------|-----------------------------------
