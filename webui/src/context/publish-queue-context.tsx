@@ -124,7 +124,10 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
     const queryClient = useQueryClient();
     const [items, setItems] = useState<PublishItem[]>([]);
     const nextId = useRef(0);
-    const maxSize = useRegistryValue(version => version.maxExtensionSizeCeiling);
+    // Falling back to the default keeps the gate working against a registry too old to report a
+    // ceiling. The ceiling is never below the default, so the fallback only ever refuses earlier than
+    // it has to - which beats not refusing at all, as an absent field would.
+    const maxSize = useRegistryValue(version => version.maxExtensionSizeCeiling ?? version.maxExtensionSize);
     // A poll outlives the provider only if the app is being torn down; stop it rather than
     // carrying on against a queue nobody can see.
     const stopped = useRef(false);

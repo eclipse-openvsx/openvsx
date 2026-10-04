@@ -183,6 +183,25 @@ describe('publish queue', () => {
     });
 
     /**
+     * A registry too old to report a ceiling still reports a default, and this bundle can be talking
+     * to one - a rolling upgrade, a cached bundle, a third-party deployment. Reading only the ceiling
+     * left no gate at all there, while the publish page went on advertising the default.
+     */
+    it('falls back to the default limit when the registry reports no ceiling', async () => {
+        const publishExtension = vi.fn().mockResolvedValue(published());
+        const { result } = renderQueue({ publishExtension }, { version: { version: '1.0.0', maxExtensionSize: 4 } });
+
+        await act(async () => {
+            await result.current.publish([vsix('big.vsix')]);
+        });
+
+        const oversized = result.current.items.find(item => item.fileName === 'big.vsix');
+        expect(oversized?.status).toBe('failed');
+        expect(oversized?.error).toBe('Larger than the 4 B limit.');
+        expect(publishExtension).not.toHaveBeenCalled();
+    });
+
+    /**
      * The default limit says nothing about a namespace that has a size override: only the registry
      * knows which applies, and it cannot say until it has parsed the package. Blocking on the default
      * refused uploads the registry would have accepted.
