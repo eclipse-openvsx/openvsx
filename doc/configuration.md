@@ -47,7 +47,9 @@ The maximum content size the server accepts when publishing an extension. This i
 | Default       | `1024 * 1024 * 1024` = `1GB`
 | Compatibility | Since 1.3.0
 
-The absolute ceiling on any single size override. The admin API refuses an override above it, so no namespace can be granted a limit beyond this however the override is created. Must be greater than zero.
+The ceiling on any single size override. The admin API refuses an override above it, so no override can raise a namespace past this. Must be greater than zero.
+
+It bounds overrides and nothing else. The registry-wide default has no upper bound of its own - the Settings page accepts any value above zero - so a registry whose default is set higher than this gives every namespace a limit above it without an override being involved.
 
 Set it at or above the limit most namespaces get, that is the runtime default or `ovsx.publishing.max-content-size` when no runtime default has been set. The two are deliberately not compared at startup - a deployment already running a larger `max-content-size` than this property's default has to keep starting - but a value below the effective default means no override can raise a limit above it - only overrides that tighten a namespace below the default remain possible. It does not affect the limit that gets enforced: the stream-time ceiling is derived from the default and the overrides that exist, never from this property.
 

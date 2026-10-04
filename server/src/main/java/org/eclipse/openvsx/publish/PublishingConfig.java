@@ -37,8 +37,10 @@ public class PublishingConfig {
     private long maxContentSize = MAX_CONTENT_SIZE;
 
     /**
-     * Absolute ceiling on any single size override. Validated by the admin API, so no override can
-     * raise a namespace's limit past this however it is created.
+     * Ceiling on any single size override. Validated by the admin API, so no override can raise a
+     * namespace's limit past this. It bounds overrides only: the registry-wide default is not
+     * checked against it, so a default set above this gives every namespace a higher limit without
+     * an override.
      * <p>
      * Property: {@code ovsx.publishing.max-override-size}
      * Default: {@code 1073741824} (1 GiB)
