@@ -247,6 +247,25 @@ describe('publish', () => {
         );
     });
 
+    /**
+     * A registry new enough to be asked, whose answer never arrives - a misrouted /api/-/*, a WAF, a
+     * 502. Staying quiet made that indistinguishable from a working preflight, and since an override
+     * can lower a limit as well as raise it, no package is small enough for silence to be safe.
+     */
+    it('warns when a registry new enough to answer the size-limit lookup does not', async () => {
+        // comfortably under the default, so nothing else would have had cause to say anything
+        const extensionFile = await givenExtensionFile(200);
+        const registry = await givenRegistry({ body: { version: '1.3.0', maxExtensionSize: 10_000_000 } });
+
+        const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
+
+        expect(result.status).toBe('fulfilled');
+        expect(registry.publishRequests).toHaveLength(1);
+        expect(console.warn).toHaveBeenCalledWith(
+            expect.stringContaining('Could not check the size limit for foo.bar')
+        );
+    });
+
     it('proceeds when the registry does not report a size limit', async () => {
         const extensionFile = await givenExtensionFile(200);
         const registry = await givenRegistry({ body: { version: '1.2.0' } });

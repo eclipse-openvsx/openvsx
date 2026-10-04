@@ -182,48 +182,71 @@ async function ensureWithinSizeLimit(
     const { size } = await fs.promises.stat(options.extensionFile!);
     const limit = await resolveSizeLimit(registry, options, manifest);
 
-    if (limit === undefined) {
+    if (limit.kind === 'failed') {
+        // Always said, however small the package: a size override can lower a limit as well as raise
+        // it, so there is no size from which it follows that this upload is fine. Staying quiet here
+        // left a registry whose /api/-/* routes never arrive indistinguishable from a working one.
+        console.warn(
+            `Could not check the size limit for ${manifest.publisher}.${manifest.name} at ${registry.url} `
+            + `(${limit.reason}). Publishing anyway: the registry enforces its own limit, so an oversized `
+            + `package is refused after the upload rather than before it.`
+        );
+    } else if (limit.kind === 'unsupported') {
         const fallback = options.maxExtensionSize;
         if (fallback && size > fallback) {
             console.warn(
                 `The extension package (${formatBytes(size)}) exceeds the default size limit of ${formatBytes(fallback)} `
-                + `reported by the registry at ${registry.url}. Publishing anyway: the namespace may have a higher `
-                + `limit configured, and the registry decides.`
+                + `reported by the registry at ${registry.url}, which is too old to report the limit for a `
+                + `single namespace. Publishing anyway: the namespace may have a different limit configured, `
+                + `and the registry decides.`
             );
         }
+    }
+
+    if (limit.kind !== 'resolved') {
         // The allowance is this package, not the built-in publish size: having decided to send it and
         // let the registry answer, the transport cap must not be what refuses it instead. An older
         // registry whose default is above 512 MiB would otherwise reject a package it would accept.
         return size;
     }
 
-    if (size > limit) {
+    if (size > limit.limit) {
         throw new Error(
-            `The extension package (${formatBytes(size)}) exceeds the size limit of ${formatBytes(limit)} `
+            `The extension package (${formatBytes(size)}) exceeds the size limit of ${formatBytes(limit.limit)} `
             + `for ${manifest.publisher}.${manifest.name} at ${registry.url}.`
         );
     }
-    return limit;
+    return limit.limit;
 }
 
-/** The limit for this namespace/extension, or `undefined` when the registry cannot report one. */
+/**
+ * The limit for this namespace/extension. A registry too old to report one and a registry that could
+ * not answer are told apart: both publish anyway, but only the second one means a check the user is
+ * entitled to expect did not happen.
+ */
+type SizeLimitLookup =
+    | { kind: 'resolved'; limit: number }
+    | { kind: 'unsupported' }
+    | { kind: 'failed'; reason: string };
+
 async function resolveSizeLimit(
     registry: Registry,
     options: InternalPublishOptions,
     manifest: Manifest
-): Promise<number | undefined> {
+): Promise<SizeLimitLookup> {
     const reported = await registry.getRegistryVersion().catch(() => undefined);
     const version = reported?.version ? semver.coerce(reported.version) : undefined;
     if (!version || semver.lt(version, MIN_SIZE_LIMIT_REGISTRY_VERSION)) {
-        return undefined;
+        return { kind: 'unsupported' };
     }
 
     try {
-        return (await registry.getSizeLimit(manifest.publisher, manifest.name, options.pat!)).maxSize;
-    } catch {
+        const { maxSize } = await registry.getSizeLimit(manifest.publisher, manifest.name, options.pat!);
+        return { kind: 'resolved', limit: maxSize };
+    } catch (err) {
         // The registry claims to be new enough but could not answer. It enforces the limit itself
         // regardless, so publish rather than refusing on a failed lookup.
-        return undefined;
+        return { kind: 'failed', reason: err instanceof Error ? err.message : String(err) };
     }
 }
 
