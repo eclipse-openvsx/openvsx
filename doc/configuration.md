@@ -35,7 +35,7 @@ Whether published extensions are required to have a license. If active, unlicens
 
 | Property      | `ovsx.publishing.max-content-size`
 |---------------|-----------------------------------
-| Type          | int
+| Type          | long
 | Default       | `512 * 1024 * 1024` = `512MB`
 | Compatibility | Since 0.31.0
 

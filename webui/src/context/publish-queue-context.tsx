@@ -59,7 +59,7 @@ export interface PublishItem {
 export interface PublishQueue {
     items: PublishItem[];
     /** Uploads every package straight away — there is no confirmation step. */
-    publish: (files: File[]) => void;
+    publish: (files: File[]) => void | Promise<void>;
     /** Drops everything that has finished, leaving work in flight alone. */
     clearFinished: () => void;
 }
@@ -263,24 +263,49 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
         [update, pollUntilSettled, publishPackage, createNamespace, hydrate, handleError]
     );
 
+    /** The ceiling as the registry reports it now, falling back to what the app started with. */
+    const currentCeiling = useCallback(
+        async (fallback: number): Promise<number> => {
+            try {
+                const version = await service.getRegistryVersion(new AbortController());
+                return version.maxExtensionSizeCeiling ?? fallback;
+            } catch {
+                // Refusing on the stale value is still better than letting a doomed upload run.
+                return fallback;
+            }
+        },
+        [service]
+    );
+
     const publish = useCallback(
-        (files: File[]) => {
+        async (files: File[]) => {
             if (!user) {
                 return;
             }
-            const queued = files.filter(isVsixFile).map(file => {
-                // Checked against the ceiling, not the default: a namespace with a size override may
-                // publish more than the default allows, and only the registry knows which applies -
-                // it cannot tell until it has parsed the package. Above the ceiling no namespace can
-                // publish, so rejecting here wastes nobody's bandwidth. Unknown limit (the version has
-                // not loaded): let the server say.
-                const tooLarge = maxSize !== undefined && file.size > maxSize;
+            const candidates = files.filter(isVsixFile);
+            // Checked against the ceiling, not the default: a namespace with a size override may
+            // publish more than the default allows, and only the registry knows which applies - it
+            // cannot tell until it has parsed the package. Above the ceiling no namespace can
+            // publish, so rejecting here wastes nobody's bandwidth. Unknown limit (the version has
+            // not loaded): let the server say.
+            //
+            // The ceiling arrives once when the app starts and is never refreshed, so a tab opened
+            // before an admin granted the override would otherwise keep refusing the very package
+            // that override was created for. Re-read it before refusing anything - only then, so the
+            // common path still costs nothing.
+            let ceiling = maxSize;
+            if (ceiling !== undefined && candidates.some(file => file.size > ceiling!)) {
+                ceiling = await currentCeiling(ceiling);
+            }
+            const queued = candidates.map(file => {
+                // the limit it exceeded, so the message can name it without widening the type again
+                const exceeded = ceiling !== undefined && file.size > ceiling ? ceiling : undefined;
                 return {
                     id: nextId.current++,
                     fileName: file.name,
                     size: file.size,
-                    status: tooLarge ? ('failed' as const) : ('uploading' as const),
-                    error: tooLarge ? `Larger than the ${formatFileSize(maxSize)} limit.` : undefined,
+                    status: exceeded !== undefined ? ('failed' as const) : ('uploading' as const),
+                    error: exceeded !== undefined ? `Larger than the ${formatFileSize(exceeded)} limit.` : undefined,
                     file
                 };
             });
@@ -299,7 +324,7 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
                 }
             });
         },
-        [user, upload, handleError, maxSize]
+        [user, upload, handleError, maxSize, currentCeiling]
     );
 
     const clearFinished = useCallback(() => setItems(current => current.filter(item => !isFinished(item))), []);

@@ -42,6 +42,8 @@ export class Registry {
     readonly timeout: number;
     readonly username?: string;
     readonly password?: string;
+    /** Whether the caller pinned a publish size, which then wins over any limit the registry reports. */
+    private readonly publishSizePinned: boolean;
     private registryVersion?: Promise<RegistryVersion>;
     private tokenHeaderSupport?: Promise<boolean>;
 
@@ -54,6 +56,7 @@ export class Registry {
             this.url = DEFAULT_URL;
 
         this.maxNamespaceSize = options.maxNamespaceSize ?? DEFAULT_NAMESPACE_SIZE;
+        this.publishSizePinned = options.maxPublishSize !== undefined;
         this.maxPublishSize = options.maxPublishSize ?? DEFAULT_PUBLISH_SIZE;
         this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
         this.username = options.username;
@@ -114,16 +117,30 @@ export class Registry {
         }
     }
 
-    async publish(file: string, pat: string): Promise<Extension> {
+    /**
+     * `sizeLimit` is the limit the registry reports for this package, when it could report one. The
+     * transport body cap is raised to it, because a namespace granted more than the default would
+     * otherwise have its upload refused here - by follow-redirects, before anything reached the
+     * registry that allowed it.
+     */
+    async publish(file: string, pat: string, sizeLimit?: number): Promise<Extension> {
         try {
             const url = this.getUrl(['api', '-', 'publish'], await this.tokenQuery(pat));
             return await this.postFile(file, url, {
                 'Content-Type': 'application/octet-stream',
                 ...this.tokenHeaders(pat)
-            }, this.maxPublishSize);
+            }, this.publishBodyLimit(sizeLimit));
         } catch (err) {
             return rejectError(err);
         }
+    }
+
+    /** The body cap for a publish. A pinned `maxPublishSize` wins; otherwise it never sits below the registry's own limit. */
+    publishBodyLimit(sizeLimit?: number): number {
+        if (this.publishSizePinned || sizeLimit === undefined) {
+            return this.maxPublishSize;
+        }
+        return Math.max(this.maxPublishSize, sizeLimit);
     }
 
     requestTrustedPublishingToken(namespace: string, extension: string, idToken: string): Promise<AccessToken> {

@@ -93,11 +93,11 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
 
     // After the token is resolved, because the lookup is authenticated - and by here a token always
     // exists, whether supplied, fetched, or exchanged through trusted publishing.
-    await ensureWithinSizeLimit(registry, options, manifest);
+    const sizeLimit = await ensureWithinSizeLimit(registry, options, manifest);
 
     let extension: Extension | undefined;
     try {
-        extension = await doRegistryPublish(registry, options, exchanged);
+        extension = await doRegistryPublish(registry, options, exchanged, sizeLimit);
     } catch (err) {
         if (options.skipDuplicate && err.message.endsWith('is already published.')) {
             console.log(err.message + ' Skipping publish.');
@@ -134,10 +134,11 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
 async function doRegistryPublish(
     registry: Registry,
     options: InternalPublishOptions,
-    exchanged: { namespace: string; extension: string } | undefined
+    exchanged: { namespace: string; extension: string } | undefined,
+    sizeLimit?: number
 ): Promise<Extension> {
     try {
-        return await registry.publish(options.extensionFile!, options.pat!);
+        return await registry.publish(options.extensionFile!, options.pat!, sizeLimit);
     } catch (err) {
         if (!exchanged || (err as StatusError)?.status !== 401) {
             throw err;
@@ -151,7 +152,7 @@ async function doRegistryPublish(
             options,
             options.pat!
         );
-        return registry.publish(options.extensionFile!, options.pat);
+        return registry.publish(options.extensionFile!, options.pat, sizeLimit);
     }
 }
 
@@ -168,7 +169,7 @@ async function ensureWithinSizeLimit(
     registry: Registry,
     options: InternalPublishOptions,
     manifest: Manifest
-): Promise<void> {
+): Promise<number | undefined> {
     const { size } = await fs.promises.stat(options.extensionFile!);
     const limit = await resolveSizeLimit(registry, options, manifest);
 
@@ -181,7 +182,7 @@ async function ensureWithinSizeLimit(
                 + `limit configured, and the registry decides.`
             );
         }
-        return;
+        return undefined;
     }
 
     if (size > limit) {
@@ -190,6 +191,7 @@ async function ensureWithinSizeLimit(
             + `for ${manifest.publisher}.${manifest.name} at ${registry.url}.`
         );
     }
+    return limit;
 }
 
 /** The limit for this namespace/extension, or `undefined` when the registry cannot report one. */
