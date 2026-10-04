@@ -69,7 +69,8 @@
     },
     "//resolutions": "@types/react-infinite-scroller declares its @types/react dependency as *, which resolves to v19 and puts a second copy of the React types in the tree; the pin below holds it at 18 until this app moves to React 19",
     "resolutions": {
-        "@types/react": "^18.2.14"
+        "@types/react": "^18.2.14",
+        "node-gyp": "^13.1.0"
     },
     "devDependencies": {
         "@eslint/eslintrc": "^3.3.3",

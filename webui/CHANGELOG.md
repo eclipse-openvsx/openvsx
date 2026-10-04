@@ -34,6 +34,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump brace-expansion from 1.1.18 to 1.1.21, 2.1.7, 5.0.12
 - Bump dompurify from 3.4.13 to 3.4.16
 - Bump fast-uri from 3.1.7 to 3.1.8
+- Pin the transitive `node-gyp` resolution to `^13.1.0` (from 12.2.0), which `fsevents`' optional dependency had resolved to `latest`
 
 ## [v1.2.0] (10/09/2026)
 
