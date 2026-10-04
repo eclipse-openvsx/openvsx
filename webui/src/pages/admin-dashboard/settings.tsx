@@ -137,16 +137,22 @@ export const RuntimeSettingsPage: FC = () => {
         [clearSaved]
     );
 
+    const maxExtensionSizeChanged =
+        draftSettings !== null && settings != null && draftSettings.maxExtensionSize !== settings.maxExtensionSize;
+
     const hasChanges =
         draftSettings !== null &&
         settings != null &&
         ((Object.keys(SETTINGS) as BooleanSettingKey[]).some(k => draftSettings[k] !== settings[k]) ||
-            draftSettings.maxExtensionSize !== settings.maxExtensionSize);
+            maxExtensionSizeChanged);
 
+    // Only validated once the admin has actually edited it, because only then is it sent. The server
+    // stores the limit as a long, and one beyond JavaScript's safe-integer range would otherwise fail
+    // this check on arrival and block every unrelated setting from being saved.
     const maxExtensionSizeValid =
-        draftSettings !== null &&
-        Number.isSafeInteger(draftSettings.maxExtensionSize) &&
-        draftSettings.maxExtensionSize > 0;
+        draftSettings === null ||
+        !maxExtensionSizeChanged ||
+        (Number.isSafeInteger(draftSettings.maxExtensionSize) && draftSettings.maxExtensionSize > 0);
 
     const handleSaveClick = () => setConfirmOpen(true);
 

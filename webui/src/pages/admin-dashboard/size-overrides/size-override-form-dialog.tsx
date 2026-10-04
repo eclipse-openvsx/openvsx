@@ -74,8 +74,8 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
         }
         setError(undefined);
         lookupGeneration.current++;
-        // Work still in flight from the previous opening will skip its own reset, having been
-        // superseded by the bump above - without these the buttons would stay disabled for good.
+        // This instance is reused across openings, so work still in flight from the previous one
+        // would otherwise keep its buttons disabled until it settles.
         setLookingUp(false);
         setSaving(false);
         if (sizeOverride) {
@@ -115,9 +115,10 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
             setNamespaceConfirmed(false);
             setError(handleError(err));
         } finally {
-            if (generation === lookupGeneration.current) {
-                setLookingUp(false);
-            }
+            // Not guarded by the generation: that decides whether a result still applies, not whether
+            // the button comes back. Only one lookup can be in flight, since the button is disabled
+            // while this is true.
+            setLookingUp(false);
         }
     };
 

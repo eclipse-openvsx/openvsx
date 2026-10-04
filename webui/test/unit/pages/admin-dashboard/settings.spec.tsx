@@ -96,6 +96,26 @@ describe('RuntimeSettingsPage', () => {
         expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['maxExtensionSize']);
     });
 
+    /**
+     * The server stores the limit as a long, so one past JavaScript's safe-integer range arrives here
+     * intact. Validating a field the save will not even send would hold every other setting hostage
+     * until the admin replaced a size they never meant to touch.
+     */
+    it('saves an unrelated setting while the stored size exceeds the safe-integer range', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(settings({ readOnly: false, maxExtensionSize: Number.MAX_SAFE_INTEGER + 1 }));
+
+        const toggle = await screen.findByLabelText('Toggle Read-only mode');
+        await waitFor(() => expect(toggle).toBeEnabled());
+        await user.click(toggle);
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
+        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['readOnly']);
+    });
+
     it('converts the typed MB value to bytes and saves it', async () => {
         const user = userEvent.setup();
         const admin = mountPage(settings({ maxExtensionSize: 512 * 1024 * 1024 }));

@@ -110,8 +110,33 @@ describe('SizeOverrideFormDialog', () => {
     });
 
     /**
-     * The superseded request skips its own reset, so reopening has to clear the in-progress flag -
-     * otherwise the button stays disabled for the life of the component and the dialog is unusable.
+     * Typing a different namespace invalidates the request in flight. The button still has to come
+     * back, or the name now in the box can never be checked and the open dialog is stuck.
+     */
+    it('frees the lookup button when the namespace changes mid-lookup', async () => {
+        const user = userEvent.setup();
+        let release: (value: unknown) => void = () => undefined;
+        const getNamespace = vi.fn().mockImplementation(
+            () =>
+                new Promise(resolve => {
+                    release = resolve;
+                })
+        );
+        mountDialog(getNamespace);
+
+        await user.type(screen.getByLabelText(/namespace/i), 'foo');
+        await user.click(screen.getByRole('button', { name: /look up/i }));
+        expect(screen.getByRole('button', { name: /look up/i })).toBeDisabled();
+
+        await user.type(screen.getByLabelText(/namespace/i), 'bar');
+        release({ name: 'foo', extensions: {} });
+
+        await waitFor(() => expect(screen.getByRole('button', { name: /look up/i })).toBeEnabled());
+    });
+
+    /**
+     * A request from the previous opening settles against a dialog that has already been reset, so
+     * reopening has to clear the in-progress flag itself rather than wait for it.
      */
     it('frees the lookup button when the dialog is reopened mid-lookup', async () => {
         const user = userEvent.setup();
