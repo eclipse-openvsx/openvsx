@@ -88,19 +88,26 @@ public class SettingsService {
         return json;
     }
 
+    /**
+     * Applies the settings the request carries and leaves out every other one alone. A client that
+     * does not know about a setting - a stale admin tab, an older integration - must not reset it by
+     * omitting it.
+     */
     public String updateFromJson(SettingsJson newSettings) {
-        if (newSettings.getMaxExtensionSize() <= 0) {
+        var readOnly = newSettings.getReadOnly();
+        var maxExtensionSize = newSettings.getMaxExtensionSize();
+        if (maxExtensionSize != null && maxExtensionSize <= 0) {
             throw new ErrorResultException("Max extension size must be greater than zero.");
         }
 
         var changes = new ArrayList<>();
-        if (newSettings.isReadOnly() != isReadOnly()) {
-            changes.add("readOnly -> " + newSettings.isReadOnly());
-            cache.setBoolean(SETTING_REGISTRY_READ_ONLY, newSettings.isReadOnly());
+        if (readOnly != null && readOnly != isReadOnly()) {
+            changes.add("readOnly -> " + readOnly);
+            cache.setBoolean(SETTING_REGISTRY_READ_ONLY, readOnly);
         }
-        if (newSettings.getMaxExtensionSize() != getMaxExtensionSize()) {
-            changes.add("maxExtensionSize -> " + newSettings.getMaxExtensionSize());
-            cache.setLong(SETTING_MAX_EXTENSION_SIZE, newSettings.getMaxExtensionSize());
+        if (maxExtensionSize != null && maxExtensionSize != getMaxExtensionSize()) {
+            changes.add("maxExtensionSize -> " + maxExtensionSize);
+            cache.setLong(SETTING_MAX_EXTENSION_SIZE, maxExtensionSize);
             // The derived size ceiling is cached under its own key, so evict the whole settings
             // cache rather than just this one entry.
             cache.clear();

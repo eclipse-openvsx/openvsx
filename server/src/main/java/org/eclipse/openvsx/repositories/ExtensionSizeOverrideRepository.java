@@ -21,6 +21,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import org.eclipse.openvsx.entities.ExtensionSizeOverride;
+import org.eclipse.openvsx.entities.Namespace;
 
 public interface ExtensionSizeOverrideRepository extends Repository<ExtensionSizeOverride, Long> {
 
@@ -43,6 +44,8 @@ public interface ExtensionSizeOverrideRepository extends Repository<ExtensionSiz
     Long findHighestMaxSize();
 
     List<ExtensionSizeOverride> findAllByOrderByIdAsc();
+
+    List<ExtensionSizeOverride> findByScopeNamespace(Namespace scopeNamespace);
 
     Optional<ExtensionSizeOverride> findById(long id);
 

@@ -676,6 +676,10 @@ export class ExtensionRegistryService {
      * `revalidate` forces the response to be re-checked with the registry. It is served with
      * `max-age=300`, so a caller about to act on a value that an admin may have just changed - the
      * size ceiling - would otherwise be handed the same cached copy it is trying to get past.
+     * <p>
+     * Such a call also does not retry: someone is waiting on the answer, and the retry schedule runs
+     * for minutes, which would leave the page looking like it had ignored them. The caller falls back
+     * to the value it already had.
      */
     async getRegistryVersion(
         abortController: AbortController,
@@ -683,7 +687,7 @@ export class ExtensionRegistryService {
     ): Promise<Readonly<RegistryVersion>> {
         const endpoint = createAbsoluteURL([this.serverUrl, 'api', 'version']);
         const headers = options.revalidate ? { 'Cache-Control': 'no-cache' } : undefined;
-        return sendRequest({ abortController, endpoint, headers });
+        return sendRequest({ abortController, endpoint, headers }, !options.revalidate);
     }
 }
 

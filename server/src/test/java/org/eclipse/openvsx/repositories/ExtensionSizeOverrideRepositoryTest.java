@@ -76,24 +76,34 @@ class ExtensionSizeOverrideRepositoryTest extends AbstractPostgresContainerTest 
         assertThat(found).isEmpty();
     }
 
+    /**
+     * Scans the whole shared table, so this asserts its own rows are reflected rather than an absolute
+     * value another fixture could raise.
+     */
     @Test
-    void findHighestMaxSizeReturnsNullWhenNoOverridesExist() {
-        assertThat(overrides.findHighestMaxSize()).isNull();
-    }
-
-    @Test
-    void findHighestMaxSizeReturnsTheLargestAcrossNamespaces() {
+    void findHighestMaxSizeReportsTheLargestOverrideItCanSee() {
+        var before = overrides.findHighestMaxSize();
         var one = persistNamespace("one");
         var two = persistNamespace("two");
         persistOverride(one, null, 100L);
         persistOverride(two, null, 900L);
 
-        assertThat(overrides.findHighestMaxSize()).isEqualTo(900L);
+        var highest = overrides.findHighestMaxSize();
+
+        assertThat(highest).isNotNull();
+        assertThat(highest).isGreaterThanOrEqualTo(900L);
+        if (before != null) {
+            assertThat(highest).isGreaterThanOrEqualTo(before);
+        }
     }
 
+    /**
+     * Unique per call: every context shares one database, so a fixed name collides with a leftover or
+     * concurrent fixture and the test fails on the unique constraint rather than on what it asserts.
+     */
     private Namespace persistNamespace(String name) {
         var namespace = new Namespace();
-        namespace.setName(name);
+        namespace.setName(name + '-' + UUID.randomUUID());
         namespace.setPublicId(UUID.randomUUID().toString());
         entityManager.persist(namespace);
         return namespace;

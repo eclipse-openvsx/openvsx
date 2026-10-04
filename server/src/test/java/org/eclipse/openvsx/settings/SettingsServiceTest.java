@@ -21,6 +21,7 @@ import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -92,10 +93,46 @@ class SettingsServiceTest {
         assertThat(changes).doesNotContain("maxExtensionSize");
     }
 
+    /**
+     * An update carries only the settings it knows about. A tab opened before a setting existed, or an
+     * older integration, sends the shape it knows - omitting a field must leave it alone rather than
+     * reset it to a primitive default.
+     */
+    @Test
+    void updateFromJsonLeavesAnOmittedMaxExtensionSizeAlone() {
+        var newSettings = new SettingsJson();
+        newSettings.setReadOnly(true);
+
+        settings.updateFromJson(newSettings);
+
+        verify(cache, Mockito.never()).setLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong());
+        verify(cache).setBoolean(SettingsService.SETTING_REGISTRY_READ_ONLY, true);
+    }
+
+    /** The dangerous direction: omitting read-only used to deserialize to false and switch it off. */
+    @Test
+    void updateFromJsonLeavesAnOmittedReadOnlyAlone() {
+        when(cache.getBoolean(anyString(), anyBoolean())).thenReturn(true);
+        when(cache.getLong(eq(SettingsService.SETTING_MAX_EXTENSION_SIZE), anyLong()))
+                .thenReturn(512L * 1024 * 1024);
+
+        var newSettings = new SettingsJson();
+        newSettings.setMaxExtensionSize(1024L * 1024 * 1024);
+
+        settings.updateFromJson(newSettings);
+
+        verify(cache, Mockito.never()).setBoolean(eq(SettingsService.SETTING_REGISTRY_READ_ONLY), anyBoolean());
+    }
+
+    @Test
+    void updateFromJsonAcceptsARequestThatCarriesNothing() {
+        assertThatCode(() -> settings.updateFromJson(new SettingsJson())).doesNotThrowAnyException();
+    }
+
     @Test
     void updateFromJsonRejectsNonPositiveMaxExtensionSize() {
         var newSettings = new SettingsJson();
-        newSettings.setMaxExtensionSize(0);
+        newSettings.setMaxExtensionSize(0L);
 
         assertThatThrownBy(() -> settings.updateFromJson(newSettings)).isInstanceOf(ErrorResultException.class);
     }

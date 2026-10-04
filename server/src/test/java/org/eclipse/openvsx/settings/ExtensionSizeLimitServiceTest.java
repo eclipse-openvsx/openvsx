@@ -242,6 +242,61 @@ class ExtensionSizeLimitServiceTest {
         verify(settings).invalidateCache();
     }
 
+    /**
+     * The namespace change moves every extension without touching this table, so an extension-scoped
+     * override left behind has scope ids that disagree and resolveLimit stops finding it - which reads
+     * exactly like no override at all.
+     */
+    @Test
+    void moveCarriesAnExtensionOverrideToTheNewNamespace() {
+        var oldNs = namespace("old", 1L);
+        var newNs = namespace("new", 2L);
+        var override = override(extension(7L), 100L);
+        when(overrides.findByScopeNamespace(oldNs)).thenReturn(List.of(override));
+        when(overrides.findByScopeNamespace(newNs)).thenReturn(List.of());
+
+        limits.moveOverridesToNamespace(oldNs, newNs, true);
+
+        assertThat(override.getScopeNamespace()).isSameAs(newNs);
+        verify(settings).invalidateCache();
+    }
+
+    @Test
+    void moveCarriesTheNamespaceWideOverrideWhenTheOldNamespaceIsGoingAway() {
+        var oldNs = namespace("old", 1L);
+        var newNs = namespace("new", 2L);
+        var override = override(null, 100L);
+        when(overrides.findByScopeNamespace(oldNs)).thenReturn(List.of(override));
+        when(overrides.findByScopeNamespace(newNs)).thenReturn(List.of());
+
+        limits.moveOverridesToNamespace(oldNs, newNs, true);
+
+        assertThat(override.getScopeNamespace()).isSameAs(newNs);
+    }
+
+    @Test
+    void moveLeavesTheNewNamespacesOwnLimitInPlace() {
+        var oldNs = namespace("old", 1L);
+        var newNs = namespace("new", 2L);
+        var fromOld = override(null, 100L);
+        when(overrides.findByScopeNamespace(oldNs)).thenReturn(List.of(fromOld));
+        when(overrides.findByScopeNamespace(newNs)).thenReturn(List.of(override(null, 900L)));
+
+        limits.moveOverridesToNamespace(oldNs, newNs, true);
+
+        assertThat(fromOld.getScopeNamespace()).isNotSameAs(newNs);
+    }
+
+    @Test
+    void moveDoesNothingWhenTheOldNamespaceHasNoOverrides() {
+        var oldNs = namespace("old", 1L);
+        when(overrides.findByScopeNamespace(oldNs)).thenReturn(List.of());
+
+        limits.moveOverridesToNamespace(oldNs, namespace("new", 2L), true);
+
+        verify(settings, Mockito.never()).invalidateCache();
+    }
+
     private Namespace namespace(String name, long id) {
         var namespace = Mockito.mock(Namespace.class);
         when(namespace.getId()).thenReturn(id);

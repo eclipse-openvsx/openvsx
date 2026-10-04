@@ -14,26 +14,33 @@ package org.eclipse.openvsx.json;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import org.jspecify.annotations.Nullable;
 
 @JsonInclude(Include.NON_NULL)
 public class SettingsJson extends ResultJson {
 
-    private boolean readOnly;
-    private long maxExtensionSize;
+    /**
+     * Boxed, so an update can leave a setting alone. A primitive would deserialize an absent field to
+     * {@code false}/{@code 0}, which on a PUT means a client that knows nothing of a setting silently
+     * resets it - a stale admin tab sending only the fields it knows would turn read-only mode off.
+     */
+    private @Nullable Boolean readOnly;
 
-    public boolean isReadOnly() {
+    private @Nullable Long maxExtensionSize;
+
+    public @Nullable Boolean getReadOnly() {
         return readOnly;
     }
 
-    public void setReadOnly(boolean readOnly) {
+    public void setReadOnly(@Nullable Boolean readOnly) {
         this.readOnly = readOnly;
     }
 
-    public long getMaxExtensionSize() {
+    public @Nullable Long getMaxExtensionSize() {
         return maxExtensionSize;
     }
 
-    public void setMaxExtensionSize(long maxExtensionSize) {
+    public void setMaxExtensionSize(@Nullable Long maxExtensionSize) {
         this.maxExtensionSize = maxExtensionSize;
     }
 }

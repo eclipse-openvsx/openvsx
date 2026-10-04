@@ -149,6 +149,38 @@ public class ExtensionSizeLimitService {
         return override;
     }
 
+    /**
+     * Carries overrides across a namespace change, which moves every extension to {@code newNamespace}
+     * without touching this table.
+     * <p>
+     * An extension-scoped override has to follow its extension: the two scope ids would otherwise
+     * disagree and {@link #resolveLimit} would never find it again - silently, since an unreachable
+     * override reads exactly like no override. No conflict is possible there, because the extension
+     * was not in the new namespace to have one.
+     * <p>
+     * The namespace-wide override is the old namespace's own, so it only moves when that identity is
+     * going away and the new namespace has none of its own; otherwise the new namespace's own setting
+     * stands, exactly as memberships are merged. Anything left behind goes with the old row.
+     */
+    public void moveOverridesToNamespace(Namespace oldNamespace, Namespace newNamespace, boolean oldNamespaceRemoved) {
+        var existing = overrides.findByScopeNamespace(oldNamespace);
+        if (existing.isEmpty()) {
+            return;
+        }
+
+        var newHasNamespaceWide = overrides.findByScopeNamespace(newNamespace).stream()
+                .anyMatch(override -> override.getScopeExtension() == null);
+        for (var override : existing) {
+            var isNamespaceWide = override.getScopeExtension() == null;
+            if (!isNamespaceWide || (oldNamespaceRemoved && !newHasNamespaceWide)) {
+                override.setScopeNamespace(newNamespace);
+            }
+        }
+
+        // Removing the old namespace cascades whatever stayed behind, which can lower the ceiling.
+        settings.invalidateCache();
+    }
+
     private Namespace requireNamespace(String namespaceName) {
         var namespace = repositories.findNamespace(namespaceName);
         if (namespace == null) {
