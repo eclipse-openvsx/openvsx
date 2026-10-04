@@ -59,6 +59,17 @@ const SETTINGS: Record<BooleanSettingKey, { title: string; description: string }
     }
 };
 
+/** The settings whose value differs from what the server last reported. */
+const changedSettings = (draft: Settings, current: Settings): Partial<Settings> =>
+    (Object.keys(draft) as (keyof Settings)[]).reduce<Partial<Settings>>((changed, key) => {
+        if (draft[key] !== current[key]) {
+            // the key and its value come from the same object, so the pair is sound; the cast is only
+            // needed because TypeScript widens the value to a union across all keys
+            (changed as Record<string, unknown>)[key] = draft[key];
+        }
+        return changed;
+    }, {});
+
 export const RuntimeSettingsPage: FC = () => {
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
     const { mutate: saveSettings, isPending: saving } = useUpdateSettings();
@@ -142,9 +153,12 @@ export const RuntimeSettingsPage: FC = () => {
     const handleConfirmClose = () => setConfirmOpen(false);
 
     const handleConfirmSave = useCallback(() => {
-        if (!draftSettings) return;
+        if (!draftSettings || !settings) return;
         setConfirmOpen(false);
-        saveSettings(draftSettings, {
+        // Only what this admin actually changed. Sending the whole object would carry every other
+        // setting as this page last read it, silently reverting anything someone else changed in the
+        // meantime. It does not help when two people edit the same setting - the last save still wins.
+        saveSettings(changedSettings(draftSettings, settings), {
             onSuccess: flashSaved,
             onError: err => {
                 addNotification({
@@ -152,7 +166,7 @@ export const RuntimeSettingsPage: FC = () => {
                 });
             }
         });
-    }, [draftSettings, saveSettings, addNotification, flashSaved]);
+    }, [draftSettings, settings, saveSettings, addNotification, flashSaved]);
 
     return (
         <>

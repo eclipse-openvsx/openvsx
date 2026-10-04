@@ -816,7 +816,7 @@ export interface AdminService {
     createCustomerRateLimitToken(customerName: string, description: string): Promise<Readonly<RateLimitToken>>;
     deleteCustomerRateLimitToken(customerName: string, tokenId: number): Promise<Readonly<SuccessResult>>;
     getSettings(abortController: AbortController): Promise<Readonly<Settings>>;
-    updateSettings(settings: Settings): Promise<Readonly<Settings>>;
+    updateSettings(settings: Partial<Settings>): Promise<Readonly<Settings>>;
     getSearchIndex(abortController: AbortController): Promise<Readonly<SearchIndex>>;
 
     /** Runs a search and reports how each result's score was arrived at. */
@@ -1683,7 +1683,7 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    async updateSettings(settings: Settings): Promise<Readonly<Settings>> {
+    async updateSettings(settings: Partial<Settings>): Promise<Readonly<Settings>> {
         const csrfResponse = await this.registry.getCsrfToken();
         const headers: Record<string, string> = {
             'Content-Type': 'application/json;charset=UTF-8'

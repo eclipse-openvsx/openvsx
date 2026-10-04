@@ -76,6 +76,26 @@ describe('RuntimeSettingsPage', () => {
         );
     });
 
+    /**
+     * Sending the whole object would carry every other setting as this page last read it, reverting
+     * anything another admin changed meanwhile. Only what this admin touched goes to the server.
+     */
+    it('sends only the settings that were changed', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(settings({ readOnly: true, maxExtensionSize: 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '1024');
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
+        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['maxExtensionSize']);
+    });
+
     it('converts the typed MB value to bytes and saves it', async () => {
         const user = userEvent.setup();
         const admin = mountPage(settings({ maxExtensionSize: 512 * 1024 * 1024 }));
