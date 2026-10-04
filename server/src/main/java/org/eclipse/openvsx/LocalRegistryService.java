@@ -894,6 +894,18 @@ public class LocalRegistryService implements IExtensionRegistry {
                     // Check whether the user has a valid publisher agreement
                     eclipse.checkPublisherAgreement(au.userData());
 
+                    // Authorization before disclosure: the limit below is specific to this namespace,
+                    // and permission to publish there is otherwise not established until
+                    // PublishExtensionVersionHandler. Same check and message as the one there, so a
+                    // publisher sees no difference whichever fires first. An unknown namespace is
+                    // left to that handler - it resolves to the default limit and reveals nothing.
+                    var publishNamespace = repositories.findNamespace(processor.getNamespace());
+                    if (publishNamespace != null && !users.hasPublishPermission(au.userData(), publishNamespace)) {
+                        throw new ErrorResultException(
+                                "Insufficient access rights for publisher: " + publishNamespace.getName(),
+                                HttpStatus.FORBIDDEN);
+                    }
+
                     // Stage two: the stream was only capped at the global ceiling, because the
                     // namespace is not known until the manifest has been parsed. Now it is.
                     var limit = sizeLimits.resolveLimit(processor.getNamespace(), processor.getExtensionName());

@@ -392,6 +392,39 @@ class LocalRegistryServiceTest {
     }
 
     /**
+     * The resolved limit is specific to the namespace, and permission to publish there is otherwise
+     * not established until {@code PublishExtensionVersionHandler}. Anyone holding a valid token
+     * could read a namespace's override off the 413 by publishing packages of varying size.
+     */
+    @Test
+    void shouldRefuseBeforeDisclosingTheLimitToSomeoneWhoCannotPublishThere() throws IOException {
+        tempFile = new TempFile("extension_", ".vsix");
+        var content = createExtensionPackage("bar", "1.0.0");
+        Files.write(tempFile.getPath(), content);
+
+        var token = new PersonalAccessToken();
+        token.setUser(new UserData());
+        token.setType(PersonalAccessTokenType.LLT);
+        var tau = new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null);
+        var namespace = buildNamespace("foo");
+
+        when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tau);
+        when(repositories.findNamespace("foo")).thenReturn(namespace);
+        when(users.hasPublishPermission(token.getUser(), namespace)).thenReturn(false);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("Insufficient access rights")
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        // the limit is never even looked up, so there is nothing to leak
+        verify(sizeLimits, never()).resolveLimit(any(), any());
+        verify(extensions, never()).publishVersion(any(ExtensionProcessor.class), any());
+    }
+
+    /**
      * Stage two of the size check: the request body is streamed against the global ceiling, because
      * the namespace is unknown until the manifest is parsed. Once it is known, the resolved limit for
      * that namespace/extension applies, and a package over it is rejected before being published.
