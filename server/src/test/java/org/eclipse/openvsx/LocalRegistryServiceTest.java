@@ -34,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import org.eclipse.openvsx.accesstoken.AccessTokenAction;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.eclipse.EclipseService;
@@ -435,5 +436,80 @@ class LocalRegistryServiceTest {
 
         assertThat(json.getMaxExtensionSize()).isEqualTo(512L);
         assertThat(json.getMaxExtensionSizeCeiling()).isEqualTo(2048L);
+    }
+
+    @Test
+    void sizeLimitRejectsAnInvalidToken() {
+        when(tokens.useAccessToken(eq("bad"), any())).thenReturn(null);
+
+        assertThatThrownBy(() -> registryService.getSizeLimit("foo", "bar", "bad"))
+                .isInstanceOf(ErrorResultException.class)
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * A first publish asks about a namespace that does not exist yet, so this cannot 404 or demand a
+     * permission there is nobody to hold. The default is the honest answer.
+     */
+    @Test
+    void sizeLimitReturnsTheDefaultForANamespaceThatDoesNotExistYet() {
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("new")).thenReturn(null);
+        when(sizeLimits.resolveLimit("new", "bar")).thenReturn(4096L);
+
+        assertThat(registryService.getSizeLimit("new", "bar", "tok").getMaxSize()).isEqualTo(4096L);
+    }
+
+    @Test
+    void sizeLimitRefusesANamespaceTheTokenMayNotPublishTo() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("foo")).thenReturn(namespace);
+        when(users.hasPublishPermission(any(), eq(namespace))).thenReturn(false);
+
+        assertThatThrownBy(() -> registryService.getSizeLimit("foo", "bar", "tok"))
+                .isInstanceOf(ErrorResultException.class)
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void sizeLimitReturnsTheResolvedLimitForAPermittedNamespace() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("foo")).thenReturn(namespace);
+        when(users.hasPublishPermission(any(), eq(namespace))).thenReturn(true);
+        when(sizeLimits.resolveLimit("foo", "bar")).thenReturn(123L);
+
+        assertThat(registryService.getSizeLimit("foo", "bar", "tok").getMaxSize()).isEqualTo(123L);
+    }
+
+    /**
+     * The token must not be consumed: a one-time token checked here and then deleted would leave the
+     * publish it was checked for unable to authenticate. It must still carry the namespace and
+     * extension, or a scoped token - every trusted publishing token is one - fails the scope match.
+     */
+    @Test
+    void sizeLimitChecksTheTokenWithoutUsingIt() {
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("foo")).thenReturn(null);
+
+        registryService.getSizeLimit("foo", "bar", "tok");
+
+        var action = ArgumentCaptor.forClass(AccessTokenAction.class);
+        verify(tokens).useAccessToken(eq("tok"), action.capture());
+        assertThat(action.getValue().isUsing()).isFalse();
+        assertThat(action.getValue().namespace()).contains("foo");
+        assertThat(action.getValue().extension()).contains("bar");
+    }
+
+    private AccessTokenAuthentication tokenAuth() {
+        var token = new PersonalAccessToken();
+        token.setUser(new UserData());
+        token.setType(PersonalAccessTokenType.LLT);
+        return new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null);
     }
 }

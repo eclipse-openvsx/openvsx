@@ -172,6 +172,49 @@ public class RegistryAPI {
     }
 
     @GetMapping(
+        path = "/api/-/size-limit",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @CrossOrigin
+    @Operation(
+        summary = "Get the maximum package size that may be published to a namespace/extension",
+        description = "Answers for a package that has not been published yet, so neither the namespace "
+                + "nor the extension needs to exist; the applicable default is returned when they do not."
+    )
+    @ApiResponse(
+        responseCode = "200",
+        description = "The applicable size limit is returned in JSON format",
+        content = @Content(schema = @Schema(implementation = SizeLimitJson.class))
+    )
+    @ApiResponse(
+        responseCode = "401",
+        description = "The token is missing, invalid or expired",
+        content = @Content(schema = @Schema(implementation = SizeLimitJson.class))
+    )
+    @ApiResponse(
+        responseCode = "403",
+        description = "The token is valid but has no publishing permission in the namespace",
+        content = @Content(schema = @Schema(implementation = SizeLimitJson.class))
+    )
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<SizeLimitJson> getSizeLimit(
+            HttpServletRequest request,
+            @RequestParam
+            @Parameter(description = "Namespace", example = "redhat") String namespace,
+            @RequestParam
+            @Parameter(description = "Extension name", example = "java") String extension,
+            @RequestParam(required = false)
+            @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token
+    ) {
+        var tokenValue = HttpHeadersUtil.resolveAccessToken(request, token);
+        try {
+            return ResponseEntity.ok(local.getSizeLimit(namespace, extension, tokenValue));
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity(SizeLimitJson.class);
+        }
+    }
+
+    @GetMapping(
         path = "/api/{namespace}/details",
         produces = MediaType.APPLICATION_JSON_VALUE
     )

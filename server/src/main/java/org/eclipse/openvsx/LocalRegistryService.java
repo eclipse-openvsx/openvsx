@@ -834,6 +834,28 @@ public class LocalRegistryService implements IExtensionRegistry {
         return ResultJson.success("Valid token");
     }
 
+    public SizeLimitJson getSizeLimit(String namespaceName, String extensionName, String tokenValue) {
+        var tau = tokens.useAccessToken(
+                tokenValue,
+                new AccessTokenAction.VerifyPublishVersion(namespaceName, extensionName));
+        if (tau == null) {
+            throw new ErrorResultException(ACCESS_TOKEN_ERROR, HttpStatus.UNAUTHORIZED);
+        }
+
+        // A first publish names a namespace that does not exist yet: there is no permission to check
+        // and nothing to protect, so the default applies.
+        var namespace = repositories.findNamespace(namespaceName);
+        if (namespace != null && !users.hasPublishPermission(tau.userData(), namespace)) {
+            throw new ErrorResultException(
+                    "Insufficient access rights for namespace: " + namespace.getName(),
+                    HttpStatus.FORBIDDEN);
+        }
+
+        var json = new SizeLimitJson();
+        json.setMaxSize(sizeLimits.resolveLimit(namespaceName, extensionName));
+        return json;
+    }
+
     public ExtensionJson publish(InputStream content, LoggedInAuthentication liu) throws ErrorResultException {
         return doPublish(content, null, liu);
     }
