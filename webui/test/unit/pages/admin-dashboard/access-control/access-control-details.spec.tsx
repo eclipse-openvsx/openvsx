@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../../support/test-providers';
 import { AccessControlDetails } from '../../../../../src/pages/admin-dashboard/access-control/access-control-details';
@@ -110,6 +110,43 @@ describe('AccessControlDetails', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
         expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
         expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    });
+
+    // MainContext.user is read once at startup. Without this the admin who just demoted themselves
+    // keeps a menu and dashboard they no longer qualify for until they happen to reload.
+    it('refreshes the logged-in user after saving their own access', async () => {
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        const updateUser = vi.fn();
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: {
+                service: serviceWith({ updateUserAccess }),
+                user: { loginName: 'octocat', provider: 'github' } as UserData,
+                updateUser
+            }
+        });
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        await waitFor(() => expect(updateUser).toHaveBeenCalled());
+    });
+
+    it('leaves the logged-in user alone when saving somebody else', async () => {
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        const updateUser = vi.fn();
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: {
+                service: serviceWith({ updateUserAccess }),
+                user: { loginName: 'root', provider: 'github' } as UserData,
+                updateUser
+            }
+        });
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
+        expect(updateUser).not.toHaveBeenCalled();
     });
 
     // Admin implies every permission server-side (UserData#hasPermission), so individual grants

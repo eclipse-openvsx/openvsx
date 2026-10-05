@@ -69,7 +69,7 @@ const PERMISSION_OPTIONS: { value: AdminPermission; label: string }[] = [
  */
 export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> = ({ entry, onDirtyChange }) => {
     const { user } = entry;
-    const { user: currentUser } = useContext(MainContext);
+    const { user: currentUser, updateUser } = useContext(MainContext);
     const isCurrentUser = currentUser?.loginName === user.loginName && currentUser?.provider === user.provider;
 
     // What the server holds, as far as this card knows. Not read back from `entry`, which comes from
@@ -134,6 +134,12 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
                     setSavedRole(role);
                     setSavedPermissions(new Set(permissions));
                     flashSaved();
+                    // MainContext.user is read once at startup, so an admin who just changed their
+                    // own access would keep the menu and dashboard they no longer qualify for until
+                    // a reload - every page of it answering 403.
+                    if (isCurrentUser) {
+                        updateUser();
+                    }
                 },
                 onError: err => setError(formatError(err as Error | Partial<ErrorResponse>))
             }
