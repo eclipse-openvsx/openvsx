@@ -9,6 +9,8 @@
  ********************************************************************************/
 
 import * as commander from 'commander';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { createNamespace } from './create-namespace';
 import { verifyPat } from './verify-pat';
 import { publish } from './publish';
@@ -22,7 +24,9 @@ import { verify } from './verify';
 import { verifySignature } from './verify-signature';
 import login from './login';
 import logout from './logout';
-import { LIB_VERSION } from './version';
+
+// Resolves from both src/ (tests) and lib/ (published build); npm always ships package.json.
+const LIB_VERSION: string = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')).version;
 
 module.exports = function (argv: string[]): void {
     const program = new commander.Command();

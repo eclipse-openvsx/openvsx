@@ -10,6 +10,8 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publish } from '../../src/publish';
 import { show } from '../../src/show';
@@ -136,5 +138,11 @@ describe('main', () => {
         expect(() => run('--help')).toThrow(ExitError);
         expect(stdout).toContain('publish [options] [extension.vsix]');
         expect(stdout).not.toMatch(/^\s+\*/m);
+    });
+
+    it('prints the version from package.json for --version', () => {
+        const { version } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'));
+        expect(() => run('--version')).toThrow(ExitError);
+        expect(stdout).toBe(`${version}\n`);
     });
 });

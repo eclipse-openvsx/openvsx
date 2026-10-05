@@ -9,4 +9,3 @@
 node_modules/
 yarn-error.log
 /scripts/downloads
-/src/version.ts
