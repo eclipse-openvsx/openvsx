@@ -233,6 +233,16 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         ScannerJob job = scanJobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
 
+        // The watchdog may have already marked this job FAILED (and the scan group ERRORED)
+        // while scanner.startScan() was still blocked; don't let a late result resurrect it.
+        if (job.getStatus().isTerminal()) {
+            logger.debug(
+                    "Scan job {} already in terminal state {}, discarding late scanner result",
+                    jobId,
+                    job.getStatus());
+            return;
+        }
+
         // Determine the scan ID before processing (needed for completion check)
         String scanId = job.getScanId();
 
