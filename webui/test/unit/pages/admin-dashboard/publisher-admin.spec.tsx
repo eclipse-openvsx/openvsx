@@ -35,8 +35,7 @@ function serviceWith(forgetUser: AdminService['forgetUser']): ExtensionRegistryS
     const admin = {
         getUsers: vi.fn().mockResolvedValue(users),
         getPublisherInfo: vi.fn().mockResolvedValue(publisherInfo),
-        forgetUser,
-        updateUserRole: vi.fn()
+        forgetUser
     } as unknown as AdminService;
 
     return { serverUrl: 'https://open-vsx.org', admin } as ExtensionRegistryService;

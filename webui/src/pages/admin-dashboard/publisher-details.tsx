@@ -8,21 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useState } from 'react';
-import {
-    Alert,
-    Avatar,
-    Box,
-    Chip,
-    Divider,
-    LinearProgress,
-    Paper,
-    Stack,
-    ToggleButton,
-    ToggleButtonGroup,
-    Tooltip,
-    Typography
-} from '@mui/material';
+import { FunctionComponent, ReactNode, useContext } from 'react';
+import { Alert, Avatar, Box, Chip, Divider, LinearProgress, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import { useIsMutating } from '@tanstack/react-query';
 import { Link as RouterLink } from 'react-router';
 import GitHubIcon from '@mui/icons-material/GitHub';
@@ -40,19 +27,7 @@ import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { PublisherForgetUserButton } from './publisher-forget-user-button';
 import { PublisherRevokeContributionsButton } from './publisher-revoke-dialog';
 import { PublisherRevokeTokensButton } from './publisher-revoke-tokens-button';
-import {
-    type PublisherRole,
-    publisherMutationKey,
-    usePublisherInfo,
-    useUpdatePublisherRole
-} from './use-publisher-admin';
-
-// Ordered as an escalating permission scale, low → high.
-const ROLE_OPTIONS: { value: PublisherRole; label: string }[] = [
-    { value: 'none', label: 'No role' },
-    { value: 'privileged', label: 'Privileged' },
-    { value: 'admin', label: 'Admin' }
-];
+import { publisherMutationKey, usePublisherInfo } from './use-publisher-admin';
 
 const AGREEMENT_META = {
     signed: { label: 'Signed', color: 'success' as const },
@@ -90,30 +65,9 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
     const { user: currentUser } = useContext(MainContext);
     const isCurrentUser = currentUser?.loginName === user.loginName && currentUser?.provider === user.provider;
 
-    const [selectedRole, setSelectedRole] = useState<PublisherRole>(() => (user.role as PublisherRole) ?? 'none');
-    const updateRole = useUpdatePublisherRole();
     const busy = useIsMutating({ mutationKey: publisherMutationKey }) > 0;
 
     const { data: publisherInfo, error } = usePublisherInfo(user.loginName, user.provider ?? 'github', true);
-
-    const handleRoleChange = (role: PublisherRole) => {
-        if (role === selectedRole || !user.provider) {
-            return;
-        }
-        // Optimistic: reflect the choice immediately, revert if the save fails.
-        setSelectedRole(role);
-        updateRole.mutate(
-            { provider: user.provider, login: user.loginName, role },
-            {
-                onSuccess() {
-                    setTimeout(() => {
-                        updateRole.reset();
-                    }, 3000);
-                },
-                onError: () => setSelectedRole((user.role as PublisherRole) ?? 'none')
-            }
-        );
-    };
 
     const agreementStatus = publisherInfo?.user.publisherAgreement?.status ?? 'none';
     const agreement = AGREEMENT_META[agreementStatus];
@@ -162,44 +116,16 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                 sx={{ height: 18, '& .MuiChip-label': { px: 0.5, fontSize: '0.65rem' } }}
                             />
                         )}
+                        {/* Read-only here - role and permissions are edited on the Access Control page. */}
+                        {user.role && <Chip label={user.role} size='small' variant='outlined' />}
                     </Stack>
                     <Typography variant='body2' color='text.secondary' noWrap>
                         {user.fullName || '—'}
                     </Typography>
                 </Box>
-                <Stack spacing={0.5} sx={{ flexShrink: 0, alignItems: { xs: 'flex-start', md: 'flex-end' } }}>
-                    <Typography variant='caption' color='text.secondary'>
-                        Role
-                    </Typography>
-                    <ToggleButtonGroup
-                        exclusive
-                        size='small'
-                        color='primary'
-                        value={selectedRole}
-                        disabled={!user.provider || busy}
-                        onChange={(_event, value) => value && handleRoleChange(value)}>
-                        {ROLE_OPTIONS.map(o => (
-                            <ToggleButton key={o.value} value={o.value} sx={{ textTransform: 'none', px: 1.5 }}>
-                                {o.label}
-                            </ToggleButton>
-                        ))}
-                    </ToggleButtonGroup>
-                </Stack>
             </Stack>
 
             <Divider sx={{ my: 3 }} />
-
-            {updateRole.isError && (
-                <Alert severity='error' sx={{ mb: 2 }} onClose={() => updateRole.reset()}>
-                    {formatError(updateRole.error as Error | Partial<ErrorResponse>)}
-                </Alert>
-            )}
-
-            {updateRole.isSuccess && (
-                <Alert severity='success' sx={{ mb: 2 }}>
-                    {updateRole.data.success}
-                </Alert>
-            )}
 
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <DetailSection

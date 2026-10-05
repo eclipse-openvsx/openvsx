@@ -34,6 +34,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { LoginComponent } from '../../default/login';
 import { MainContext } from '../../context';
 import { AdminPermission, UserData } from '../../extension-registry-types';
@@ -63,6 +64,9 @@ const SearchExplainAdmin = lazy(() =>
     import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
 );
 const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => ({ default: m.StatisticsAdmin })));
+const AccessControl = lazy(() =>
+    import('./access-control/access-control').then(m => ({ default: m.AccessControl }))
+);
 
 const navConfig: NavEntry[] = [
     {
@@ -85,7 +89,7 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.PUBLISHER_ADMIN,
                 name: 'Publisher',
                 icon: <PersonIcon />,
-                description: 'Search for publishers, update roles, and revoke their contributions'
+                description: 'Search for publishers and revoke their contributions'
             },
             {
                 path: AdminDashboardRoutes.SCANS_ADMIN,
@@ -152,6 +156,12 @@ const navConfig: NavEntry[] = [
                 name: 'Settings',
                 icon: <SettingsIcon />,
                 description: 'Manage runtime settings for the registry'
+            },
+            {
+                path: AdminDashboardRoutes.ACCESS_CONTROL,
+                name: 'Access Control',
+                icon: <VerifiedUserIcon />,
+                description: "Manage a user's role and individually granted permissions"
             }
         ]
     },
@@ -447,6 +457,30 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                             <Guard user={user} permission='view_reports'>
                                                 <Logs />
                                             </Guard>
+                                        }
+                                    />
+                                    {/*
+                                        Role and permissions are a privilege-escalation surface, not delegable like
+                                        the other permission buckets - checked against role directly, not Guard.
+                                    */}
+                                    <Route
+                                        path='/access-control'
+                                        element={
+                                            user?.role === 'admin' ? (
+                                                <AccessControl />
+                                            ) : (
+                                                <Message message='You are not authorized for this page.' />
+                                            )
+                                        }
+                                    />
+                                    <Route
+                                        path='/access-control/:login'
+                                        element={
+                                            user?.role === 'admin' ? (
+                                                <AccessControl />
+                                            ) : (
+                                                <Message message='You are not authorized for this page.' />
+                                            )
                                         }
                                     />
                                     <Route

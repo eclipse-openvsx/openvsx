@@ -65,7 +65,8 @@ import {
     SearchExplain,
     CacheList,
     SearchIndex,
-    AdminStatistics
+    AdminStatistics,
+    AdminPermission
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse, sendNonRetriableRequest, sendStrictRequest } from './server-request';
@@ -726,6 +727,12 @@ export interface AdminService {
         login: string,
         role: 'admin' | 'privileged' | 'none'
     ): Promise<Readonly<SuccessResult>>;
+    updateUserPermission(
+        provider: string,
+        login: string,
+        permission: AdminPermission,
+        grant: boolean
+    ): Promise<Readonly<SuccessResult>>;
     revokePublisherContributions(provider: string, login: string): Promise<Readonly<SuccessResult>>;
     revokeAccessTokens(provider: string, login: string): Promise<Readonly<SuccessResult>>;
     forgetUser(provider: string, login: string): Promise<Readonly<SuccessResult>>;
@@ -1044,6 +1051,33 @@ export class AdminServiceImpl implements AdminService {
             method: 'POST',
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'user', provider, login, 'role'], query),
+            headers
+        });
+    }
+
+    async updateUserPermission(
+        provider: string,
+        login: string,
+        permission: AdminPermission,
+        grant: boolean
+    ): Promise<Readonly<SuccessResult>> {
+        const csrfResponse = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {};
+        if (!isError(csrfResponse)) {
+            const csrfToken = csrfResponse as CsrfTokenJson;
+            headers[csrfToken.header] = csrfToken.value;
+        }
+        const query = [
+            { key: 'permission', value: permission },
+            { key: 'grant', value: String(grant) }
+        ];
+        return sendStrictRequest({
+            method: 'POST',
+            credentials: true,
+            endpoint: createAbsoluteURL(
+                [this.registry.serverUrl, 'admin', 'user', provider, login, 'permission'],
+                query
+            ),
             headers
         });
     }
