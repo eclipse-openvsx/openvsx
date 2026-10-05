@@ -64,9 +64,7 @@ const SearchExplainAdmin = lazy(() =>
     import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
 );
 const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => ({ default: m.StatisticsAdmin })));
-const AccessControl = lazy(() =>
-    import('./access-control/access-control').then(m => ({ default: m.AccessControl }))
-);
+const AccessControl = lazy(() => import('./access-control/access-control').then(m => ({ default: m.AccessControl })));
 
 const navConfig: NavEntry[] = [
     {
