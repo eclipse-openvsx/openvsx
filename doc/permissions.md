@@ -42,12 +42,15 @@ hold.
 
 ## Managing roles and permissions via the API
 
-Both are plain admin REST endpoints, callable only from a logged-in admin session - unlike most
-other admin endpoints, neither accepts a personal access token:
+One plain admin REST endpoint, callable only from a logged-in admin session - unlike most other
+admin endpoints, it does not accept a personal access token:
 
 ```
-POST /admin/user/{provider}/{loginName}/role?role=admin|privileged|none
-POST /admin/user/{provider}/{loginName}/permission?permission=<name>&grant=true|false
+PUT /admin/user/{provider}/{loginName}/access
+{ "role": "admin" | "privileged" | "none", "permissions": ["manage_extensions", ...] }
 ```
 
-`permission` is one of the names in the table above. `role=none` removes the role entirely.
+The body is the access the user should end up with, not a delta: the permissions listed replace
+whatever they hold now, and an empty list revokes all of them. `"role": "none"` removes the role
+entirely. Role and permissions are applied in one transaction, so a request that is rejected -
+an unknown permission name, say - leaves the user exactly as they were.

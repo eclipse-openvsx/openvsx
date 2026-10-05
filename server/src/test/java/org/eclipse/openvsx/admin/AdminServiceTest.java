@@ -36,6 +36,7 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.json.UserAccessJson;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
@@ -414,49 +415,70 @@ class AdminServiceTest {
     }
 
     @Test
-    void updateUserPermissionGrantsIt() {
+    void updateUserAccessAppliesTheRoleAndPermissionsTogether() {
         var user = new UserData();
         user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_CACHES);
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
 
-        var result = adminService.updateUserPermission("github", "amy", "manage_extensions", true, admin);
+        var access = new UserAccessJson("privileged", List.of("manage_extensions"));
+        var result = adminService.updateUserAccess("github", "amy", access, admin);
 
+        assertThat(user.getRole()).isEqualTo(UserData.Role.PRIVILEGED);
         assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_EXTENSIONS);
-        assertThat(result.getSuccess()).contains("Granted manage_extensions");
+        assertThat(result.getSuccess())
+                .contains("set the role to privileged", "granted manage_extensions", "revoked manage_caches");
     }
 
+    /** The body is the state to end up in, so an absent list means "hold nothing", not "leave as is". */
     @Test
-    void updateUserPermissionRevokesIt() {
+    void updateUserAccessRevokesEverythingWhenNoPermissionsAreGiven() {
         var user = new UserData();
         user.setLoginName("amy");
         user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
 
-        var result = adminService.updateUserPermission("github", "amy", "manage_extensions", false, admin);
+        adminService.updateUserAccess("github", "amy", new UserAccessJson("none", null), admin);
 
         assertThat(user.getPermissions()).isEmpty();
-        assertThat(result.getSuccess()).contains("Revoked manage_extensions");
     }
 
     @Test
-    void updateUserPermissionRejectsGrantingAPermissionAlreadyHeld() {
+    void updateUserAccessReportsWhenThereIsNothingToApply() {
         var user = new UserData();
         user.setLoginName("amy");
-        user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        user.setRole(UserData.Role.ADMIN);
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
 
-        assertThatThrownBy(() -> adminService.updateUserPermission("github", "amy", "manage_extensions", true, admin))
-                .isInstanceOf(ErrorResultException.class);
+        var access = new UserAccessJson("admin", List.of());
+        assertThat(adminService.updateUserAccess("github", "amy", access, admin).getSuccess())
+                .isEqualTo("No access changes for user github/amy.");
+        verify(logs, never()).logAction(any(), any());
     }
 
     @Test
-    void updateUserPermissionRejectsAnUnknownPermissionName() {
+    void updateUserAccessRejectsAnUnknownPermissionName() {
         var user = new UserData();
         user.setLoginName("amy");
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
 
-        assertThatThrownBy(() -> adminService.updateUserPermission("github", "amy", "not-a-permission", true, admin))
+        var access = new UserAccessJson("none", List.of("not-a-permission"));
+        assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
                 .isInstanceOf(ErrorResultException.class);
+    }
+
+    /** A rejected permission must not leave the role already applied - they save as one change. */
+    @Test
+    void updateUserAccessLeavesTheRoleUntouchedWhenAPermissionIsRejected() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var access = new UserAccessJson("admin", List.of("not-a-permission"));
+        assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
+                .isInstanceOf(ErrorResultException.class);
+
+        assertThat(user.getRole()).isNull();
     }
 
     @Test

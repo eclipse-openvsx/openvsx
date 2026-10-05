@@ -235,6 +235,15 @@ export type AdminPermission =
     | 'manage_settings'
     | 'view_reports';
 
+/**
+ * The admin access a user should end up with, as a whole rather than a delta: `permissions`
+ * replaces whatever they hold now, and `role: 'none'` removes their role.
+ */
+export interface UserAccess {
+    role: 'admin' | 'privileged' | 'none';
+    permissions: AdminPermission[];
+}
+
 export interface UserRelationships {
     user: UserData;
     namespaces: NamespaceDetails[];

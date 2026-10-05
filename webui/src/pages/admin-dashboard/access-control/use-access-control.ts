@@ -14,50 +14,21 @@
 import { useContext } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { AdminPermission } from '../../../extension-registry-types';
+import { UserAccess } from '../../../extension-registry-types';
 
-export type AccessRole = 'admin' | 'privileged' | 'none';
-
-// Shared prefix for the access-control write operations so a single `useIsMutating`
-// can tell whether either of them (role change, permission grant/revoke) is in flight.
-export const accessControlMutationKey = ['admin', 'access-control-mutation'] as const;
+export type AccessRole = UserAccess['role'];
 
 /**
- * Updates a user's global role and refreshes the shared admin user search on success so the
- * new role is reflected wherever that user is listed (here and on Publisher admin).
+ * Replaces a user's role and permissions in one request, and refreshes the shared admin user
+ * search on success so the new access is reflected wherever that user is listed (here and on
+ * Publisher admin).
  */
-export const useUpdateUserRole = () => {
+export const useUpdateUserAccess = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
     return useMutation({
-        mutationKey: [...accessControlMutationKey, 'role'],
-        mutationFn: ({ provider, login, role }: { provider: string; login: string; role: AccessRole }) =>
-            service.admin.updateUserRole(provider, login, role),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['admin', 'user-search'] });
-        }
-    });
-};
-
-/**
- * Grants or revokes a single permission for a user.
- */
-export const useUpdateUserPermission = () => {
-    const { service } = useContext(MainContext);
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationKey: [...accessControlMutationKey, 'permission'],
-        mutationFn: ({
-            provider,
-            login,
-            permission,
-            grant
-        }: {
-            provider: string;
-            login: string;
-            permission: AdminPermission;
-            grant: boolean;
-        }) => service.admin.updateUserPermission(provider, login, permission, grant),
+        mutationFn: ({ provider, login, access }: { provider: string; login: string; access: UserAccess }) =>
+            service.admin.updateUserAccess(provider, login, access),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'user-search'] });
         }

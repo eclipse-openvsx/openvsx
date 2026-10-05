@@ -13,7 +13,10 @@
 package org.eclipse.openvsx.admin;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -58,6 +61,7 @@ import org.eclipse.openvsx.json.ChangeNamespaceJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.ResultJson;
+import org.eclipse.openvsx.json.UserAccessJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.json.UserRelationshipsJson;
 import org.eclipse.openvsx.mail.MailService;
@@ -486,26 +490,72 @@ public class AdminService {
                 .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings));
     }
 
+    /**
+     * Replaces a user's role and permissions with the state described by {@code access}. Both are
+     * applied in one transaction, so a save that cannot be carried out in full leaves the user as
+     * they were rather than half-changed.
+     * <p>
+     * Deliberately not gated by {@link #checkPermission}, only by {@link #checkAdminUser()} at the
+     * call site in {@code AdminAPI} - assigning access is itself a privilege-escalation action and
+     * stays restricted to full admins, not delegable like the permissions it manages.
+     */
     @Transactional(rollbackOn = ErrorResultException.class)
-    public ResultJson updateUserRole(String provider, String loginName, String role, UserData admin) {
+    public ResultJson updateUserAccess(String provider, String loginName, UserAccessJson access, UserData admin) {
         var user = repositories.findUserByLoginName(provider, loginName);
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(provider + "/" + loginName), HttpStatus.NOT_FOUND);
         }
 
-        var updatedRole = "none".equalsIgnoreCase(role) ? null : parseRole(role);
-        if (Objects.equals(user.getRole(), updatedRole)) {
-            throw new ErrorResultException(
-                    "User " + provider + "/" + loginName + " already has the role " + user.getRole() + ".");
+        var role = access.role() == null || "none".equalsIgnoreCase(access.role())
+                ? null
+                : parseRole(access.role());
+        var permissions = parsePermissions(access.permissions());
+        var granted = difference(permissions, user.getPermissions());
+        var revoked = difference(user.getPermissions(), permissions);
+
+        var changes = new ArrayList<String>();
+        if (!Objects.equals(user.getRole(), role)) {
+            changes.add(role == null ? "removed the role" : "set the role to " + role);
+        }
+        if (!granted.isEmpty()) {
+            changes.add("granted " + join(granted));
+        }
+        if (!revoked.isEmpty()) {
+            changes.add("revoked " + join(revoked));
+        }
+        if (changes.isEmpty()) {
+            return ResultJson.success("No access changes for user " + provider + "/" + loginName + ".");
         }
 
-        user.setRole(updatedRole);
-        var message = updatedRole == null
-                ? "Removed role from user " + provider + "/" + loginName + "."
-                : "Updated role for user " + provider + "/" + loginName + " to " + updatedRole + ".";
+        user.setRole(role);
+        user.getPermissions().clear();
+        user.getPermissions().addAll(permissions);
+
+        var message = "Updated access for user " + provider + "/" + loginName + ": " + String.join(", ", changes)
+                + ".";
         var result = ResultJson.success(message);
         logs.logAction(admin, result);
         return result;
+    }
+
+    private EnumSet<Permission> parsePermissions(List<String> permissions) {
+        var parsed = EnumSet.noneOf(Permission.class);
+        if (permissions != null) {
+            permissions.forEach(permission -> parsed.add(parsePermission(permission)));
+        }
+        return parsed;
+    }
+
+    // Not EnumSet.copyOf: that throws on an empty non-EnumSet collection, which both arguments can be.
+    private EnumSet<Permission> difference(Collection<Permission> from, Collection<Permission> without) {
+        var result = EnumSet.noneOf(Permission.class);
+        result.addAll(from);
+        result.removeAll(without);
+        return result;
+    }
+
+    private String join(Collection<Permission> permissions) {
+        return permissions.stream().map(Permission::toString).collect(Collectors.joining(", "));
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
@@ -757,7 +807,7 @@ public class AdminService {
     /**
      * Checks that the logged-in user has {@code required}, throwing 403 otherwise. Unlike
      * {@link #checkAdminUser()}, this also passes for a non-ADMIN user individually granted the
-     * permission via {@link #updateUserPermission}.
+     * permission via {@link #updateUserAccess}.
      */
     public UserData checkPermission(Permission required) {
         return checkPermission(users.findLoggedInUser(), required);
@@ -777,43 +827,6 @@ public class AdminService {
             throw new ErrorResultException("Missing required permission: " + required, HttpStatus.FORBIDDEN);
         }
         return user;
-    }
-
-    /**
-     * Grants or revokes a single {@link Permission} for a user. Deliberately not gated by
-     * {@link #checkPermission}, only by {@link #checkAdminUser()} at the call site in
-     * {@code AdminAPI} - granting permissions is itself a privilege-escalation action and stays
-     * restricted to full admins, not delegable like the permissions it manages.
-     */
-    @Transactional(rollbackOn = ErrorResultException.class)
-    public ResultJson updateUserPermission(
-            String provider,
-            String loginName,
-            String permission,
-            boolean grant,
-            UserData admin
-    ) {
-        var user = repositories.findUserByLoginName(provider, loginName);
-        if (user == null) {
-            throw new ErrorResultException(userNotFoundMessage(provider + "/" + loginName), HttpStatus.NOT_FOUND);
-        }
-
-        var parsedPermission = parsePermission(permission);
-        var changed = grant
-                ? user.getPermissions().add(parsedPermission)
-                : user.getPermissions().remove(parsedPermission);
-        if (!changed) {
-            throw new ErrorResultException(
-                    "User " + provider + "/" + loginName
-                            + (grant ? " already has " : " does not have ") + "the permission " + parsedPermission
-                            + ".");
-        }
-
-        var message = (grant ? "Granted " : "Revoked ") + parsedPermission + (grant ? " to " : " from ") + "user "
-                + provider + "/" + loginName + ".";
-        var result = ResultJson.success(message);
-        logs.logAction(admin, result);
-        return result;
     }
 
     private Permission parsePermission(String permission) {

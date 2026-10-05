@@ -6,7 +6,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
-- Add fine-grained admin permissions and a new "Access Control" admin dashboard page to manage them: grant or revoke a single admin capability per user instead of only the all-or-nothing admin role, and change a user's role, both from one place. A user holding any permission reaches the dashboard through the usual account menu and sees only the pages their permissions cover; the extension review moderation UI follows the same permission rather than the admin role. Role and permission editing moved off Publisher admin onto the new page, since granting access is a different concern from moderating a publisher's content. `hasPermission` and `hasAnyAdminAccess` are exported so a deployment with its own menu content can gate an admin entry the same way (#2269)
+- Add fine-grained admin permissions and a new "Access Control" admin dashboard page to manage them: grant or revoke individual admin capabilities per user instead of only the all-or-nothing admin role, and change a user's role, both from one place. Edits are drafted and applied together on Save, as a single request, so a user is never left half-changed; leaving the page with unsaved edits asks first. A user holding any permission reaches the dashboard through the usual account menu and sees only the pages their permissions cover; the extension review moderation UI follows the same permission rather than the admin role. Role and permission editing moved off Publisher admin onto the new page, since granting access is a different concern from moderating a publisher's content. `hasPermission` and `hasAnyAdminAccess` are exported so a deployment with its own menu content can gate an admin entry the same way (#2269)
 - Add a "Caches" page to the admin dashboard, with per-cache hit/eviction stats and a way to clear one or all without restarting the server (#2203)
 - Add a weekly downloads card to the extension detail page, with a hoverable sparkline of the year's weekly totals (#2135)
 - Prompt anonymous visitors to log in on an extension's reviews tab, where "Write a Review" was previously blank (#2148)
@@ -15,6 +15,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Changed
 
+- **Breaking:** `AdminService.updateUserRole` is replaced by `updateUserAccess(provider, login, { role, permissions })`, which writes a user's role and permissions as one state in one request against the new `PUT /admin/user/{provider}/{login}/access` endpoint (#2269)
 - Return to the page a login started from, instead of always landing on the front page (#2148)
 - Load an extension's icon only when it comes near the viewport, instead of every icon on the page at once (#2213)
 - Group the admin dashboard's sidebar into Content, Search, Maintenance, Administration, Rate Limiting, and Analytics sections instead of one flat list. The first section starts expanded, as does whichever section holds the current page, whether opened directly or navigated to ([#2278](https://github.com/eclipse-openvsx/openvsx/issues/2278))

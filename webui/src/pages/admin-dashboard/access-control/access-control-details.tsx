@@ -11,11 +11,12 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext, useState } from 'react';
+import { FunctionComponent, useContext, useEffect, useState } from 'react';
 import {
     Alert,
     Avatar,
     Box,
+    Button,
     Checkbox,
     Chip,
     Divider,
@@ -28,19 +29,15 @@ import {
     ToggleButtonGroup,
     Typography
 } from '@mui/material';
-import { useIsMutating } from '@tanstack/react-query';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import PersonIcon from '@mui/icons-material/Person';
 import { AdminPermission, UserRelationships } from '../../../extension-registry-types';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
+import { SaveButton } from '../../../components/save-button';
+import { useSavedFlash } from '../../../hooks/use-saved-flash';
 import { handleError as formatError } from '../../../utils';
-import {
-    accessControlMutationKey,
-    type AccessRole,
-    useUpdateUserPermission,
-    useUpdateUserRole
-} from './use-access-control';
+import { type AccessRole, useUpdateUserAccess } from './use-access-control';
 
 // Ordered as an escalating permission scale, low → high.
 const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
@@ -66,39 +63,43 @@ const PERMISSION_OPTIONS: { value: AdminPermission; label: string }[] = [
  * The details card for the user selected in Access Control search: their global role and
  * individually granted permissions. Both are edited here, nowhere else - see the comment on the
  * Publisher admin page's role chip.
+ *
+ * Edits are drafted and applied together on Save, as one request: role and permissions are one
+ * decision, and a half-applied one would leave a user with access nobody chose to give them.
  */
-export const AccessControlDetails: FunctionComponent<{ entry: UserRelationships }> = ({ entry }) => {
+export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> = ({ entry, onDirtyChange }) => {
     const { user } = entry;
     const { user: currentUser } = useContext(MainContext);
     const isCurrentUser = currentUser?.loginName === user.loginName && currentUser?.provider === user.provider;
 
-    const [selectedRole, setSelectedRole] = useState<AccessRole>(() => (user.role as AccessRole) ?? 'none');
-    const [permissions, setPermissions] = useState<Set<AdminPermission>>(() => new Set(user.permissions ?? []));
-    const updateRole = useUpdateUserRole();
-    const updatePermission = useUpdateUserPermission();
-    const busy = useIsMutating({ mutationKey: accessControlMutationKey }) > 0;
-    const isAdmin = selectedRole === 'admin';
+    // What the server holds, as far as this card knows. Not read back from `entry`, which comes from
+    // the search result and is never refetched while this stays mounted - after a save it would name
+    // access the server gave up on.
+    const [savedRole, setSavedRole] = useState<AccessRole>(() => (user.role as AccessRole) ?? 'none');
+    const [savedPermissions, setSavedPermissions] = useState(() => new Set(user.permissions ?? []));
+    const [role, setRole] = useState(savedRole);
+    const [permissions, setPermissions] = useState(savedPermissions);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleRoleChange = (role: AccessRole) => {
-        // What is actually in effect, which is not user.role once a change has succeeded: this entry
-        // comes from the search result and is never refetched while the component stays mounted, so
-        // reverting to it would show a role the server no longer holds.
-        const roleInEffect = selectedRole;
-        if (role === roleInEffect || !user.provider) {
-            return;
-        }
-        // Optimistic: reflect the choice immediately, revert if the save fails.
-        setSelectedRole(role);
-        updateRole.mutate(
-            { provider: user.provider, login: user.loginName, role },
-            { onError: () => setSelectedRole(roleInEffect) }
-        );
-    };
+    const updateAccess = useUpdateUserAccess();
+    const { saved, flash: flashSaved, clear: clearSaved } = useSavedFlash(2000);
+    const busy = updateAccess.isPending;
+    const isAdmin = role === 'admin';
+
+    // Compared as whole sets rather than over PERMISSION_OPTIONS: a permission this build has no
+    // checkbox for is still carried in the draft, and so still saved back rather than revoked.
+    const dirty =
+        role !== savedRole ||
+        permissions.size !== savedPermissions.size ||
+        Array.from(permissions).some(p => !savedPermissions.has(p));
+
+    useEffect(() => {
+        onDirtyChange?.(dirty);
+        return () => onDirtyChange?.(false);
+    }, [dirty, onDirtyChange]);
 
     const handlePermissionToggle = (permission: AdminPermission, grant: boolean) => {
-        if (!user.provider) {
-            return;
-        }
+        clearSaved();
         setPermissions(current => {
             const next = new Set(current);
             if (grant) {
@@ -108,19 +109,33 @@ export const AccessControlDetails: FunctionComponent<{ entry: UserRelationships 
             }
             return next;
         });
-        updatePermission.mutate(
-            { provider: user.provider, login: user.loginName, permission, grant },
+    };
+
+    const handleReset = () => {
+        setRole(savedRole);
+        setPermissions(new Set(savedPermissions));
+        setError(null);
+        clearSaved();
+    };
+
+    const handleSave = () => {
+        if (!user.provider || !dirty) {
+            return;
+        }
+        setError(null);
+        updateAccess.mutate(
             {
-                onError: () =>
-                    setPermissions(current => {
-                        const reverted = new Set(current);
-                        if (grant) {
-                            reverted.delete(permission);
-                        } else {
-                            reverted.add(permission);
-                        }
-                        return reverted;
-                    })
+                provider: user.provider,
+                login: user.loginName,
+                access: { role, permissions: Array.from(permissions) }
+            },
+            {
+                onSuccess: () => {
+                    setSavedRole(role);
+                    setSavedPermissions(new Set(permissions));
+                    flashSaved();
+                },
+                onError: err => setError(formatError(err as Error | Partial<ErrorResponse>))
             }
         );
     };
@@ -177,14 +192,9 @@ export const AccessControlDetails: FunctionComponent<{ entry: UserRelationships 
                 </Box>
             </Stack>
 
-            {(updateRole.isError || updatePermission.isError) && (
-                <Alert
-                    severity='error'
-                    onClose={() => {
-                        updateRole.reset();
-                        updatePermission.reset();
-                    }}>
-                    {formatError((updateRole.error ?? updatePermission.error) as Error | Partial<ErrorResponse>)}
+            {error && (
+                <Alert severity='error' onClose={() => setError(null)}>
+                    {error}
                 </Alert>
             )}
 
@@ -196,9 +206,14 @@ export const AccessControlDetails: FunctionComponent<{ entry: UserRelationships 
                     exclusive
                     size='small'
                     color='primary'
-                    value={selectedRole}
+                    value={role}
                     disabled={!user.provider || busy}
-                    onChange={(_event, value) => value && handleRoleChange(value)}>
+                    onChange={(_event, value) => {
+                        if (value) {
+                            clearSaved();
+                            setRole(value);
+                        }
+                    }}>
                     {ROLE_OPTIONS.map(o => (
                         <ToggleButton key={o.value} value={o.value} sx={{ textTransform: 'none', px: 1.5 }}>
                             {o.label}
@@ -232,6 +247,19 @@ export const AccessControlDetails: FunctionComponent<{ entry: UserRelationships 
                     ))}
                 </FormGroup>
             </Box>
+
+            <Stack direction='row' spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                <Button onClick={handleReset} disabled={!dirty || busy}>
+                    Reset
+                </Button>
+                <SaveButton saved={saved} disabled={!user.provider || !dirty || busy} onClick={handleSave} />
+            </Stack>
         </Paper>
     );
 };
+
+export interface AccessControlDetailsProps {
+    entry: UserRelationships;
+    /** Lets the page warn before a selection change would discard edits made here. */
+    onDirtyChange?: (dirty: boolean) => void;
+}

@@ -31,71 +31,85 @@ function serviceWith(admin: Partial<AdminService>): ExtensionRegistryService {
 }
 
 describe('AccessControlDetails', () => {
-    it('grants a permission when its checkbox is checked', async () => {
-        const updateUserPermission = vi.fn().mockResolvedValue({ success: 'Granted' });
-        renderWithProviders(<AccessControlDetails entry={entry()} />, {
-            mainContext: { service: serviceWith({ updateUserPermission }) }
-        });
-
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
-
-        expect(updateUserPermission).toHaveBeenCalledWith('github', 'octocat', 'manage_extensions', true);
-    });
-
-    it('revokes an already-granted permission when its checkbox is unchecked', async () => {
-        const updateUserPermission = vi.fn().mockResolvedValue({ success: 'Revoked' });
-        renderWithProviders(<AccessControlDetails entry={entry({ permissions: ['manage_extensions'] })} />, {
-            mainContext: { service: serviceWith({ updateUserPermission }) }
-        });
-
-        const checkbox = screen.getByRole('checkbox', { name: 'Manage extensions' });
-        expect(checkbox).toBeChecked();
-        await userEvent.click(checkbox);
-
-        expect(updateUserPermission).toHaveBeenCalledWith('github', 'octocat', 'manage_extensions', false);
-    });
-
-    it('reverts the checkbox when the grant fails', async () => {
-        const updateUserPermission = vi.fn().mockRejectedValue(new Error('nope'));
-        renderWithProviders(<AccessControlDetails entry={entry()} />, {
-            mainContext: { service: serviceWith({ updateUserPermission }) }
-        });
-
-        const checkbox = screen.getByRole('checkbox', { name: 'Manage extensions' });
-        await userEvent.click(checkbox);
-
-        expect(await screen.findByText(/nope/)).toBeInTheDocument();
-        expect(checkbox).not.toBeChecked();
-    });
-
-    it('updates the role when a different one is selected', async () => {
-        const updateUserRole = vi.fn().mockResolvedValue({ success: 'Updated' });
-        renderWithProviders(<AccessControlDetails entry={entry()} />, {
-            mainContext: { service: serviceWith({ updateUserRole }) }
-        });
-
-        await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
-
-        expect(updateUserRole).toHaveBeenCalledWith('github', 'octocat', 'admin');
-    });
-
-    // The entry comes from the search result and is never refetched while this stays mounted, so
-    // reverting to it after a later failure would show a role the server gave up two changes ago.
-    it('reverts a failed role change to the one actually in effect, not the one it loaded with', async () => {
-        const updateUserRole = vi
-            .fn()
-            .mockResolvedValueOnce({ success: 'Updated' })
-            .mockRejectedValueOnce(new Error('nope'));
-        renderWithProviders(<AccessControlDetails entry={entry()} />, {
-            mainContext: { service: serviceWith({ updateUserRole }) }
+    // The whole point of the Save button: nothing reaches the server until it is pressed, and what
+    // it then sends is the state the admin composed - role and permissions in one request.
+    it('sends the role and permissions together, and only once Save is clicked', async () => {
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        renderWithProviders(<AccessControlDetails entry={entry({ permissions: ['manage_caches'] })} />, {
+            mainContext: { service: serviceWith({ updateUserAccess }) }
         });
 
         await userEvent.click(screen.getByRole('button', { name: 'Privileged' }));
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage caches' }));
+        expect(updateUserAccess).not.toHaveBeenCalled();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(updateUserAccess).toHaveBeenCalledTimes(1);
+        expect(updateUserAccess).toHaveBeenCalledWith('github', 'octocat', {
+            role: 'privileged',
+            permissions: ['manage_extensions']
+        });
+    });
+
+    it('has nothing to save until something is changed', async () => {
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({}) }
+        });
+
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+
+        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+
+    it('restores the loaded access when Reset is clicked', async () => {
+        const updateUserAccess = vi.fn();
+        renderWithProviders(<AccessControlDetails entry={entry({ permissions: ['manage_caches'] })} />, {
+            mainContext: { service: serviceWith({ updateUserAccess }) }
+        });
+
         await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
+
+        expect(screen.getByRole('button', { name: 'No role' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('checkbox', { name: 'Manage caches' })).toBeChecked();
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expect(updateUserAccess).not.toHaveBeenCalled();
+    });
+
+    // Keeping the draft is what makes the failure retryable - clearing it would make the admin
+    // reconstruct a change the server never took.
+    it('keeps the draft and reports the error when the save fails', async () => {
+        const updateUserAccess = vi.fn().mockRejectedValue(new Error('nope'));
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({ updateUserAccess }) }
+        });
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         expect(await screen.findByText(/nope/)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Privileged' })).toHaveAttribute('aria-pressed', 'true');
-        expect(screen.getByRole('button', { name: 'No role' })).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+
+    it('reports the draft as dirty only while it differs from what was saved', async () => {
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        const onDirtyChange = vi.fn();
+        renderWithProviders(<AccessControlDetails entry={entry()} onDirtyChange={onDirtyChange} />, {
+            mainContext: { service: serviceWith({ updateUserAccess }) }
+        });
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+        expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
+        expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     });
 
     // Admin implies every permission server-side (UserData#hasPermission), so individual grants

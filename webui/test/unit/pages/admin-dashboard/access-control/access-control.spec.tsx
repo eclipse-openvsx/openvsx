@@ -13,6 +13,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { renderWithProviders } from '../../../support/test-providers';
 import { AccessControl } from '../../../../../src/pages/admin-dashboard/access-control/access-control';
@@ -37,21 +38,49 @@ function renderAccessControl(service: ExtensionRegistryService, login: string) {
     );
 }
 
+const OCTOCAT: UserSearchResult = {
+    content: [
+        {
+            user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github' },
+            namespaces: []
+        }
+    ],
+    page: { number: 0, size: 25, totalElements: 1, totalPages: 1 }
+};
+
 describe('AccessControl', () => {
     it('resolves a deep-linked user and shows their role/permission editor', async () => {
-        const users: UserSearchResult = {
-            content: [
-                {
-                    user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github' },
-                    namespaces: []
-                }
-            ],
-            page: { number: 0, size: 25, totalElements: 1, totalPages: 1 }
-        };
-
-        renderAccessControl(serviceWith(users), 'octocat');
+        renderAccessControl(serviceWith(OCTOCAT), 'octocat');
 
         expect(await screen.findByRole('button', { name: 'Admin' })).toBeInTheDocument();
         expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
+    });
+
+    // Dropping the selection unmounts the details card and takes the draft with it, so it has to be
+    // confirmed first - otherwise edits disappear with no warning at all.
+    it('asks before dropping a selection that has unsaved changes', async () => {
+        renderAccessControl(serviceWith(OCTOCAT), 'octocat');
+
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+
+        expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+
+        expect(screen.queryByRole('checkbox', { name: 'Manage extensions' })).not.toBeInTheDocument();
+    });
+
+    it('drops a selection with no unsaved changes without asking', async () => {
+        renderAccessControl(serviceWith(OCTOCAT), 'octocat');
+
+        await screen.findByRole('checkbox', { name: 'Manage extensions' });
+        await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+
+        expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
+        expect(screen.queryByRole('checkbox', { name: 'Manage extensions' })).not.toBeInTheDocument();
     });
 });

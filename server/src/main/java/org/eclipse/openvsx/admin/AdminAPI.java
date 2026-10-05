@@ -75,6 +75,7 @@ import org.eclipse.openvsx.json.SearchIndexJson;
 import org.eclipse.openvsx.json.SettingsJson;
 import org.eclipse.openvsx.json.StatsJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
+import org.eclipse.openvsx.json.UserAccessJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.json.UserRelationshipsJson;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -942,11 +943,12 @@ public class AdminAPI {
         }
     }
 
-    @PostMapping(
-        path = "/user/{provider}/{loginName}/role",
+    @PutMapping(
+        path = "/user/{provider}/{loginName}/access",
+        consumes = MediaType.APPLICATION_JSON_VALUE,
         produces = MediaType.APPLICATION_JSON_VALUE
     )
-    @Operation(hidden = true, summary = "Update the role of a user")
+    @Operation(hidden = true, summary = "Replace the role and permissions of a user")
     @MutatingOperation
     @ApiResponse(
         responseCode = "200",
@@ -961,56 +963,14 @@ public class AdminAPI {
         description = "An error message is returned in JSON format",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
-    public ResponseEntity<ResultJson> updateUserRole(
+    public ResponseEntity<ResultJson> updateUserAccess(
             @PathVariable String provider,
             @PathVariable String loginName,
-            @RequestParam
-            @Parameter(
-                description = "The role to assign to the user, or 'none' to remove their role",
-                schema = @Schema(allowableValues = { "admin", "privileged", "none" })
-            ) String role
+            @RequestBody UserAccessJson request
     ) {
         try {
             var adminUser = admins.checkAdminUser();
-            return ResponseEntity.ok(admins.updateUserRole(provider, loginName, role, adminUser));
-        } catch (ErrorResultException exc) {
-            return exc.toResponseEntity();
-        }
-    }
-
-    @PostMapping(
-        path = "/user/{provider}/{loginName}/permission",
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    @Operation(hidden = true, summary = "Grant or revoke a single permission for a user")
-    @MutatingOperation
-    @ApiResponse(
-        responseCode = "200",
-        description = "A success message is returned in JSON format",
-        content = @Content(
-            mediaType = MediaType.APPLICATION_JSON_VALUE,
-            schema = @Schema(implementation = ResultJson.class)
-        )
-    )
-    @ApiResponse(
-        responseCode = "400",
-        description = "An error message is returned in JSON format",
-        content = @Content(schema = @Schema(implementation = ResultJson.class))
-    )
-    public ResponseEntity<ResultJson> updateUserPermission(
-            @PathVariable String provider,
-            @PathVariable String loginName,
-            @RequestParam
-            @Parameter(
-                description = "The permission to grant or revoke",
-                schema = @Schema(implementation = Permission.class)
-            ) String permission,
-            @RequestParam
-            @Parameter(description = "Whether to grant (true) or revoke (false) the permission") boolean grant
-    ) {
-        try {
-            var adminUser = admins.checkAdminUser();
-            return ResponseEntity.ok(admins.updateUserPermission(provider, loginName, permission, grant, adminUser));
+            return ResponseEntity.ok(admins.updateUserAccess(provider, loginName, request, adminUser));
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity();
         }

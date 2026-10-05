@@ -26,7 +26,13 @@ import {
     Autocomplete,
     Avatar,
     Box,
+    Button,
     Chip,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
     IconButton,
     InputBase,
     MenuItem,
@@ -73,6 +79,10 @@ export const AccessControl: FunctionComponent = () => {
     const [inputValue, setInputValue] = useState(loginParam ?? '');
     const [roleFilter, setRoleFilter] = useState('');
     const [selected, setSelected] = useState<UserRelationships | null>(null);
+    const [dirty, setDirty] = useState(false);
+    // The switch waiting on the discard confirmation. Held as a thunk, hence the extra arrow in
+    // setPendingSwitch - useState would otherwise call a function argument as an initializer.
+    const [pendingSwitch, setPendingSwitch] = useState<(() => void) | null>(null);
 
     const debouncedSetSearch = useDebouncedCallback(setSearchText);
 
@@ -113,15 +123,27 @@ export const AccessControl: FunctionComponent = () => {
         }
     }, [selected, loginParam, navigate]);
 
+    // Nothing may replace the selection while the details card holds unsaved edits without the
+    // admin saying so - the card is unmounted on a switch, taking the edits with it.
+    const guarded = (change: () => void) => {
+        if (dirty) {
+            setPendingSwitch(() => change);
+        } else {
+            change();
+        }
+    };
+
     const handleSelect = (_event: SyntheticEvent, value: UserRelationships | null) => {
         if (!value) {
-            clearSelection();
+            guarded(clearSelection);
             return;
         }
-        setSelected(value);
-        setInputValue(value.user.loginName);
-        navigate(`${AdminDashboardRoutes.ACCESS_CONTROL}/${encodeURIComponent(value.user.loginName)}`, {
-            replace: true
+        guarded(() => {
+            setSelected(value);
+            setInputValue(value.user.loginName);
+            navigate(`${AdminDashboardRoutes.ACCESS_CONTROL}/${encodeURIComponent(value.user.loginName)}`, {
+                replace: true
+            });
         });
     };
 
@@ -131,7 +153,11 @@ export const AccessControl: FunctionComponent = () => {
         if (reason === 'reset') {
             return;
         }
-        clearSelection();
+        // Typing only searches while there are unsaved edits; the selection survives until an option
+        // is actually picked, which is where the confirmation belongs. Asking per keystroke would not.
+        if (!dirty) {
+            clearSelection();
+        }
         if (reason === 'clear') {
             setSearchText('');
         } else {
@@ -140,9 +166,16 @@ export const AccessControl: FunctionComponent = () => {
     };
 
     const handleClear = () => {
-        setInputValue('');
-        setSearchText('');
-        clearSelection();
+        guarded(() => {
+            setInputValue('');
+            setSearchText('');
+            clearSelection();
+        });
+    };
+
+    const handleDiscard = () => {
+        pendingSwitch?.();
+        setPendingSwitch(null);
     };
 
     const loadMoreOnScroll = (event: SyntheticEvent) => {
@@ -279,6 +312,7 @@ export const AccessControl: FunctionComponent = () => {
                     <AccessControlDetails
                         key={`${selected.user.provider}/${selected.user.loginName}`}
                         entry={selected}
+                        onDirtyChange={setDirty}
                     />
                 ) : loginParam && !isFetching ? (
                     <Alert severity='info'>No user found for “{loginParam}”.</Alert>
@@ -302,6 +336,21 @@ export const AccessControl: FunctionComponent = () => {
                     </Paper>
                 )}
             </Box>
+
+            <Dialog open={pendingSwitch !== null} onClose={() => setPendingSwitch(null)} maxWidth='xs' fullWidth>
+                <DialogTitle>Discard unsaved changes?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Unsaved role and permission changes for {selected?.user.loginName} will be lost.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPendingSwitch(null)}>Keep editing</Button>
+                    <Button onClick={handleDiscard} color='error'>
+                        Discard
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

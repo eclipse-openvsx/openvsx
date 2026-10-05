@@ -46,6 +46,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.JacksonException;
@@ -1197,105 +1198,25 @@ class AdminAPITest {
                 .andExpect(status().isForbidden());
     }
 
+    private MockHttpServletRequestBuilder updateAccess(String loginName, String body) {
+        return put("/admin/user/{provider}/{loginName}/access", "github", loginName)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .with(csrf().asHeader());
+    }
+
     @Test
-    void testUpdateUserRoleNotLoggedIn() throws Exception {
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "admin")
-                        .with(csrf().asHeader()))
+    void testUpdateUserAccessNotLoggedIn() throws Exception {
+        mockMvc.perform(updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void testUpdateUserRoleNotAdmin() throws Exception {
+    void testUpdateUserAccessNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "admin")
-                        .with(user("test_user"))
-                        .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void testUpdateUserRole() throws Exception {
-        mockAdminUser();
-        var user = new UserData();
-        user.setLoginName("test");
-        user.setProvider("github");
-        when(repositories.findUserByLoginName("github", "test"))
-                .thenReturn(user);
-
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "admin")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
-                .andExpect(status().isOk())
-                .andExpect(content().json(successJson("Updated role for user github/test to admin.")));
-
-        assertThat(user.getRole().toString()).isEqualTo("admin");
-    }
-
-    @Test
-    void testUpdateUserRoleRemove() throws Exception {
-        mockAdminUser();
-        var user = new UserData();
-        user.setLoginName("test");
-        user.setProvider("github");
-        user.setRole(UserData.Role.ADMIN);
-        when(repositories.findUserByLoginName("github", "test"))
-                .thenReturn(user);
-
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "none")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
-                .andExpect(status().isOk())
-                .andExpect(content().json(successJson("Removed role from user github/test.")));
-
-        assertThat(user.getRole()).isNull();
-    }
-
-    @Test
-    void testUpdateUserRoleInvalid() throws Exception {
-        mockAdminUser();
-        var user = new UserData();
-        user.setLoginName("test");
-        user.setProvider("github");
-        when(repositories.findUserByLoginName("github", "test"))
-                .thenReturn(user);
-
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "invalid_role")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void testUpdateUserRoleNotFound() throws Exception {
-        mockAdminUser();
-        when(repositories.findUserByLoginName("github", "unknown"))
-                .thenReturn(null);
-
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "unknown")
-                        .param("role", "admin")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void testUpdateUserPermissionNotLoggedIn() throws Exception {
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
-                        .param("permission", "manage_extensions")
-                        .param("grant", "true")
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}")
+                        .with(user("test_user")))
                 .andExpect(status().isForbidden());
     }
 
@@ -1308,18 +1229,15 @@ class AdminAPITest {
      * asserted for the same reason: a refusal by the gate carries none.
      */
     @Test
-    void testUpdateUserPermissionNotAllowedForAUserWithOnlyAPermission() throws Exception {
+    void testUpdateUserAccessNotAllowedForAUserWithOnlyAPermission() throws Exception {
         var caller = mockNormalUser();
         caller.getPermissions().add(Permission.MANAGE_EXTENSIONS);
         when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
         var principal = new IdPrincipal(42L, "test_user", List.of());
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
-                        .param("permission", "manage_extensions")
-                        .param("grant", "true")
-                        .with(authentication(new TestingAuthenticationToken(principal, null, List.of())))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[\"manage_extensions\"]}")
+                        .with(authentication(new TestingAuthenticationToken(principal, null, List.of()))))
                 .andExpect(status().isForbidden())
                 .andExpect(content().json(errorJson("Administration role is required.")));
 
@@ -1327,50 +1245,73 @@ class AdminAPITest {
     }
 
     @Test
-    void testUpdateUserPermissionGrant() throws Exception {
+    void testUpdateUserAccess() throws Exception {
         mockAdminUser();
         var user = new UserData();
         user.setLoginName("test");
         user.setProvider("github");
+        user.getPermissions().add(Permission.MANAGE_CACHES);
         when(repositories.findUserByLoginName("github", "test"))
                 .thenReturn(user);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
-                        .param("permission", "manage_extensions")
-                        .param("grant", "true")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"privileged\",\"permissions\":[\"manage_extensions\"]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isOk())
-                .andExpect(content().json(successJson("Granted manage_extensions to user github/test.")));
+                .andExpect(
+                        content().json(
+                                successJson(
+                                        "Updated access for user github/test: set the role to privileged, "
+                                                + "granted manage_extensions, revoked manage_caches.")));
 
+        assertThat(user.getRole()).isEqualTo(UserData.Role.PRIVILEGED);
         assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_EXTENSIONS);
     }
 
     @Test
-    void testUpdateUserPermissionRevoke() throws Exception {
+    void testUpdateUserAccessRemovesTheRole() throws Exception {
         mockAdminUser();
         var user = new UserData();
         user.setLoginName("test");
         user.setProvider("github");
-        user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        user.setRole(UserData.Role.ADMIN);
         when(repositories.findUserByLoginName("github", "test"))
                 .thenReturn(user);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
-                        .param("permission", "manage_extensions")
-                        .param("grant", "false")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isOk())
-                .andExpect(content().json(successJson("Revoked manage_extensions from user github/test.")));
+                .andExpect(
+                        content().json(
+                                successJson("Updated access for user github/test: removed the role.")));
 
-        assertThat(user.getPermissions()).isEmpty();
+        assertThat(user.getRole()).isNull();
+    }
+
+    /**
+     * Nothing to apply is not an error here: the page sends the state it wants, and another admin
+     * may have already put the user in it between load and save.
+     */
+    @Test
+    void testUpdateUserAccessWithNothingToChange() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        user.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("No access changes for user github/test.")));
     }
 
     @Test
-    void testUpdateUserPermissionInvalid() throws Exception {
+    void testUpdateUserAccessInvalidRole() throws Exception {
         mockAdminUser();
         var user = new UserData();
         user.setLoginName("test");
@@ -1379,26 +1320,35 @@ class AdminAPITest {
                 .thenReturn(user);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
-                        .param("permission", "not_a_permission")
-                        .param("grant", "true")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"invalid_role\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void testUpdateUserPermissionNotFound() throws Exception {
+    void testUpdateUserAccessInvalidPermission() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[\"not_a_permission\"]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testUpdateUserAccessNotFound() throws Exception {
         mockAdminUser();
         when(repositories.findUserByLoginName("github", "unknown"))
                 .thenReturn(null);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/permission", "github", "unknown")
-                        .param("permission", "manage_extensions")
-                        .param("grant", "true")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("unknown", "{\"role\":\"admin\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isNotFound());
     }
 
