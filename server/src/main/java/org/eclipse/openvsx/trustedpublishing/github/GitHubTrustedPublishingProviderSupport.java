@@ -45,7 +45,7 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
     private static final String CLAIM_WORKFLOW_REF = "workflow_ref"; // "octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main"
     private static final String CLAIM_JOB_WORKFLOW_REF = "job_workflow_ref"; // the executing (possibly reusable) workflow; recorded only
     private static final String CLAIM_RUN_ID = "run_id"; // "1658821493"; recorded only
-    private static final String CLAIM_WORKFLOW_SHA = "workflow_sha"; // commit of the workflow file; recorded only
+    private static final String CLAIM_SHA = "sha"; // commit the run was for; recorded only
 
     private static final String REG_OWNER = "owner";
     private static final String REG_REPO = "repo";
@@ -86,7 +86,7 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
         mustClaim(jwt, CLAIM_WORKFLOW_REF, result);
         mayClaim(jwt, CLAIM_JOB_WORKFLOW_REF, result);
         mayClaim(jwt, CLAIM_RUN_ID, result);
-        mayClaim(jwt, CLAIM_WORKFLOW_SHA, result);
+        mayClaim(jwt, CLAIM_SHA, result);
         return result;
     }
 

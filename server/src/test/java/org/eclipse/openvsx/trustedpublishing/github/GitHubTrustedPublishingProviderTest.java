@@ -76,7 +76,7 @@ class GitHubTrustedPublishingProviderTest {
         var claims = new HashMap<String, Object>(tokenClaims());
         claims.put("job_workflow_ref", "eclipse-openvsx/shared/.github/workflows/build.yml@refs/heads/main");
         claims.put("run_id", "1658821493");
-        claims.put("workflow_sha", "ffac537e6cbbf934b08745a378932722df287a53");
+        claims.put("sha", "ffac537e6cbbf934b08745a378932722df287a53");
         Jwt jwt = Jwt.withTokenValue("t").header("alg", "none").claims(c -> c.putAll(claims))
                 .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
         Map<String, String> result = newProvider(config).extractClaims(jwt);
