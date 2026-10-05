@@ -143,6 +143,20 @@ class ExtensionSizeLimitServiceTest {
                 .hasMessageContaining("greater than zero");
     }
 
+    /** No ceiling applies anymore: a value that would have exceeded the former 1 GiB cap is stored as-is. */
+    @Test
+    void createAcceptsASizeAboveTheFormerHardCeiling() {
+        var ns = namespace("foo", 1L);
+        when(repositories.findNamespace("foo")).thenReturn(ns);
+        when(repositories.isVerified(ns)).thenReturn(true);
+        when(overrides.findByScope(eq(1L), eq(null))).thenReturn(List.of());
+        when(overrides.save(any(ExtensionSizeOverride.class))).thenAnswer(i -> i.getArgument(0));
+
+        var created = limits.createOverride("foo", null, Long.MAX_VALUE);
+
+        assertThat(created.getMaxSize()).isEqualTo(Long.MAX_VALUE);
+    }
+
     @Test
     void createRejectsADuplicateScope() {
         var ns = namespace("foo", 1L);
