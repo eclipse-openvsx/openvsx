@@ -108,7 +108,7 @@ export const NotFound: FunctionComponent = () => {
                     removed. Try searching for it instead.
                 </Lead>
                 {/* Keyed so the uncontrolled field refills on another missing path. */}
-                <NotFoundSearch key={searchTerm} defaultQuery={searchTerm} />
+                <NotFoundSearch key={pathname} defaultQuery={searchTerm} />
             </Content>
         </NotFoundPage>
     );
