@@ -115,10 +115,10 @@ export const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(function S
                 <SearchBoxSlash>/</SearchBoxSlash>
                 <SearchBoxInput
                     ref={ref}
-                    name='q'
                     aria-label='Search extensions'
                     placeholder='search extensions…'
                     {...inputProps}
+                    name='q'
                 />
                 <SearchBoxSubmitButton type='submit' aria-label='Search'>
                     <SearchIcon sx={{ fontSize: '1.125rem' }} />
