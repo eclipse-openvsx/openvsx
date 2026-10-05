@@ -135,19 +135,27 @@ class ScannerInvocationHandlerTest {
     void run_discardsLateCleanResultWhenClaimLosesRaceToWatchdog() throws Exception {
         // The fast-path isTerminal() check alone cannot catch this: the job still reads as
         // PROCESSING here. Only the atomic claimTerminalStatus() call closes the real gap -
-        // simulated here by the watchdog's own claim having already won it.
+        // simulated here by the watchdog's own claim having already won it. Threat/audit
+        // persistence runs before that claim is attempted (so a real completion never races
+        // ahead of its own data), so it does happen here even though the claim then loses -
+        // only the job's own terminal status and the completion check are discarded.
         var job = processingJob();
         when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
         when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
         when(scanner.startScan(any())).thenReturn(new Scanner.Invocation.Completed(Scanner.Result.clean()));
         when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+        when(persistenceService.processCompletedScan(any(), any(), anyBoolean(), any()))
+                .thenReturn(
+                        new ExtensionScanPersistenceService.CompletedScanResult(
+                                ScanCheckResult.CheckResult.PASSED,
+                                0,
+                                "No threats found"));
         when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
                 .thenReturn(0);
 
         newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
 
-        assertEquals(ScannerJob.JobStatus.PROCESSING, job.getStatus());
-        verify(persistenceService, never()).processCompletedScan(any(), any(), anyBoolean(), any());
+        verify(persistenceService).processCompletedScan(any(), any(), anyBoolean(), any());
         verify(completionService, never()).checkCompletionSafely(any());
         verify(scanJobRepository, never()).save(any());
     }

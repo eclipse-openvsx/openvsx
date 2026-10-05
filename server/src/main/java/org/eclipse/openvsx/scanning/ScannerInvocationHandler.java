@@ -249,15 +249,20 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
 
         switch (invocation) {
             case Scanner.Invocation.Completed c -> {
-                // Atomically claim COMPLETE first: this is the actual race guard, not the
-                // isTerminal() check above. If the watchdog's own claim (markFailed) won the
-                // race instead, discard this result rather than resurrect the job it failed.
+                // Persist threats/audit data (its own REQUIRES_NEW transaction) BEFORE claiming
+                // COMPLETE, not after: claiming first would make the job visible as terminal to
+                // a concurrent completion check before its enforcement data exists, and would
+                // let a later persistence failure retry into a job already (wrongly) terminal.
+                handleCompletedScan(job, c, scanner, scannerType, extensionVersionId);
+                // Atomically claim COMPLETE now that the result is already committed. If the
+                // watchdog's own claim (markFailed) won the race instead, the threat/audit data
+                // just persisted is simply orphaned under a FAILED job - harmless, since
+                // completion status is decided from ScannerJob.status alone, not that data.
                 if (scanJobRepository
                         .claimTerminalStatus(jobId, ScannerJob.JobStatus.COMPLETE, TimeUtil.getCurrentUTC()) == 0) {
                     logger.debug("Scan job {} was finalized elsewhere, discarding late scanner result", jobId);
                     return;
                 }
-                handleCompletedScan(job, c, scanner, scannerType, extensionVersionId);
                 scanJobRepository.save(job);
                 completionService.checkCompletionSafely(scanId);
             }
