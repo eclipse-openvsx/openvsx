@@ -86,8 +86,8 @@ class ScannerInvocationHandlerTest {
         var failedJob = processingJob();
         failedJob.setStatus(ScannerJob.JobStatus.FAILED);
         when(scanJobRepository.findById(42L)).thenReturn(Optional.of(failedJob));
-        // Stubbed leniently: the guard must prevent this from ever being called, but without the
-        // guard it would be called and return null, masking the real assertion behind an NPE.
+        // Stubbed leniently: the guard must prevent this from ever being called, so the stub
+        // goes unused here - without lenient(), Mockito's strict-stubbing check would fail the test.
         org.mockito.Mockito.lenient()
                 .when(persistenceService.processCompletedScan(any(), any(), anyBoolean(), any()))
                 .thenReturn(
@@ -123,6 +123,7 @@ class ScannerInvocationHandlerTest {
         newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
 
         assertEquals(ScannerJob.JobStatus.COMPLETE, job.getStatus());
+        verify(persistenceService).processCompletedScan(any(), any(), anyBoolean(), any());
         verify(completionService).checkCompletionSafely("scan-1");
         verify(scanJobRepository).save(job);
     }
