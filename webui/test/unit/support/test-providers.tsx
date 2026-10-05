@@ -24,6 +24,8 @@ import { MainContext } from '../../../src/context';
 import { ExtensionRegistryService } from '../../../src/extension-registry-service';
 import { PageSettings } from '../../../src/page-settings';
 import createDefaultTheme from '../../../src/default/theme';
+import { ViewportObserver, ViewportObserverContext } from '../../../src/context/viewport-observer-context';
+import { allInViewObserver } from './viewport';
 
 /**
  * The app's provider stack for tests. It reuses the real `AppProviders` (query
@@ -57,6 +59,8 @@ export interface ProviderOptions {
     queryClient?: QueryClient;
     /** Override MainContext fields — most often `{ service }` with the methods under test stubbed. */
     mainContext?: Partial<MainContext>;
+    /** How `useInView` sees the viewport; defaults to everything in view. Drive one with `createTestViewport`. */
+    viewport?: ViewportObserver;
 }
 
 function mainContextValue(overrides?: Partial<MainContext>): MainContext {
@@ -79,13 +83,23 @@ function mainContextValue(overrides?: Partial<MainContext>): MainContext {
 
 /**
  * Only the entry-shell providers the library expects from whoever mounts it (theme,
- * router). Use it for components that mount `AppProviders` themselves — `Main` above
- * all; everything else wants `TestProviders`.
+ * router), plus a test viewport in place of the browser's. Use it for components that
+ * mount `AppProviders` themselves — `Main` above all; everything else wants `TestProviders`.
  */
-export function TestEntryShell({ children, route = '/' }: { children: ReactNode; route?: string }) {
+export function TestEntryShell({
+    children,
+    route = '/',
+    viewport = allInViewObserver
+}: {
+    children: ReactNode;
+    route?: string;
+    viewport?: ViewportObserver;
+}) {
     return (
         <ThemeProvider theme={testTheme}>
-            <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+            <ViewportObserverContext.Provider value={viewport}>
+                <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+            </ViewportObserverContext.Provider>
         </ThemeProvider>
     );
 }
@@ -94,10 +108,11 @@ export function TestProviders({
     children,
     route = '/',
     queryClient,
-    mainContext
+    mainContext,
+    viewport
 }: ProviderOptions & { children: ReactNode }) {
     return (
-        <TestEntryShell route={route}>
+        <TestEntryShell route={route} viewport={viewport}>
             <AppProviders
                 mainContext={mainContextValue(mainContext)}
                 queryClient={queryClient ?? createTestQueryClient()}>
@@ -121,10 +136,10 @@ export function renderInEntryShell(
 
 /** `render` with the app providers around it. Extra RTL options pass through. */
 export function renderWithProviders(ui: ReactElement, options: ProviderOptions & Omit<RenderOptions, 'wrapper'> = {}) {
-    const { route, queryClient, mainContext, ...rtl } = options;
+    const { route, queryClient, mainContext, viewport, ...rtl } = options;
     return render(ui, {
         wrapper: ({ children }) => (
-            <TestProviders route={route} queryClient={queryClient} mainContext={mainContext}>
+            <TestProviders route={route} queryClient={queryClient} mainContext={mainContext} viewport={viewport}>
                 {children}
             </TestProviders>
         ),
@@ -137,10 +152,10 @@ export function renderHookWithProviders<Result, Props>(
     hook: (initialProps: Props) => Result,
     options: ProviderOptions & Omit<RenderHookOptions<Props>, 'wrapper'> = {}
 ) {
-    const { route, queryClient, mainContext, ...rtl } = options;
+    const { route, queryClient, mainContext, viewport, ...rtl } = options;
     return renderHook(hook, {
         wrapper: ({ children }) => (
-            <TestProviders route={route} queryClient={queryClient} mainContext={mainContext}>
+            <TestProviders route={route} queryClient={queryClient} mainContext={mainContext} viewport={viewport}>
                 {children}
             </TestProviders>
         ),
