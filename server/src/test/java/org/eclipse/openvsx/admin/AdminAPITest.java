@@ -40,6 +40,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.util.Streamable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -104,6 +105,7 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
 import org.eclipse.openvsx.search.SimilarityConfig;
 import org.eclipse.openvsx.search.SimilarityService;
+import org.eclipse.openvsx.security.IdPrincipal;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
@@ -135,6 +137,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -1299,19 +1302,26 @@ class AdminAPITest {
     /**
      * The point of keeping this endpoint on checkAdminUser rather than a permission of its own:
      * granting access is privilege escalation, so holding a capability must not let you hand it out.
+     * <p>
+     * The caller is authenticated as an {@link IdPrincipal} holding a permission, which is what the
+     * /admin/** gate admits - so the refusal can only come from the handler itself. The error body is
+     * asserted for the same reason: a refusal by the gate carries none.
      */
     @Test
     void testUpdateUserPermissionNotAllowedForAUserWithOnlyAPermission() throws Exception {
         var caller = mockNormalUser();
         caller.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+        var principal = new IdPrincipal(42L, "test_user", List.of());
 
         mockMvc.perform(
                 post("/admin/user/{provider}/{loginName}/permission", "github", "test")
                         .param("permission", "manage_extensions")
                         .param("grant", "true")
-                        .with(user("test_user"))
+                        .with(authentication(new TestingAuthenticationToken(principal, null, List.of())))
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
 
         Mockito.verify(repositories, never()).findUserByLoginName("github", "test");
     }
