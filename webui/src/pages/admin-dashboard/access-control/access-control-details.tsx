@@ -80,14 +80,18 @@ export const AccessControlDetails: FunctionComponent<{ entry: UserRelationships 
     const isAdmin = selectedRole === 'admin';
 
     const handleRoleChange = (role: AccessRole) => {
-        if (role === selectedRole || !user.provider) {
+        // What is actually in effect, which is not user.role once a change has succeeded: this entry
+        // comes from the search result and is never refetched while the component stays mounted, so
+        // reverting to it would show a role the server no longer holds.
+        const roleInEffect = selectedRole;
+        if (role === roleInEffect || !user.provider) {
             return;
         }
         // Optimistic: reflect the choice immediately, revert if the save fails.
         setSelectedRole(role);
         updateRole.mutate(
             { provider: user.provider, login: user.loginName, role },
-            { onError: () => setSelectedRole((user.role as AccessRole) ?? 'none') }
+            { onError: () => setSelectedRole(roleInEffect) }
         );
     };
 

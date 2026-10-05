@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.admin;
 
+import java.util.List;
 import java.util.Set;
 
 import jakarta.persistence.EntityManager;
@@ -20,6 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
 
 import org.eclipse.openvsx.ExtensionService;
@@ -256,6 +259,61 @@ class AdminServiceTest {
         verify(entityManager, never()).remove(user);
         assertThat(user.getLoginName()).isEqualTo("deleted-user-" + user.getId());
         assertThat(user.getFullName()).isNull();
+    }
+
+    // A tombstone that keeps its permissions would still be an account holding admin access, and one
+    // that no longer shows up under any role while doing so.
+    @Test
+    void forgetUserStripsPermissionsFromTheAnonymizedRow() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        user.setRole(UserData.Role.PRIVILEGED);
+        user.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+
+        var extVersion = version(extension("ext"));
+        extVersion.setPublishedBy(user);
+        extVersion.setRemoved(true);
+        extVersion.setRemovedBy(admin);
+
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+        when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
+        when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
+        when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.of(extVersion));
+        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
+        when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
+
+        adminService.forgetUser("github", "amy", admin);
+
+        verify(entityManager, never()).remove(user);
+        assertThat(user.getRole()).isNull();
+        assertThat(user.getPermissions()).isEmpty();
+    }
+
+    // The search goes through a jOOQ query that selects user_data columns only, so the users it
+    // returns never carry permissions - they have to be loaded separately to reach the JSON.
+    @Test
+    void searchUsersReportsPermissionsTheJooqQueryDoesNotSelect() {
+        var fromSearch = new UserData();
+        fromSearch.setId(7);
+        fromSearch.setLoginName("amy");
+        fromSearch.setProvider("github");
+
+        var withPermissions = new UserData();
+        withPermissions.setId(7);
+        withPermissions.setLoginName("amy");
+        withPermissions.getPermissions().add(Permission.MANAGE_SCANS);
+
+        var pageable = Pageable.ofSize(10);
+        when(repositories.searchUsers(null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(fromSearch), pageable, 1));
+        when(repositories.findUsersById(List.of(7L))).thenReturn(List.of(withPermissions));
+        when(repositories.findMemberships(fromSearch)).thenReturn(Streamable.empty());
+
+        var page = adminService.searchUsers(null, null, pageable);
+
+        assertThat(page.getContent()).singleElement()
+                .extracting(json -> json.getUser().getPermissions())
+                .isEqualTo(Set.of("manage_scans"));
     }
 
     @Test

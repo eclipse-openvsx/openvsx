@@ -50,12 +50,18 @@ class UserDataPermissionsFetchTest extends AbstractPostgresContainerTest {
         user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
 
         // Persisted and committed in its own transaction, so by the time the find() below runs,
-        // no session from this setup is still open to lean on.
-        new TransactionTemplate(txManager).executeWithoutResult(status -> entityManager.persist(user));
+        // no session from this setup is still open to lean on. The database is shared JVM-wide, so
+        // the row has to be cleaned up rather than rolled back with the test.
+        var transactions = new TransactionTemplate(txManager);
+        transactions.executeWithoutResult(status -> entityManager.persist(user));
+        try {
+            // Mirrors UserService#findLoggedInUser exactly: no surrounding @Transactional.
+            var reloaded = entityManager.find(UserData.class, user.getId());
 
-        // Mirrors UserService#findLoggedInUser exactly: no surrounding @Transactional.
-        var reloaded = entityManager.find(UserData.class, user.getId());
-
-        assertThat(reloaded.getPermissionsAsStrings()).containsExactly("manage_extensions");
+            assertThat(reloaded.getPermissionsAsStrings()).containsExactly("manage_extensions");
+        } finally {
+            transactions.executeWithoutResult(
+                    status -> entityManager.remove(entityManager.find(UserData.class, user.getId())));
+        }
     }
 }

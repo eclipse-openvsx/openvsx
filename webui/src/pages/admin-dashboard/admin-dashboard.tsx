@@ -38,6 +38,7 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { LoginComponent } from '../../default/login';
 import { MainContext } from '../../context';
 import { AdminPermission, UserData } from '../../extension-registry-types';
+import { hasAnyAdminAccess, hasPermission } from '../../permissions';
 import { createRoute } from '../../utils';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { AdminSidepanel } from './admin-sidepanel';
@@ -316,17 +317,11 @@ const ScrollableContent = styled(Box)(({ theme }) => ({
     }
 }));
 
-/** A role of 'admin' implicitly has every permission, matching UserData#hasPermission on the server. */
-const hasPermission = (user: UserData | undefined, permission: AdminPermission): boolean =>
-    user?.role === 'admin' || (user?.permissions?.includes(permission) ?? false);
-
-const hasAnyAdminAccess = (user: UserData | undefined): boolean =>
-    user?.role === 'admin' || (user?.permissions?.length ?? 0) > 0;
-
 /**
- * Gates a single admin page by permission. The sidebar still lists every built-in page regardless
- * of what the user can access - the real enforcement is server-side (AdminService#checkPermission) -
- * this only avoids rendering a page whose requests would just come back 403.
+ * Gates a single admin page by permission, for a user who reached its route directly - the sidebar
+ * and overview already leave out what {@link filterNavItems} filtered. Real enforcement is
+ * server-side (AdminService#checkPermission); this only avoids rendering a page whose requests
+ * would come back 403.
  */
 const Guard: FunctionComponent<{ user: UserData | undefined; permission: AdminPermission; children: ReactNode }> = ({
     user,

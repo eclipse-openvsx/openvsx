@@ -79,6 +79,25 @@ describe('AccessControlDetails', () => {
         expect(updateUserRole).toHaveBeenCalledWith('github', 'octocat', 'admin');
     });
 
+    // The entry comes from the search result and is never refetched while this stays mounted, so
+    // reverting to it after a later failure would show a role the server gave up two changes ago.
+    it('reverts a failed role change to the one actually in effect, not the one it loaded with', async () => {
+        const updateUserRole = vi
+            .fn()
+            .mockResolvedValueOnce({ success: 'Updated' })
+            .mockRejectedValueOnce(new Error('nope'));
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({ updateUserRole }) }
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Privileged' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
+
+        expect(await screen.findByText(/nope/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Privileged' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'No role' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
     // Admin implies every permission server-side (UserData#hasPermission), so individual grants
     // would have no effect - the checkboxes reflect that instead of suggesting otherwise.
     it('shows every permission as checked and disabled once the role is admin', () => {

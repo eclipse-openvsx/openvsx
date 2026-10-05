@@ -38,6 +38,7 @@ import { Timestamp } from '../../components/timestamp';
 import { ExtensionRatingStars } from './extension-rating-stars';
 import { ExtensionReviewDialog } from './extension-review-dialog';
 import { LoginComponent } from '../../default/login';
+import { hasPermission } from '../../permissions';
 
 export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsProps> = props => {
     const [reviewList, setReviewList] = useState<ExtensionReviewList>();
@@ -259,7 +260,7 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
                             </Typography>
                         </Box>
                     </Box>
-                    {context.user?.role === 'admin' ? (
+                    {hasPermission(context.user, 'manage_extensions') ? (
                         <Box sx={{ mb: 2, minWidth: 160 }} display='flex' alignItems='end'>
                             {renderAdminRemoveButton(r)}
                         </Box>
@@ -296,7 +297,7 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
             <Box>
                 <DelayedLoadIndicator loading={loading} />
                 {renderReviewList(reviewList)}
-                {context.user?.role === 'admin' && renderAdminRemoveDialog()}
+                {hasPermission(context.user, 'manage_extensions') && renderAdminRemoveDialog()}
             </Box>
         </>
     );

@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.security;
 
+import jakarta.persistence.EntityManager;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -30,12 +31,24 @@ import org.eclipse.openvsx.web.WebUiProperties;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /**
+     * Declared here rather than component-scanned so that it exists wherever this configuration does -
+     * the {@code @WebMvcTest} slices stand up the filter chain without scanning for components.
+     */
+    @Bean
+    public AdminAccessAuthorizationManager adminAccessAuthorizationManager(
+            ObjectProvider<EntityManager> entityManagers
+    ) {
+        return new AdminAccessAuthorizationManager(entityManagers);
+    }
+
     @Bean
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             OAuth2UserServices userServices,
             ObjectProvider<ClientRegistrationRepository> clientRegistrations,
-            WebUiProperties webUi
+            WebUiProperties webUi,
+            AdminAccessAuthorizationManager adminAccess
     ) throws Exception {
         var filterChain = http.authorizeHttpRequests(
                 registry -> registry
@@ -73,10 +86,10 @@ public class SecurityConfig {
                                         "/admin/report",
                                         "/admin/search-explain"))
                         .permitAll()
-                        // fine-grained enforcement (which admin capability, if any) happens inside AdminService's
-                        // checkPermission/checkAdminUser calls - this rule only keeps anonymous requests out
+                        // Coarse gate only - the caller must have some admin access. Which capability a given
+                        // endpoint needs is decided per-handler by AdminService's checkPermission/checkAdminUser.
                         .requestMatchers(pathMatchers("/admin/**"))
-                        .authenticated()
+                        .access(adminAccess)
                         .requestMatchers(pathMatchers(webUi.getFrontendRoutes()))
                         .permitAll()
                         .requestMatchers(pathMatchers(webUi.getAdditionalRoutes()))

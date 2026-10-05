@@ -254,6 +254,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findOrphanNamespaces(),
                 () -> repositories.findPersistedLogsAfter(NOW),
                 () -> repositories.findUserByLoginName("provider", "loginName"),
+                () -> repositories.findUsersById(List.of(userData.getId())),
                 () -> repositories.searchUsers("search", "role", Pageable.ofSize(25)),
                 () -> repositories.findVersion("version", "targetPlatform", extension),
                 () -> repositories.findVersion("version", "targetPlatform", "extensionName", "namespace"),

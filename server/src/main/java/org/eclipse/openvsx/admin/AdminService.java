@@ -16,6 +16,8 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -453,19 +455,35 @@ public class AdminService {
 
     @Transactional
     public Page<UserRelationshipsJson> searchUsers(String search, String role, Pageable pageable) {
-        return repositories.searchUsers(search, role, pageable)
-                .map(user -> {
-                    var json = new UserRelationshipsJson();
-                    var userJson = user.toUserJson();
-                    userJson.setRole(user.getRoleAsString());
-                    userJson.setPermissions(user.getPermissionsAsStrings());
-                    json.setUser(userJson);
-                    json.setNamespaces(
-                            repositories.findMemberships(user).stream()
-                                    .map(membership -> membership.getNamespace().toNamespaceDetailsJson())
-                                    .toList());
-                    return json;
-                });
+        var page = repositories.searchUsers(search, role, pageable);
+        var permissions = permissionsById(page.getContent());
+        return page.map(user -> {
+            var json = new UserRelationshipsJson();
+            var userJson = user.toUserJson();
+            userJson.setRole(user.getRoleAsString());
+            userJson.setPermissions(permissions.getOrDefault(user.getId(), Set.of()));
+            json.setUser(userJson);
+            json.setNamespaces(
+                    repositories.findMemberships(user).stream()
+                            .map(membership -> membership.getNamespace().toNamespaceDetailsJson())
+                            .toList());
+            return json;
+        });
+    }
+
+    /**
+     * The search above goes through a jOOQ query that selects {@code user_data} columns only, so the
+     * users it hands back never carry their permissions - an element collection in another table.
+     * Loading them as mapped entities fills that in, for the whole page in one query rather than per row.
+     */
+    private Map<Long, Set<String>> permissionsById(List<UserData> users) {
+        if (users.isEmpty()) {
+            return Map.of();
+        }
+
+        var ids = users.stream().map(UserData::getId).toList();
+        return repositories.findUsersById(ids).stream()
+                .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings));
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
@@ -691,6 +709,9 @@ public class AdminService {
             user.setEclipsePersonId(null);
             user.setEclipseToken(null);
             user.setRole(null);
+            // Alongside the role for the same reason: a tombstone must not keep admin access of any
+            // kind, or it shows up as a "no role" account that still holds capabilities.
+            user.getPermissions().clear();
         }
 
         // The success message deliberately contains no personal data, only the tombstone id and counts.

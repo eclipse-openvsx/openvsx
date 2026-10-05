@@ -72,6 +72,8 @@ export { AppProviders } from './app-providers';
 // `createAbsoluteURL` and `addQuery` are the other half of the request layer above:
 // building an endpoint against `service.serverUrl` needs them.
 export { createRoute, createAbsoluteURL, addQuery, formatCompactNumber, formatRating, toRelativeTime } from './utils';
+// So a deployment with its own menu content can gate an admin entry the same way the built-in ones do.
+export { hasPermission, hasAnyAdminAccess } from './permissions';
 export { NotFound } from './not-found';
 
 // Theme tokens shared with the library chrome, so custom pages line up with it.

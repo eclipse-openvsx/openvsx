@@ -75,6 +75,7 @@ import org.eclipse.openvsx.entities.ExtensionReview;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.UserData;
@@ -802,13 +803,13 @@ class AdminAPITest {
     }
 
     @Test
+    // No body on purpose: a user with no admin access must be refused by the /admin/** gate before
+    // the request is ever deserialized, so this stays a 403 rather than a 400 from body resolution.
     void testDeleteExtensionNotAdmin() throws Exception {
         mockNormalUser();
         mockExtension(2, 0, 0);
         mockMvc.perform(
                 post("/admin/extension/{namespace}/{extension}/delete", "foobar", "baz")
-                        .content("[]")
-                        .contentType(MediaType.APPLICATION_JSON)
                         .with(user("test_user"))
                         .with(csrf().asHeader()))
                 .andExpect(status().isForbidden());
@@ -1280,6 +1281,112 @@ class AdminAPITest {
         mockMvc.perform(
                 post("/admin/user/{provider}/{loginName}/role", "github", "unknown")
                         .param("role", "admin")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testUpdateUserPermissionNotLoggedIn() throws Exception {
+        mockMvc.perform(
+                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
+                        .param("permission", "manage_extensions")
+                        .param("grant", "true")
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * The point of keeping this endpoint on checkAdminUser rather than a permission of its own:
+     * granting access is privilege escalation, so holding a capability must not let you hand it out.
+     */
+    @Test
+    void testUpdateUserPermissionNotAllowedForAUserWithOnlyAPermission() throws Exception {
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+
+        mockMvc.perform(
+                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
+                        .param("permission", "manage_extensions")
+                        .param("grant", "true")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+
+        Mockito.verify(repositories, never()).findUserByLoginName("github", "test");
+    }
+
+    @Test
+    void testUpdateUserPermissionGrant() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
+                        .param("permission", "manage_extensions")
+                        .param("grant", "true")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("Granted manage_extensions to user github/test.")));
+
+        assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_EXTENSIONS);
+    }
+
+    @Test
+    void testUpdateUserPermissionRevoke() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
+                        .param("permission", "manage_extensions")
+                        .param("grant", "false")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("Revoked manage_extensions from user github/test.")));
+
+        assertThat(user.getPermissions()).isEmpty();
+    }
+
+    @Test
+    void testUpdateUserPermissionInvalid() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                post("/admin/user/{provider}/{loginName}/permission", "github", "test")
+                        .param("permission", "not_a_permission")
+                        .param("grant", "true")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testUpdateUserPermissionNotFound() throws Exception {
+        mockAdminUser();
+        when(repositories.findUserByLoginName("github", "unknown"))
+                .thenReturn(null);
+
+        mockMvc.perform(
+                post("/admin/user/{provider}/{loginName}/permission", "github", "unknown")
+                        .param("permission", "manage_extensions")
+                        .param("grant", "true")
                         .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
                         .with(csrf().asHeader()))
                 .andExpect(status().isNotFound());
