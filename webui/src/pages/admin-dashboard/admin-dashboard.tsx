@@ -22,6 +22,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
+import GavelIcon from '@mui/icons-material/Gavel';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import SearchIcon from '@mui/icons-material/Search';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -45,6 +46,7 @@ import { AdminPage, isNavGroup, NavEntry, NavGroup, RouteEntry } from './nav-typ
 import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
+import { NameSquatting } from './name-squatting/name-squatting';
 import { Tiers } from './tiers/tiers';
 import { SizeOverrides } from './size-overrides/size-overrides';
 import { Customers } from './customers/customers';
@@ -153,6 +155,12 @@ const navConfig: NavEntry[] = [
                 description: 'Manage runtime settings for the registry'
             }
         ]
+    },
+    {
+        path: AdminDashboardRoutes.NAME_SQUATTING,
+        name: 'Name Squatting',
+        icon: <GavelIcon />,
+        description: 'Moderate extensions flagged by the name squatting publisher check'
     },
     {
         name: 'Rate Limiting',
@@ -317,6 +325,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route path='/publisher' element={<PublisherAdmin />} />
                                     <Route path='/publisher/:publisher' element={<PublisherAdmin />} />
                                     <Route path='/scans' element={<ScanAdmin />} />
+                                    <Route path='/name-squatting' element={<NameSquatting />} />
                                     <Route path='/tiers' element={<Tiers />} />
                                     <Route path='/customers' element={<Customers />} />
                                     <Route path='/customers/:customer' element={<CustomerDetails />} />

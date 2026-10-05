@@ -14,6 +14,7 @@ package org.eclipse.openvsx.publish;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.util.Streamable;
 
 import org.eclipse.openvsx.ExtensionProcessor;
 import org.eclipse.openvsx.ExtensionValidator;
@@ -48,7 +50,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -101,12 +105,17 @@ class PublishExtensionVersionHandlerTest {
                 users,
                 validator,
                 extensionControl,
-                scanService);
+                scanService,
+                false);
 
         // Lenient: not all tests need this mock
         org.mockito.Mockito.lenient()
                 .when(extensionControl.getMaliciousExtensionIds())
                 .thenReturn(Collections.emptyList());
+
+        // Lenient: only the tests that reach the creation of an extension look the publisher's
+        // namespaces up, and the display name conflict lookup answers "unused" unless stubbed.
+        lenient().when(repositories.findMemberships(any(UserData.class))).thenReturn(Streamable.empty());
     }
 
     @Test
@@ -647,6 +656,316 @@ class PublishExtensionVersionHandlerTest {
         }
     }
 
+    @Test
+    void shouldRejectNewExtensionUsingTheDisplayNameOfAnotherExtension() throws IOException {
+        // Publishing under the exact display name of an existing extension is the cheapest way to be
+        // taken for it, so the package is rejected before any part of it is persisted.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
+            when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
+                    .thenReturn(buildExtension("otherpublisher", "other-demo"));
+
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Display name 'Demo OK' is already used by")
+                    .hasMessageContaining("otherpublisher.other-demo");
+
+            verify(entityManager, never()).persist(metadata);
+            verify(entityManager, never()).persist(any(Extension.class));
+        }
+    }
+
+    @Test
+    void shouldNotTreatTheOwnNamespacesOfThePublisherAsADisplayNameConflict() throws IOException {
+        // A publisher shipping two extensions under one display name impersonates nobody, so neither
+        // the namespace published to nor any other namespace they belong to can conflict.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var membership = new NamespaceMembership();
+            membership.setUser(user);
+            membership.setNamespace(buildNamespace("other-namespace-of-the-publisher"));
+            membership.setRole(NamespaceMembership.ROLE_CONTRIBUTOR);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
+            when(repositories.findMemberships(user)).thenReturn(Streamable.of(membership));
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            var excludedNamespaces = ArgumentCaptor.forClass(Collection.class);
+            verify(repositories).findActiveExtensionByDisplayName(eq("Demo OK"), excludedNamespaces.capture());
+            assertThat(excludedNamespaces.getValue())
+                    .containsExactlyInAnyOrder("publisher", "other-namespace-of-the-publisher");
+        }
+    }
+
+    @Test
+    void shouldNotCheckTheDisplayNameOfAVersionKeepingTheNameTheExtensionAlreadyShows() throws IOException {
+        // A routine version bump carries the name its extension already shows, so it adopts nothing and
+        // is not checked. This is what grandfathers the extensions that already share a display name
+        // with another -- the registry holds many such pairs, predating this check -- which would
+        // otherwise be left unable to publish anything at all.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var existingExtension = buildExtension("publisher", "demo");
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
+            when(repositories.findLatestVersion(existingExtension, null, false, true))
+                    .thenReturn(buildVersionShowing("Demo OK"));
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldRejectAVersionRenamingAnExistingExtensionOntoTheDisplayNameOfAnother() throws IOException {
+        // The escalation the new-extension check alone would leave open: enter the registry under a name
+        // of one's own, pass, then take the display name of a popular extension in the next version --
+        // the manifest being the source of truth for the name the registry goes on to show.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var existingExtension = buildExtension("publisher", "demo");
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
+            when(repositories.findLatestVersion(existingExtension, null, false, true))
+                    .thenReturn(buildVersionShowing("Some Name Of Its Own"));
+            when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
+                    .thenReturn(buildExtension("otherpublisher", "other-demo"));
+
+            assertThatThrownBy(() -> handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Display name 'Demo OK' is already used by")
+                    .hasMessageContaining("otherpublisher.other-demo");
+
+            verify(entityManager, never()).persist(metadata);
+        }
+    }
+
+    @Test
+    void shouldAllowAVersionRenamingAnExistingExtensionToADisplayNameNobodyHolds() throws IOException {
+        // Renaming is legitimate; it is only rejected when the name being taken is another extension's.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var existingExtension = buildExtension("publisher", "demo");
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
+            when(repositories.findLatestVersion(existingExtension, null, false, true))
+                    .thenReturn(buildVersionShowing("Some Name Of Its Own"));
+            when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any())).thenReturn(null);
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            // The rename was checked rather than waved through, and nothing held the name.
+            verify(repositories).findActiveExtensionByDisplayName(eq("Demo OK"), any());
+        }
+    }
+
+    @Test
+    void shouldNotTreatACasingOrWhitespaceOnlyDifferenceAsRenamingTheExtension() throws IOException {
+        // The conflict lookup normalises casing and surrounding whitespace away, so a version differing
+        // only there shows the name its extension already holds. Counting that as a rename would let a
+        // stray space break a publisher the unchanged-name path had grandfathered in.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+            metadata.setDisplayName("  demo ok  ");
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var existingExtension = buildExtension("publisher", "demo");
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
+            when(repositories.findLatestVersion(existingExtension, null, false, true))
+                    .thenReturn(buildVersionShowing("Demo OK"));
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldNotCheckTheDisplayNameWhenMirroringAnotherRegistry() throws IOException {
+        // A mirror has to end up with what its upstream holds, duplicate display names included:
+        // rejecting one protects nobody from an extension that is published upstream anyway, and would
+        // leave the mirror permanently missing it.
+        var mirroringHandler = new PublishExtensionVersionHandler(
+                config,
+                publishService,
+                integrityService,
+                entityManager,
+                repositories,
+                scheduler,
+                users,
+                validator,
+                extensionControl,
+                scanService,
+                true);
+
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
+
+            mirroringHandler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldFailPreconditionsWhenTheDisplayNameIsTakenByAnotherExtension() {
+        // Rejected up front rather than after scanning, so a package that cannot be published in the
+        // first place does not occupy the scanners.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+
+            when(processor.getNamespace()).thenReturn("publisher");
+            when(processor.getExtensionName()).thenReturn("demo");
+            when(processor.getVersion()).thenReturn("2.0.0");
+            when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
+            when(processor.getDisplayName()).thenReturn("Demo OK");
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
+                    .thenReturn(null);
+            when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
+                    .thenReturn(buildExtension("otherpublisher", "other-demo"));
+
+            assertThatThrownBy(() -> handler.checkPublishPreconditions(processor, user))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Display name 'Demo OK' is already used by");
+        }
+    }
+
+    @Test
+    void shouldPassPreconditionsForAFurtherVersionKeepingTheNameTheExtensionAlreadyShows() {
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+
+            when(processor.getNamespace()).thenReturn("publisher");
+            when(processor.getExtensionName()).thenReturn("demo");
+            when(processor.getVersion()).thenReturn("2.0.0");
+            when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
+            when(processor.getDisplayName()).thenReturn("Demo OK");
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
+                    .thenReturn(null);
+            when(repositories.findLatestVersion("publisher", "demo", null, false, true))
+                    .thenReturn(buildVersionShowing("Demo OK"));
+
+            assertThatCode(() -> handler.checkPublishPreconditions(processor, user)).doesNotThrowAnyException();
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldFailPreconditionsWhenAVersionRenamesAnExistingExtensionOntoATakenDisplayName() {
+        // The escalation path is rejected up front too, so a renaming package that cannot be published
+        // does not occupy the scanners either.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+
+            when(processor.getNamespace()).thenReturn("publisher");
+            when(processor.getExtensionName()).thenReturn("demo");
+            when(processor.getVersion()).thenReturn("2.0.0");
+            when(processor.getTargetPlatform()).thenReturn(TargetPlatform.NAME_UNIVERSAL);
+            when(processor.getDisplayName()).thenReturn("Demo OK");
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(repositories.findVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, "demo", "publisher"))
+                    .thenReturn(null);
+            when(repositories.findLatestVersion("publisher", "demo", null, false, true))
+                    .thenReturn(buildVersionShowing("Some Name Of Its Own"));
+            when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
+                    .thenReturn(buildExtension("otherpublisher", "other-demo"));
+
+            assertThatThrownBy(() -> handler.checkPublishPreconditions(processor, user))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Display name 'Demo OK' is already used by")
+                    .hasMessageContaining("otherpublisher.other-demo");
+        }
+    }
+
     private ExtensionVersion mockExtensionVersion(
             String namespace,
             String name,
@@ -661,6 +980,9 @@ class PublishExtensionVersionHandlerTest {
             when(processor.getIconPath()).thenReturn(iconPath);
         }
 
+        // Lenient: the tests that fail before an extension row is reached never read it
+        lenient().when(processor.getDisplayName()).thenReturn("Demo OK");
+
         var ev = new ExtensionVersion();
         ev.setDisplayName("Demo OK");
         ev.setVersion("2.0.0");
@@ -668,6 +990,20 @@ class PublishExtensionVersionHandlerTest {
         when(processor.getMetadata(anyInt(), anyInt())).thenReturn(ev);
 
         return ev;
+    }
+
+    /** The version the registry currently shows for an extension, for the rename comparison. */
+    private ExtensionVersion buildVersionShowing(String displayName) {
+        var extVersion = new ExtensionVersion();
+        extVersion.setDisplayName(displayName);
+        return extVersion;
+    }
+
+    private Extension buildExtension(String namespaceName, String extensionName) {
+        var extension = new Extension();
+        extension.setName(extensionName);
+        extension.setNamespace(buildNamespace(namespaceName));
+        return extension;
     }
 
     private Namespace buildNamespace(String name) {
