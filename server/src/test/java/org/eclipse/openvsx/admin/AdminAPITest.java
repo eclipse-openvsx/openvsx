@@ -1368,6 +1368,37 @@ class AdminAPITest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * A partial body is rejected rather than defaulted: this endpoint replaces the whole access
+     * state, so {@code {"permissions": [...]}} would otherwise demote the user as a side effect.
+     */
+    @Test
+    void testUpdateUserAccessRejectsAPartialBody() throws Exception {
+        mockAdminUser();
+
+        mockMvc.perform(
+                updateAccess("test", "{\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verify(repositories, never()).findUserByLoginName("github", "test");
+    }
+
+    @Test
+    void testUpdateUserAccessRejectsANullPermissionEntry() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[null]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test
     void testUpdateUserAccessInvalidPermission() throws Exception {
         mockAdminUser();

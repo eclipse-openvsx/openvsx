@@ -54,3 +54,6 @@ The body is the access the user should end up with, not a delta: the permissions
 whatever they hold now, and an empty list revokes all of them. `"role": "none"` removes the role
 entirely. Role and permissions are applied in one transaction, so a request that is rejected -
 an unknown permission name, say - leaves the user exactly as they were.
+
+Both fields are required. A partial body is rejected with 400 rather than treated as a request to
+strip what it leaves out, so forgetting `role` cannot quietly demote the user.

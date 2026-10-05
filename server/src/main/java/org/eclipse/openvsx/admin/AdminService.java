@@ -501,14 +501,26 @@ public class AdminService {
      */
     @Transactional(rollbackOn = ErrorResultException.class)
     public ResultJson updateUserAccess(String provider, String loginName, UserAccessJson access, UserData admin) {
+        // Both fields are required rather than defaulted: this replaces the whole access state, so a
+        // partial body would quietly strip whatever it left out - demoting an admin because a field
+        // was forgotten is not something to infer from silence.
+        if (access.role() == null) {
+            throw new ErrorResultException(
+                    "Missing role. Send \"none\" to remove the user's role.",
+                    HttpStatus.BAD_REQUEST);
+        }
+        if (access.permissions() == null) {
+            throw new ErrorResultException(
+                    "Missing permissions. Send an empty list to revoke all of them.",
+                    HttpStatus.BAD_REQUEST);
+        }
+
         var user = repositories.findUserByLoginName(provider, loginName);
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(provider + "/" + loginName), HttpStatus.NOT_FOUND);
         }
 
-        var role = access.role() == null || "none".equalsIgnoreCase(access.role())
-                ? null
-                : parseRole(access.role());
+        var role = "none".equalsIgnoreCase(access.role()) ? null : parseRole(access.role());
         var permissions = parsePermissions(access.permissions());
         var granted = difference(permissions, user.getPermissions());
         var revoked = difference(user.getPermissions(), permissions);
@@ -540,9 +552,7 @@ public class AdminService {
 
     private EnumSet<Permission> parsePermissions(List<String> permissions) {
         var parsed = EnumSet.noneOf(Permission.class);
-        if (permissions != null) {
-            permissions.forEach(permission -> parsed.add(parsePermission(permission)));
-        }
+        permissions.forEach(permission -> parsed.add(parsePermission(permission)));
         return parsed;
     }
 
@@ -845,11 +855,18 @@ public class AdminService {
     }
 
     private Permission parsePermission(String permission) {
+        Permission parsed;
         try {
-            return Permission.valueOfIgnoreCase(permission);
+            // null for a null name, rather than throwing - a null entry in the JSON list has to be
+            // rejected here or it reaches EnumSet.add and surfaces as a 500.
+            parsed = Permission.valueOfIgnoreCase(permission);
         } catch (IllegalArgumentException ignored) {
+            parsed = null;
+        }
+        if (parsed == null) {
             throw new ErrorResultException("Invalid permission: " + permission, HttpStatus.BAD_REQUEST);
         }
+        return parsed;
     }
 
     public AdminStatistics getAdminStatistics(int year, int month) throws ErrorResultException {

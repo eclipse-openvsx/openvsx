@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.admin;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -430,17 +431,48 @@ class AdminServiceTest {
                 .contains("set the role to privileged", "granted manage_extensions", "revoked manage_caches");
     }
 
-    /** The body is the state to end up in, so an absent list means "hold nothing", not "leave as is". */
     @Test
-    void updateUserAccessRevokesEverythingWhenNoPermissionsAreGiven() {
+    void updateUserAccessRevokesEverythingWhenAnEmptyPermissionListIsGiven() {
         var user = new UserData();
         user.setLoginName("amy");
         user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
 
-        adminService.updateUserAccess("github", "amy", new UserAccessJson("none", null), admin);
+        adminService.updateUserAccess("github", "amy", new UserAccessJson("none", List.of()), admin);
 
         assertThat(user.getPermissions()).isEmpty();
+    }
+
+    /**
+     * A partial body must not be read as a request to strip what it leaves out: this replaces the
+     * whole access state, so an omitted field would otherwise demote the user by accident.
+     */
+    @Test
+    void updateUserAccessRejectsABodyMissingEitherField() {
+        assertThatThrownBy(
+                () -> adminService.updateUserAccess("github", "amy", new UserAccessJson(null, List.of()), admin))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("Missing role");
+        assertThatThrownBy(
+                () -> adminService.updateUserAccess("github", "amy", new UserAccessJson("none", null), admin))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("Missing permissions");
+
+        verify(repositories, never()).findUserByLoginName(any(), any());
+    }
+
+    // Permission.valueOfIgnoreCase answers null for a null name, which EnumSet.add would turn into
+    // an NPE - a 500 for input that belongs in the same 400 as any other unknown permission.
+    @Test
+    void updateUserAccessRejectsANullPermissionEntry() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var access = new UserAccessJson("none", Collections.singletonList(null));
+        assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("Invalid permission");
     }
 
     @Test
