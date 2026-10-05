@@ -103,6 +103,7 @@ export const NamespaceDetailView: FunctionComponent<NamespaceDetailViewProps> = 
                     namespace={props.namespace}
                     routePrefix={props.extensionRoutePrefix}
                     fetchExtension={props.fetchExtension}
+                    omitUnavailable={props.omitUnavailable}
                 />
             </MediaSidebarLayout>
         </>
@@ -123,6 +124,9 @@ export interface NamespaceDetailViewProps {
     // to the public registry API when omitted. The admin surface passes the admin endpoint so
     // inactive/soft-deleted extensions show up too.
     fetchExtension?: FetchNamespaceExtension;
+    // Forwarded to the extension list: leave out what the fetch cannot resolve rather than
+    // reporting it, for an admin namespace listed through the public API.
+    omitUnavailable?: boolean;
     // Claiming is the publisher's action, so only the user surface offers it; the admin dashboard
     // shows the same explanation without it.
     showClaimAction?: boolean;

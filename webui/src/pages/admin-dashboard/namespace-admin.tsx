@@ -125,6 +125,10 @@ export const NamespaceAdmin: FunctionComponent = () => {
                                   service.admin.getExtension(abortController, currentNamespace.name, extension.name)
                             : undefined
                     }
+                    // This namespace payload names every extension, inactive and soft-deleted ones
+                    // included; the public API used above has nothing to return for those, and an
+                    // extension this viewer cannot see is an absence rather than a failure.
+                    omitUnavailable={!canManageExtensions}
                 />
                 <NamespaceChangeDialog
                     open={changeDialogIsOpen}

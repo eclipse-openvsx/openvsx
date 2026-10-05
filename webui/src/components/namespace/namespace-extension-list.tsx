@@ -66,7 +66,9 @@ export const NamespaceExtensionList: FunctionComponent<NamespaceExtensionListPro
                 }
                 return result;
             } catch (error) {
-                context.handleError(error);
+                if (!props.omitUnavailable) {
+                    context.handleError(error);
+                }
                 return undefined;
             }
         };
@@ -109,4 +111,8 @@ export interface NamespaceExtensionListProps {
     routePrefix: string;
     // Endpoint used to retrieve each extension's detail. Defaults to the public registry API.
     fetchExtension?: FetchNamespaceExtension;
+    // Leave out an extension the fetch cannot resolve instead of reporting it. For a caller listing
+    // an admin namespace through the public API: that payload names inactive and soft-deleted
+    // extensions too, which the public API has nothing to return for.
+    omitUnavailable?: boolean;
 }

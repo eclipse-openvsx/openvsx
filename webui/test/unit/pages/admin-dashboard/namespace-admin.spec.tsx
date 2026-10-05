@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { Route, Routes } from 'react-router';
 import { renderWithProviders } from '../../support/test-providers';
 import { namespaceDetails, testNamespace } from '../../support/user-settings';
@@ -41,9 +41,13 @@ const namespaceManager: UserData = {
 
 // NamespaceAdmin is mounted under these nested routes by admin-dashboard.tsx; reproduce that here
 // so useParams()/navigate() behave as they do in the app.
-function renderNamespaceAdmin(user: UserData) {
+function renderNamespaceAdmin(user: UserData, extensions: Record<string, string> = { bar: '/api/foo/bar' }) {
     const getExtension = vi.fn().mockResolvedValue(barExtension);
-    const getExtensionDetail = vi.fn().mockResolvedValue(barExtension);
+    // Resolves whatever the public API would have: anything else is an extension it cannot see.
+    const getExtensionDetail = vi.fn(async (_abort: AbortController, url: string) =>
+        url === '/api/foo/bar' ? barExtension : Promise.reject(new Error('not found'))
+    );
+    const handleError = vi.fn();
     const service = {
         getExtensionDetail,
         getExtensionIcon: vi.fn().mockResolvedValue(null),
@@ -51,7 +55,7 @@ function renderNamespaceAdmin(user: UserData) {
         getNamespaceMembers: vi.fn().mockResolvedValue({ namespaceMemberships: [] }),
         getTrustedPublishingStatus: vi.fn().mockResolvedValue({ enabled: false, allowed: false }),
         admin: {
-            getNamespace: vi.fn().mockResolvedValue(testNamespace({ extensions: { bar: '/api/foo/bar' } })),
+            getNamespace: vi.fn().mockResolvedValue(testNamespace({ extensions })),
             getExtension
         }
     } as unknown as ExtensionRegistryService;
@@ -61,9 +65,9 @@ function renderNamespaceAdmin(user: UserData) {
             <Route path={AdminDashboardRoutes.NAMESPACE_ADMIN} element={<NamespaceAdmin />} />
             <Route path={`${AdminDashboardRoutes.NAMESPACE_ADMIN}/:namespace`} element={<NamespaceAdmin />} />
         </Routes>,
-        { route: `${AdminDashboardRoutes.NAMESPACE_ADMIN}/foo`, mainContext: { service, user } }
+        { route: `${AdminDashboardRoutes.NAMESPACE_ADMIN}/foo`, mainContext: { service, user, handleError } }
     );
-    return { getExtension, getExtensionDetail };
+    return { getExtension, getExtensionDetail, handleError };
 }
 
 describe('NamespaceAdmin', () => {
@@ -84,5 +88,18 @@ describe('NamespaceAdmin', () => {
 
         await waitFor(() => expect(getExtension).toHaveBeenCalled());
         expect(getExtensionDetail).not.toHaveBeenCalled();
+    });
+
+    // The admin namespace payload names inactive and soft-deleted extensions too, which the public
+    // API has nothing to return for - an absence for this viewer, not a failure worth a dialog.
+    it('leaves out an extension the public API cannot resolve, without reporting it', async () => {
+        const { getExtensionDetail, handleError } = renderNamespaceAdmin(namespaceManager, {
+            bar: '/api/foo/bar',
+            quarantined: '/api/foo/quarantined'
+        });
+
+        await waitFor(() => expect(getExtensionDetail).toHaveBeenCalledTimes(2));
+        expect(await screen.findByText('Bar')).toBeInTheDocument();
+        expect(handleError).not.toHaveBeenCalled();
     });
 });
