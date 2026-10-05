@@ -47,7 +47,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AdminEndpointPermissionCheckTest {
 
-    private static final Set<String> AUTHORIZATION_CHECKS = Set.of("checkPermission", "checkAdminUser");
+    private static final Set<String> AUTHORIZATION_CHECKS = Set
+            .of("checkPermission", "checkAnyPermission", "checkAdminUser");
 
     @Test
     void everyHandlerUnderAdminAuthorizesForItself() throws IOException {

@@ -66,7 +66,9 @@ describe('AccessControl', () => {
 
         expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
         await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+        // findBy, not getBy: the dialog fades out, and until it is gone the page behind it is still
+        // aria-hidden, so nothing on it is in the accessible tree yet.
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
 
         await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
         await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));

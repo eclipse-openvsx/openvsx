@@ -154,11 +154,11 @@ const navConfig: NavEntry[] = [
         icon: <AdminPanelSettingsIcon />,
         children: [
             {
-                path: AdminDashboardRoutes.LOGS,
-                name: 'Logs',
-                icon: <HistoryIcon />,
-                description: 'Browse admin activity logs',
-                permission: 'view_reports'
+                path: AdminDashboardRoutes.ACCESS_CONTROL,
+                name: 'Access Control',
+                icon: <VerifiedUserIcon />,
+                description: "Manage a user's role and individually granted permissions",
+                adminOnly: true
             },
             {
                 path: AdminDashboardRoutes.SETTINGS,
@@ -168,11 +168,11 @@ const navConfig: NavEntry[] = [
                 permission: 'manage_settings'
             },
             {
-                path: AdminDashboardRoutes.ACCESS_CONTROL,
-                name: 'Access Control',
-                icon: <VerifiedUserIcon />,
-                description: "Manage a user's role and individually granted permissions",
-                adminOnly: true
+                path: AdminDashboardRoutes.LOGS,
+                name: 'Logs',
+                icon: <HistoryIcon />,
+                description: 'Browse admin activity logs',
+                permission: 'view_reports'
             }
         ]
     },

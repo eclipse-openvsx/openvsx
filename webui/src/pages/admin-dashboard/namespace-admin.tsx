@@ -88,9 +88,12 @@ export const NamespaceAdmin: FunctionComponent = () => {
 
     const loading = isFetching || detailLoading;
 
-    // The extension admin page needs its own permission, so for a user who only manages namespaces
-    // these cards link to the public extension page rather than one that would refuse them.
-    const extensionRoutePrefix = hasPermission(user, 'manage_extensions')
+    // The extension admin page and the endpoint behind it need their own permission, so for a user
+    // who only manages namespaces these cards link to the public extension page, and load from the
+    // public API. Leaving the admin fetch in place would 403 once per extension and leave the
+    // namespace looking empty.
+    const canManageExtensions = hasPermission(user, 'manage_extensions');
+    const extensionRoutePrefix = canManageExtensions
         ? AdminDashboardRoutes.EXTENSION_ADMIN
         : createRoute([ExtensionDetailRoutes.ROOT]);
 
@@ -116,8 +119,11 @@ export const NamespaceAdmin: FunctionComponent = () => {
                     namespace={currentNamespace}
                     headerActions={headerActions}
                     extensionRoutePrefix={extensionRoutePrefix}
-                    fetchExtension={(abortController, extension) =>
-                        service.admin.getExtension(abortController, currentNamespace.name, extension.name)
+                    fetchExtension={
+                        canManageExtensions
+                            ? (abortController, extension) =>
+                                  service.admin.getExtension(abortController, currentNamespace.name, extension.name)
+                            : undefined
                     }
                 />
                 <NamespaceChangeDialog

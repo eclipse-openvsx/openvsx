@@ -112,8 +112,12 @@ export const AccessControl: FunctionComponent = () => {
         const match = users.find(u => u.user.loginName === loginParam);
         if (match) {
             setSelected(match);
+        } else if (hasNextPage && !isFetchingNextPage) {
+            // The server matches the login as a substring, so the exact one can sit past the first
+            // page. Keep pulling pages rather than reporting an existing user as missing.
+            void fetchNextPage();
         }
-    }, [loginParam, selected, users]);
+    }, [loginParam, selected, users, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const clearSelection = useCallback(() => {
         if (selected || loginParam) {

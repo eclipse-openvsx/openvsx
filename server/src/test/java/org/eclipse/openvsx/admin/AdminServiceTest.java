@@ -490,6 +490,28 @@ class AdminServiceTest {
         assertThat(adminService.checkPermission(Permission.MANAGE_CACHES)).isSameAs(user);
     }
 
+    @Test
+    void checkAnyPermissionAllowsAUserHoldingEitherOne() {
+        var user = new UserData();
+        user.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(users.findLoggedInUser()).thenReturn(user);
+
+        assertThat(adminService.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS))
+                .isSameAs(user);
+    }
+
+    @Test
+    void checkAnyPermissionRejectsAUserHoldingNeither() {
+        var user = new UserData();
+        user.getPermissions().add(Permission.MANAGE_CACHES);
+        when(users.findLoggedInUser()).thenReturn(user);
+
+        assertThatThrownBy(
+                () -> adminService.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("manage_namespaces or manage_extensions");
+    }
+
     // Regression: ADMIN must keep implying every permission, including ones a currently-ADMIN user
     // was never individually granted - see UserData#hasPermission.
     @Test

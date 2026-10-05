@@ -975,6 +975,49 @@ class AdminAPITest {
                 })));
     }
 
+    /**
+     * The Size Overrides page resolves a namespace through this endpoint before an override can be
+     * created, and that page belongs to an extension manager - gating it on MANAGE_NAMESPACES alone
+     * would leave its Submit button permanently disabled.
+     */
+    @Test
+    void testGetNamespaceAllowsAnExtensionManager() throws Exception {
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+        mockNamespace();
+
+        mockMvc.perform(
+                get("/admin/namespace/{namespace}", "foobar")
+                        .with(
+                                authentication(
+                                        new TestingAuthenticationToken(
+                                                new IdPrincipal(42L, "test_user", List.of()),
+                                                null,
+                                                List.of())))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testGetNamespaceNotAllowedWithAnUnrelatedPermission() throws Exception {
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_CACHES);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+        mockNamespace();
+
+        mockMvc.perform(
+                get("/admin/namespace/{namespace}", "foobar")
+                        .with(
+                                authentication(
+                                        new TestingAuthenticationToken(
+                                                new IdPrincipal(42L, "test_user", List.of()),
+                                                null,
+                                                List.of())))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     void testGetNamespaceMembersNotLoggedIn() throws Exception {
         mockNamespace();

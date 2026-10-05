@@ -1004,7 +1004,9 @@ public class AdminAPI {
             @Parameter(description = "Namespace name", example = "mtxr") String namespaceName
     ) {
         try {
-            admins.checkPermission(Permission.MANAGE_NAMESPACES);
+            // Also MANAGE_EXTENSIONS: the Size Overrides page resolves a namespace here before an
+            // override can be created, and that page is an extension manager's.
+            admins.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS);
 
             // Admins see all extensions of the namespace, including inactive/soft-deleted ones.
             var namespace = local.getNamespace(namespaceName, true);

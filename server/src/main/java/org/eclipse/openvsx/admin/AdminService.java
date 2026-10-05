@@ -829,6 +829,21 @@ public class AdminService {
         return user;
     }
 
+    /**
+     * Checks that the logged-in user holds at least one of {@code required}. For a read that more
+     * than one capability legitimately needs - gating it on a single one would break the other's
+     * workflow rather than protect anything.
+     */
+    public UserData checkAnyPermission(Permission... required) {
+        var user = users.findLoggedInUser();
+        if (user != null && Stream.of(required).anyMatch(user::hasPermission)) {
+            return user;
+        }
+
+        var names = Stream.of(required).map(Permission::toString).collect(Collectors.joining(" or "));
+        throw new ErrorResultException("Missing required permission: " + names, HttpStatus.FORBIDDEN);
+    }
+
     private Permission parsePermission(String permission) {
         try {
             return Permission.valueOfIgnoreCase(permission);
