@@ -78,14 +78,20 @@ describe('main', () => {
     });
 
     it('passes global options given before or after the command', () => {
-        run('-r', 'http://registry.test', 'show', 'redhat.java', '-t', 'linux-x64', '--all-versions', '-p', 'secret');
-        expect(show).toHaveBeenCalledWith({
+        const expected = {
             extensionId: 'redhat.java',
             target: 'linux-x64',
             allVersions: true,
             json: undefined,
             registryUrl: 'http://registry.test'
-        });
+        };
+
+        run('-r', 'http://registry.test', 'show', 'redhat.java', '-t', 'linux-x64', '--all-versions');
+        expect(show).toHaveBeenCalledWith(expected);
+
+        vi.mocked(show).mockClear();
+        run('show', 'redhat.java', '-t', 'linux-x64', '--all-versions', '-r', 'http://registry.test');
+        expect(show).toHaveBeenCalledWith(expected);
     });
 
     it('passes --debug to the error handler', () => {
@@ -124,16 +130,22 @@ describe('main', () => {
     });
 
     it('suggests the closest command for a misspelled one', () => {
-        expect(() => run('publsh')).toThrow(ExitError);
+        expect(() => run('publsh')).toThrow(new ExitError(1));
         expect(stderr).toContain("Unknown command 'publsh', did you mean 'publish'?");
         expect(stdout).toContain('Usage: ovsx <command> [options]');
         expect(publish).not.toHaveBeenCalled();
     });
 
     it('reports an unknown command without a close match', () => {
-        expect(() => run('frobnicate')).toThrow(ExitError);
+        expect(() => run('frobnicate')).toThrow(new ExitError(1));
         expect(stderr).toContain("Unknown command 'frobnicate'.");
         expect(stdout).toContain('Usage: ovsx <command> [options]');
+    });
+
+    it('fails with a nonzero exit when given more arguments than a command accepts', () => {
+        expect(() => run('show', 'redhat.java', 'extra')).toThrow(new ExitError(1));
+        expect(stderr).toContain("too many arguments for 'show'");
+        expect(show).not.toHaveBeenCalled();
     });
 
     it('lists the commands in help without a catch-all entry', () => {

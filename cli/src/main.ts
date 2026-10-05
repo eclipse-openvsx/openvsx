@@ -210,6 +210,9 @@ module.exports = function (argv: string[]): void {
             logout(namespace).catch(handleError(debug));
         });
 
+    // 'command:*' is deprecated in favor of catching the commander.unknownCommand error, but that
+    // error is reported (message written, process exited) by commander itself before a catch runs,
+    // so it can't reproduce this suggestion wording. Still supported for backwards compatibility.
     program.on('command:*', (operands: string[]) => {
         const availableCommands = program.commands.map(c => c.name());
         const actualCommand = operands[0];
