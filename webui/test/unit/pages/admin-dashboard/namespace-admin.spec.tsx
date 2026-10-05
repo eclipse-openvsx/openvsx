@@ -41,11 +41,19 @@ const namespaceManager: UserData = {
 
 // NamespaceAdmin is mounted under these nested routes by admin-dashboard.tsx; reproduce that here
 // so useParams()/navigate() behave as they do in the app.
-function renderNamespaceAdmin(user: UserData, extensions: Record<string, string> = { bar: '/api/foo/bar' }) {
+// What the public API answers for an extension it has nothing to return: a 404, as sendRequest
+// shapes it. A network failure or a 5xx is a different thing entirely and must not be swallowed.
+const notFound = { error: 'Not found', status: 404 };
+
+function renderNamespaceAdmin(
+    user: UserData,
+    extensions: Record<string, string> = { bar: '/api/foo/bar' },
+    rejection: unknown = notFound
+) {
     const getExtension = vi.fn().mockResolvedValue(barExtension);
     // Resolves whatever the public API would have: anything else is an extension it cannot see.
     const getExtensionDetail = vi.fn(async (_abort: AbortController, url: string) =>
-        url === '/api/foo/bar' ? barExtension : Promise.reject(new Error('not found'))
+        url === '/api/foo/bar' ? barExtension : Promise.reject(rejection)
     );
     const handleError = vi.fn();
     const service = {
@@ -101,5 +109,18 @@ describe('NamespaceAdmin', () => {
         await waitFor(() => expect(getExtensionDetail).toHaveBeenCalledTimes(2));
         expect(await screen.findByText('Bar')).toBeInTheDocument();
         expect(handleError).not.toHaveBeenCalled();
+    });
+
+    // Suppressing every failure instead would let a network error or a 5xx drop cards silently,
+    // leaving a partial list looking like the whole namespace.
+    it('still reports a failure that is not the extension being absent', async () => {
+        const { getExtensionDetail, handleError } = renderNamespaceAdmin(
+            namespaceManager,
+            { bar: '/api/foo/bar', flaky: '/api/foo/flaky' },
+            { error: 'Service Unavailable', status: 503 }
+        );
+
+        await waitFor(() => expect(getExtensionDetail).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(handleError).toHaveBeenCalled());
     });
 });
