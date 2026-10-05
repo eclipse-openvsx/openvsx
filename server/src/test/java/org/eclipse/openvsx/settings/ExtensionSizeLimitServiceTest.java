@@ -143,7 +143,6 @@ class ExtensionSizeLimitServiceTest {
                 .hasMessageContaining("greater than zero");
     }
 
-    /** No ceiling applies anymore: a value that would have exceeded the former 1 GiB cap is stored as-is. */
     @Test
     void createAcceptsASizeAboveTheFormerHardCeiling() {
         var ns = namespace("foo", 1L);
