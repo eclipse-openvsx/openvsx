@@ -30,7 +30,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionSizeOverride;
 import org.eclipse.openvsx.entities.Namespace;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -52,7 +51,6 @@ class ExtensionSizeLimitServiceTest {
     private SettingsService settings;
     private ExtensionSizeOverrideRepository overrides;
     private RepositoryService repositories;
-    private PublishingConfig publishingConfig;
     private ExtensionSizeLimitService limits;
 
     @BeforeEach
@@ -60,10 +58,9 @@ class ExtensionSizeLimitServiceTest {
         settings = Mockito.mock(SettingsService.class);
         overrides = Mockito.mock(ExtensionSizeOverrideRepository.class);
         repositories = Mockito.mock(RepositoryService.class);
-        publishingConfig = Mockito.mock(PublishingConfig.class);
         // lenient: the write tests below never read the default limit.
         Mockito.lenient().when(settings.getMaxExtensionSize()).thenReturn(DEFAULT_LIMIT);
-        limits = new ExtensionSizeLimitService(settings, overrides, repositories, publishingConfig);
+        limits = new ExtensionSizeLimitService(settings, overrides, repositories);
     }
 
     @Test
@@ -136,18 +133,6 @@ class ExtensionSizeLimitServiceTest {
     }
 
     @Test
-    void createRejectsASizeAboveTheHardCeiling() {
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(1000L);
-        var ns = namespace("foo", 1L);
-        when(repositories.findNamespace("foo")).thenReturn(ns);
-        when(repositories.isVerified(ns)).thenReturn(true);
-
-        assertThatThrownBy(() -> limits.createOverride("foo", null, 1001L))
-                .isInstanceOf(ErrorResultException.class)
-                .hasMessageContaining("exceeds the maximum");
-    }
-
-    @Test
     void createRejectsANonPositiveSize() {
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
@@ -160,7 +145,6 @@ class ExtensionSizeLimitServiceTest {
 
     @Test
     void createRejectsADuplicateScope() {
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
         when(repositories.isVerified(ns)).thenReturn(true);
@@ -173,7 +157,6 @@ class ExtensionSizeLimitServiceTest {
 
     @Test
     void createRejectsAnExtensionThatIsNotInTheNamespace() {
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
         when(repositories.isVerified(ns)).thenReturn(true);
@@ -201,7 +184,6 @@ class ExtensionSizeLimitServiceTest {
 
     @Test
     void createSavesTheOverrideAndInvalidatesTheCeiling() {
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         var ns = namespace("foo", 1L);
         when(repositories.findNamespace("foo")).thenReturn(ns);
         when(repositories.isVerified(ns)).thenReturn(true);
@@ -233,7 +215,6 @@ class ExtensionSizeLimitServiceTest {
      */
     @Test
     void updateChangesTheSizeAndInvalidatesTheCeiling() {
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(10_000L);
         when(overrides.findById(42L)).thenReturn(Optional.of(override(null, 100L)));
 
         var updated = limits.updateOverride(42L, 200L);

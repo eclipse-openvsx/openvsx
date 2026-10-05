@@ -32,7 +32,6 @@ import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionSizeOverride;
 import org.eclipse.openvsx.entities.Namespace;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -46,18 +45,15 @@ public class ExtensionSizeLimitService {
     private final SettingsService settings;
     private final ExtensionSizeOverrideRepository overrides;
     private final RepositoryService repositories;
-    private final PublishingConfig publishingConfig;
 
     public ExtensionSizeLimitService(
             SettingsService settings,
             ExtensionSizeOverrideRepository overrides,
-            RepositoryService repositories,
-            PublishingConfig publishingConfig
+            RepositoryService repositories
     ) {
         this.settings = settings;
         this.overrides = overrides;
         this.repositories = repositories;
-        this.publishingConfig = publishingConfig;
     }
 
     public long getDefaultLimit() {
@@ -251,12 +247,6 @@ public class ExtensionSizeLimitService {
     private void requireValidSize(long maxSize) {
         if (maxSize <= 0) {
             throw new ErrorResultException("The size override must be greater than zero.", HttpStatus.BAD_REQUEST);
-        }
-        var ceiling = publishingConfig.getMaxOverrideSize();
-        if (maxSize > ceiling) {
-            throw new ErrorResultException(
-                    "The size override exceeds the maximum of " + ceiling + " bytes.",
-                    HttpStatus.BAD_REQUEST);
         }
     }
 

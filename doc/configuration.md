@@ -41,18 +41,6 @@ Whether published extensions are required to have a license. If active, unlicens
 
 The maximum content size the server accepts when publishing an extension. This is the fallback default only: once an admin sets the **Default max extension size** on the admin dashboard's Settings page, the stored value shadows this property on every node and editing the configuration file no longer has any effect. See [Extension size limits](#extension-size-limits) below.
 
-| Property      | `ovsx.publishing.max-override-size`
-|---------------|-----------------------------------
-| Type          | long
-| Default       | `1024 * 1024 * 1024` = `1GB`
-| Compatibility | Since 1.3.0
-
-The ceiling on any single size override. The admin API refuses an override above it, so no override can raise a namespace past this. Must be greater than zero.
-
-It bounds overrides and nothing else. The registry-wide default has no upper bound of its own - the Settings page accepts any value above zero - so a registry whose default is set higher than this gives every namespace a limit above it without an override being involved.
-
-Set it at or above the limit most namespaces get, that is the runtime default or `ovsx.publishing.max-content-size` when no runtime default has been set. The two are deliberately not compared at startup - a deployment already running a larger `max-content-size` than this property's default has to keep starting - but a value below the effective default means no override can raise a limit above it - only overrides that tighten a namespace below the default remain possible. It does not affect the limit that gets enforced: the stream-time ceiling is derived from the default and the overrides that exist, never from this property.
-
 | Property      | `ovsx.publishing.unsupported-icon-formats`
 |---------------|-----------------------------------
 | Type          | string[]
@@ -86,10 +74,9 @@ Four things decide how large a package a publisher may upload. In order of prece
 3. **The runtime default** - the *Default max extension size* field on the admin dashboard's *Settings* page.
 4. **`ovsx.publishing.max-content-size`** - the configured fallback, used until an admin sets the runtime default.
 
-Four consequences worth knowing:
+Three consequences worth knowing:
 
 - **The runtime default shadows the configuration file, one way.** Once the Settings field is set, that value is stored in the database and used on every node. Editing `ovsx.publishing.max-content-size` afterwards changes nothing until the stored setting is removed. A registry whose admins never touch the field behaves exactly as it did before overrides existed.
-- **Every override is bounded by `ovsx.publishing.max-override-size` when it is written.** The admin API refuses to store an override above that ceiling, so no namespace can be granted an unlimited upload size through the dashboard. The bound is checked on create and update only: lowering the property afterwards leaves any override already above it stored and enforced, so bringing those down means editing them on the Size overrides page.
 - **Overrides are only granted to verified namespaces.** The admin API refuses to create one for an unverified namespace. An existing override is not revoked if the namespace later loses verification - it stays in force, and is listed on the Size overrides page like any other. The page does not currently distinguish one whose namespace has since become unverified, so reviewing those means checking the namespaces themselves.
 - **An override lives and dies with what it is scoped to.** Deleting a namespace, or permanently purging an extension, deletes its overrides with it. An ordinary extension deletion does not: that is a soft delete which keeps the row, so the override survives and applies again if the extension is republished. Two things can remove or strand an override without an admin asking for that in so many words:
 
