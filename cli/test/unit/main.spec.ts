@@ -73,6 +73,8 @@ describe('main', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         vi.clearAllMocks();
+        // process.exitCode is real process state, not a mock, and outlives a real exit() only in tests.
+        process.exitCode = 0;
     });
 
     it('passes global options given before or after the command', () => {
@@ -144,5 +146,11 @@ describe('main', () => {
         const { version } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'));
         expect(() => run('--version')).toThrow(ExitError);
         expect(stdout).toBe(`${version}\n`);
+    });
+
+    it('shows help on stdout and exits 0 when run with no arguments', () => {
+        expect(() => run()).toThrow(new ExitError(0));
+        expect(stdout).toContain('Usage: ovsx <command> [options]');
+        expect(stderr).toBe('');
     });
 });

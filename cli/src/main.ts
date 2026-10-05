@@ -30,6 +30,7 @@ const LIB_VERSION: string = JSON.parse(readFileSync(join(__dirname, '..', 'packa
 
 module.exports = function (argv: string[]): void {
     const program = new commander.Command();
+    program.nameFromFilename(argv[1]);
     program.usage('<command> [options]')
         .option('-r, --registryUrl <url>', 'Use the registry API at this base URL.')
         .option('-p, --pat <token>', 'Personal access token.')
@@ -220,6 +221,11 @@ module.exports = function (argv: string[]): void {
         process.exitCode = 1;
         program.help();
     });
+
+    if (process.argv.length <= 2) {
+        // Commander 14 would otherwise print this to stderr and exit 1 during program.parse(argv) below.
+        program.help();
+    }
 
     program.parse(argv);
 };
