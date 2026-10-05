@@ -233,8 +233,9 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         ScannerJob job = scanJobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
 
-        // The watchdog may have already marked this job FAILED (and the scan group ERRORED)
-        // while scanner.startScan() was still blocked; don't let a late result resurrect it.
+        // Fast-path discard; this read is stale the instant it happens, so it cannot be the
+        // actual guard against the watchdog finalizing the job while scanner.startScan() was
+        // blocked. For a Completed result, claimCompletion() below closes that gap atomically.
         if (job.getStatus().isTerminal()) {
             logger.debug(
                     "Scan job {} already in terminal state {}, discarding late scanner result",
@@ -246,23 +247,26 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         // Determine the scan ID before processing (needed for completion check)
         String scanId = job.getScanId();
 
-        // Update job status based on invocation result
-        // For sync scanners: status -> COMPLETE, save threats
-        // For async scanners: status -> SUBMITTED, store external job ID
         switch (invocation) {
-            case Scanner.Invocation.Completed c ->
+            case Scanner.Invocation.Completed c -> {
+                // Atomically claim COMPLETE first: this is the actual race guard, not the
+                // isTerminal() check above. If the watchdog's own claim (markFailed) won the
+                // race instead, discard this result rather than resurrect the job it failed.
+                if (scanJobRepository
+                        .claimTerminalStatus(jobId, ScannerJob.JobStatus.COMPLETE, TimeUtil.getCurrentUTC()) == 0) {
+                    logger.debug("Scan job {} was finalized elsewhere, discarding late scanner result", jobId);
+                    return;
+                }
                 handleCompletedScan(job, c, scanner, scannerType, extensionVersionId);
-            case Scanner.Invocation.Submitted s ->
+                scanJobRepository.save(job);
+                completionService.checkCompletionSafely(scanId);
+            }
+            case Scanner.Invocation.Submitted s -> {
+                // SUBMITTED is not terminal, so there is no verdict here for the watchdog to
+                // clobber - it may legitimately fail this job later if polling times out.
                 handleSubmittedScan(job, s, scanner, scannerType, extensionVersionId);
-        }
-
-        scanJobRepository.save(job);
-
-        // Now check if all jobs for this scan are complete.
-        // Only do this for sync scanners (Completed) - async scanners will trigger
-        // completion check when polling completes.
-        if (invocation instanceof Scanner.Invocation.Completed) {
-            completionService.checkCompletionSafely(scanId);
+                scanJobRepository.save(job);
+            }
         }
     }
 
@@ -270,10 +274,13 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
      * Mark a job as failed after an exception.
      */
     private void markJobFailed(Long jobId, Exception e) {
-        ScannerJob job = scanJobRepository.findById(jobId).orElse(null);
-        if (job == null || job.getStatus().isTerminal()) {
+        // claimTerminalStatus() is the actual guard against racing the watchdog's own
+        // markFailed(); the isTerminal() read it replaces here would be stale by the time
+        // this method's save() ran.
+        if (scanJobRepository.claimTerminalStatus(jobId, ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
             return;
         }
+        ScannerJob job = scanJobRepository.findById(jobId).orElseThrow();
         job.setStatus(ScannerJob.JobStatus.FAILED);
         job.setErrorMessage("Scanner invocation failed: " + e.getMessage());
         job.setUpdatedAt(TimeUtil.getCurrentUTC());

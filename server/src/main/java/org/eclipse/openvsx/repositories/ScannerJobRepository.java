@@ -96,6 +96,26 @@ public interface ScannerJobRepository extends Repository<ScannerJob, Long> {
     int claimForProcessing(@Param("id") long id, @Param("now") LocalDateTime now);
 
     /**
+     * Atomically move a job to a terminal status (COMPLETE/FAILED/REMOVED), but only if it
+     * isn't already terminal. Returns 1 if applied, 0 if another writer got there first - the
+     * caller must then discard its own update rather than overwrite that verdict. The watchdog
+     * and the scanner invocation handler both race to finalize a job (one on timeout, one on a
+     * late result from a slow scanner call), and this WHERE-status guard is what decides which
+     * one wins instead of whichever happens to save() last in memory.
+     */
+    @Modifying
+    @Transactional
+    @Query(
+        "UPDATE ScannerJob j SET j.status = :status, j.updatedAt = :now "
+                + "WHERE j.id = :id AND j.status NOT IN ('COMPLETE', 'FAILED', 'REMOVED')"
+    )
+    int claimTerminalStatus(
+            @Param("id") long id,
+            @Param("status") ScannerJob.JobStatus status,
+            @Param("now") LocalDateTime now
+    );
+
+    /**
      * Find QUEUED jobs for a scanner type, ordered oldest first.
      * Used by the concurrency dispatcher to pick jobs in FIFO order.
      * Pass Pageable to limit results to the number of available slots.

@@ -688,6 +688,13 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
     }
 
     private void markFailed(ScannerJob job, String errorMessage) {
+        // Atomic guard against racing ScannerInvocationHandler.saveResults(): a scanner call
+        // this watchdog judged to have timed out can complete right after this check would
+        // have passed, so the real decision is this WHERE-status claim, not an isTerminal() read.
+        if (scanJobRepository
+                .claimTerminalStatus(job.getId(), ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
+            return;
+        }
         job.setStatus(ScannerJob.JobStatus.FAILED);
         job.setErrorMessage(errorMessage);
         job.setPollLeaseUntil(null);

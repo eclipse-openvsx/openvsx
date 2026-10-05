@@ -28,6 +28,7 @@ import org.eclipse.openvsx.repositories.ScannerJobRepository;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -113,6 +114,8 @@ class ScannerInvocationHandlerTest {
         when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
         when(scanner.startScan(any())).thenReturn(new Scanner.Invocation.Completed(Scanner.Result.clean()));
         when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
+                .thenReturn(1);
         when(persistenceService.processCompletedScan(any(), any(), anyBoolean(), any()))
                 .thenReturn(
                         new ExtensionScanPersistenceService.CompletedScanResult(
@@ -126,5 +129,61 @@ class ScannerInvocationHandlerTest {
         verify(persistenceService).processCompletedScan(any(), any(), anyBoolean(), any());
         verify(completionService).checkCompletionSafely("scan-1");
         verify(scanJobRepository).save(job);
+    }
+
+    @Test
+    void run_discardsLateCleanResultWhenClaimLosesRaceToWatchdog() throws Exception {
+        // The fast-path isTerminal() check alone cannot catch this: the job still reads as
+        // PROCESSING here. Only the atomic claimTerminalStatus() call closes the real gap -
+        // simulated here by the watchdog's own claim having already won it.
+        var job = processingJob();
+        when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
+        when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
+        when(scanner.startScan(any())).thenReturn(new Scanner.Invocation.Completed(Scanner.Result.clean()));
+        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
+                .thenReturn(0);
+
+        newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
+
+        assertEquals(ScannerJob.JobStatus.PROCESSING, job.getStatus());
+        verify(persistenceService, never()).processCompletedScan(any(), any(), anyBoolean(), any());
+        verify(completionService, never()).checkCompletionSafely(any());
+        verify(scanJobRepository, never()).save(any());
+    }
+
+    @Test
+    void run_marksJobFailedWhenScannerThrows() throws Exception {
+        var job = processingJob();
+        when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
+        when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
+        when(scanner.startScan(any())).thenThrow(new RuntimeException("boom"));
+        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
+                .thenReturn(1);
+        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+
+        newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
+
+        assertEquals(ScannerJob.JobStatus.FAILED, job.getStatus());
+        verify(scanJobRepository).save(job);
+        verify(completionService).checkCompletionSafely("scan-1");
+    }
+
+    @Test
+    void run_doesNotOverwriteJobWhenFailClaimLosesRace() throws Exception {
+        // Simulates the job having already been completed (e.g. by saveResults on a previous,
+        // since-retried attempt) by the time this exception-handling claim runs.
+        var job = processingJob();
+        when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
+        when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
+        when(scanner.startScan(any())).thenThrow(new RuntimeException("boom"));
+        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
+                .thenReturn(0);
+
+        newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
+
+        assertEquals(ScannerJob.JobStatus.PROCESSING, job.getStatus());
+        verify(scanJobRepository, never()).save(any());
+        verify(completionService).checkCompletionSafely("scan-1");
     }
 }
