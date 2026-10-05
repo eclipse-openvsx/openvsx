@@ -48,6 +48,17 @@ const OCTOCAT: UserSearchResult = {
     page: { number: 0, size: 25, totalElements: 1, totalPages: 1 }
 };
 
+const TWO_USERS: UserSearchResult = {
+    ...OCTOCAT,
+    content: [
+        ...OCTOCAT.content,
+        {
+            user: { loginName: 'hubot', tokensUrl: '', createTokenUrl: '', provider: 'github' },
+            namespaces: []
+        }
+    ]
+};
+
 describe('AccessControl', () => {
     it('resolves a deep-linked user and shows their role/permission editor', async () => {
         renderAccessControl(serviceWith(OCTOCAT), 'octocat');
@@ -74,6 +85,25 @@ describe('AccessControl', () => {
         await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
 
         expect(screen.queryByRole('checkbox', { name: 'Manage extensions' })).not.toBeInTheDocument();
+    });
+
+    // MUI syncs the search box to the option just picked, which happens before the confirmation is
+    // answered. Declining has to leave the box naming the user still being edited, not the one the
+    // switch was refused for.
+    it('keeps the search box on the edited user when a switch to another is declined', async () => {
+        renderAccessControl(serviceWith(TWO_USERS), 'octocat');
+
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
+
+        const search = screen.getByPlaceholderText('Search by login or display name...');
+        await userEvent.click(search);
+        await userEvent.click(await screen.findByText('hubot'));
+
+        expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect(search).toHaveValue('octocat');
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
     });
 
     it('drops a selection with no unsaved changes without asking', async () => {

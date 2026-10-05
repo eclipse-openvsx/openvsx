@@ -152,11 +152,16 @@ export const AccessControl: FunctionComponent = () => {
     };
 
     const handleInputChange = (_event: SyntheticEvent, value: string, reason: AutocompleteInputChangeReason) => {
-        setInputValue(value);
-        // 'reset' fires when the input syncs to the selected option's label — nothing else to do.
+        // 'reset' fires when the input syncs to the label of the option just picked. While a draft is
+        // dirty that pick is only pending confirmation, so adopting the label here would leave the box
+        // naming a user the card below is not showing. The confirmed switch sets inputValue itself.
         if (reason === 'reset') {
+            if (!dirty) {
+                setInputValue(value);
+            }
             return;
         }
+        setInputValue(value);
         // Typing only searches while there are unsaved edits; the selection survives until an option
         // is actually picked, which is where the confirmation belongs. Asking per keystroke would not.
         if (!dirty) {

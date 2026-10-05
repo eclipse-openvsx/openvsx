@@ -35,6 +35,8 @@ import org.springframework.util.ClassUtils;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.eclipse.openvsx.admin.AdminService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -49,6 +51,9 @@ class AdminEndpointPermissionCheckTest {
 
     private static final Set<String> AUTHORIZATION_CHECKS = Set
             .of("checkPermission", "checkAnyPermission", "checkAdminUser");
+
+    /** Matched on the call's owner too: a same-named method on anything else authorizes nothing. */
+    private static final String ADMIN_SERVICE = Type.getInternalName(AdminService.class);
 
     @Test
     void everyHandlerUnderAdminAuthorizesForItself() throws IOException {
@@ -149,7 +154,9 @@ class AdminEndpointPermissionCheckTest {
                 return new MethodVisitor(Opcodes.ASM9) {
                     @Override
                     public void visitMethodInsn(int op, String owner, String n, String desc, boolean isInterface) {
-                        current.calledNames.add(n);
+                        if (ADMIN_SERVICE.equals(owner) && AUTHORIZATION_CHECKS.contains(n)) {
+                            current.authorizes = true;
+                        }
                         if (internalName.equals(owner)) {
                             current.sameClassCalls.add(n + desc);
                         }
@@ -173,7 +180,7 @@ class AdminEndpointPermissionCheckTest {
             if (calls == null) {
                 continue;
             }
-            if (calls.calledNames.stream().anyMatch(AUTHORIZATION_CHECKS::contains)) {
+            if (calls.authorizes) {
                 return true;
             }
             queue.addAll(calls.sameClassCalls);
@@ -186,7 +193,7 @@ class AdminEndpointPermissionCheckTest {
     }
 
     private static final class MethodCalls {
-        private final Set<String> calledNames = new HashSet<>();
+        private boolean authorizes;
         private final Set<String> sameClassCalls = new HashSet<>();
     }
 }
