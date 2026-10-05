@@ -42,7 +42,7 @@ export * from './components/page-container';
 // Leaf hook modules keep their helpers private, so `export *` exposes only the
 // public hook plus its types (e.g. useSearch + SearchFilter).
 export * from './hooks/use-search';
-export { useRegisterPageSearchBar } from './context/search/page-search-bar-context';
+export { useSearchBar } from './context/search/page-search-bar-context';
 
 // Keyboard shortcuts: register shortcuts from custom pages/components. The hook
 // only takes effect below a KeyboardShortcutsProvider — the built-in AppLayout

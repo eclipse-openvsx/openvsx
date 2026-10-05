@@ -57,6 +57,10 @@ export const NavSearchField: FunctionComponent = () => {
     const fieldRef = useRef<HTMLDivElement>(null);
     const pendingFocus = useRef(false);
     useLayoutEffect(() => {
+        // A page search bar taking over while this field has focus inherits it (e.g. the hero scrolled back into view).
+        if (hasPageSearchBar && document.activeElement === inputRef.current) {
+            searchFocusSignal.emit();
+        }
         if (fieldRef.current) {
             fieldRef.current.inert = hasPageSearchBar;
         }
@@ -64,7 +68,7 @@ export const NavSearchField: FunctionComponent = () => {
             pendingFocus.current = false;
             inputRef.current?.focus({ preventScroll: true });
         }
-    }, [hasPageSearchBar]);
+    }, [hasPageSearchBar, searchFocusSignal.emit]);
 
     // Take focus when requested — unless a page search bar is registered and owns focus instead.
     useSignalEffect(

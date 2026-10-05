@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { ChangeEvent, ComponentType, FunctionComponent, useCallback, useLayoutEffect, useRef } from 'react';
+import { ChangeEvent, ComponentType, FunctionComponent, useLayoutEffect, useRef } from 'react';
 import { Box, ButtonBase, Container, Typography } from '@mui/material';
 import { useLocation } from 'react-router';
 import { styled } from '@mui/material/styles';
@@ -20,8 +20,7 @@ import { SearchBox } from '../../components/search-box';
 import { useSearch } from '../../hooks/use-search';
 import { useSearchQuery } from '../../context/search/search-context';
 import { useSearchFocus } from '../../context/search/search-focus-context';
-import { useRegisterPageSearchBar } from '../../context/search/page-search-bar-context';
-import { useSignalEffect } from '../../hooks/use-signal-effect';
+import { useSearchBar } from '../../context/search/page-search-bar-context';
 import { MONO_FONT } from '../../default/theme';
 
 const PopularChip = styled(ButtonBase)(({ theme }) => ({
@@ -56,49 +55,9 @@ export const HeroSearch: FunctionComponent<HeroSearchProps> = ({
 }) => {
     const { query } = useSearchQuery();
     const { search } = useSearch();
-    const { searchFocusSignal, searchFocused } = useSearchFocus();
+    const { searchFocusSignal } = useSearchFocus();
     const heroInputRef = useRef<HTMLInputElement>(null);
-    const isActiveSearchBar = useRegisterPageSearchBar(heroInputRef);
-
-    // Focus the hero input on request (e.g. the '/' shortcut) — the nav field owns focus while the hero is out of view.
-    useSignalEffect(
-        searchFocusSignal,
-        useCallback(() => {
-            const el = heroInputRef.current;
-            if (!el || !isActiveSearchBar) {
-                return;
-            }
-            el.focus();
-            // Move cursor to end so the user can keep typing.
-            requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
-        }, [isActiveSearchBar])
-    );
-
-    // Route focus across the scroll swap: the field taking over grabs focus if
-    // its counterpart had it (the signal routes to the active bar).
-    const wasActiveSearchBar = useRef(isActiveSearchBar);
-    useLayoutEffect(() => {
-        if (wasActiveSearchBar.current === isActiveSearchBar) {
-            return;
-        }
-        wasActiveSearchBar.current = isActiveSearchBar;
-        if (isActiveSearchBar) {
-            if (searchFocused) searchFocusSignal.emit();
-        } else if (document.activeElement === heroInputRef.current) {
-            searchFocusSignal.emit();
-        }
-    }, [isActiveSearchBar, searchFocused, searchFocusSignal.emit]);
-
-    // Hand focus to the nav field when the hero unmounts mid-typing — otherwise
-    // focus falls to <body> until the morph ends and keystrokes are swallowed.
-    useLayoutEffect(
-        () => () => {
-            if (document.activeElement === heroInputRef.current) {
-                searchFocusSignal.emit();
-            }
-        },
-        [searchFocusSignal.emit]
-    );
+    const isActiveSearchBar = useSearchBar(heroInputRef);
 
     // Focus the search by default when the hero page is the app's landing page.
     const { key: locationKey } = useLocation();

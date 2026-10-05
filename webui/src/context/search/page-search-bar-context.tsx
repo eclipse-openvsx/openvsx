@@ -23,6 +23,9 @@ import {
     useRef,
     useState
 } from 'react';
+import { useInView } from '../../hooks/use-in-view';
+import { useSignalEffect } from '../../hooks/use-signal-effect';
+import { useSearchFocus } from './search-focus-context';
 
 /**
  * Tracks whether a page-level search bar (e.g. the home hero) is active — the
@@ -49,44 +52,50 @@ export function usePageSearchBar(): PageSearchBarValue {
     return useContext(PageSearchBarContext);
 }
 
+const focusAtEnd = (node: HTMLElement) => {
+    node.focus();
+    if (node instanceof HTMLInputElement) {
+        // Move cursor to end so the user can keep typing.
+        requestAnimationFrame(() => node.setSelectionRange(node.value.length, node.value.length));
+    }
+};
+
 /**
- * Marks the calling component as the page's search bar, so the nav bar hides its
- * own field and hands focus requests over. Registered while mounted, or — when
- * `visibilityRef` is given — only while that element is in the viewport. Returns
- * whether the bar is currently registered; callers gate focus handling and their
- * view-transition name on it.
+ * Makes the element behind `ref` the page's search bar while it is in the viewport: the
+ * nav bar hides its own field and hands focus requests (e.g. the '/' shortcut) over to it,
+ * and gets focus back when the bar scrolls away or unmounts while focused. Returns whether
+ * the bar is registered; callers gate their view-transition name on it. Whether any bar is
+ * registered is read with `usePageSearchBar`.
  */
 // eslint-disable-next-line react-refresh/only-export-components
-export function useRegisterPageSearchBar(visibilityRef?: RefObject<Element>): boolean {
+export function useSearchBar(ref: RefObject<HTMLElement>): boolean {
     const { registerPageSearchBar } = usePageSearchBar();
-    const [registered, setRegistered] = useState(true);
+    const { searchFocusSignal } = useSearchFocus();
+    // Follows the bar out of view, and assumes it in view until measured so the nav field doesn't flash on load.
+    const inView = useInView(ref, { once: false, rootMargin: '0px', initialInView: true });
+
     // Layout effect so the count is updated before other layout effects in the same commit.
     useLayoutEffect(() => {
-        const el = visibilityRef?.current;
-        if (!el) {
-            return registerPageSearchBar();
+        if (!inView) {
+            return;
         }
-        let unregister: (() => void) | undefined;
-        const update = (visible: boolean) => {
-            if (visible && !unregister) {
-                unregister = registerPageSearchBar();
-            } else if (!visible && unregister) {
-                unregister();
-                unregister = undefined;
-            }
-            setRegistered(visible);
-        };
-        // Seed synchronously — the observer's first callback is async and the nav field would flash.
-        const rect = el.getBoundingClientRect();
-        update(rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth);
-        const observer = new IntersectionObserver(entries => update(entries[entries.length - 1].isIntersecting));
-        observer.observe(el);
+        const unregister = registerPageSearchBar();
         return () => {
-            observer.disconnect();
-            unregister?.();
+            const hadFocus = ref.current != null && document.activeElement === ref.current;
+            unregister();
+            // Scrolled away or unmounted mid-typing: hand focus to the nav field, or it falls to <body>.
+            if (hadFocus) searchFocusSignal.emit();
         };
-    }, [registerPageSearchBar, visibilityRef]);
-    return registered;
+    }, [inView, ref, registerPageSearchBar, searchFocusSignal.emit]);
+
+    useSignalEffect(
+        searchFocusSignal,
+        useCallback(() => {
+            if (inView && ref.current) focusAtEnd(ref.current);
+        }, [inView, ref])
+    );
+
+    return inView;
 }
 
 export const PageSearchBarProvider: FunctionComponent<{ children: ReactNode }> = ({ children }) => {
