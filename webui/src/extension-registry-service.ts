@@ -351,7 +351,8 @@ export class ExtensionRegistryService {
     async createAccessToken(
         abortController: AbortController,
         user: UserData,
-        description: string
+        description: string,
+        scope?: { namespace?: string; extension?: string }
     ): Promise<Readonly<PersonalAccessToken>> {
         const csrfResponse = await this.getCsrfToken(abortController);
         const headers: Record<string, string> = {};
@@ -360,7 +361,11 @@ export class ExtensionRegistryService {
             headers[csrfToken.header] = csrfToken.value;
         }
 
-        const endpoint = addQuery(user.createTokenUrl, [{ key: 'description', value: description }]);
+        const endpoint = addQuery(user.createTokenUrl, [
+            { key: 'description', value: description },
+            { key: 'namespace', value: scope?.namespace },
+            { key: 'extension', value: scope?.extension }
+        ]);
         return sendRequest({
             abortController,
             method: 'POST',

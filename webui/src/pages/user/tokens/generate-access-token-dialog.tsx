@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { FunctionComponent, useContext, useRef, useState } from 'react';
-import { Button } from '@mui/material';
+import { Box, Button, TextField } from '@mui/material';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { isError } from '../../../extension-registry-types';
 import { MainContext } from '../../../context';
@@ -18,12 +18,17 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
     const context = useContext(MainContext);
     const abortController = useRef<AbortController>(new AbortController());
     const [open, setOpen] = useState(false);
+    const [namespace, setNamespace] = useState('');
+    const [extension, setExtension] = useState('');
 
     const handleGenerate = async (description: string): Promise<string> => {
         if (!context.user) {
             throw new Error('Not logged in');
         }
-        const token = await context.service.createAccessToken(abortController.current, context.user, description);
+        const token = await context.service.createAccessToken(abortController.current, context.user, description, {
+            namespace: namespace.trim() || undefined,
+            extension: extension.trim() || undefined
+        });
         if (isError(token)) {
             throw token;
         }
@@ -40,10 +45,31 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
             </Button>
             <GenerateTokenDialog
                 open={open}
-                onClose={() => setOpen(false)}
+                onClose={() => {
+                    setOpen(false);
+                    setNamespace('');
+                    setExtension('');
+                }}
                 onGenerate={handleGenerate}
-                onError={context.handleError}
-            />
+                onError={context.handleError}>
+                <Box mt={2} display='flex' flexDirection='column' gap={2}>
+                    <TextField
+                        fullWidth
+                        label='Namespace (optional)'
+                        helperText='Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
+                        value={namespace}
+                        onChange={e => setNamespace(e.target.value)}
+                    />
+                    <TextField
+                        fullWidth
+                        label='Extension (optional)'
+                        helperText='Restrict the token to one extension of the namespace.'
+                        disabled={!namespace.trim()}
+                        value={extension}
+                        onChange={e => setExtension(e.target.value)}
+                    />
+                </Box>
+            </GenerateTokenDialog>
         </>
     );
 };

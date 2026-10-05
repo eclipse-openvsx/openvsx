@@ -264,6 +264,60 @@ class AccessTokenServiceTest {
         assertThat(values).doesNotHaveDuplicates();
     }
 
+    @Test
+    void scopesALongLivedTokenToTheExtensionWhenGiven() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(namespace);
+        when(config.getPrefix()).thenReturn("ovsx");
+
+        var json = accessTokenService.createLongLivedAccessToken(new UserData(), "scoped", namespace, extension);
+
+        var persisted = ArgumentCaptor.forClass(PersonalAccessToken.class);
+        verify(entityManager).persist(persisted.capture());
+        assertThat(persisted.getValue().getType()).isEqualTo(PersonalAccessTokenType.LLT);
+        assertThat(persisted.getValue().getScopeExtension()).isSameAs(extension);
+        assertThat(persisted.getValue().getScopeNamespace()).isNull();
+        assertThat(json.getScopeNamespace()).isEqualTo("foo");
+        assertThat(json.getScopeExtension()).isEqualTo("bar");
+    }
+
+    @Test
+    void scopesALongLivedTokenToTheNamespaceWhenGiven() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        when(config.getPrefix()).thenReturn("ovsx");
+
+        var json = accessTokenService.createLongLivedAccessToken(new UserData(), "scoped", namespace, null);
+
+        var persisted = ArgumentCaptor.forClass(PersonalAccessToken.class);
+        verify(entityManager).persist(persisted.capture());
+        assertThat(persisted.getValue().getScopeNamespace()).isSameAs(namespace);
+        assertThat(json.getScopeNamespace()).isEqualTo("foo");
+        assertThat(json.getScopeExtension()).isNull();
+    }
+
+    @Test
+    void enforcesTheNamespaceScopeOfALongLivedToken() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        token.setScopeNamespace(namespace);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "bar")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("other", "bar")))
+                .isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.VerifyNamespace("other")))
+                .isNull();
+        // identifying the caller is not an action on any namespace
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNotNull();
+    }
+
     // How long a publishing token lives is the trusted publishing configuration's to decide, so this
     // service applies whatever it is handed instead of reading a setting of its own.
     @Test

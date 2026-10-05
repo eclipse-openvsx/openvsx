@@ -206,6 +206,40 @@ class UserAPITest {
     }
 
     @Test
+    void testCreateAccessTokenScopedToUnknownNamespace() throws Exception {
+        mockUserData();
+        mockMvc.perform(
+                post("/user/token/create?namespace={namespace}", "unknown")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToExtensionNeedsNamespace() throws Exception {
+        mockUserData();
+        mockMvc.perform(
+                post("/user/token/create?extension={extension}", "bar")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToNamespaceWithoutPublishPermission() throws Exception {
+        mockUserData();
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        Mockito.when(repositories.findNamespace("foo")).thenReturn(namespace);
+        Mockito.doReturn(false).when(users).hasPublishPermission(any(), any());
+        mockMvc.perform(
+                post("/user/token/create?namespace={namespace}", "foo")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void testCreateAccessTokenNotLoggedIn() throws Exception {
         mockMvc.perform(
                 post("/user/token/create?description={description}", "This is my token")

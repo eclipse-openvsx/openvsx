@@ -68,6 +68,9 @@ public sealed interface AccessTokenScope {
         @Override
         public boolean allowsAction(AccessTokenAction accessTokenAction) {
             requireNonNull(accessTokenAction);
+            if (accessTokenAction instanceof AccessTokenAction.VerifyNamespace) {
+                return extension.getNamespace().getName().equalsIgnoreCase(accessTokenAction.namespace().get());
+            }
             return accessTokenAction.namespace().isPresent() && accessTokenAction.extension().isPresent() &&
                     extension.getNamespace().getName().equalsIgnoreCase(accessTokenAction.namespace().get()) &&
                     extension.getName().equalsIgnoreCase(accessTokenAction.extension().get());

@@ -245,6 +245,8 @@ export interface PersonalAccessToken {
     notified?: boolean;
     description: string;
     deleteTokenUrl: UrlString;
+    scopeNamespace?: string;
+    scopeExtension?: string;
 }
 
 export const CATEGORIES = [

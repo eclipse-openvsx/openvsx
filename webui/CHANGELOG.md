@@ -12,6 +12,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Add a default max extension size field to the admin dashboard's Settings page, backed by a new `max-extension-size` runtime setting; falls back to the server's configured `ovsx.publishing.max-content-size` until an admin sets it explicitly ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 - Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
+- Let a personal access token be restricted to a namespace or a single extension when it is generated, and show that scope in the token list ([#957](https://github.com/eclipse-openvsx/openvsx/issues/957))
+
 ### Changed
 
 - Return to the page a login started from, instead of always landing on the front page (#2148)

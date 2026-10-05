@@ -117,6 +117,12 @@ public class PersonalAccessToken implements Serializable {
         }
         json.setNotified(this.isNotified());
         json.setDescription(this.getDescription());
+        if (scopeExtension != null) {
+            json.setScopeNamespace(scopeExtension.getNamespace().getName());
+            json.setScopeExtension(scopeExtension.getName());
+        } else if (scopeNamespace != null) {
+            json.setScopeNamespace(scopeNamespace.getName());
+        }
         return json;
     }
 

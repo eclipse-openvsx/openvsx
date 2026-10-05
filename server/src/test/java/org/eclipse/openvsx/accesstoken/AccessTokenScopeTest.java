@@ -50,4 +50,15 @@ class AccessTokenScopeTest {
         assertThat(scope.allowsAction(new AccessTokenAction.PublishVersion("seniorturkmen", "other"))).isFalse();
         assertThat(scope.allowsAction(new AccessTokenAction.PublishVersion("other", "gitblamesolo"))).isFalse();
     }
+
+    @Test
+    void verifyNamespaceMatchesNamespaceOfBothScopes() {
+        var namespaceScope = new AccessTokenScope.NamespaceScoped(namespace("seniorturkmen"));
+        var extensionScope = new AccessTokenScope.ExtensionScoped(extension("seniorturkmen", "gitblamesolo"));
+
+        for (var scope : new AccessTokenScope[] { namespaceScope, extensionScope }) {
+            assertThat(scope.allowsAction(new AccessTokenAction.VerifyNamespace("SeniorTurkmen"))).isTrue();
+            assertThat(scope.allowsAction(new AccessTokenAction.VerifyNamespace("other"))).isFalse();
+        }
+    }
 }

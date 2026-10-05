@@ -117,10 +117,16 @@ public class AccessTokenService {
     }
 
     /**
-     * Creates a long-lived token for user. Depending on configuration, the token expiration may be set as well.
+     * Creates a long-lived token for user, scoped to the extension if given, else to the namespace if given.
+     * Depending on configuration, the token expiration may be set as well.
      */
     @Transactional
-    public AccessTokenJson createLongLivedAccessToken(UserData user, String description) {
+    public AccessTokenJson createLongLivedAccessToken(
+            UserData user,
+            String description,
+            @Nullable Namespace scopeNamespace,
+            @Nullable Extension scopeExtension
+    ) {
         requireNonNull(user);
         final LocalDateTime expiresTimestamp = config.isTokenExpiryEnabled()
                 ? TimeUtil.getCurrentUTC().plus(config.getExpiration())
@@ -131,8 +137,8 @@ public class AccessTokenService {
                 expiresTimestamp,
                 null,
                 null,
-                null,
-                null,
+                scopeExtension,
+                scopeNamespace,
                 PersonalAccessTokenType.LLT);
     }
 
@@ -281,7 +287,7 @@ public class AccessTokenService {
         }
         // scope
         AccessTokenScope scope = getScope(token);
-        if (!scope.allowsAction(accessTokenAction)) {
+        if (!(accessTokenAction instanceof AccessTokenAction.Verify) && !scope.allowsAction(accessTokenAction)) {
             return null;
         }
         // bookkeeping; if "using"

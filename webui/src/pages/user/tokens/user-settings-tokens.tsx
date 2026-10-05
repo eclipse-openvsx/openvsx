@@ -126,6 +126,12 @@ export const UserSettingsTokens: FunctionComponent = () => {
                         }}>
                         {token.description}
                     </Typography>
+                    {token.scopeNamespace ? (
+                        <Typography sx={{ fontSize: '0.78125rem', color: 'text.disabled', mt: '0.125rem' }}>
+                            Scope: {token.scopeNamespace}
+                            {token.scopeExtension ? `.${token.scopeExtension}` : ''}
+                        </Typography>
+                    ) : null}
                     <Typography sx={{ fontSize: '0.78125rem', color: 'text.disabled', mt: '0.125rem' }}>
                         Expires{' '}
                         {token.expiresTimestamp ? (
