@@ -12,12 +12,23 @@
  *****************************************************************************/
 
 import { ReactNode } from 'react';
+import { AdminPermission } from '../../extension-registry-types';
 
 export interface RouteEntry {
     path: string;
     name: string;
     icon: ReactNode;
     description?: string;
+    /**
+     * The permission required to see and use this page. Omitted for a page any admin-dashboard
+     * user may see (a contributed page, or one gated by {@link adminOnly} instead).
+     */
+    permission?: AdminPermission;
+    /**
+     * Visible only to the `admin` role itself, not delegable via any permission - for actions that
+     * are privilege escalation (granting role/permissions), where "some capability" isn't enough.
+     */
+    adminOnly?: boolean;
 }
 
 export interface NavGroup {

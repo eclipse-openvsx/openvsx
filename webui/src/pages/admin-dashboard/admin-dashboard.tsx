@@ -75,31 +75,36 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.NAMESPACE_ADMIN,
                 name: 'Namespaces',
                 icon: <AssignmentIndIcon />,
-                description: 'Manage user roles and create new namespaces'
+                description: 'Manage user roles and create new namespaces',
+                permission: 'manage_namespaces'
             },
             {
                 path: AdminDashboardRoutes.EXTENSION_ADMIN,
                 name: 'Extensions',
                 icon: <ExtensionSharpIcon />,
-                description: 'Search for extensions and remove certain versions'
+                description: 'Search for extensions and remove certain versions',
+                permission: 'manage_extensions'
             },
             {
                 path: AdminDashboardRoutes.PUBLISHER_ADMIN,
                 name: 'Publisher',
                 icon: <PersonIcon />,
-                description: 'Search for publishers and revoke their contributions'
+                description: 'Search for publishers and revoke their contributions',
+                permission: 'manage_publishers'
             },
             {
                 path: AdminDashboardRoutes.SCANS_ADMIN,
                 name: 'Scans',
                 icon: <SecurityIcon />,
-                description: 'View security scan results and manage quarantined extensions'
+                description: 'View security scan results and manage quarantined extensions',
+                permission: 'manage_scans'
             },
             {
                 path: AdminDashboardRoutes.SIZE_OVERRIDES,
                 name: 'Size overrides',
                 icon: <StraightenIcon />,
-                description: 'Per-namespace and per-extension upload size limits'
+                description: 'Per-namespace and per-extension upload size limits',
+                permission: 'manage_extensions'
             }
         ]
     },
@@ -111,13 +116,15 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.SEARCH_INDEX,
                 name: 'Search Index',
                 icon: <ManageSearchIcon />,
-                description: 'Inspect the search index and rebuild it'
+                description: 'Inspect the search index and rebuild it',
+                permission: 'manage_search_index'
             },
             {
                 path: AdminDashboardRoutes.SEARCH_EXPLAIN,
                 name: 'Search Explain',
                 icon: <TroubleshootIcon />,
-                description: "Run a search and see what each result's score is made of"
+                description: "Run a search and see what each result's score is made of",
+                permission: 'manage_search_index'
             }
         ]
     },
@@ -129,13 +136,15 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.CACHES,
                 name: 'Caches',
                 icon: <StorageIcon />,
-                description: 'Inspect the application caches and clear them'
+                description: 'Inspect the application caches and clear them',
+                permission: 'manage_caches'
             },
             {
                 path: AdminDashboardRoutes.CONSISTENCY,
                 name: 'Data Consistency',
                 icon: <FactCheckIcon />,
-                description: 'Check the database for known inconsistencies and fix them'
+                description: 'Check the database for known inconsistencies and fix them',
+                permission: 'manage_consistency'
             }
         ]
     },
@@ -147,19 +156,22 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.LOGS,
                 name: 'Logs',
                 icon: <HistoryIcon />,
-                description: 'Browse admin activity logs'
+                description: 'Browse admin activity logs',
+                permission: 'view_reports'
             },
             {
                 path: AdminDashboardRoutes.SETTINGS,
                 name: 'Settings',
                 icon: <SettingsIcon />,
-                description: 'Manage runtime settings for the registry'
+                description: 'Manage runtime settings for the registry',
+                permission: 'manage_settings'
             },
             {
                 path: AdminDashboardRoutes.ACCESS_CONTROL,
                 name: 'Access Control',
                 icon: <VerifiedUserIcon />,
-                description: "Manage a user's role and individually granted permissions"
+                description: "Manage a user's role and individually granted permissions",
+                adminOnly: true
             }
         ]
     },
@@ -171,19 +183,22 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.TIERS,
                 name: 'Tiers',
                 icon: <StarIcon />,
-                description: 'Manage rate-limit tiers'
+                description: 'Manage rate-limit tiers',
+                permission: 'manage_rate_limits'
             },
             {
                 path: AdminDashboardRoutes.CUSTOMERS,
                 name: 'Customers',
                 icon: <PeopleIcon />,
-                description: 'Manage rate-limit customers'
+                description: 'Manage rate-limit customers',
+                permission: 'manage_rate_limits'
             },
             {
                 path: AdminDashboardRoutes.USAGE_STATS,
                 name: 'Usage Stats',
                 icon: <BarChartIcon />,
-                description: 'Show usage stats for customers'
+                description: 'Show usage stats for customers',
+                permission: 'manage_rate_limits'
             }
         ]
     },
@@ -195,7 +210,8 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.STATISTICS,
                 name: 'Statistics',
                 icon: <AssessmentIcon />,
-                description: 'Registry statistics per month, with a CSV export'
+                description: 'Registry statistics per month, with a CSV export',
+                permission: 'view_reports'
             }
         ]
     }
@@ -240,6 +256,30 @@ function withContributedPages(pages: AdminPage[]): NavEntry[] {
         }
     }
     return entries;
+}
+
+/**
+ * Whether `entry` belongs in the sidebar/overview for `user` - a contributed page (neither field
+ * set) always does; a built-in one needs the permission it declares, or the admin role for one
+ * marked {@link RouteEntry.adminOnly}.
+ */
+function isVisible(entry: RouteEntry, user: UserData | undefined): boolean {
+    if (entry.adminOnly) {
+        return user?.role === 'admin';
+    }
+    if (entry.permission) {
+        return hasPermission(user, entry.permission);
+    }
+    return true;
+}
+
+/** Drops pages the user has no access to, and any group left with no visible children. */
+function filterNavItems(items: NavEntry[], user: UserData | undefined): NavEntry[] {
+    return items
+        .map(entry =>
+            isNavGroup(entry) ? { ...entry, children: entry.children.filter(c => isVisible(c, user)) } : entry
+        )
+        .filter(entry => (isNavGroup(entry) ? entry.children.length > 0 : isVisible(entry, user)));
 }
 
 function buildRouteNames(items: NavEntry[]): { [key: string]: string } {
@@ -319,7 +359,7 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                 .filter(page => page.path.length > 0 && !builtInSegments.has(page.path.split('/')[0])),
         [adminPages]
     );
-    const navItems = useMemo(() => withContributedPages(contributed), [contributed]);
+    const navItems = useMemo(() => filterNavItems(withContributedPages(contributed), user), [contributed, user]);
     const routeNames = useMemo(() => buildRouteNames(navItems), [navItems]);
 
     const navigate = useNavigate();

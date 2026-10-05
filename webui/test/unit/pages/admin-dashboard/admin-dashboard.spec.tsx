@@ -121,16 +121,42 @@ describe('AdminDashboard permission gating', () => {
     it('shows the dashboard shell for a non-admin user with at least one granted permission', () => {
         renderDashboard(undefined, '/', extensionManager);
 
-        // The sidebar is static nav config, so this confirms the shell rendered without needing
-        // role === 'admin' - the previous behavior would have shown "not authorized" instead.
-        // "Namespaces" matches twice: the sidebar entry plus its group's expanded overview card.
-        expect(screen.getAllByText('Namespaces').length).toBeGreaterThan(0);
+        // The previous behavior would have shown "not authorized" instead - this confirms the
+        // shell rendered without needing role === 'admin'. "Extensions" matches twice: the sidebar
+        // entry plus its group's expanded overview card.
+        expect(screen.getAllByText('Extensions').length).toBeGreaterThan(0);
     });
 
     it('still shows "not authorized" for a user with no role and no granted permissions', () => {
         renderDashboard(undefined, '/', noPermissions);
 
         expect(screen.getByText('You are not authorized as administrator.')).toBeInTheDocument();
+    });
+
+    it('hides a page from the sidebar and overview the user has no permission for', () => {
+        renderDashboard(undefined, '/', extensionManager);
+
+        expect(screen.queryByText('Namespaces')).not.toBeInTheDocument();
+    });
+
+    it('hides a nav group entirely once none of its pages are visible to the user', () => {
+        renderDashboard(undefined, '/', extensionManager);
+
+        // Rate Limiting holds only manage_rate_limits pages - extensionManager has none of them.
+        expect(screen.queryByText('Rate Limiting')).not.toBeInTheDocument();
+    });
+
+    it('always shows a contributed page regardless of permissions, since it has none of its own', () => {
+        renderDashboard([agentsPage], '/', extensionManager);
+
+        expect(screen.getAllByText('Agents').length).toBeGreaterThan(0);
+    });
+
+    it('still shows every page to a full admin', () => {
+        renderDashboard(undefined, '/', admin);
+
+        expect(screen.getAllByText('Namespaces').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Access Control').length).toBeGreaterThan(0);
     });
 
     // The route renders regardless of permission - only Guard, inside it, decides what shows - so
