@@ -67,7 +67,12 @@ public class UserData implements Serializable {
     @Convert(converter = UserRoleConverter.class)
     private Role role;
 
-    @ElementCollection(fetch = FetchType.LAZY)
+    // EAGER, unlike tokens/memberships below: UserService#findLoggedInUser loads this entity with a
+    // bare entityManager.find() outside any transaction, and every real deployment config sets
+    // spring.jpa.open-in-view: false, so there is no session left afterward for a LAZY collection to
+    // initialize from - exactly the LazyInitializationException role never has, being a plain column
+    // the find() call itself already materializes.
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_data_permission", joinColumns = @JoinColumn(name = "user_data_id"))
     @Column(name = "permission", length = 32)
     @Convert(converter = PermissionConverter.class)
@@ -236,8 +241,8 @@ public class UserData implements Serializable {
 
     // tokens and memberships are deliberately excluded below: each of their elements holds this
     // user back (PersonalAccessToken#user, NamespaceMembership#user), so hashing them here would
-    // recurse into this user's hashCode again, unconditionally. permissions is excluded too since
-    // it is LAZY like they are, and equals/hashCode are called on detached instances in tests.
+    // recurse into this user's hashCode again, unconditionally. permissions has no such back-reference
+    // and is EAGER, so it carries no risk of either problem.
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -249,6 +254,7 @@ public class UserData implements Serializable {
         UserData userData = (UserData) o;
         return id == userData.id
                 && Objects.equals(role, userData.role)
+                && Objects.equals(permissions, userData.permissions)
                 && Objects.equals(loginName, userData.loginName)
                 && Objects.equals(fullName, userData.fullName)
                 && Objects.equals(email, userData.email)
@@ -265,6 +271,7 @@ public class UserData implements Serializable {
         return Objects.hash(
                 id,
                 role,
+                permissions,
                 loginName,
                 fullName,
                 email,
