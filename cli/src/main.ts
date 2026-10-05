@@ -39,17 +39,17 @@ module.exports = function (argv: string[]): void {
     const createNamespaceCmd = program.command('create-namespace <name>');
     createNamespaceCmd.description('Create a new namespace')
         .action((name: string) => {
-            const { registryUrl, pat } = program.opts();
+            const { registryUrl, pat, debug } = program.opts();
             createNamespace({ name, registryUrl, pat })
-                .catch(handleError(program.opts().debug));
+                .catch(handleError(debug));
         });
 
     const verifyTokenCmd = program.command('verify-pat [namespace]');
     verifyTokenCmd.description('Verify that a personal access token can publish to a namespace')
         .action((namespace?: string) => {
-            const { registryUrl, pat } = program.opts();
+            const { registryUrl, pat, debug } = program.opts();
             verifyPat({ namespace, registryUrl, pat })
-                .catch(handleError(program.opts().debug));
+                .catch(handleError(debug));
         });
 
     const publishCmd = program.command('publish [extension.vsix]');
@@ -89,7 +89,7 @@ module.exports = function (argv: string[]): void {
                 console.warn("Ignoring option '--packageVersion' for prepackaged extension.");
             if (extensionFile !== undefined && allowMissingRepository !== undefined)
                 console.warn("Ignoring option '--allow-missing-repository' for prepackaged extension.");
-            const { registryUrl, pat } = program.opts();
+            const { registryUrl, pat, debug } = program.opts();
             publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience })
                 .then(results => {
                     const reasons = results.filter(result => result.status === 'rejected')
@@ -98,7 +98,7 @@ module.exports = function (argv: string[]): void {
                     if (reasons.length > 0) {
                         const message = 'See the documentation for more information:\n'
                             + 'https://github.com/eclipse/openvsx/wiki/Publishing-Extensions';
-                        const errorHandler = handleError(program.opts().debug, message, false);
+                        const errorHandler = handleError(debug, message, false);
                         for (const reason of reasons) {
                             errorHandler(reason);
                         }
@@ -114,7 +114,7 @@ module.exports = function (argv: string[]): void {
         .option('-t, --target <targets...>', 'Only delete the given target architectures of the given versions.')
         .option('-f, --force', 'Skip the confirmation prompt.')
         .action((extensionId: string | undefined, { versions, target, force }) => {
-            const { registryUrl, pat } = program.opts();
+            const { registryUrl, pat, debug } = program.opts();
             unpublish({
                 extensionId,
                 versions: typeof versions === 'string' ? [versions] : versions,
@@ -122,7 +122,7 @@ module.exports = function (argv: string[]): void {
                 force,
                 registryUrl,
                 pat
-            }).catch(handleError(program.opts().debug));
+            }).catch(handleError(debug));
         });
 
     const searchCmd = program.command('search [text]');
@@ -139,17 +139,17 @@ module.exports = function (argv: string[]): void {
         .option('--sort-order <order>', `Sort order: ${SORT_ORDERS.join(', ')}.`)
         .option('--json', 'Print the raw results as JSON.')
         .action((text: string | undefined, { category, target, size, offset, sortBy, sortOrder, json }) => {
-            const { registryUrl } = program.opts();
+            const { registryUrl, debug } = program.opts();
             search({ text, category, target, size, offset, sortBy, sortOrder, json, registryUrl })
-                .catch(handleError(program.opts().debug));
+                .catch(handleError(debug));
         });
 
     const listCmd = program.command('list <namespace>');
     listCmd.description('List the extensions published in a namespace.')
         .option('--json', 'Print the raw namespace metadata as JSON.')
         .action((namespace: string, { json }) => {
-            const { registryUrl } = program.opts();
-            list({ namespace, json, registryUrl }).catch(handleError(program.opts().debug));
+            const { registryUrl, debug } = program.opts();
+            list({ namespace, json, registryUrl }).catch(handleError(debug));
         });
 
     const showCmd = program.command('show <namespace.extension[@version]>');
@@ -158,8 +158,8 @@ module.exports = function (argv: string[]): void {
         .option('--all-versions', 'List every published version instead of the most recent few.')
         .option('--json', 'Print the raw metadata as JSON.')
         .action((extensionId: string, { target, allVersions, json }) => {
-            const { registryUrl } = program.opts();
-            show({ extensionId, target, allVersions, json, registryUrl }).catch(handleError(program.opts().debug));
+            const { registryUrl, debug } = program.opts();
+            show({ extensionId, target, allVersions, json, registryUrl }).catch(handleError(debug));
         });
 
     const getCmd = program.command('get <namespace.extension>');
@@ -169,18 +169,18 @@ module.exports = function (argv: string[]): void {
         .option('-o, --output <path>', 'Save the output in the specified file or directory.')
         .option('--metadata', 'Print the extension\'s metadata instead of downloading it.')
         .action((extensionId: string, { target, versionRange, output, metadata }) => {
-            const { registryUrl } = program.opts();
+            const { registryUrl, debug } = program.opts();
             getExtension({ extensionId, target: target, version: versionRange, registryUrl, output, metadata })
-                .catch(handleError(program.opts().debug));
+                .catch(handleError(debug));
         });
 
     const verifyCmd = program.command('verify <extension.vsix>');
     verifyCmd.description('Verify a downloaded package\'s signature against the registry\'s public key.')
         .option('-t, --target <target>', 'Target architecture')
         .action((packagePath: string, { target }) => {
-            const { registryUrl } = program.opts();
+            const { registryUrl, debug } = program.opts();
             verify({ packagePath, target, registryUrl })
-                .catch(handleError(program.opts().debug));
+                .catch(handleError(debug));
         });
 
     const verifySignatureCmd = program.command('verify-signature');
@@ -190,21 +190,23 @@ module.exports = function (argv: string[]): void {
         .requiredOption('-s, --signaturePath <path>', 'Path to the signature file.')
         .requiredOption('-k, --publicKeyPath <path>', 'Path to the registry\'s public key file.')
         .action(({ packagePath, manifestPath, signaturePath, publicKeyPath }) => {
+            const { debug } = program.opts();
             verifySignature({ packagePath, manifestPath, signaturePath, publicKeyPath })
-                .catch(handleError(program.opts().debug));
+                .catch(handleError(debug));
         });
 
     const loginCmd = program.command('login <namespace>');
     loginCmd.description('Adds a namespace to the list of known namespaces')
         .action((namespace: string) => {
-            const { registryUrl, pat } = program.opts();
-            login({ namespace, registryUrl, pat }).catch(handleError(program.opts().debug));
+            const { registryUrl, pat, debug } = program.opts();
+            login({ namespace, registryUrl, pat }).catch(handleError(debug));
         });
 
     const logoutCmd = program.command('logout <namespace>');
     logoutCmd.description('Removes a namespace from the list of known namespaces')
         .action((namespace: string) => {
-            logout(namespace).catch(handleError(program.opts().debug));
+            const { debug } = program.opts();
+            logout(namespace).catch(handleError(debug));
         });
 
     program.on('command:*', (operands: string[]) => {
@@ -215,12 +217,9 @@ module.exports = function (argv: string[]): void {
             console.error(`Unknown command '${actualCommand}', did you mean '${suggestion}'?\n`);
         else
             console.error(`Unknown command '${actualCommand}'.\n`);
+        process.exitCode = 1;
         program.help();
     });
 
     program.parse(argv);
-
-    if (process.argv.length <= 2) {
-        program.help();
-    }
 };
