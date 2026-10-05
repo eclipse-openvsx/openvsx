@@ -12,7 +12,6 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as http from 'http';
 import { RegistryOptions } from './registry-options';
 import { TrustedPublishingOptions } from './trusted-publishing-options';
 
@@ -209,11 +208,11 @@ export function redactUrl(url: URL | string): string {
     }
 }
 
-export function statusError(response: http.IncomingMessage): StatusError {
-    const message = response.statusMessage
-        ? `The server responded with status ${response.statusCode}: ${response.statusMessage}`
-        : `The server responded with status ${response.statusCode}.`;
-    return withStatus(new Error(message), response.statusCode);
+export function statusError(response: Pick<Response, 'status' | 'statusText'>): StatusError {
+    const message = response.statusText
+        ? `The server responded with status ${response.status}: ${response.statusText}`
+        : `The server responded with status ${response.status}.`;
+    return withStatus(new Error(message), response.status);
 }
 
 export function readFile(name: string, packagePath?: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {

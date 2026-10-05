@@ -206,6 +206,31 @@ describe('Registry.download', () => {
         expect(fs.existsSync(`${file}.part`), 'the partial download should be cleaned up').toBe(false);
     });
 
+    // The registry answers file requests with a redirect to its storage whenever that is not local.
+    // Storage is another origin, so the proxy credentials must not travel along with the redirect.
+    it('follows a redirect to another origin without forwarding the credentials', async () => {
+        let storageAuthorization: string | undefined = 'not requested';
+        const storage = await serve((req, res) => {
+            storageAuthorization = req.headers.authorization;
+            res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+            res.end('the package');
+        });
+        let registryAuthorization: string | undefined;
+        const url = await serve((req, res) => {
+            registryAuthorization = req.headers.authorization;
+            res.writeHead(302, { Location: `${storage}/blob/foo.bar-1.0.0.vsix` });
+            res.end();
+        });
+        const registry = new Registry({ registryUrl: url, username: 'proxy-user', password: 'proxy-pass' });
+        const file = tempPath('.vsix');
+
+        await registry.download(file, new URL(`${url}/api/foo/bar/1.0.0/file/foo.bar-1.0.0.vsix`));
+
+        expect(fs.readFileSync(file, 'utf-8')).toBe('the package');
+        expect(registryAuthorization).toBe(`Basic ${Buffer.from('proxy-user:proxy-pass').toString('base64')}`);
+        expect(storageAuthorization).toBeUndefined();
+    });
+
     it('does not create the file at all when the download fails', async () => {
         const url = await serve((_, res) => {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
