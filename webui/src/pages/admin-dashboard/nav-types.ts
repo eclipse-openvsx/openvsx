@@ -70,5 +70,11 @@ export interface AdminPage {
      * Without a category the page sits at the top level.
      */
     category?: AdminPageCategory;
+    /**
+     * The permission a user needs to see and open this page. Without it the page stays visible to
+     * the `admin` role only - which is what the whole dashboard required before permissions
+     * existed, so a page that does not opt in keeps the audience it already had.
+     */
+    permission?: AdminPermission;
     element: ReactNode;
 }

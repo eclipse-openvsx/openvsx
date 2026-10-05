@@ -146,8 +146,29 @@ describe('AdminDashboard permission gating', () => {
         expect(screen.queryByText('Rate Limiting')).not.toBeInTheDocument();
     });
 
-    it('always shows a contributed page regardless of permissions, since it has none of its own', () => {
+    // Contributed pages were admin-only by implication for as long as the whole dashboard was.
+    // Opening the dashboard to permission holders must not hand them a consumer's page as well.
+    it('keeps a contributed page that declares no permission admin-only', () => {
         renderDashboard([agentsPage], '/', extensionManager);
+
+        expect(screen.queryByText('Agents')).not.toBeInTheDocument();
+    });
+
+    it('blocks the route of a contributed page that declares no permission', () => {
+        renderDashboard([agentsPage], '/analytics/agents', extensionManager);
+
+        expect(screen.getByText('You are not authorized for this page.')).toBeInTheDocument();
+        expect(screen.queryByText('contributed page body')).not.toBeInTheDocument();
+    });
+
+    it('shows a contributed page to a holder of the permission it declares', () => {
+        renderDashboard([{ ...agentsPage, permission: 'manage_extensions' }], '/analytics/agents', extensionManager);
+
+        expect(screen.getByText('contributed page body')).toBeInTheDocument();
+    });
+
+    it('still shows a contributed page to a full admin', () => {
+        renderDashboard([agentsPage], '/', admin);
 
         expect(screen.getAllByText('Agents').length).toBeGreaterThan(0);
     });

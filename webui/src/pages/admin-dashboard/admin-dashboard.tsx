@@ -37,7 +37,7 @@ import StarIcon from '@mui/icons-material/Star';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { LoginComponent } from '../../default/login';
 import { MainContext } from '../../context';
-import { AdminPermission, UserData } from '../../extension-registry-types';
+import { UserData } from '../../extension-registry-types';
 import { hasAnyAdminAccess, hasPermission } from '../../permissions';
 import { createRoute } from '../../utils';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
@@ -237,8 +237,16 @@ const toRouteEntry = (page: AdminPage): RouteEntry => ({
     path: createRoute([AdminDashboardRoutes.ROOT, page.path]),
     name: page.name,
     icon: page.icon,
-    description: page.description
+    description: page.description,
+    ...pageAccess(page)
 });
+
+/**
+ * A contributed page is admin-only unless it declares a permission. The dashboard itself used to
+ * require the admin role, so that was every contributed page's audience; opening the dashboard to
+ * permission holders must not hand them someone else's page along with it.
+ */
+const pageAccess = (page: AdminPage): Access => ({ permission: page.permission, adminOnly: !page.permission });
 
 /** Appends contributed pages, merging each category into a group of that name if one already exists. */
 function withContributedPages(pages: AdminPage[]): NavEntry[] {
@@ -259,12 +267,15 @@ function withContributedPages(pages: AdminPage[]): NavEntry[] {
     return entries;
 }
 
+type Access = Pick<RouteEntry, 'permission' | 'adminOnly'>;
+
 /**
- * Whether `entry` belongs in the sidebar/overview for `user` - a contributed page (neither field
- * set) always does; a built-in one needs the permission it declares, or the admin role for one
- * marked {@link RouteEntry.adminOnly}.
+ * The one access rule, used by both the nav filter and the route {@link Guard} so a page cannot be
+ * hidden from the sidebar yet still answer its own URL. A page needs the permission it declares, or
+ * the admin role if marked {@link RouteEntry.adminOnly}; declaring neither leaves it open to anyone
+ * the dashboard admits.
  */
-function isVisible(entry: RouteEntry, user: UserData | undefined): boolean {
+function isVisible(entry: Access, user: UserData | undefined): boolean {
     if (entry.adminOnly) {
         return user?.role === 'admin';
     }
@@ -323,11 +334,17 @@ const ScrollableContent = styled(Box)(({ theme }) => ({
  * server-side (AdminService#checkPermission); this only avoids rendering a page whose requests
  * would come back 403.
  */
-const Guard: FunctionComponent<{ user: UserData | undefined; permission: AdminPermission; children: ReactNode }> = ({
+const Guard: FunctionComponent<Access & { user: UserData | undefined; children: ReactNode }> = ({
     user,
     permission,
+    adminOnly,
     children
-}) => (hasPermission(user, permission) ? <>{children}</> : <Message message='You are not authorized for this page.' />);
+}) =>
+    isVisible({ permission, adminOnly }, user) ? (
+        <>{children}</>
+    ) : (
+        <Message message='You are not authorized for this page.' />
+    );
 
 const Message: FunctionComponent<{ message: string }> = ({ message }) => {
     return (
@@ -499,21 +516,17 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     <Route
                                         path='/access-control'
                                         element={
-                                            user?.role === 'admin' ? (
+                                            <Guard user={user} adminOnly>
                                                 <AccessControl />
-                                            ) : (
-                                                <Message message='You are not authorized for this page.' />
-                                            )
+                                            </Guard>
                                         }
                                     />
                                     <Route
                                         path='/access-control/:login'
                                         element={
-                                            user?.role === 'admin' ? (
+                                            <Guard user={user} adminOnly>
                                                 <AccessControl />
-                                            ) : (
-                                                <Message message='You are not authorized for this page.' />
-                                            )
+                                            </Guard>
                                         }
                                     />
                                     <Route
@@ -558,7 +571,15 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                     />
                                     {/* Splat so a contributed page can render nested routes; it also matches the bare path. */}
                                     {contributed.map(page => (
-                                        <Route key={page.path} path={`${page.path}/*`} element={page.element} />
+                                        <Route
+                                            key={page.path}
+                                            path={`${page.path}/*`}
+                                            element={
+                                                <Guard user={user} {...pageAccess(page)}>
+                                                    {page.element}
+                                                </Guard>
+                                            }
+                                        />
                                     ))}
                                     <Route path='*' element={<Welcome items={navItems} />} />
                                 </Routes>
