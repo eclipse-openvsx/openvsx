@@ -22,7 +22,10 @@ import { UserRelationships } from '../../extension-registry-types';
 import { ErrorResponse } from '../../server-request';
 import { MainContext } from '../../context';
 import { ExtensionCardList } from '../../components/extension/extension-card-list';
-import { handleError as formatError, toLocalTime } from '../../utils';
+import { createRoute, handleError as formatError, toLocalTime } from '../../utils';
+import { hasPermission } from '../../permissions';
+import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
+import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-routes';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { PublisherForgetUserButton } from './publisher-forget-user-button';
 import { PublisherRevokeContributionsButton } from './publisher-revoke-dialog';
@@ -68,6 +71,17 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
     const busy = useIsMutating({ mutationKey: publisherMutationKey }) > 0;
 
     const { data: publisherInfo, error } = usePublisherInfo(user.loginName, user.provider ?? 'github', true);
+
+    // A publisher's namespaces and extensions are legitimately on show here, but the admin pages for
+    // them need their own permissions - so without those, link to the public pages rather than to a
+    // page that would only answer "not authorized".
+    const namespaceRoute = (name: string) =>
+        hasPermission(currentUser, 'manage_namespaces')
+            ? `${AdminDashboardRoutes.NAMESPACE_ADMIN}/${encodeURIComponent(name)}`
+            : createRoute([NamespaceDetailRoutes.ROOT, name]);
+    const extensionRoutePrefix = hasPermission(currentUser, 'manage_extensions')
+        ? AdminDashboardRoutes.EXTENSION_ADMIN
+        : createRoute([ExtensionDetailRoutes.ROOT]);
 
     const agreementStatus = publisherInfo?.user.publisherAgreement?.status ?? 'none';
     const agreement = AGREEMENT_META[agreementStatus];
@@ -140,7 +154,7 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                     label={ns.name}
                                     size='small'
                                     component={RouterLink}
-                                    to={`${AdminDashboardRoutes.NAMESPACE_ADMIN}/${encodeURIComponent(ns.name)}`}
+                                    to={namespaceRoute(ns.name)}
                                     clickable
                                 />
                             ))}
@@ -186,7 +200,7 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                 <ExtensionCardList
                                     extensions={publisherInfo.extensions}
                                     loading={false}
-                                    routePrefix={AdminDashboardRoutes.EXTENSION_ADMIN}
+                                    routePrefix={extensionRoutePrefix}
                                 />
                             ) : (
                                 <Typography variant='body2' color='text.secondary'>

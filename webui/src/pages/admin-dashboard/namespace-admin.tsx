@@ -15,6 +15,9 @@ import { NamespaceDetailView } from '../../components/namespace/namespace-detail
 import { NamespaceDetailConfigContext } from '../../components/namespace/namespace-detail-config';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { MainContext } from '../../context';
+import { hasPermission } from '../../permissions';
+import { createRoute } from '../../utils';
+import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
 import { StyledInput } from './namespace-input';
 import { SearchListContainer } from './search-list-container';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
@@ -85,6 +88,12 @@ export const NamespaceAdmin: FunctionComponent = () => {
 
     const loading = isFetching || detailLoading;
 
+    // The extension admin page needs its own permission, so for a user who only manages namespaces
+    // these cards link to the public extension page rather than one that would refuse them.
+    const extensionRoutePrefix = hasPermission(user, 'manage_extensions')
+        ? AdminDashboardRoutes.EXTENSION_ADMIN
+        : createRoute([ExtensionDetailRoutes.ROOT]);
+
     let listContainer: ReactNode = '';
     if (currentNamespace && pageSettings && user) {
         // The detail view lays the header out as a flex row, so these only need to be siblings.
@@ -106,7 +115,7 @@ export const NamespaceAdmin: FunctionComponent = () => {
                     setLoadingState={setDetailLoading}
                     namespace={currentNamespace}
                     headerActions={headerActions}
-                    extensionRoutePrefix={AdminDashboardRoutes.EXTENSION_ADMIN}
+                    extensionRoutePrefix={extensionRoutePrefix}
                     fetchExtension={(abortController, extension) =>
                         service.admin.getExtension(abortController, currentNamespace.name, extension.name)
                     }

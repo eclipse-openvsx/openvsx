@@ -18,12 +18,20 @@ import { PublisherDetails } from '../../../../src/pages/admin-dashboard/publishe
 import { ExtensionRegistryService, AdminService } from '../../../../src/extension-registry-service';
 import { PublisherInfo, UserData, UserRelationships } from '../../../../src/extension-registry-types';
 
-function entry(): UserRelationships {
+function entry(namespaces: UserRelationships['namespaces'] = []): UserRelationships {
     return {
         user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github' },
-        namespaces: []
+        namespaces
     };
 }
+
+const admin: UserData = { loginName: 'root', tokensUrl: '', createTokenUrl: '', role: 'admin' };
+const publisherManager: UserData = {
+    loginName: 'sam',
+    tokensUrl: '',
+    createTokenUrl: '',
+    permissions: ['manage_publishers']
+};
 
 function serviceReturning(publisherAgreement?: UserData['publisherAgreement']): ExtensionRegistryService {
     const publisherInfo: PublisherInfo = {
@@ -47,5 +55,32 @@ describe('PublisherDetails — publisher agreement chip', () => {
         });
 
         expect(await screen.findByText('Publisher agreement: Not signed')).toBeInTheDocument();
+    });
+});
+
+/**
+ * A publisher's namespaces are legitimately on show to anyone who may open this page, but the
+ * namespace admin page behind them needs its own permission - so the link has to lead somewhere the
+ * viewer can actually go.
+ */
+describe('PublisherDetails - cross-links out of the page', () => {
+    const namespaces = [{ name: 'redhat' }] as UserRelationships['namespaces'];
+
+    it('links a namespace to its admin page for a user who may open it', async () => {
+        renderWithProviders(<PublisherDetails entry={entry(namespaces)} />, {
+            mainContext: { service: serviceReturning(), user: admin }
+        });
+
+        const link = await screen.findByRole('link', { name: 'redhat' });
+        expect(link).toHaveAttribute('href', '/admin-dashboard/namespaces/redhat');
+    });
+
+    it('links a namespace to its public page for a user without the namespaces permission', async () => {
+        renderWithProviders(<PublisherDetails entry={entry(namespaces)} />, {
+            mainContext: { service: serviceReturning(), user: publisherManager }
+        });
+
+        const link = await screen.findByRole('link', { name: 'redhat' });
+        expect(link).toHaveAttribute('href', '/namespace/redhat');
     });
 });
