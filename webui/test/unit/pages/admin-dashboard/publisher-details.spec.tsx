@@ -67,13 +67,15 @@ describe('PublisherDetails — publisher agreement chip', () => {
  * confirmation dialog that can only end in a 403.
  */
 describe('PublisherDetails — danger zone', () => {
+    // By role throughout: each action is a section heading as well as a button, so a text match
+    // would be ambiguous and would not distinguish the label from the control.
     it('offers the destructive actions on an ordinary user', async () => {
         renderWithProviders(<PublisherDetails entry={entry()} />, {
             mainContext: { service: serviceReturning(), user: publisherManager }
         });
 
-        expect(await screen.findByText('Forget user')).toBeInTheDocument();
-        expect(screen.getByText('Revoke publisher contributions')).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Forget user' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Revoke publisher contributions' })).toBeInTheDocument();
     });
 
     it('withholds them from a delegated manager when the target has access of its own', async () => {
@@ -82,8 +84,8 @@ describe('PublisherDetails — danger zone', () => {
         });
 
         expect(await screen.findByText(/Only a full admin can revoke or erase/)).toBeInTheDocument();
-        expect(screen.queryByText('Forget user')).not.toBeInTheDocument();
-        expect(screen.queryByText('Revoke publisher contributions')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Forget user' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Revoke publisher contributions' })).not.toBeInTheDocument();
     });
 
     it('still offers them to a full admin', async () => {
@@ -91,7 +93,7 @@ describe('PublisherDetails — danger zone', () => {
             mainContext: { service: serviceReturning(), user: admin }
         });
 
-        expect(await screen.findByText('Forget user')).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Forget user' })).toBeInTheDocument();
     });
 });
 

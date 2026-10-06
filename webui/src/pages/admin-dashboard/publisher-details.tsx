@@ -65,19 +65,15 @@ const DangerZone: FunctionComponent<{ publisherInfo: PublisherInfo }> = ({ publi
         <Box sx={{ border: 1, borderColor: 'error.light', borderRadius: 1, overflow: 'hidden' }}>
             {publisherInfo.activeAccessTokenNum > 0 && (
                 <>
-                    <Stack
-                        direction='row'
-                        alignItems='center'
-                        justifyContent='space-between'
-                        sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
                         <Box>
                             <Typography variant='body2' fontWeight={600}>
                                 Revoke access tokens
                             </Typography>
                             <Typography variant='body2' color='text.secondary'>
                                 Deactivate {publisherInfo.activeAccessTokenNum} active access token
-                                {publisherInfo.activeAccessTokenNum === 1 ? '' : 's'} for {loginName}. This cannot
-                                be undone.
+                                {publisherInfo.activeAccessTokenNum === 1 ? '' : 's'} for {loginName}. This cannot be
+                                undone.
                             </Typography>
                         </Box>
                         <Box sx={{ flexShrink: 0, ml: 2 }}>
@@ -285,8 +281,8 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                 <DangerZone publisherInfo={publisherInfo} />
                             ) : (
                                 <Alert severity='info' variant='outlined'>
-                                    {user.loginName} has a role or individually granted permissions. Only a full
-                                    admin can revoke or erase an account that holds admin access of its own.
+                                    {user.loginName} has a role or individually granted permissions. Only a full admin
+                                    can revoke or erase an account that holds admin access of its own.
                                 </Alert>
                             )}
                         </Box>
