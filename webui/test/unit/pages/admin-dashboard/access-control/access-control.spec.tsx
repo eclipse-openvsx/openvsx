@@ -149,7 +149,8 @@ describe('AccessControl', () => {
 
         const search = screen.getByPlaceholderText('Search by login or display name...');
         await userEvent.click(search);
-        await userEvent.click(await screen.findByText('octocat'));
+        // By role: the details card heading carries the login too, so a text match is ambiguous.
+        await userEvent.click(await screen.findByRole('option', { name: /octocat/ }));
 
         expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
         expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
