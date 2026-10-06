@@ -18,7 +18,7 @@ import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import GavelIcon from '@mui/icons-material/Gavel';
-import { UserRelationships } from '../../extension-registry-types';
+import { PublisherInfo, UserRelationships } from '../../extension-registry-types';
 import { ErrorResponse } from '../../server-request';
 import { MainContext } from '../../context';
 import { ExtensionCardList } from '../../components/extension/extension-card-list';
@@ -58,6 +58,67 @@ const DetailSection: FunctionComponent<{ icon: ReactNode; title: string; count?:
     </Box>
 );
 
+/** The destructive publisher actions, shown only to a caller the server would let through. */
+const DangerZone: FunctionComponent<{ publisherInfo: PublisherInfo }> = ({ publisherInfo }) => {
+    const loginName = publisherInfo.user.loginName;
+    return (
+        <Box sx={{ border: 1, borderColor: 'error.light', borderRadius: 1, overflow: 'hidden' }}>
+            {publisherInfo.activeAccessTokenNum > 0 && (
+                <>
+                    <Stack
+                        direction='row'
+                        alignItems='center'
+                        justifyContent='space-between'
+                        sx={{ px: 2, py: 1.5 }}>
+                        <Box>
+                            <Typography variant='body2' fontWeight={600}>
+                                Revoke access tokens
+                            </Typography>
+                            <Typography variant='body2' color='text.secondary'>
+                                Deactivate {publisherInfo.activeAccessTokenNum} active access token
+                                {publisherInfo.activeAccessTokenNum === 1 ? '' : 's'} for {loginName}. This cannot
+                                be undone.
+                            </Typography>
+                        </Box>
+                        <Box sx={{ flexShrink: 0, ml: 2 }}>
+                            <PublisherRevokeTokensButton publisherInfo={publisherInfo} />
+                        </Box>
+                    </Stack>
+                    <Divider />
+                </>
+            )}
+            <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
+                <Box>
+                    <Typography variant='body2' fontWeight={600}>
+                        Revoke publisher contributions
+                    </Typography>
+                    <Typography variant='body2' color='text.secondary'>
+                        Deactivate all extensions, access tokens, and revoke the publisher agreement for {loginName}.
+                        This cannot be undone.
+                    </Typography>
+                </Box>
+                <Box sx={{ flexShrink: 0, ml: 2 }}>
+                    <PublisherRevokeContributionsButton publisherInfo={publisherInfo} />
+                </Box>
+            </Stack>
+            <Divider />
+            <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
+                <Box>
+                    <Typography variant='body2' fontWeight={600}>
+                        Forget user
+                    </Typography>
+                    <Typography variant='body2' color='text.secondary'>
+                        Erase {loginName} in response to a data-protection erasure request. This cannot be undone.
+                    </Typography>
+                </Box>
+                <Box sx={{ flexShrink: 0, ml: 2 }}>
+                    <PublisherForgetUserButton publisherInfo={publisherInfo} />
+                </Box>
+            </Stack>
+        </Box>
+    );
+};
+
 /**
  * The details card for the publisher selected in the search. Identity and role are
  * available immediately from the search result; the account info (agreement, tokens,
@@ -69,6 +130,13 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
     const isCurrentUser = currentUser?.loginName === user.loginName && currentUser?.provider === user.provider;
 
     const busy = useIsMutating({ mutationKey: publisherMutationKey }) > 0;
+
+    // The server refuses to revoke or erase a user who has a role or permissions of their own
+    // unless the caller is a full admin (AdminService#checkMayStripAccessOf) - taking away access
+    // another admin granted is not delegable. Offering the buttons anyway would be a confirmation
+    // dialog that can only end in a 403.
+    const targetHasAccess = Boolean(user.role) || (user.permissions?.length ?? 0) > 0;
+    const mayActOnTarget = !targetHasAccess || currentUser?.role === 'admin';
 
     const { data: publisherInfo, error } = usePublisherInfo(user.loginName, user.provider ?? 'github', true);
 
@@ -213,75 +281,14 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                             <Typography variant='h6' sx={{ mb: 1.5 }}>
                                 Danger Zone
                             </Typography>
-                            <Box
-                                sx={{
-                                    border: 1,
-                                    borderColor: 'error.light',
-                                    borderRadius: 1,
-                                    overflow: 'hidden'
-                                }}>
-                                {publisherInfo.activeAccessTokenNum > 0 && (
-                                    <>
-                                        <Stack
-                                            direction='row'
-                                            alignItems='center'
-                                            justifyContent='space-between'
-                                            sx={{ px: 2, py: 1.5 }}>
-                                            <Box>
-                                                <Typography variant='body2' fontWeight={600}>
-                                                    Revoke access tokens
-                                                </Typography>
-                                                <Typography variant='body2' color='text.secondary'>
-                                                    Deactivate {publisherInfo.activeAccessTokenNum} active access token
-                                                    {publisherInfo.activeAccessTokenNum === 1 ? '' : 's'} for{' '}
-                                                    {user.loginName}. This cannot be undone.
-                                                </Typography>
-                                            </Box>
-                                            <Box sx={{ flexShrink: 0, ml: 2 }}>
-                                                <PublisherRevokeTokensButton publisherInfo={publisherInfo} />
-                                            </Box>
-                                        </Stack>
-                                        <Divider />
-                                    </>
-                                )}
-                                <Stack
-                                    direction='row'
-                                    alignItems='center'
-                                    justifyContent='space-between'
-                                    sx={{ px: 2, py: 1.5 }}>
-                                    <Box>
-                                        <Typography variant='body2' fontWeight={600}>
-                                            Revoke publisher contributions
-                                        </Typography>
-                                        <Typography variant='body2' color='text.secondary'>
-                                            Deactivate all extensions, access tokens, and revoke the publisher agreement
-                                            for {user.loginName}. This cannot be undone.
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ flexShrink: 0, ml: 2 }}>
-                                        <PublisherRevokeContributionsButton publisherInfo={publisherInfo} />
-                                    </Box>
-                                </Stack>
-                                <Divider />
-                                <Stack
-                                    direction='row'
-                                    alignItems='center'
-                                    justifyContent='space-between'
-                                    sx={{ px: 2, py: 1.5 }}>
-                                    <Box>
-                                        <Typography variant='body2' fontWeight={600}>
-                                            Forget user
-                                        </Typography>
-                                        <Typography variant='body2' color='text.secondary'>
-                                            Erase {user.loginName} in response to a data-protection erasure request.
-                                            This cannot be undone.
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ flexShrink: 0, ml: 2 }}>
-                                        <PublisherForgetUserButton publisherInfo={publisherInfo} />
-                                    </Box>
-                                </Stack>
-                            </Box>
+                            {mayActOnTarget ? (
+                                <DangerZone publisherInfo={publisherInfo} />
+                            ) : (
+                                <Alert severity='info' variant='outlined'>
+                                    {user.loginName} has a role or individually granted permissions. Only a full
+                                    admin can revoke or erase an account that holds admin access of its own.
+                                </Alert>
+                            )}
                         </Box>
                     </>
                 )}

@@ -18,9 +18,12 @@ import { PublisherDetails } from '../../../../src/pages/admin-dashboard/publishe
 import { ExtensionRegistryService, AdminService } from '../../../../src/extension-registry-service';
 import { PublisherInfo, UserData, UserRelationships } from '../../../../src/extension-registry-types';
 
-function entry(namespaces: UserRelationships['namespaces'] = []): UserRelationships {
+function entry(
+    namespaces: UserRelationships['namespaces'] = [],
+    userOverrides: Partial<UserData> = {}
+): UserRelationships {
     return {
-        user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github' },
+        user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github', ...userOverrides },
         namespaces
     };
 }
@@ -55,6 +58,40 @@ describe('PublisherDetails — publisher agreement chip', () => {
         });
 
         expect(await screen.findByText('Publisher agreement: Not signed')).toBeInTheDocument();
+    });
+});
+
+/**
+ * The server refuses to revoke or erase a user holding a role or permissions unless the caller is
+ * a full admin (AdminService#checkMayStripAccessOf), so offering the buttons to anyone else is a
+ * confirmation dialog that can only end in a 403.
+ */
+describe('PublisherDetails — danger zone', () => {
+    it('offers the destructive actions on an ordinary user', async () => {
+        renderWithProviders(<PublisherDetails entry={entry()} />, {
+            mainContext: { service: serviceReturning(), user: publisherManager }
+        });
+
+        expect(await screen.findByText('Forget user')).toBeInTheDocument();
+        expect(screen.getByText('Revoke publisher contributions')).toBeInTheDocument();
+    });
+
+    it('withholds them from a delegated manager when the target has access of its own', async () => {
+        renderWithProviders(<PublisherDetails entry={entry([], { permissions: ['manage_scans'] })} />, {
+            mainContext: { service: serviceReturning(), user: publisherManager }
+        });
+
+        expect(await screen.findByText(/Only a full admin can revoke or erase/)).toBeInTheDocument();
+        expect(screen.queryByText('Forget user')).not.toBeInTheDocument();
+        expect(screen.queryByText('Revoke publisher contributions')).not.toBeInTheDocument();
+    });
+
+    it('still offers them to a full admin', async () => {
+        renderWithProviders(<PublisherDetails entry={entry([], { role: 'admin' })} />, {
+            mainContext: { service: serviceReturning(), user: admin }
+        });
+
+        expect(await screen.findByText('Forget user')).toBeInTheDocument();
     });
 });
 
