@@ -693,7 +693,7 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
         // this watchdog judged to have timed out can complete right after this check would
         // have passed, so the real decision is this WHERE-status claim, not an isTerminal() read.
         if (scanJobRepository
-                .claimTerminalStatus(job.getId(), ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
+                .claimStatusIfActive(job.getId(), ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
             return;
         }
         // Re-fetch: `job` was loaded by the caller before this claim and is now stale - the

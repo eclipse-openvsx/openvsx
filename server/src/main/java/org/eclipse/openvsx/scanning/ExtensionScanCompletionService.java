@@ -589,13 +589,20 @@ public class ExtensionScanCompletionService implements JobRequestHandler<Handler
                     scanId);
         }
 
-        // All jobs completed successfully - check for threats
-        // Load all threats from all jobs in this scan group
+        // Check for threats, but only from jobs that actually finished COMPLETE. A FAILED job
+        // (optional scanners reach here too - only required failures ERROR out above) can still
+        // have threat rows: ScannerInvocationHandler persists results before claiming the final
+        // status, so a job that loses that claim to the watchdog leaves its already-committed
+        // threats orphaned. Counting those would quarantine the extension off data belonging to
+        // a scan the system itself doesn't consider to have completed.
         // Separate enforced threats (block activation) from non-enforced (warning only)
         int enforcedThreatCount = 0;
         int warningThreatCount = 0;
 
         for (ScannerJob job : jobs) {
+            if (job.getStatus() != ScannerJob.JobStatus.COMPLETE) {
+                continue;
+            }
             List<ExtensionThreat> threats = extensionThreatRepository.findByJobId(job.getId());
 
             if (!threats.isEmpty()) {

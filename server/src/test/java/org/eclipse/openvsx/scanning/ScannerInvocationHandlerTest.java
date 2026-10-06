@@ -121,7 +121,7 @@ class ScannerInvocationHandlerTest {
         var claimedJob = processingJob();
         claimedJob.setStatus(ScannerJob.JobStatus.COMPLETE);
         when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job), Optional.of(claimedJob));
-        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
+        when(scanJobRepository.claimStatusIfActive(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
                 .thenReturn(1);
         when(persistenceService.processCompletedScan(any(), any(), anyBoolean(), any()))
                 .thenReturn(
@@ -140,7 +140,7 @@ class ScannerInvocationHandlerTest {
     @Test
     void run_discardsLateCleanResultWhenClaimLosesRaceToWatchdog() throws Exception {
         // The fast-path isTerminal() check alone cannot catch this: the job still reads as
-        // PROCESSING here. Only the atomic claimTerminalStatus() call closes the real gap -
+        // PROCESSING here. Only the atomic claimStatusIfActive() call closes the real gap -
         // simulated here by the watchdog's own claim having already won it. Threat/audit
         // persistence runs before that claim is attempted (so a real completion never races
         // ahead of its own data), so it does happen here even though the claim then loses -
@@ -156,7 +156,7 @@ class ScannerInvocationHandlerTest {
                                 ScanCheckResult.CheckResult.PASSED,
                                 0,
                                 "No threats found"));
-        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
+        when(scanJobRepository.claimStatusIfActive(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
                 .thenReturn(0);
 
         newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
@@ -172,11 +172,11 @@ class ScannerInvocationHandlerTest {
         when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
         when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
         when(scanner.startScan(any())).thenThrow(new RuntimeException("boom"));
-        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
+        when(scanJobRepository.claimStatusIfActive(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
                 .thenReturn(1);
         // The real claim is a bulk UPDATE, so the entity markJobFailed() re-fetches afterward
         // would already show FAILED in production; the mock has to simulate that explicitly,
-        // since it won't apply claimTerminalStatus()'s effect to this stubbed instance itself.
+        // since it won't apply claimStatusIfActive()'s effect to this stubbed instance itself.
         var failedJob = processingJob();
         failedJob.setStatus(ScannerJob.JobStatus.FAILED);
         when(scanJobRepository.findById(42L)).thenReturn(Optional.of(failedJob));
@@ -196,7 +196,7 @@ class ScannerInvocationHandlerTest {
         when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
         when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
         when(scanner.startScan(any())).thenThrow(new RuntimeException("boom"));
-        when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
+        when(scanJobRepository.claimStatusIfActive(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
                 .thenReturn(0);
 
         newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
@@ -204,5 +204,47 @@ class ScannerInvocationHandlerTest {
         assertEquals(ScannerJob.JobStatus.PROCESSING, job.getStatus());
         verify(scanJobRepository, never()).save(any());
         verify(completionService).checkCompletionSafely("scan-1");
+    }
+
+    @Test
+    void run_appliesSubmissionWhenJobStillProcessing() throws Exception {
+        var job = processingJob();
+        when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
+        when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
+        when(scanner.startScan(any()))
+                .thenReturn(new Scanner.Invocation.Submitted(new Scanner.Submission("ext-job-1")));
+        when(scanJobRepository.claimStatusIfActive(eq(42L), eq(ScannerJob.JobStatus.SUBMITTED), any()))
+                .thenReturn(1);
+
+        var claimedJob = processingJob();
+        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job), Optional.of(claimedJob));
+        when(scanner.getPollConfig()).thenReturn(RemoteScannerProperties.PollConfig.DEFAULT);
+
+        newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
+
+        assertEquals(ScannerJob.JobStatus.SUBMITTED, claimedJob.getStatus());
+        assertEquals("ext-job-1", claimedJob.getExternalJobId());
+        verify(scanJobRepository).save(claimedJob);
+        verify(jobScheduler).schedule(any(java.time.Instant.class), any(ScannerPollRequest.class));
+    }
+
+    @Test
+    void run_discardsSubmissionWhenClaimLosesRaceToWatchdog() throws Exception {
+        // Same race as the Completed branch, mirrored for the async path: an async startScan()
+        // can block on the same external call a sync one would, so this guard must exist here
+        // too, not just for Completed.
+        var job = processingJob();
+        when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
+        when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
+        when(scanner.startScan(any()))
+                .thenReturn(new Scanner.Invocation.Submitted(new Scanner.Submission("ext-job-1")));
+        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+        when(scanJobRepository.claimStatusIfActive(eq(42L), eq(ScannerJob.JobStatus.SUBMITTED), any()))
+                .thenReturn(0);
+
+        newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
+
+        verify(scanJobRepository, never()).save(any());
+        verify(jobScheduler, never()).schedule(any(java.time.Instant.class), any(ScannerPollRequest.class));
     }
 }

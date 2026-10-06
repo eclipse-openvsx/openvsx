@@ -96,12 +96,14 @@ public interface ScannerJobRepository extends Repository<ScannerJob, Long> {
     int claimForProcessing(@Param("id") long id, @Param("now") LocalDateTime now);
 
     /**
-     * Atomically move a job to a terminal status (COMPLETE/FAILED/REMOVED), but only if it
-     * isn't already terminal. Returns 1 if applied, 0 if another writer got there first - the
-     * caller must then discard its own update rather than overwrite that verdict. The watchdog
-     * and the scanner invocation handler both race to finalize a job (one on timeout, one on a
-     * late result from a slow scanner call), and this WHERE-status guard is what decides which
-     * one wins instead of whichever happens to save() last in memory.
+     * Atomically move a job to a new status, but only if it isn't already terminal. Returns 1
+     * if applied, 0 if another writer already finalized the job - the caller must then discard
+     * its own update rather than overwrite that verdict, whether the new status would have been
+     * terminal itself (COMPLETE/FAILED/REMOVED) or not (e.g. SUBMITTED, which would otherwise
+     * resurrect a job out of a terminal state and back into an active one). The watchdog and the
+     * scanner invocation handler both race to finalize a job (one on timeout, one on a late
+     * result from a slow scanner call), and this WHERE-status guard is what decides which one
+     * wins instead of whichever happens to save() last in memory.
      * <p>
      * This is a bulk update: it does not go through the persistence context, so any entity a
      * caller already holds for this row is stale the instant this returns. {@code
@@ -116,7 +118,7 @@ public interface ScannerJobRepository extends Repository<ScannerJob, Long> {
         "UPDATE ScannerJob j SET j.status = :status, j.updatedAt = :now "
                 + "WHERE j.id = :id AND j.status NOT IN ('COMPLETE', 'FAILED', 'REMOVED')"
     )
-    int claimTerminalStatus(
+    int claimStatusIfActive(
             @Param("id") long id,
             @Param("status") ScannerJob.JobStatus status,
             @Param("now") LocalDateTime now

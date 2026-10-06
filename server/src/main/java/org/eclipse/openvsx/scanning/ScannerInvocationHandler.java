@@ -259,7 +259,7 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
                 // just persisted is simply orphaned under a FAILED job - harmless, since
                 // completion status is decided from ScannerJob.status alone, not that data.
                 if (scanJobRepository
-                        .claimTerminalStatus(jobId, ScannerJob.JobStatus.COMPLETE, TimeUtil.getCurrentUTC()) == 0) {
+                        .claimStatusIfActive(jobId, ScannerJob.JobStatus.COMPLETE, TimeUtil.getCurrentUTC()) == 0) {
                     logger.debug("Scan job {} was finalized elsewhere, discarding late scanner result", jobId);
                     return;
                 }
@@ -273,10 +273,20 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
                 completionService.checkCompletionSafely(scanId);
             }
             case Scanner.Invocation.Submitted s -> {
-                // SUBMITTED is not terminal, so there is no verdict here for the watchdog to
-                // clobber - it may legitimately fail this job later if polling times out.
-                handleSubmittedScan(job, s, scanner, scannerType, extensionVersionId);
-                scanJobRepository.save(job);
+                // Same atomic guard as the Completed branch: an async startScan() can block on
+                // the same external call just as a sync one can, so a blind save() here could
+                // just as easily resurrect a job the watchdog already marked FAILED - back into
+                // a non-terminal SUBMITTED state this time, rather than clobbering FAILED with
+                // COMPLETE, but the same bug.
+                if (scanJobRepository
+                        .claimStatusIfActive(jobId, ScannerJob.JobStatus.SUBMITTED, TimeUtil.getCurrentUTC()) == 0) {
+                    logger.debug("Scan job {} was finalized elsewhere, discarding late scanner submission", jobId);
+                    return;
+                }
+                ScannerJob claimedJob = scanJobRepository.findById(jobId)
+                        .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
+                handleSubmittedScan(claimedJob, s, scanner, scannerType, extensionVersionId);
+                scanJobRepository.save(claimedJob);
             }
         }
     }
@@ -285,10 +295,10 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
      * Mark a job as failed after an exception.
      */
     private void markJobFailed(Long jobId, Exception e) {
-        // claimTerminalStatus() is the actual guard against racing the watchdog's own
+        // claimStatusIfActive() is the actual guard against racing the watchdog's own
         // markFailed(); the isTerminal() read it replaces here would be stale by the time
         // this method's save() ran.
-        if (scanJobRepository.claimTerminalStatus(jobId, ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
+        if (scanJobRepository.claimStatusIfActive(jobId, ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
             return;
         }
         // Loaded after the claim, so this already reflects it (status, updatedAt) - only the
