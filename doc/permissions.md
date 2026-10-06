@@ -46,6 +46,10 @@ unless the caller has the `admin` role. All three strip the target's access, so 
 `manage_publishers` holder could remove every admin in turn and leave nobody able to grant access
 back. The Publisher page hides those actions rather than offering a button that would be refused.
 
+Finally, `POST /admin/api/analytics/downloads/backfill` takes the `admin` role, by session or by an
+admin access token. It ingests download analytics from an access-log file and has no admin
+dashboard page, so none of the permissions above covers it.
+
 ## Managing roles and permissions via the API
 
 One plain admin REST endpoint, callable only from a logged-in admin session - unlike most other
