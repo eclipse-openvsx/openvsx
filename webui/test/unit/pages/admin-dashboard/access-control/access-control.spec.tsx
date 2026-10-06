@@ -106,6 +106,55 @@ describe('AccessControl', () => {
         expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
     });
 
+    // A short or stale deep link substring-matches nearly every account, so without a cap this
+    // walks the entire registry a page at a time, showing an empty placeholder throughout.
+    it('gives up after a few pages when a deep link matches no exact login', async () => {
+        const getUsers = vi.fn(async (_abort: AbortController, params?: { page?: number }) => {
+            const number = params?.page ?? 0;
+            return {
+                content: [
+                    {
+                        user: {
+                            loginName: `ghostwriter-${number}`,
+                            tokensUrl: '',
+                            createTokenUrl: '',
+                            provider: 'github'
+                        },
+                        namespaces: []
+                    }
+                ],
+                page: { number, size: 25, totalElements: 500, totalPages: 20 }
+            };
+        });
+        const service = {
+            serverUrl: 'https://open-vsx.org',
+            admin: { getUsers } as unknown as AdminService
+        } as ExtensionRegistryService;
+
+        renderAccessControl(service, 'ghost');
+
+        expect(await screen.findByText(/No user found/)).toBeInTheDocument();
+        // The first page plus the capped walk, not all twenty.
+        expect(getUsers.mock.calls.length).toBeGreaterThan(1);
+        expect(getUsers.mock.calls.length).toBeLessThanOrEqual(5);
+    });
+
+    // MUI only skips onChange for the identical option object, and any refetch of the search
+    // replaces those - so picking the user already on screen fires a "switch" that would discard
+    // nothing, because the details card is keyed on provider/login and never remounts.
+    it('does not offer to discard anything when the user already shown is picked again', async () => {
+        renderAccessControl(serviceWith(OCTOCAT), 'octocat');
+
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
+
+        const search = screen.getByPlaceholderText('Search by login or display name...');
+        await userEvent.click(search);
+        await userEvent.click(await screen.findByText('octocat'));
+
+        expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+    });
+
     it('drops a selection with no unsaved changes without asking', async () => {
         renderAccessControl(serviceWith(OCTOCAT), 'octocat');
 

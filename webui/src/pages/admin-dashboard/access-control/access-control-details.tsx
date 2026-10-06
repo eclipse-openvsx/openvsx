@@ -46,6 +46,9 @@ const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
     { value: 'admin', label: 'Admin' }
 ];
 
+// Stable empty set, so the admin-role branch below does not hand a new object to a dependency list.
+const NO_PERMISSIONS: ReadonlySet<AdminPermission> = new Set();
+
 const PERMISSION_OPTIONS: { value: AdminPermission; label: string }[] = [
     { value: 'manage_namespaces', label: 'Manage namespaces' },
     { value: 'manage_extensions', label: 'Manage extensions' },
@@ -86,12 +89,18 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
     const busy = updateAccess.isPending;
     const isAdmin = role === 'admin';
 
+    // What a save would actually write. Admin implies every permission server-side, so individual
+    // grants alongside it mean nothing - and storing them anyway makes them resurface as standalone
+    // grants the next time someone demotes the user, which nobody chose. The draft itself is left
+    // alone, so switching the role back restores the ticks rather than losing them.
+    const effectivePermissions = isAdmin ? NO_PERMISSIONS : permissions;
+
     // Compared as whole sets rather than over PERMISSION_OPTIONS: a permission this build has no
     // checkbox for is still carried in the draft, and so still saved back rather than revoked.
     const dirty =
         role !== savedRole ||
-        permissions.size !== savedPermissions.size ||
-        Array.from(permissions).some(p => !savedPermissions.has(p));
+        effectivePermissions.size !== savedPermissions.size ||
+        Array.from(effectivePermissions).some(p => !savedPermissions.has(p));
 
     useEffect(() => {
         onDirtyChange?.(dirty);
@@ -127,12 +136,12 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
             {
                 provider: user.provider,
                 login: user.loginName,
-                access: { role, permissions: Array.from(permissions) }
+                access: { role, permissions: Array.from(effectivePermissions) }
             },
             {
                 onSuccess: () => {
                     setSavedRole(role);
-                    setSavedPermissions(new Set(permissions));
+                    setSavedPermissions(new Set(effectivePermissions));
                     flashSaved();
                     // MainContext.user is read once at startup, so an admin who just changed their
                     // own access would keep the menu and dashboard they no longer qualify for until
@@ -234,7 +243,7 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
                 <Typography variant='subtitle2'>Permissions</Typography>
                 <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
                     {isAdmin
-                        ? 'Admin implies every permission, including ones added later - individual grants have no effect.'
+                        ? 'Admin implies every permission, including ones added later - individual grants are cleared.'
                         : 'Individual admin capabilities granted to this user.'}
                 </Typography>
                 <FormGroup>

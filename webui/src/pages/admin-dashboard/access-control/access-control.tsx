@@ -67,6 +67,13 @@ const ROLE_FILTER_OPTIONS = [
 // How close to the bottom of the dropdown (in px) the user must scroll before the next page loads.
 const LOAD_MORE_THRESHOLD = 200;
 
+// Extra pages a deep link may pull looking for its exact login before giving up.
+const DEEP_LINK_PAGE_LIMIT = 4;
+
+// The same identity the details card is keyed on, so "same user" and "same card" cannot disagree.
+const sameUser = (a: UserRelationships, b: UserRelationships) =>
+    a.user.loginName === b.user.loginName && a.user.provider === b.user.provider;
+
 const roleIcon = (role: string | undefined) =>
     role ? <AdminPanelSettingsIcon fontSize='small' /> : <PersonIcon fontSize='small' />;
 
@@ -100,6 +107,12 @@ export const AccessControl: FunctionComponent = () => {
     // condition this effect otherwise treats as "resolve this deep link".
     const dismissedParamRef = useRef<string | null>(null);
 
+    // How many extra pages the effect below has pulled looking for the current deep link.
+    const pagesWalked = useRef(0);
+    useEffect(() => {
+        pagesWalked.current = 0;
+    }, [loginParam]);
+
     // Resolve a deep-linked user once the matching page has loaded.
     useEffect(() => {
         if (!loginParam) {
@@ -112,9 +125,12 @@ export const AccessControl: FunctionComponent = () => {
         const match = users.find(u => u.user.loginName === loginParam);
         if (match) {
             setSelected(match);
-        } else if (hasNextPage && !isFetchingNextPage) {
+        } else if (hasNextPage && !isFetchingNextPage && pagesWalked.current < DEEP_LINK_PAGE_LIMIT) {
             // The server matches the login as a substring, so the exact one can sit past the first
-            // page. Keep pulling pages rather than reporting an existing user as missing.
+            // page. Capped, because a short or stale link matches nearly every account: without a
+            // limit this walks the whole registry one page at a time, showing no progress while it
+            // does. Past the cap the user is reported as not found, which the search box can fix.
+            pagesWalked.current += 1;
             void fetchNextPage();
         }
     }, [loginParam, selected, users, hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -140,6 +156,13 @@ export const AccessControl: FunctionComponent = () => {
     const handleSelect = (_event: SyntheticEvent, value: UserRelationships | null) => {
         if (!value) {
             guarded(clearSelection);
+            return;
+        }
+        // Re-picking the user already on screen is not a switch, and must not offer to discard a
+        // draft it would not actually discard: MUI only skips onChange when the option is the same
+        // object, and any refetch of the search replaces those, so this fires for the same person.
+        if (selected && sameUser(selected, value)) {
+            setInputValue(value.user.loginName);
             return;
         }
         guarded(() => {

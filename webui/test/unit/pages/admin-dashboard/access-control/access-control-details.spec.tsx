@@ -149,6 +149,42 @@ describe('AccessControlDetails', () => {
         expect(updateUser).not.toHaveBeenCalled();
     });
 
+    // Storing grants alongside the admin role means nothing while it is held, and resurfaces them
+    // as standalone grants the next time someone demotes the user - which nobody chose.
+    it('sends no individual permissions when the role being saved is admin', async () => {
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({ updateUserAccess }) }
+        });
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage scans' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(updateUserAccess).toHaveBeenCalledWith('github', 'octocat', { role: 'admin', permissions: [] });
+    });
+
+    // The draft is kept rather than wiped, so changing your mind about the role does not silently
+    // cost you the ticks you made before changing it.
+    it('restores the drafted permissions when the role moves back off admin', async () => {
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({ updateUserAccess }) }
+        });
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage scans' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Privileged' }));
+
+        expect(screen.getByRole('checkbox', { name: 'Manage scans' })).toBeChecked();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+        expect(updateUserAccess).toHaveBeenCalledWith('github', 'octocat', {
+            role: 'privileged',
+            permissions: ['manage_scans']
+        });
+    });
+
     // Admin implies every permission server-side (UserData#hasPermission), so individual grants
     // would have no effect - the checkboxes reflect that instead of suggesting otherwise.
     it('shows every permission as checked and disabled once the role is admin', () => {

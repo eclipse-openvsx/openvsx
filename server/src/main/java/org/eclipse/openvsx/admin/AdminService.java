@@ -486,8 +486,11 @@ public class AdminService {
         }
 
         var ids = users.stream().map(UserData::getId).toList();
+        // Merge rather than the two-argument toMap: a join fetch of the permission collection can
+        // hand the same user back once per row, and toMap would answer that with an
+        // IllegalStateException - a 500 on the whole user search for every admin.
         return repositories.findUsersById(ids).stream()
-                .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings));
+                .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings, (a, b) -> a));
     }
 
     /**
@@ -556,10 +559,12 @@ public class AdminService {
         return parsed;
     }
 
-    // Not EnumSet.copyOf: that throws on an empty non-EnumSet collection, which both arguments can be.
+    // Not EnumSet.copyOf: that throws on an empty non-EnumSet collection, which both arguments can
+    // be. Nulls are filtered because PermissionConverter reads an unknown stored value as one, and
+    // EnumSet rejects them.
     private EnumSet<Permission> difference(Collection<Permission> from, Collection<Permission> without) {
         var result = EnumSet.noneOf(Permission.class);
-        result.addAll(from);
+        from.stream().filter(Objects::nonNull).forEach(result::add);
         result.removeAll(without);
         return result;
     }

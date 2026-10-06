@@ -161,7 +161,12 @@ public class UserData implements Serializable {
     }
 
     public Set<String> getPermissionsAsStrings() {
-        return permissions.stream().map(Permission::toString).collect(Collectors.toUnmodifiableSet());
+        // Null-tolerant: PermissionConverter reads a value this build has no constant for as null
+        // rather than throwing, so one can be sitting in the collection.
+        return permissions.stream()
+                .filter(Objects::nonNull)
+                .map(Permission::toString)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
