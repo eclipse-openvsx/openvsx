@@ -32,53 +32,6 @@ class PublishingConfigTest {
             .withUserConfiguration(TestConfig.class);
 
     @Test
-    void defaultsMaxOverrideSizeToOneGibibyte() {
-        contextRunner.run(
-                context -> assertThat(context.getBean(PublishingConfig.class).getMaxOverrideSize())
-                        .isEqualTo(1024L * 1024 * 1024));
-    }
-
-    @Test
-    void bindsMaxOverrideSizeFromTheProperty() {
-        contextRunner.withPropertyValues("ovsx.publishing.max-override-size=2147483648")
-                .run(
-                        context -> assertThat(context.getBean(PublishingConfig.class).getMaxOverrideSize())
-                                .isEqualTo(2147483648L));
-    }
-
-    @Test
-    void refusesANonPositiveMaxOverrideSize() {
-        contextRunner.withPropertyValues("ovsx.publishing.max-override-size=0")
-                .run(
-                        context -> assertThat(context)
-                                .hasFailed()
-                                .getFailure()
-                                .rootCause()
-                                .isInstanceOf(IllegalArgumentException.class)
-                                .hasMessageContaining("ovsx.publishing.max-override-size"));
-    }
-
-    /**
-     * Deployments configured with a content size above this property's default predate it, and must
-     * keep starting: the two limits bound different things and are not compared.
-     */
-    @Test
-    void acceptsAnOverrideCeilingBelowTheConfiguredContentSize() {
-        contextRunner
-                .withPropertyValues(
-                        "ovsx.publishing.max-content-size=2147483648",
-                        "ovsx.publishing.max-override-size=1073741824")
-                .run(context -> assertThat(context).hasNotFailed());
-    }
-
-    @Test
-    void startsWithALargeContentSizeAndNoOverrideSizeConfigured() {
-        contextRunner
-                .withPropertyValues("ovsx.publishing.max-content-size=2147483648")
-                .run(context -> assertThat(context).hasNotFailed());
-    }
-
-    @Test
     void refusesANonPositiveMaxContentSize() {
         contextRunner.withPropertyValues("ovsx.publishing.max-content-size=-1")
                 .run(

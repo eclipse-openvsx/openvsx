@@ -12,34 +12,157 @@
  *****************************************************************************/
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { publish } from '../../src/publish';
+import { show } from '../../src/show';
+import { search } from '../../src/search';
+import { verifySignature } from '../../src/verify-signature';
+import { handleError } from '../../src/util';
+
+vi.mock('../../src/publish', () => ({ publish: vi.fn(async () => []) }));
+vi.mock('../../src/show', () => ({ show: vi.fn(async () => undefined) }));
+vi.mock('../../src/search', async importOriginal => ({
+    ...await importOriginal<typeof import('../../src/search')>(),
+    search: vi.fn(async () => undefined)
+}));
+vi.mock('../../src/verify-signature', () => ({ verifySignature: vi.fn(async () => undefined) }));
+vi.mock('../../src/util', async importOriginal => ({
+    ...await importOriginal<typeof import('../../src/util')>(),
+    handleError: vi.fn(() => () => undefined)
+}));
 
 class ExitError extends Error {
-    constructor(readonly code?: number) {
+    constructor(readonly code: number | undefined) {
         super(`process.exit(${code})`);
     }
 }
 
-describe('main', () => {
-    afterEach(() => {
-        vi.restoreAllMocks();
-    });
+let main: (argv: string[]) => void;
 
-    it('prints the version from package.json for --version', async () => {
-        const { version } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'));
-        const main: (argv: string[]) => void = (await import('../../src/main')).default;
-        const argv = ['node', 'ovsx', '--version'];
-        vi.spyOn(process, 'argv', 'get').mockReturnValue(argv);
+function run(...args: string[]): void {
+    const argv = ['node', 'ovsx', ...args];
+    // main checks process.argv rather than its argument for a missing command.
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(argv);
+    main(argv);
+}
+
+describe('main', () => {
+    let stderr: string;
+    let stdout: string;
+
+    beforeEach(async () => {
+        main = (await import('../../src/main') as unknown as { default: typeof main }).default;
+        stderr = '';
+        stdout = '';
         vi.spyOn(process, 'exit').mockImplementation(code => {
             throw new ExitError(code as number | undefined);
         });
-        const output: string[] = [];
         vi.spyOn(process.stdout, 'write').mockImplementation(chunk => {
-            output.push(String(chunk));
+            stdout += String(chunk);
             return true;
         });
+        vi.spyOn(process.stderr, 'write').mockImplementation(chunk => {
+            stderr += String(chunk);
+            return true;
+        });
+        vi.spyOn(console, 'error').mockImplementation((...data: unknown[]) => {
+            stderr += data.join(' ') + '\n';
+        });
+    });
 
-        expect(() => main(argv)).toThrow(ExitError);
-        expect(output.join('')).toBe(`${version}\n`);
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        // process.exitCode is real process state, not a mock, and outlives a real exit() only in tests.
+        process.exitCode = 0;
+    });
+
+    it('passes global options given before or after the command', () => {
+        const expected = {
+            extensionId: 'redhat.java',
+            target: 'linux-x64',
+            allVersions: true,
+            json: undefined,
+            registryUrl: 'http://registry.test'
+        };
+
+        run('-r', 'http://registry.test', 'show', 'redhat.java', '-t', 'linux-x64', '--all-versions');
+        expect(show).toHaveBeenCalledWith(expected);
+
+        vi.mocked(show).mockClear();
+        run('show', 'redhat.java', '-t', 'linux-x64', '--all-versions', '-r', 'http://registry.test');
+        expect(show).toHaveBeenCalledWith(expected);
+    });
+
+    it('passes --debug to the error handler', () => {
+        run('--debug', 'show', 'redhat.java');
+        expect(handleError).toHaveBeenCalledWith(true);
+        vi.mocked(handleError).mockClear();
+        run('show', 'redhat.java');
+        expect(handleError).toHaveBeenCalledWith(undefined);
+    });
+
+    it('passes variadic, negatable and camel-cased publish options', () => {
+        run('publish', '-t', 'linux-x64', 'win32-x64', '--pre-release', '--no-dependencies', '--skip-duplicate', '-p', 'secret');
+        expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+            extensionFile: undefined,
+            pat: 'secret',
+            targets: ['linux-x64', 'win32-x64'],
+            preRelease: true,
+            dependencies: false,
+            skipDuplicate: true
+        }));
+    });
+
+    it('passes options parsed by a custom parser', () => {
+        run('search', 'java', '-s', '5', '--sort-by', 'downloadCount');
+        expect(search).toHaveBeenCalledWith(expect.objectContaining({ text: 'java', size: 5, sortBy: 'downloadCount' }));
+    });
+
+    it('passes options to a command without arguments', () => {
+        run('verify-signature', '-i', 'a.vsix', '-m', 'm.json', '-s', 's.p7s', '-k', 'key.pem');
+        expect(verifySignature).toHaveBeenCalledWith({
+            packagePath: 'a.vsix',
+            manifestPath: 'm.json',
+            signaturePath: 's.p7s',
+            publicKeyPath: 'key.pem'
+        });
+    });
+
+    it('suggests the closest command for a misspelled one', () => {
+        expect(() => run('publsh')).toThrow(new ExitError(1));
+        expect(stderr).toContain("Unknown command 'publsh', did you mean 'publish'?");
+        expect(stdout).toContain('Usage: ovsx <command> [options]');
+        expect(publish).not.toHaveBeenCalled();
+    });
+
+    it('reports an unknown command without a close match', () => {
+        expect(() => run('frobnicate')).toThrow(new ExitError(1));
+        expect(stderr).toContain("Unknown command 'frobnicate'.");
+        expect(stdout).toContain('Usage: ovsx <command> [options]');
+    });
+
+    it('fails with a nonzero exit when given more arguments than a command accepts', () => {
+        expect(() => run('show', 'redhat.java', 'extra')).toThrow(new ExitError(1));
+        expect(stderr).toContain("too many arguments for 'show'");
+        expect(show).not.toHaveBeenCalled();
+    });
+
+    it('lists the commands in help without a catch-all entry', () => {
+        expect(() => run('--help')).toThrow(ExitError);
+        expect(stdout).toContain('publish [options] [extension.vsix]');
+        expect(stdout).not.toMatch(/^\s+\*/m);
+    });
+
+    it('prints the version from package.json for --version', () => {
+        const { version } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'));
+        expect(() => run('--version')).toThrow(ExitError);
+        expect(stdout).toBe(`${version}\n`);
+    });
+
+    it('shows help on stdout and exits 0 when run with no arguments', () => {
+        expect(() => run()).toThrow(new ExitError(0));
+        expect(stdout).toContain('Usage: ovsx <command> [options]');
+        expect(stderr).toBe('');
     });
 });

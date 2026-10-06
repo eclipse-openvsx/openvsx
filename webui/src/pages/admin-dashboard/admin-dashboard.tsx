@@ -34,8 +34,11 @@ import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StarIcon from '@mui/icons-material/Star';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { LoginComponent } from '../../default/login';
 import { MainContext } from '../../context';
+import { UserData } from '../../extension-registry-types';
+import { hasAnyAdminAccess, hasPermission } from '../../permissions';
 import { createRoute } from '../../utils';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { AdminSidepanel } from './admin-sidepanel';
@@ -62,6 +65,7 @@ const SearchExplainAdmin = lazy(() =>
     import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
 );
 const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => ({ default: m.StatisticsAdmin })));
+const AccessControl = lazy(() => import('./access-control/access-control').then(m => ({ default: m.AccessControl })));
 
 const navConfig: NavEntry[] = [
     {
@@ -72,31 +76,36 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.NAMESPACE_ADMIN,
                 name: 'Namespaces',
                 icon: <AssignmentIndIcon />,
-                description: 'Manage user roles and create new namespaces'
+                description: 'Manage user roles and create new namespaces',
+                permission: 'manage_namespaces'
             },
             {
                 path: AdminDashboardRoutes.EXTENSION_ADMIN,
                 name: 'Extensions',
                 icon: <ExtensionSharpIcon />,
-                description: 'Search for extensions and remove certain versions'
+                description: 'Search for extensions and remove certain versions',
+                permission: 'manage_extensions'
             },
             {
                 path: AdminDashboardRoutes.PUBLISHER_ADMIN,
                 name: 'Publisher',
                 icon: <PersonIcon />,
-                description: 'Search for publishers, update roles, and revoke their contributions'
+                description: 'Search for publishers and revoke their contributions',
+                permission: 'manage_publishers'
             },
             {
                 path: AdminDashboardRoutes.SCANS_ADMIN,
                 name: 'Scans',
                 icon: <SecurityIcon />,
-                description: 'View security scan results and manage quarantined extensions'
+                description: 'View security scan results and manage quarantined extensions',
+                permission: 'manage_scans'
             },
             {
                 path: AdminDashboardRoutes.SIZE_OVERRIDES,
                 name: 'Size overrides',
                 icon: <StraightenIcon />,
-                description: 'Per-namespace and per-extension upload size limits'
+                description: 'Per-namespace and per-extension upload size limits',
+                permission: 'manage_extensions'
             }
         ]
     },
@@ -108,13 +117,15 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.SEARCH_INDEX,
                 name: 'Search Index',
                 icon: <ManageSearchIcon />,
-                description: 'Inspect the search index and rebuild it'
+                description: 'Inspect the search index and rebuild it',
+                permission: 'manage_search_index'
             },
             {
                 path: AdminDashboardRoutes.SEARCH_EXPLAIN,
                 name: 'Search Explain',
                 icon: <TroubleshootIcon />,
-                description: "Run a search and see what each result's score is made of"
+                description: "Run a search and see what each result's score is made of",
+                permission: 'manage_search_index'
             }
         ]
     },
@@ -126,13 +137,15 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.CACHES,
                 name: 'Caches',
                 icon: <StorageIcon />,
-                description: 'Inspect the application caches and clear them'
+                description: 'Inspect the application caches and clear them',
+                permission: 'manage_caches'
             },
             {
                 path: AdminDashboardRoutes.CONSISTENCY,
                 name: 'Data Consistency',
                 icon: <FactCheckIcon />,
-                description: 'Check the database for known inconsistencies and fix them'
+                description: 'Check the database for known inconsistencies and fix them',
+                permission: 'manage_consistency'
             }
         ]
     },
@@ -141,16 +154,25 @@ const navConfig: NavEntry[] = [
         icon: <AdminPanelSettingsIcon />,
         children: [
             {
-                path: AdminDashboardRoutes.LOGS,
-                name: 'Logs',
-                icon: <HistoryIcon />,
-                description: 'Browse admin activity logs'
+                path: AdminDashboardRoutes.ACCESS_CONTROL,
+                name: 'Access Control',
+                icon: <VerifiedUserIcon />,
+                description: "Manage a user's role and individually granted permissions",
+                adminOnly: true
             },
             {
                 path: AdminDashboardRoutes.SETTINGS,
                 name: 'Settings',
                 icon: <SettingsIcon />,
-                description: 'Manage runtime settings for the registry'
+                description: 'Manage runtime settings for the registry',
+                permission: 'manage_settings'
+            },
+            {
+                path: AdminDashboardRoutes.LOGS,
+                name: 'Logs',
+                icon: <HistoryIcon />,
+                description: 'Browse admin activity logs',
+                permission: 'view_reports'
             }
         ]
     },
@@ -162,19 +184,22 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.TIERS,
                 name: 'Tiers',
                 icon: <StarIcon />,
-                description: 'Manage rate-limit tiers'
+                description: 'Manage rate-limit tiers',
+                permission: 'manage_rate_limits'
             },
             {
                 path: AdminDashboardRoutes.CUSTOMERS,
                 name: 'Customers',
                 icon: <PeopleIcon />,
-                description: 'Manage rate-limit customers'
+                description: 'Manage rate-limit customers',
+                permission: 'manage_rate_limits'
             },
             {
                 path: AdminDashboardRoutes.USAGE_STATS,
                 name: 'Usage Stats',
                 icon: <BarChartIcon />,
-                description: 'Show usage stats for customers'
+                description: 'Show usage stats for customers',
+                permission: 'manage_rate_limits'
             }
         ]
     },
@@ -186,7 +211,8 @@ const navConfig: NavEntry[] = [
                 path: AdminDashboardRoutes.STATISTICS,
                 name: 'Statistics',
                 icon: <AssessmentIcon />,
-                description: 'Registry statistics per month, with a CSV export'
+                description: 'Registry statistics per month, with a CSV export',
+                permission: 'view_reports'
             }
         ]
     }
@@ -211,8 +237,16 @@ const toRouteEntry = (page: AdminPage): RouteEntry => ({
     path: createRoute([AdminDashboardRoutes.ROOT, page.path]),
     name: page.name,
     icon: page.icon,
-    description: page.description
+    description: page.description,
+    ...pageAccess(page)
 });
+
+/**
+ * A contributed page is admin-only unless it declares a permission. The dashboard itself used to
+ * require the admin role, so that was every contributed page's audience; opening the dashboard to
+ * permission holders must not hand them someone else's page along with it.
+ */
+const pageAccess = (page: AdminPage): Access => ({ permission: page.permission, adminOnly: !page.permission });
 
 /** Appends contributed pages, merging each category into a group of that name if one already exists. */
 function withContributedPages(pages: AdminPage[]): NavEntry[] {
@@ -231,6 +265,33 @@ function withContributedPages(pages: AdminPage[]): NavEntry[] {
         }
     }
     return entries;
+}
+
+type Access = Pick<RouteEntry, 'permission' | 'adminOnly'>;
+
+/**
+ * The one access rule, used by both the nav filter and the route {@link Guard} so a page cannot be
+ * hidden from the sidebar yet still answer its own URL. A page needs the permission it declares, or
+ * the admin role if marked {@link RouteEntry.adminOnly}; declaring neither leaves it open to anyone
+ * the dashboard admits.
+ */
+function isVisible(entry: Access, user: UserData | undefined): boolean {
+    if (entry.adminOnly) {
+        return user?.role === 'admin';
+    }
+    if (entry.permission) {
+        return hasPermission(user, entry.permission);
+    }
+    return true;
+}
+
+/** Drops pages the user has no access to, and any group left with no visible children. */
+function filterNavItems(items: NavEntry[], user: UserData | undefined): NavEntry[] {
+    return items
+        .map(entry =>
+            isNavGroup(entry) ? { ...entry, children: entry.children.filter(c => isVisible(c, user)) } : entry
+        )
+        .filter(entry => (isNavGroup(entry) ? entry.children.length > 0 : isVisible(entry, user)));
 }
 
 function buildRouteNames(items: NavEntry[]): { [key: string]: string } {
@@ -267,6 +328,24 @@ const ScrollableContent = styled(Box)(({ theme }) => ({
     }
 }));
 
+/**
+ * Gates a single admin page by permission, for a user who reached its route directly - the sidebar
+ * and overview already leave out what {@link filterNavItems} filtered. Real enforcement is
+ * server-side (AdminService#checkPermission); this only avoids rendering a page whose requests
+ * would come back 403.
+ */
+const Guard: FunctionComponent<Access & { user: UserData | undefined; children: ReactNode }> = ({
+    user,
+    permission,
+    adminOnly,
+    children
+}) =>
+    isVisible({ permission, adminOnly }, user) ? (
+        <>{children}</>
+    ) : (
+        <Message message='You are not authorized for this page.' />
+    );
+
 const Message: FunctionComponent<{ message: string }> = ({ message }) => {
     return (
         <Box
@@ -292,14 +371,14 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                 .filter(page => page.path.length > 0 && !builtInSegments.has(page.path.split('/')[0])),
         [adminPages]
     );
-    const navItems = useMemo(() => withContributedPages(contributed), [contributed]);
+    const navItems = useMemo(() => filterNavItems(withContributedPages(contributed), user), [contributed, user]);
     const routeNames = useMemo(() => buildRouteNames(navItems), [navItems]);
 
     const navigate = useNavigate();
     const toMainPage = () => navigate('/');
 
     let content: ReactNode = null;
-    if (user?.role === 'admin') {
+    if (hasAnyAdminAccess(user)) {
         content = (
             <Box sx={{ display: 'flex', width: '100%', height: '100%' }}>
                 <CssBaseline />
@@ -310,29 +389,197 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                         <Container sx={{ pt: 3, pb: 4, px: 3 }} maxWidth={false}>
                             <Suspense fallback={null}>
                                 <Routes>
-                                    <Route path='/namespaces' element={<NamespaceAdmin />} />
-                                    <Route path='/namespaces/:namespace' element={<NamespaceAdmin />} />
-                                    <Route path='/extensions' element={<ExtensionAdmin />} />
-                                    <Route path='/extensions/:namespace/:extension' element={<ExtensionAdmin />} />
-                                    <Route path='/publisher' element={<PublisherAdmin />} />
-                                    <Route path='/publisher/:publisher' element={<PublisherAdmin />} />
-                                    <Route path='/scans' element={<ScanAdmin />} />
-                                    <Route path='/tiers' element={<Tiers />} />
-                                    <Route path='/customers' element={<Customers />} />
-                                    <Route path='/customers/:customer' element={<CustomerDetails />} />
-                                    <Route path='/statistics' element={<StatisticsAdmin />} />
-                                    <Route path='/usage' element={<UsageStatsView />} />
-                                    <Route path='/usage/:customer' element={<UsageStatsView />} />
-                                    <Route path='/settings' element={<RuntimeSettingsPage />} />
-                                    <Route path='/logs' element={<Logs />} />
-                                    <Route path='/consistency' element={<DataConsistency />} />
-                                    <Route path='/caches' element={<CachesAdmin />} />
-                                    <Route path='/size-overrides' element={<SizeOverrides />} />
-                                    <Route path='/search-index' element={<SearchIndexAdmin />} />
-                                    <Route path='/search-explain' element={<SearchExplainAdmin />} />
+                                    <Route
+                                        path='/namespaces'
+                                        element={
+                                            <Guard user={user} permission='manage_namespaces'>
+                                                <NamespaceAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/namespaces/:namespace'
+                                        element={
+                                            <Guard user={user} permission='manage_namespaces'>
+                                                <NamespaceAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/extensions'
+                                        element={
+                                            <Guard user={user} permission='manage_extensions'>
+                                                <ExtensionAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/extensions/:namespace/:extension'
+                                        element={
+                                            <Guard user={user} permission='manage_extensions'>
+                                                <ExtensionAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/publisher'
+                                        element={
+                                            <Guard user={user} permission='manage_publishers'>
+                                                <PublisherAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/publisher/:publisher'
+                                        element={
+                                            <Guard user={user} permission='manage_publishers'>
+                                                <PublisherAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/scans'
+                                        element={
+                                            <Guard user={user} permission='manage_scans'>
+                                                <ScanAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/tiers'
+                                        element={
+                                            <Guard user={user} permission='manage_rate_limits'>
+                                                <Tiers />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/customers'
+                                        element={
+                                            <Guard user={user} permission='manage_rate_limits'>
+                                                <Customers />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/customers/:customer'
+                                        element={
+                                            <Guard user={user} permission='manage_rate_limits'>
+                                                <CustomerDetails />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/statistics'
+                                        element={
+                                            <Guard user={user} permission='view_reports'>
+                                                <StatisticsAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/usage'
+                                        element={
+                                            <Guard user={user} permission='manage_rate_limits'>
+                                                <UsageStatsView />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/usage/:customer'
+                                        element={
+                                            <Guard user={user} permission='manage_rate_limits'>
+                                                <UsageStatsView />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/settings'
+                                        element={
+                                            <Guard user={user} permission='manage_settings'>
+                                                <RuntimeSettingsPage />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/logs'
+                                        element={
+                                            <Guard user={user} permission='view_reports'>
+                                                <Logs />
+                                            </Guard>
+                                        }
+                                    />
+                                    {/*
+                                        Role and permissions are a privilege-escalation surface, not delegable like
+                                        the other permission buckets - checked against role directly, not Guard.
+                                    */}
+                                    <Route
+                                        path='/access-control'
+                                        element={
+                                            <Guard user={user} adminOnly>
+                                                <AccessControl />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/access-control/:login'
+                                        element={
+                                            <Guard user={user} adminOnly>
+                                                <AccessControl />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/consistency'
+                                        element={
+                                            <Guard user={user} permission='manage_consistency'>
+                                                <DataConsistency />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/caches'
+                                        element={
+                                            <Guard user={user} permission='manage_caches'>
+                                                <CachesAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/search-index'
+                                        element={
+                                            <Guard user={user} permission='manage_search_index'>
+                                                <SearchIndexAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/search-explain'
+                                        element={
+                                            <Guard user={user} permission='manage_search_index'>
+                                                <SearchExplainAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/size-overrides'
+                                        element={
+                                            <Guard user={user} permission='manage_extensions'>
+                                                <SizeOverrides />
+                                            </Guard>
+                                        }
+                                    />
                                     {/* Splat so a contributed page can render nested routes; it also matches the bare path. */}
                                     {contributed.map(page => (
-                                        <Route key={page.path} path={`${page.path}/*`} element={page.element} />
+                                        <Route
+                                            key={page.path}
+                                            path={`${page.path}/*`}
+                                            element={
+                                                <Guard user={user} {...pageAccess(page)}>
+                                                    {page.element}
+                                                </Guard>
+                                            }
+                                        />
                                     ))}
                                     <Route path='*' element={<Welcome items={navItems} />} />
                                 </Routes>

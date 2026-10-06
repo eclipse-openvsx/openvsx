@@ -35,6 +35,9 @@ OUT_DIR="$(cd "${OUT_DIR}" && pwd -P)"
 # reloads from db/dump - see that script for how these get loaded back (and scrub-db-dump.sh for
 # how the 3 sensitive ones among them get redacted first, keeping each original alongside as
 # <table>.csv.bak until it's been reviewed).
+#
+# user_data_permission is deliberately not among them: admin permission grants are access state the
+# target sets up for itself, not registry content a restore is meant to reproduce.
 TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data extension_version_change)
 
 # Stage next to OUT_DIR (same filesystem, so promoting a file below is a fast, atomic rename) and

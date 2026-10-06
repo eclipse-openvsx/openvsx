@@ -210,11 +210,38 @@ export interface UserData {
     homepage?: string;
     provider?: string;
     role?: string;
+    /** Admin capabilities individually granted to this user, independent of role (see AdminPermission). */
+    permissions?: AdminPermission[];
     publisherAgreement?: {
         status: 'none' | 'signed' | 'outdated';
         timestamp?: TimestampString;
     };
     additionalLogins?: UserData[];
+}
+
+/**
+ * A single admin capability, matching the server's `org.eclipse.openvsx.entities.Permission` enum.
+ * A user with role 'admin' implicitly has every value here without it appearing in `permissions`.
+ */
+export type AdminPermission =
+    | 'manage_namespaces'
+    | 'manage_extensions'
+    | 'manage_publishers'
+    | 'manage_scans'
+    | 'manage_consistency'
+    | 'manage_rate_limits'
+    | 'manage_caches'
+    | 'manage_search_index'
+    | 'manage_settings'
+    | 'view_reports';
+
+/**
+ * The admin access a user should end up with, as a whole rather than a delta: `permissions`
+ * replaces whatever they hold now, and `role: 'none'` removes their role.
+ */
+export interface UserAccess {
+    role: 'admin' | 'privileged' | 'none';
+    permissions: AdminPermission[];
 }
 
 export interface UserRelationships {

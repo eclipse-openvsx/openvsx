@@ -65,7 +65,8 @@ import {
     SearchExplain,
     CacheList,
     SearchIndex,
-    AdminStatistics
+    AdminStatistics,
+    UserAccess
 } from './extension-registry-types';
 import { createAbsoluteURL, addQuery } from './utils';
 import { sendRequest, ErrorResponse, sendNonRetriableRequest, sendStrictRequest } from './server-request';
@@ -726,11 +727,7 @@ export interface AdminService {
         abortController: AbortController,
         params?: { search?: string; role?: string; page?: number; size?: number }
     ): Promise<Readonly<UserSearchResult>>;
-    updateUserRole(
-        provider: string,
-        login: string,
-        role: 'admin' | 'privileged' | 'none'
-    ): Promise<Readonly<SuccessResult>>;
+    updateUserAccess(provider: string, login: string, access: UserAccess): Promise<Readonly<SuccessResult>>;
     revokePublisherContributions(provider: string, login: string): Promise<Readonly<SuccessResult>>;
     revokeAccessTokens(provider: string, login: string): Promise<Readonly<SuccessResult>>;
     forgetUser(provider: string, login: string): Promise<Readonly<SuccessResult>>;
@@ -1033,22 +1030,20 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    async updateUserRole(
-        provider: string,
-        login: string,
-        role: 'admin' | 'privileged' | 'none'
-    ): Promise<Readonly<SuccessResult>> {
+    async updateUserAccess(provider: string, login: string, access: UserAccess): Promise<Readonly<SuccessResult>> {
         const csrfResponse = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
         if (!isError(csrfResponse)) {
             const csrfToken = csrfResponse as CsrfTokenJson;
             headers[csrfToken.header] = csrfToken.value;
         }
-        const query = [{ key: 'role', value: role }];
         return sendStrictRequest({
-            method: 'POST',
+            method: 'PUT',
+            payload: access,
             credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'user', provider, login, 'role'], query),
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'user', provider, login, 'access']),
             headers
         });
     }

@@ -12,21 +12,16 @@
  *****************************************************************************/
 
 import { useContext } from 'react';
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../context';
 import { controllerFromSignal } from '../../query-client';
 
-export type PublisherRole = 'admin' | 'privileged' | 'none';
-
-const PUBLISHERS_PAGE_SIZE = 25;
-
 export const publisherAdminKeys = {
-    detail: (provider: string, login: string) => ['admin', 'publisher', provider, login] as const,
-    list: (search: string, role: string) => ['admin', 'publishers', { search, role }] as const
+    detail: (provider: string, login: string) => ['admin', 'publisher', provider, login] as const
 };
 
 // Shared prefix for the publisher write operations so a single `useIsMutating`
-// can tell whether any of them (role change, revokes) is currently in flight.
+// can tell whether any of them (revokes, forget) is currently in flight.
 export const publisherMutationKey = ['admin', 'publisher-mutation'] as const;
 
 export const usePublisherInfo = (login: string, provider = 'github', enabled = true) => {
@@ -36,48 +31,6 @@ export const usePublisherInfo = (login: string, provider = 'github', enabled = t
         queryFn: ({ signal }) => service.admin.getPublisherInfo(controllerFromSignal(signal), provider, login),
         enabled: enabled && !!login,
         staleTime: 0
-    });
-};
-
-/**
- * Loads the searchable, role-filterable publisher list one page at a time.
- * `keepPreviousData` keeps the current rows on screen while a changed search or
- * role filter loads, matching the rest of the admin dashboard.
- */
-export const useInfinitePublishers = (search: string, role: string) => {
-    const { service } = useContext(MainContext);
-    return useInfiniteQuery({
-        queryKey: publisherAdminKeys.list(search, role),
-        queryFn: ({ pageParam, signal }) =>
-            service.admin.getUsers(controllerFromSignal(signal), {
-                search: search || undefined,
-                role: role || undefined,
-                size: PUBLISHERS_PAGE_SIZE,
-                page: pageParam
-            }),
-        initialPageParam: 0,
-        getNextPageParam: lastPage => {
-            const { number, totalPages } = lastPage.page;
-            return number + 1 < totalPages ? number + 1 : undefined;
-        },
-        placeholderData: keepPreviousData
-    });
-};
-
-/**
- * Updates a publisher's role and refreshes the publisher list on success so the
- * new role is reflected.
- */
-export const useUpdatePublisherRole = () => {
-    const { service } = useContext(MainContext);
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationKey: [...publisherMutationKey, 'role'],
-        mutationFn: ({ provider, login, role }: { provider: string; login: string; role: PublisherRole }) =>
-            service.admin.updateUserRole(provider, login, role),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['admin', 'publishers'] });
-        }
     });
 };
 

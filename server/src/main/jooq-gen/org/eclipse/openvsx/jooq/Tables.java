@@ -43,6 +43,7 @@ import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
 import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
+import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 
 
 /**
@@ -249,4 +250,9 @@ public class Tables {
      * The table <code>public.user_data</code>.
      */
     public static final UserData USER_DATA = UserData.USER_DATA;
+
+    /**
+     * The table <code>public.user_data_permission</code>.
+     */
+    public static final UserDataPermission USER_DATA_PERMISSION = UserDataPermission.USER_DATA_PERMISSION;
 }

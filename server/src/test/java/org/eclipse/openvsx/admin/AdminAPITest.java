@@ -40,11 +40,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.util.Streamable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.JacksonException;
@@ -75,6 +77,7 @@ import org.eclipse.openvsx.entities.ExtensionReview;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.UserData;
@@ -103,6 +106,7 @@ import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
 import org.eclipse.openvsx.search.SimilarityConfig;
 import org.eclipse.openvsx.search.SimilarityService;
+import org.eclipse.openvsx.security.IdPrincipal;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
@@ -134,6 +138,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -802,6 +807,8 @@ class AdminAPITest {
     }
 
     @Test
+    // No body on purpose: a user with no admin access must be refused by the /admin/** gate before
+    // the request is ever deserialized, so this stays a 403 rather than a 400 from body resolution.
     void testDeleteExtensionNotAdmin() throws Exception {
         mockNormalUser();
         mockExtension(2, 0, 0);
@@ -966,6 +973,49 @@ class AdminAPITest {
                 .andExpect(content().json(namespaceJson(n -> {
                     n.setName("foobar");
                 })));
+    }
+
+    /**
+     * The Size Overrides page resolves a namespace through this endpoint before an override can be
+     * created, and that page belongs to an extension manager - gating it on MANAGE_NAMESPACES alone
+     * would leave its Submit button permanently disabled.
+     */
+    @Test
+    void testGetNamespaceAllowsAnExtensionManager() throws Exception {
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+        mockNamespace();
+
+        mockMvc.perform(
+                get("/admin/namespace/{namespace}", "foobar")
+                        .with(
+                                authentication(
+                                        new TestingAuthenticationToken(
+                                                new IdPrincipal(42L, "test_user", List.of()),
+                                                null,
+                                                List.of())))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testGetNamespaceNotAllowedWithAnUnrelatedPermission() throws Exception {
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_CACHES);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+        mockNamespace();
+
+        mockMvc.perform(
+                get("/admin/namespace/{namespace}", "foobar")
+                        .with(
+                                authentication(
+                                        new TestingAuthenticationToken(
+                                                new IdPrincipal(42L, "test_user", List.of()),
+                                                null,
+                                                List.of())))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -1185,54 +1235,84 @@ class AdminAPITest {
     void testGetUsersNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
-                get("/admin/users")
+                get("/admin/user/search")
                         .with(user("test_user"))
                         .with(csrf().asHeader()))
                 .andExpect(status().isForbidden());
     }
 
+    private MockHttpServletRequestBuilder updateAccess(String loginName, String body) {
+        return put("/admin/user/{provider}/{loginName}/access", "github", loginName)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .with(csrf().asHeader());
+    }
+
     @Test
-    void testUpdateUserRoleNotLoggedIn() throws Exception {
-        mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "admin")
-                        .with(csrf().asHeader()))
+    void testUpdateUserAccessNotLoggedIn() throws Exception {
+        mockMvc.perform(updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void testUpdateUserRoleNotAdmin() throws Exception {
+    void testUpdateUserAccessNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "admin")
-                        .with(user("test_user"))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}")
+                        .with(user("test_user")))
                 .andExpect(status().isForbidden());
     }
 
+    /**
+     * The point of keeping this endpoint on checkAdminUser rather than a permission of its own:
+     * granting access is privilege escalation, so holding a capability must not let you hand it out.
+     * <p>
+     * The caller is authenticated as an {@link IdPrincipal} holding a permission, which is what the
+     * /admin/** gate admits - so the refusal can only come from the handler itself. The error body is
+     * asserted for the same reason: a refusal by the gate carries none.
+     */
     @Test
-    void testUpdateUserRole() throws Exception {
+    void testUpdateUserAccessNotAllowedForAUserWithOnlyAPermission() throws Exception {
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_EXTENSIONS);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+        var principal = new IdPrincipal(42L, "test_user", List.of());
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[\"manage_extensions\"]}")
+                        .with(authentication(new TestingAuthenticationToken(principal, null, List.of()))))
+                .andExpect(status().isForbidden())
+                .andExpect(content().json(errorJson("Administration role is required.")));
+
+        Mockito.verify(repositories, never()).findUserByLoginName("github", "test");
+    }
+
+    @Test
+    void testUpdateUserAccess() throws Exception {
         mockAdminUser();
         var user = new UserData();
         user.setLoginName("test");
         user.setProvider("github");
+        user.getPermissions().add(Permission.MANAGE_CACHES);
         when(repositories.findUserByLoginName("github", "test"))
                 .thenReturn(user);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "admin")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"privileged\",\"permissions\":[\"manage_extensions\"]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isOk())
-                .andExpect(content().json(successJson("Updated role for user github/test to admin.")));
+                .andExpect(
+                        content().json(
+                                successJson(
+                                        "Updated access for user github/test: set the role to privileged, "
+                                                + "granted manage_extensions, revoked manage_caches.")));
 
-        assertThat(user.getRole().toString()).isEqualTo("admin");
+        assertThat(user.getRole()).isEqualTo(UserData.Role.PRIVILEGED);
+        assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_EXTENSIONS);
     }
 
     @Test
-    void testUpdateUserRoleRemove() throws Exception {
+    void testUpdateUserAccessRemovesTheRole() throws Exception {
         mockAdminUser();
         var user = new UserData();
         user.setLoginName("test");
@@ -1242,18 +1322,39 @@ class AdminAPITest {
                 .thenReturn(user);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "none")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isOk())
-                .andExpect(content().json(successJson("Removed role from user github/test.")));
+                .andExpect(
+                        content().json(
+                                successJson("Updated access for user github/test: removed the role.")));
 
         assertThat(user.getRole()).isNull();
     }
 
+    /**
+     * Nothing to apply is not an error here: the page sends the state it wants, and another admin
+     * may have already put the user in it between load and save.
+     */
     @Test
-    void testUpdateUserRoleInvalid() throws Exception {
+    void testUpdateUserAccessWithNothingToChange() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        user.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isOk())
+                .andExpect(content().json(successJson("No access changes for user github/test.")));
+    }
+
+    @Test
+    void testUpdateUserAccessInvalidRole() throws Exception {
         mockAdminUser();
         var user = new UserData();
         user.setLoginName("test");
@@ -1262,24 +1363,66 @@ class AdminAPITest {
                 .thenReturn(user);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "test")
-                        .param("role", "invalid_role")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("test", "{\"role\":\"invalid_role\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * A partial body is rejected rather than defaulted: this endpoint replaces the whole access
+     * state, so {@code {"permissions": [...]}} would otherwise demote the user as a side effect.
+     */
+    @Test
+    void testUpdateUserAccessRejectsAPartialBody() throws Exception {
+        mockAdminUser();
+
+        mockMvc.perform(
+                updateAccess("test", "{\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verify(repositories, never()).findUserByLoginName("github", "test");
+    }
+
+    @Test
+    void testUpdateUserAccessRejectsANullPermissionEntry() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[null]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void testUpdateUserRoleNotFound() throws Exception {
+    void testUpdateUserAccessInvalidPermission() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test"))
+                .thenReturn(user);
+
+        mockMvc.perform(
+                updateAccess("test", "{\"role\":\"none\",\"permissions\":[\"not_a_permission\"]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testUpdateUserAccessNotFound() throws Exception {
         mockAdminUser();
         when(repositories.findUserByLoginName("github", "unknown"))
                 .thenReturn(null);
 
         mockMvc.perform(
-                post("/admin/user/{provider}/{loginName}/role", "github", "unknown")
-                        .param("role", "admin")
-                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
-                        .with(csrf().asHeader()))
+                updateAccess("unknown", "{\"role\":\"admin\",\"permissions\":[]}")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN")))))
                 .andExpect(status().isNotFound());
     }
 
@@ -1808,7 +1951,7 @@ class AdminAPITest {
                 get("/admin/report?year=2021&month=3")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
                 .andExpect(status().isForbidden())
-                .andExpect(content().json(errorJson("Administration role is required.")));
+                .andExpect(content().json(errorJson("Missing required permission: view_reports")));
     }
 
     @Test
@@ -2561,7 +2704,7 @@ class AdminAPITest {
                         .content(baseRequest)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden())
-                .andExpect(content().json(errorJson("Administration role is required.")));
+                .andExpect(content().json(errorJson("Missing required permission: manage_publishers")));
     }
 
     @Test

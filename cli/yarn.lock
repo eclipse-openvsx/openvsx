@@ -1880,10 +1880,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"commander@npm:^6.2.1":
-  version: 6.2.1
-  resolution: "commander@npm:6.2.1"
-  checksum: 10/25b88c2efd0380c84f7844b39cf18510da7bfc5013692d68cdc65f764a1c34e6c8a36ea6d72b6620e3710a930cf8fab2695bdec2bf7107a0f4fa30a3ef3b7d0e
+"commander@npm:^14.0.3":
+  version: 14.0.3
+  resolution: "commander@npm:14.0.3"
+  checksum: 10/dfa9ebe2a433d277de5cb0252d23b10a543d245d892db858d23b516336a835c50fd4f52bee4cd13c705cc8acb6f03dc632c73dd806f7d06d3353eb09953dd17a
   languageName: node
   linkType: hard
 
@@ -3293,7 +3293,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8.15.0"
     "@typescript-eslint/parser": "npm:^8.15.0"
     "@vscode/vsce": "npm:^4.0.0"
-    commander: "npm:^6.2.1"
+    commander: "npm:^14.0.3"
     cross-keychain: "npm:^1.1.0"
     eslint: "npm:^9.15.0"
     follow-redirects: "npm:^1.16.0"

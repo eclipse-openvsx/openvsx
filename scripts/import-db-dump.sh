@@ -114,6 +114,9 @@ COPY_FORMAT="format text, delimiter ','"
 # here - the target's actual constraints are authoritative). scrub-db-dump.sh only redacts 3 of
 # these (personal_access_token, signature_key_pair, user_data) - the rest, extension_version_change
 # included, carry nothing sensitive and pass through untouched.
+#
+# user_data_permission is deliberately not among them: admin permission grants are access state the
+# target sets up for itself, not registry content a restore is meant to reproduce.
 TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data extension_version_change)
 
 for t in "${TABLES[@]}"; do

@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.trustedpublishing.github;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
@@ -67,6 +69,27 @@ class GitHubTrustedPublishingProviderTest {
                         Map.of("id", 163524810));
             }
         };
+    }
+
+    @Test
+    void extractClaimsRecordsRunInformation() {
+        var claims = new HashMap<String, Object>(tokenClaims());
+        claims.put("job_workflow_ref", "eclipse-openvsx/shared/.github/workflows/build.yml@refs/heads/main");
+        claims.put("run_id", "1658821493");
+        claims.put("sha", "ffac537e6cbbf934b08745a378932722df287a53");
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "none").claims(c -> c.putAll(claims))
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
+        Map<String, String> result = newProvider(config).extractClaims(jwt);
+        assertEquals(claims, result);
+        // recorded only: the extra claims do not influence matching
+        assertTrue(newProvider(config).matches(registeredClaims(), result));
+    }
+
+    @Test
+    void extractClaimsWithoutRunInformation() {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "none").claims(c -> c.putAll(tokenClaims()))
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
+        assertEquals(tokenClaims(), newProvider(config).extractClaims(jwt));
     }
 
     @Test

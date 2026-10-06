@@ -485,6 +485,14 @@ public class RepositoryService {
         return userDataRepo.findByProviderAndLoginName(provider, loginName);
     }
 
+    /**
+     * Loads users as mapped entities, unlike {@link #searchUsers} - which hands back objects carrying
+     * only the columns its jOOQ query selects, so without their permissions.
+     */
+    public List<UserData> findUsersById(Collection<Long> ids) {
+        return userDataRepo.findByIdIn(ids);
+    }
+
     public long countUsers() {
         return userDataRepo.count();
     }

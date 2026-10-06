@@ -84,7 +84,7 @@ class ScanAPITest {
     @Test
     void getScans_pagination_validation_failures() throws Exception {
         // Always allow the request to pass the admin gate in this test setup.
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         mockMvc.perform(
                 get("/admin/scans")
@@ -132,7 +132,7 @@ class ScanAPITest {
     @Test
     void getScans_filters_sorting_and_pagination_are_applied() throws Exception {
         // Always allow the request to pass the admin gate in this test setup.
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         // Build scan with display name for the sorted/filtered result.
         var scanC = TestData.scan(
@@ -195,7 +195,7 @@ class ScanAPITest {
 
     @Test
     void getScans_namespace_partial_match_is_applied() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         var scanA = TestData
                 .scan(1, "alpha-ns", "ext-a", "1.0.0", "pub", ScanStatus.PASSED, LocalDateTime.of(2024, 12, 1, 10, 0));
@@ -234,7 +234,7 @@ class ScanAPITest {
 
     @Test
     void getScans_name_matches_extensionName_and_displayName_partial() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         var scanA = TestData.scan(
                 1,
@@ -319,7 +319,7 @@ class ScanAPITest {
 
     @Test
     void getScans_status_supports_comma_separated_values() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         var scanPassed = TestData
                 .scan(2, "ns", "ext-passed", "1.0.0", "pub", ScanStatus.PASSED, LocalDateTime.of(2024, 12, 1, 10, 0));
@@ -360,7 +360,7 @@ class ScanAPITest {
 
     @Test
     void getScans_checkType_supports_comma_separated_values() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         var scanA = TestData
                 .scan(1, "ns", "ext-a", "1.0.0", "pub", ScanStatus.REJECTED, LocalDateTime.of(2024, 12, 1, 10, 0));
@@ -411,7 +411,7 @@ class ScanAPITest {
 
     @Test
     void getScanFilterOptions_returns_validationTypes() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
         when(repositories.findDistinctValidationFailureCheckTypes())
                 .thenReturn(java.util.List.of("NAME_SQUATTING", "BLOCKLIST"));
 
@@ -424,7 +424,7 @@ class ScanAPITest {
 
     @Test
     void getScans_rejects_unknown_sort_field() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         mockMvc.perform(
                 get("/admin/scans")
@@ -437,7 +437,7 @@ class ScanAPITest {
 
     @Test
     void getScanCounts_returns_status_counts_and_zero_decisions() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
         when(repositories.countExtensionScansByStatus(ScanStatus.STARTED)).thenReturn(1L);
         when(repositories.countExtensionScansByStatus(ScanStatus.VALIDATING)).thenReturn(2L);
         when(repositories.countExtensionScansByStatus(ScanStatus.SCANNING)).thenReturn(3L);
@@ -465,7 +465,7 @@ class ScanAPITest {
 
     @Test
     void getScanCounts_supports_enforcement_filtering() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         // DB-level enforcement filtering: mock counts for each status with enforcement
         // When enforcement filter is applied, the code uses countScansForStatistics
@@ -517,7 +517,7 @@ class ScanAPITest {
 
     @Test
     void getScans_returns_displayName_from_scan_when_version_missing() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         var scan = TestData
                 .scan(99, "ns", "ext", "0.0.1", "pub", ScanStatus.REJECTED, LocalDateTime.of(2024, 12, 4, 10, 0));
@@ -554,7 +554,7 @@ class ScanAPITest {
 
     @Test
     void getScanCounts_requires_admin() throws Exception {
-        when(admins.checkAdminUser())
+        when(admins.checkPermission(Permission.MANAGE_SCANS))
                 .thenThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN));
 
         mockMvc.perform(get("/admin/scans/counts").accept(MediaType.APPLICATION_JSON))
@@ -563,7 +563,7 @@ class ScanAPITest {
 
     @Test
     void getScans_requires_admin() throws Exception {
-        when(admins.checkAdminUser())
+        when(admins.checkPermission(Permission.MANAGE_SCANS))
                 .thenThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN));
 
         mockMvc.perform(get("/admin/scans").accept(MediaType.APPLICATION_JSON))
@@ -572,7 +572,7 @@ class ScanAPITest {
 
     @Test
     void retryFailedScannerJobs_returns200_andDelegatesToService() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
         var scan = TestData
                 .scan(5, "ns", "ext", "1.0.0", "pub", ScanStatus.ERRORED, LocalDateTime.of(2024, 12, 1, 10, 0));
         when(repositories.findExtensionScan(5L)).thenReturn(scan);
@@ -590,7 +590,7 @@ class ScanAPITest {
 
     @Test
     void retryFailedScannerJobs_returns404_whenScanNotFound() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
         when(repositories.findExtensionScan(99L)).thenReturn(null);
 
         mockMvc.perform(post("/admin/scans/99/jobs/retry").accept(MediaType.APPLICATION_JSON))
@@ -599,7 +599,7 @@ class ScanAPITest {
 
     @Test
     void retryFailedScannerJobs_returns400_whenServiceRejectsRequest() throws Exception {
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
         var scan = TestData
                 .scan(3, "ns", "ext", "1.0.0", "pub", ScanStatus.SCANNING, LocalDateTime.of(2024, 12, 1, 10, 0));
         when(repositories.findExtensionScan(3L)).thenReturn(scan);
@@ -612,7 +612,7 @@ class ScanAPITest {
 
     @Test
     void retryFailedScannerJobs_requires_admin() throws Exception {
-        when(admins.checkAdminUser())
+        when(admins.checkPermission(Permission.MANAGE_SCANS))
                 .thenThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN));
 
         mockMvc.perform(post("/admin/scans/1/jobs/retry").accept(MediaType.APPLICATION_JSON))

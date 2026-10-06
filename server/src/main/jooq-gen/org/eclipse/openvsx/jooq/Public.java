@@ -46,6 +46,7 @@ import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
 import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
+import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 import org.jooq.Catalog;
 import org.jooq.Sequence;
 import org.jooq.Table;
@@ -265,6 +266,11 @@ public class Public extends SchemaImpl {
     public final UserData USER_DATA = UserData.USER_DATA;
 
     /**
+     * The table <code>public.user_data_permission</code>.
+     */
+    public final UserDataPermission USER_DATA_PERMISSION = UserDataPermission.USER_DATA_PERMISSION;
+
+    /**
      * No further instances allowed
      */
     private Public() {
@@ -355,7 +361,8 @@ public class Public extends SchemaImpl {
             Tier.TIER,
             TrustedPublisher.TRUSTED_PUBLISHER,
             UsageStats.USAGE_STATS,
-            UserData.USER_DATA
+            UserData.USER_DATA,
+            UserDataPermission.USER_DATA_PERMISSION
         );
     }
 }

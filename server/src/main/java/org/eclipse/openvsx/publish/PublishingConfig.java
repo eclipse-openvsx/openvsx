@@ -26,7 +26,6 @@ import org.eclipse.openvsx.ExtensionProcessor;
 public class PublishingConfig {
     // long, not int: an int literal for a default above 2 GiB silently overflows.
     private static final long MAX_CONTENT_SIZE = 512L * 1024 * 1024;
-    private static final long MAX_OVERRIDE_SIZE = 1024L * 1024 * 1024;
 
     /**
      * Largest package accepted for publishing when no namespace or extension override applies.
@@ -35,17 +34,6 @@ public class PublishingConfig {
      * Default: {@code 536870912} (512 MiB)
      */
     private long maxContentSize = MAX_CONTENT_SIZE;
-
-    /**
-     * Ceiling on any single size override. Validated by the admin API, so no override can raise a
-     * namespace's limit past this. It bounds overrides only: the registry-wide default is not
-     * checked against it, so a default set above this gives every namespace a higher limit without
-     * an override.
-     * <p>
-     * Property: {@code ovsx.publishing.max-override-size}
-     * Default: {@code 1073741824} (1 GiB)
-     */
-    private long maxOverrideSize = MAX_OVERRIDE_SIZE;
 
     private boolean requireLicense;
 
@@ -81,14 +69,6 @@ public class PublishingConfig {
         this.maxContentSize = maxContentSize;
     }
 
-    public long getMaxOverrideSize() {
-        return maxOverrideSize;
-    }
-
-    public void setMaxOverrideSize(long maxOverrideSize) {
-        this.maxOverrideSize = maxOverrideSize;
-    }
-
     public boolean isRequireLicense() {
         return requireLicense;
     }
@@ -121,22 +101,11 @@ public class PublishingConfig {
         this.maxInternalTags = maxInternalTags;
     }
 
-    /**
-     * The two sizes are deliberately not compared: an operator may already run a
-     * {@code max-content-size} above this property's default, and failing startup over that would
-     * break an upgrade for a deployment with no overrides at all. They are independent anyway - the
-     * stream-time ceiling is derived from the default and the configured overrides, never from this
-     * property, which only bounds what the admin API will store.
-     */
     @PostConstruct
     public void validate() {
         if (maxContentSize <= 0) {
             throw new IllegalArgumentException(
                     "ovsx.publishing.max-content-size must be greater than zero, got: " + maxContentSize);
-        }
-        if (maxOverrideSize <= 0) {
-            throw new IllegalArgumentException(
-                    "ovsx.publishing.max-override-size must be greater than zero, got: " + maxOverrideSize);
         }
     }
 }

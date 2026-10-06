@@ -43,6 +43,7 @@ import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
 import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
+import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 import org.eclipse.openvsx.jooq.tables.records.AdminScanDecisionRecord;
 import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsExtensionsByRatingRecord;
 import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsPublishersByExtensionsPublishedRecord;
@@ -81,6 +82,7 @@ import org.eclipse.openvsx.jooq.tables.records.SpringSessionRecord;
 import org.eclipse.openvsx.jooq.tables.records.TierRecord;
 import org.eclipse.openvsx.jooq.tables.records.TrustedPublisherRecord;
 import org.eclipse.openvsx.jooq.tables.records.UsageStatsRecord;
+import org.eclipse.openvsx.jooq.tables.records.UserDataPermissionRecord;
 import org.eclipse.openvsx.jooq.tables.records.UserDataRecord;
 import org.jooq.ForeignKey;
 import org.jooq.TableField;
@@ -147,6 +149,7 @@ public class Keys {
     public static final UniqueKey<UsageStatsRecord> USAGE_STATS_UNIQUE_CUSTOMER_WINDOW = Internal.createUniqueKey(UsageStats.USAGE_STATS, DSL.name("usage_stats_unique_customer_window"), new TableField[] { UsageStats.USAGE_STATS.CUSTOMER_ID, UsageStats.USAGE_STATS.WINDOW_START }, true);
     public static final UniqueKey<UserDataRecord> UNIQUE_USER_DATA = Internal.createUniqueKey(UserData.USER_DATA, DSL.name("unique_user_data"), new TableField[] { UserData.USER_DATA.PROVIDER, UserData.USER_DATA.LOGIN_NAME }, true);
     public static final UniqueKey<UserDataRecord> USER_DATA_PKEY = Internal.createUniqueKey(UserData.USER_DATA, DSL.name("user_data_pkey"), new TableField[] { UserData.USER_DATA.ID }, true);
+    public static final UniqueKey<UserDataPermissionRecord> USER_DATA_PERMISSION_PKEY = Internal.createUniqueKey(UserDataPermission.USER_DATA_PERMISSION, DSL.name("user_data_permission_pkey"), new TableField[] { UserDataPermission.USER_DATA_PERMISSION.USER_DATA_ID, UserDataPermission.USER_DATA_PERMISSION.PERMISSION }, true);
 
     // -------------------------------------------------------------------------
     // FOREIGN KEY definitions
@@ -195,4 +198,5 @@ public class Keys {
     public static final ForeignKey<TrustedPublisherRecord, UserDataRecord> TRUSTED_PUBLISHER__TRUSTED_PUBLISHER_CREATED_BY_FKEY = Internal.createForeignKey(TrustedPublisher.TRUSTED_PUBLISHER, DSL.name("trusted_publisher_created_by_fkey"), new TableField[] { TrustedPublisher.TRUSTED_PUBLISHER.CREATED_BY }, Keys.USER_DATA_PKEY, new TableField[] { UserData.USER_DATA.ID }, true);
     public static final ForeignKey<TrustedPublisherRecord, ExtensionRecord> TRUSTED_PUBLISHER__TRUSTED_PUBLISHER_EXTENSION_ID_FKEY = Internal.createForeignKey(TrustedPublisher.TRUSTED_PUBLISHER, DSL.name("trusted_publisher_extension_id_fkey"), new TableField[] { TrustedPublisher.TRUSTED_PUBLISHER.EXTENSION_ID }, Keys.EXTENSION_PKEY, new TableField[] { Extension.EXTENSION.ID }, true);
     public static final ForeignKey<UsageStatsRecord, CustomerRecord> USAGE_STATS__USAGE_STATS_CUSTOMER_ID_FK = Internal.createForeignKey(UsageStats.USAGE_STATS, DSL.name("usage_stats_customer_id_fk"), new TableField[] { UsageStats.USAGE_STATS.CUSTOMER_ID }, Keys.CUSTOMER_PKEY, new TableField[] { Customer.CUSTOMER.ID }, true);
+    public static final ForeignKey<UserDataPermissionRecord, UserDataRecord> USER_DATA_PERMISSION__USER_DATA_PERMISSION_FKEY = Internal.createForeignKey(UserDataPermission.USER_DATA_PERMISSION, DSL.name("user_data_permission_fkey"), new TableField[] { UserDataPermission.USER_DATA_PERMISSION.USER_DATA_ID }, Keys.USER_DATA_PKEY, new TableField[] { UserData.USER_DATA.ID }, true);
 }

@@ -24,6 +24,7 @@ export namespace AdminDashboardRoutes {
     export const USAGE_STATS = createRoute([ROOT, 'usage']);
     export const SETTINGS = createRoute([ROOT, 'settings']);
     export const LOGS = createRoute([ROOT, 'logs']);
+    export const ACCESS_CONTROL = createRoute([ROOT, 'access-control']);
     export const CONSISTENCY = createRoute([ROOT, 'consistency']);
     export const CACHES = createRoute([ROOT, 'caches']);
     export const SEARCH_INDEX = createRoute([ROOT, 'search-index']);

@@ -65,7 +65,7 @@ public class RateLimitAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<TierListJson> getTiers() {
-        admins.checkAdminUser();
+        admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
         try {
             var tiers = repositories.findAllTiers();
@@ -85,7 +85,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<TierJson> createTier(@RequestBody TierJson tier) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var existingTier = repositories.findTier(tier.getName());
             if (existingTier != null) {
@@ -130,7 +130,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<TierJson> updateTier(@PathVariable String name, @RequestBody TierJson tier) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var savedTier = repositories.findTier(name);
             if (savedTier == null) {
@@ -175,7 +175,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<ResultJson> deleteTier(@PathVariable String name) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var tier = repositories.findTier(name);
             if (tier == null) {
@@ -212,7 +212,7 @@ public class RateLimitAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<CustomerListJson> getCustomersForTier(@PathVariable String name) {
-        admins.checkAdminUser();
+        admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
         try {
             var tier = repositories.findTier(name);
@@ -234,7 +234,7 @@ public class RateLimitAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<CustomerListJson> getCustomers() {
-        admins.checkAdminUser();
+        admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
         try {
             var customers = repositories.findAllCustomers();
@@ -252,7 +252,7 @@ public class RateLimitAPI {
     )
     public ResponseEntity<CustomerJson> getCustomer(@PathVariable String name) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var customer = repositories.findCustomer(name);
             if (customer == null) {
@@ -276,7 +276,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<CustomerJson> createCustomer(@RequestBody CustomerJson customerJson) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var existingCustomer = repositories.findCustomer(customerJson.getName());
             if (existingCustomer != null) {
@@ -324,7 +324,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<CustomerJson> updateCustomer(@PathVariable String name, @RequestBody CustomerJson customer) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var savedCustomer = repositories.findCustomer(name);
             if (savedCustomer == null) {
@@ -368,7 +368,7 @@ public class RateLimitAPI {
     )
     public ResponseEntity<CustomerMembershipListJson> getCustomerMembers(@PathVariable String name) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var customer = repositories.findCustomer(name);
             if (customer == null) {
@@ -398,7 +398,7 @@ public class RateLimitAPI {
             @RequestParam(required = false) String provider
     ) {
         try {
-            var admin = admins.checkAdminUser();
+            var admin = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var result = customerService.addCustomerMember(name, userName, provider);
             logs.logAction(admin, result);
@@ -422,7 +422,7 @@ public class RateLimitAPI {
             @RequestParam(required = false) String provider
     ) {
         try {
-            var admin = admins.checkAdminUser();
+            var admin = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var result = customerService.removeCustomerMember(name, userName, provider);
             logs.logAction(admin, result);
@@ -442,7 +442,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<ResultJson> deleteCustomer(@PathVariable String name) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var customer = repositories.findCustomer(name);
             if (customer == null) {
@@ -489,7 +489,7 @@ public class RateLimitAPI {
             @PathVariable String name,
             @RequestParam(required = false) String date
     ) {
-        admins.checkAdminUser();
+        admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
         try {
             var customer = repositories.findCustomer(name);
@@ -514,7 +514,7 @@ public class RateLimitAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<List<RateLimitTokenJson>> getRateLimitTokens(@PathVariable String name) {
-        admins.checkAdminUser();
+        admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
         try {
             var customer = repositories.findCustomer(name);
@@ -544,7 +544,7 @@ public class RateLimitAPI {
             @RequestParam(required = false) String description
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             if (description != null && description.length() > TOKEN_DESCRIPTION_SIZE) {
                 var json = RateLimitTokenJson
@@ -575,7 +575,7 @@ public class RateLimitAPI {
     @MutatingOperation
     public ResponseEntity<ResultJson> deactivateRateLimitToken(@PathVariable String name, @PathVariable long id) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_RATE_LIMITS);
 
             var customer = repositories.findCustomer(name);
             if (customer == null) {

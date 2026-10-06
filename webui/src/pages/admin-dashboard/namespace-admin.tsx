@@ -15,6 +15,9 @@ import { NamespaceDetailView } from '../../components/namespace/namespace-detail
 import { NamespaceDetailConfigContext } from '../../components/namespace/namespace-detail-config';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { MainContext } from '../../context';
+import { hasPermission } from '../../permissions';
+import { createRoute } from '../../utils';
+import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
 import { StyledInput } from './namespace-input';
 import { SearchListContainer } from './search-list-container';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
@@ -85,6 +88,15 @@ export const NamespaceAdmin: FunctionComponent = () => {
 
     const loading = isFetching || detailLoading;
 
+    // The extension admin page and the endpoint behind it need their own permission, so for a user
+    // who only manages namespaces these cards link to the public extension page, and load from the
+    // public API. Leaving the admin fetch in place would 403 once per extension and leave the
+    // namespace looking empty.
+    const canManageExtensions = hasPermission(user, 'manage_extensions');
+    const extensionRoutePrefix = canManageExtensions
+        ? AdminDashboardRoutes.EXTENSION_ADMIN
+        : createRoute([ExtensionDetailRoutes.ROOT]);
+
     let listContainer: ReactNode = '';
     if (currentNamespace && pageSettings && user) {
         // The detail view lays the header out as a flex row, so these only need to be siblings.
@@ -106,10 +118,17 @@ export const NamespaceAdmin: FunctionComponent = () => {
                     setLoadingState={setDetailLoading}
                     namespace={currentNamespace}
                     headerActions={headerActions}
-                    extensionRoutePrefix={AdminDashboardRoutes.EXTENSION_ADMIN}
-                    fetchExtension={(abortController, extension) =>
-                        service.admin.getExtension(abortController, currentNamespace.name, extension.name)
+                    extensionRoutePrefix={extensionRoutePrefix}
+                    fetchExtension={
+                        canManageExtensions
+                            ? (abortController, extension) =>
+                                  service.admin.getExtension(abortController, currentNamespace.name, extension.name)
+                            : undefined
                     }
+                    // This namespace payload names every extension, inactive and soft-deleted ones
+                    // included; the public API used above has nothing to return for those, and an
+                    // extension this viewer cannot see is an absence rather than a failure.
+                    omitUnavailable={!canManageExtensions}
                 />
                 <NamespaceChangeDialog
                     open={changeDialogIsOpen}

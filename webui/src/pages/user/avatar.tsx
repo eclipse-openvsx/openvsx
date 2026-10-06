@@ -16,6 +16,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { UserSettingsRoutes } from './user-settings-routes';
 import { AdminDashboardRoutes } from '../admin-dashboard/admin-dashboard-routes';
+import { hasAnyAdminAccess } from '../../permissions';
 import { MainContext } from '../../context';
 import { UserMenuEntryProps } from '../../page-settings';
 import { LogoutForm } from './logout';
@@ -139,7 +140,7 @@ export const UserAvatar: FunctionComponent = () => {
                     Settings
                 </MenuItem>
                 {UserMenuContent ? <UserMenuContent close={close} MenuEntry={MenuEntry} /> : null}
-                {user.role === 'admin' && (
+                {hasAnyAdminAccess(user) && (
                     <MenuItem
                         component={RouteLink}
                         to={AdminDashboardRoutes.MAIN}

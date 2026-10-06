@@ -165,6 +165,7 @@ public class UserAPI {
         var json = user.toUserJson();
         var serverUrl = UrlUtil.getBaseUrl();
         json.setRole(user.getRoleAsString());
+        json.setPermissions(user.getPermissionsAsStrings());
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
         eclipse.enrichUserJsonWithPublisherAgreement(json, user);
@@ -740,6 +741,7 @@ public class UserAPI {
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
+            json.setPermissions(user.getPermissionsAsStrings());
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
             eclipse.enrichUserJson(json, user, agreement);

@@ -40,6 +40,7 @@ import PublishIcon from '@mui/icons-material/Publish';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
 import { AdminDashboardRoutes } from '../pages/admin-dashboard/admin-dashboard-routes';
+import { hasAnyAdminAccess } from '../permissions';
 import { LogoutForm } from '../pages/user/logout';
 import { LoginComponent } from './login';
 
@@ -119,7 +120,7 @@ export const MobileUserAvatar: FunctionComponent = () => {
                     </MenuItemText>
                 </MenuItem>
                 {UserMenuContent ? <UserMenuContent close={close} MenuEntry={MenuEntry} /> : null}
-                {user.role === 'admin' ? (
+                {hasAnyAdminAccess(user) ? (
                     <MenuItem component={RouteLink} to={AdminDashboardRoutes.MAIN} onClick={close}>
                         <MenuItemText>
                             <AdminPanelSettingsIcon sx={itemIcon} />
