@@ -102,8 +102,15 @@ public interface ScannerJobRepository extends Repository<ScannerJob, Long> {
      * and the scanner invocation handler both race to finalize a job (one on timeout, one on a
      * late result from a slow scanner call), and this WHERE-status guard is what decides which
      * one wins instead of whichever happens to save() last in memory.
+     * <p>
+     * This is a bulk update: it does not go through the persistence context, so any entity a
+     * caller already holds for this row is stale the instant this returns. {@code
+     * clearAutomatically} drops the persistence context so a later {@code findById} reloads
+     * from the database instead of returning a cached pre-claim instance; callers must still
+     * re-fetch explicitly rather than {@code save()} whatever reference they loaded before
+     * calling this.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query(
         "UPDATE ScannerJob j SET j.status = :status, j.updatedAt = :now "

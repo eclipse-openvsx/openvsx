@@ -595,7 +595,8 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
                     logger.info("Re-enqueued stuck job: scanId={}, scanner={}", job.getScanId(), job.getScannerType());
                 } catch (Exception e) {
                     logger.error("Failed to re-enqueue job {}", job.getScanId());
-                    job.setRecoveryInProgress(false);
+                    // markFailed() clears recoveryInProgress itself, on the entity it re-fetches
+                    // after its claim - setting it here would land on a now-discarded instance.
                     markFailed(job, "Recovery failed: " + e.getMessage());
                     completionService.checkCompletionSafely(job.getScanId());
                 }
@@ -695,10 +696,16 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
                 .claimTerminalStatus(job.getId(), ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
             return;
         }
-        job.setStatus(ScannerJob.JobStatus.FAILED);
-        job.setErrorMessage(errorMessage);
-        job.setPollLeaseUntil(null);
-        job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        scanJobRepository.save(job);
+        // Re-fetch: `job` was loaded by the caller before this claim and is now stale - the
+        // claim was a bulk UPDATE the persistence context doesn't know about, and save()ing
+        // the pre-claim instance would merge its stale fields back over the row it just wrote.
+        // recoveryInProgress is cleared here rather than by callers, since it would otherwise
+        // be set on that same stale, now-discarded instance.
+        ScannerJob failedJob = scanJobRepository.findById(job.getId())
+                .orElseThrow(() -> new IllegalStateException("Job not found: " + job.getId()));
+        failedJob.setErrorMessage(errorMessage);
+        failedJob.setPollLeaseUntil(null);
+        failedJob.setRecoveryInProgress(false);
+        scanJobRepository.save(failedJob);
     }
 }

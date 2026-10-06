@@ -263,7 +263,13 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
                     logger.debug("Scan job {} was finalized elsewhere, discarding late scanner result", jobId);
                     return;
                 }
-                scanJobRepository.save(job);
+                // Re-fetch: `job` was loaded before the claim and is now stale - the claim was
+                // a bulk UPDATE the persistence context doesn't know about, and save()ing the
+                // pre-claim instance would merge its stale fields back over the row it just wrote.
+                ScannerJob claimedJob = scanJobRepository.findById(jobId)
+                        .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
+                claimedJob.setExternalJobId(null); // No external job for sync scanners
+                scanJobRepository.save(claimedJob);
                 completionService.checkCompletionSafely(scanId);
             }
             case Scanner.Invocation.Submitted s -> {
@@ -285,10 +291,11 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         if (scanJobRepository.claimTerminalStatus(jobId, ScannerJob.JobStatus.FAILED, TimeUtil.getCurrentUTC()) == 0) {
             return;
         }
-        ScannerJob job = scanJobRepository.findById(jobId).orElseThrow();
-        job.setStatus(ScannerJob.JobStatus.FAILED);
+        // Loaded after the claim, so this already reflects it (status, updatedAt) - only the
+        // error message still needs setting.
+        ScannerJob job = scanJobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
         job.setErrorMessage("Scanner invocation failed: " + e.getMessage());
-        job.setUpdatedAt(TimeUtil.getCurrentUTC());
         scanJobRepository.save(job);
     }
 

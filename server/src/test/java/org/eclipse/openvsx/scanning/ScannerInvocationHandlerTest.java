@@ -113,7 +113,14 @@ class ScannerInvocationHandlerTest {
         when(scanJobRepository.findByScanIdAndScannerType("scan-1", "clamav-rest")).thenReturn(Optional.of(job));
         when(scannerRegistry.getScanner("clamav-rest")).thenReturn(scanner);
         when(scanner.startScan(any())).thenReturn(new Scanner.Invocation.Completed(Scanner.Result.clean()));
-        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+
+        // findById is called twice: once before the claim (the PROCESSING snapshot used to
+        // compute startedAt), once after. The real claim is a bulk UPDATE, so that second call
+        // would see the DB already reflecting it in production - simulated here with a distinct
+        // object so the test can tell whether the code saves this one or the stale one.
+        var claimedJob = processingJob();
+        claimedJob.setStatus(ScannerJob.JobStatus.COMPLETE);
+        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job), Optional.of(claimedJob));
         when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.COMPLETE), any()))
                 .thenReturn(1);
         when(persistenceService.processCompletedScan(any(), any(), anyBoolean(), any()))
@@ -125,10 +132,9 @@ class ScannerInvocationHandlerTest {
 
         newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
 
-        assertEquals(ScannerJob.JobStatus.COMPLETE, job.getStatus());
         verify(persistenceService).processCompletedScan(any(), any(), anyBoolean(), any());
         verify(completionService).checkCompletionSafely("scan-1");
-        verify(scanJobRepository).save(job);
+        verify(scanJobRepository).save(claimedJob);
     }
 
     @Test
@@ -168,12 +174,17 @@ class ScannerInvocationHandlerTest {
         when(scanner.startScan(any())).thenThrow(new RuntimeException("boom"));
         when(scanJobRepository.claimTerminalStatus(eq(42L), eq(ScannerJob.JobStatus.FAILED), any()))
                 .thenReturn(1);
-        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(job));
+        // The real claim is a bulk UPDATE, so the entity markJobFailed() re-fetches afterward
+        // would already show FAILED in production; the mock has to simulate that explicitly,
+        // since it won't apply claimTerminalStatus()'s effect to this stubbed instance itself.
+        var failedJob = processingJob();
+        failedJob.setStatus(ScannerJob.JobStatus.FAILED);
+        when(scanJobRepository.findById(42L)).thenReturn(Optional.of(failedJob));
 
         newHandler().run(new ScannerInvocationRequest("clamav-rest", 7L, "scan-1"));
 
-        assertEquals(ScannerJob.JobStatus.FAILED, job.getStatus());
-        verify(scanJobRepository).save(job);
+        assertEquals(ScannerJob.JobStatus.FAILED, failedJob.getStatus());
+        verify(scanJobRepository).save(failedJob);
         verify(completionService).checkCompletionSafely("scan-1");
     }
 
