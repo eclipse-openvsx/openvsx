@@ -86,7 +86,15 @@ class AdminServiceTest {
     @InjectMocks
     AdminService adminService;
 
-    private final UserData admin = new UserData();
+    // A real ADMIN, not a bare row: these methods are called with the caller the API resolved, and
+    // some of them now refuse a caller who is not one (see checkMayStripAccessOf).
+    private final UserData admin = adminUser();
+
+    private static UserData adminUser() {
+        var user = new UserData();
+        user.setRole(UserData.Role.ADMIN);
+        return user;
+    }
     private long idSequence = 0;
 
     private Extension extension(String name) {
@@ -520,6 +528,90 @@ class AdminServiceTest {
         when(users.findLoggedInUser()).thenReturn(user);
 
         assertThat(adminService.checkPermission(Permission.MANAGE_CACHES)).isSameAs(user);
+    }
+
+    /**
+     * MANAGE_PUBLISHERS is delegated for publisher support on ordinary accounts. Letting it strip
+     * another admin's access would hand it the privilege-escalation step updateUserAccess reserves
+     * for admins: forget every admin in turn and nobody can grant access back.
+     */
+    @Test
+    void forgetUserRefusesAUserWithAccessWhenTheCallerIsNotAnAdmin() {
+        var caller = new UserData();
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setLoginName("root");
+        target.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "root")).thenReturn(target);
+
+        assertThatThrownBy(() -> adminService.forgetUser("github", "root", caller))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("Administration role is required");
+
+        assertThat(target.getRole()).isEqualTo(UserData.Role.ADMIN);
+        verify(entityManager, never()).remove(any());
+    }
+
+    @Test
+    void forgetUserRefusesATargetHoldingOnlyAPermission() {
+        var caller = new UserData();
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setLoginName("sam");
+        target.getPermissions().add(Permission.MANAGE_SCANS);
+        when(repositories.findUserByLoginName("github", "sam")).thenReturn(target);
+
+        assertThatThrownBy(() -> adminService.forgetUser("github", "sam", caller))
+                .isInstanceOf(ErrorResultException.class);
+
+        assertThat(target.getPermissions()).containsExactly(Permission.MANAGE_SCANS);
+    }
+
+    @Test
+    void forgetUserAllowsAnAdminToActOnAnotherAdmin() {
+        var caller = new UserData();
+        caller.setRole(UserData.Role.ADMIN);
+        var target = new UserData();
+        target.setLoginName("root");
+        target.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "root")).thenReturn(target);
+        when(repositories.findMemberships(target)).thenReturn(Streamable.empty());
+        when(repositories.findVersionsByUser(target, true)).thenReturn(Streamable.empty());
+        when(repositories.findVersionsByUser(target, false)).thenReturn(Streamable.empty());
+        when(repositories.findCustomerMemberships(target)).thenReturn(Streamable.empty());
+        when(repositories.findPersonalAccessTokens(target)).thenReturn(Streamable.empty());
+
+        assertThatCode(() -> adminService.forgetUser("github", "root", caller)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void revokePublisherContributionsRefusesAnAdminTargetForANonAdminCaller() {
+        var caller = new UserData();
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setLoginName("root");
+        target.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "root")).thenReturn(target);
+
+        assertThatThrownBy(() -> adminService.revokePublisherContributions("github", "root", caller))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(repositories, never()).deactivatePersonalAccessTokens(any());
+    }
+
+    @Test
+    void revokePublisherTokensRefusesAnAdminTargetForANonAdminCaller() {
+        var caller = new UserData();
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setLoginName("root");
+        target.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "root")).thenReturn(target);
+
+        assertThatThrownBy(() -> adminService.revokePublisherTokens("github", "root", caller))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(repositories, never()).deactivatePersonalAccessTokens(any());
     }
 
     @Test

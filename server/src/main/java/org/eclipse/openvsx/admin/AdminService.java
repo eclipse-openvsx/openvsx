@@ -579,6 +579,7 @@ public class AdminService {
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(loginName), HttpStatus.NOT_FOUND);
         }
+        checkMayStripAccessOf(user, admin);
 
         String revokeFailure = null;
         if (eclipse.isActive()) {
@@ -671,6 +672,7 @@ public class AdminService {
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(loginName), HttpStatus.NOT_FOUND);
         }
+        checkMayStripAccessOf(user, admin);
 
         var deactivatedTokenCount = repositories.deactivatePersonalAccessTokens(user);
         var result = ResultJson.success(
@@ -701,6 +703,7 @@ public class AdminService {
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(provider + "/" + username), HttpStatus.NOT_FOUND);
         }
+        checkMayStripAccessOf(user, admin);
 
         // Handle namespace memberships, removing the users active memberships where found
         var removedMembershipCount = 0;
@@ -837,6 +840,24 @@ public class AdminService {
             throw new ErrorResultException("Missing required permission: " + required, HttpStatus.FORBIDDEN);
         }
         return user;
+    }
+
+    /**
+     * Refuses an action that would strip {@code target}'s role or permissions unless {@code caller}
+     * is a full admin.
+     * <p>
+     * A capability such as {@link Permission#MANAGE_PUBLISHERS} is delegated to get work done on
+     * ordinary accounts. Taking away access another admin granted is the same privilege-escalation
+     * step {@link #updateUserAccess} reserves for admins - without this, a capability holder could
+     * forget or revoke every admin in turn and leave nobody able to grant access back.
+     */
+    private void checkMayStripAccessOf(UserData target, UserData caller) {
+        var targetHasAccess = target.getRole() != null || !target.getPermissions().isEmpty();
+        if (targetHasAccess && !UserData.Role.ADMIN.equals(caller.getRole())) {
+            throw new ErrorResultException(
+                    "Administration role is required to act on a user who has a role or permissions.",
+                    HttpStatus.FORBIDDEN);
+        }
     }
 
     /**
