@@ -68,6 +68,14 @@ describe('useInView', () => {
         expect(inView()).toBe(false);
     });
 
+    it('still measures the element when `initialInView` assumes it is already visible', () => {
+        const viewport = createTestViewport();
+
+        renderInView({ initialInView: true }, viewport);
+
+        expect(viewport.observed()).toHaveLength(1);
+    });
+
     it('keeps `initialInView` when there is no element', () => {
         const viewport = createTestViewport();
 

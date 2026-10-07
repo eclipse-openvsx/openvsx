@@ -31,8 +31,10 @@ export function useInView(
     { enabled = true, rootMargin = DEFAULT_ROOT_MARGIN, once = true, initialInView = false }: UseInViewOptions = {}
 ): boolean {
     const { observe } = useViewportObserver();
-    const [inView, setInView] = useState(initialInView);
-    const latched = once && inView;
+    // Separate from the returned value so `initialInView` (an assumption) can never by itself
+    // stop the element from being measured - only a real report latches.
+    const [observedInView, setObservedInView] = useState<boolean | null>(null);
+    const latched = once && observedInView === true;
 
     // Layout effect so an element already on screen is seeded before the browser paints the
     // placeholder it would otherwise show for a frame.
@@ -45,13 +47,13 @@ export function useInView(
             node,
             visible => {
                 // A latching hook only ever takes in the element coming into view.
-                if (visible || !once) setInView(visible);
+                if (visible || !once) setObservedInView(visible);
             },
             rootMargin
         );
     }, [observe, ref, enabled, latched, once, rootMargin]);
 
-    return inView;
+    return observedInView ?? initialInView;
 }
 
 export interface UseInViewOptions {
