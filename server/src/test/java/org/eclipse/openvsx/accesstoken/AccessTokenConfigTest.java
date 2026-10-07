@@ -16,6 +16,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -29,6 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * binding is worth asserting rather than assuming - not least because the previous-peppers list is a
  * comma separated {@code @Value}, whose behaviour for an absent property is not obvious.
  */
+// Spring Boot's logging system installs a turbo filter on the shared Logback context while any other
+// test's context is starting, which silences every logger and so hides the warning asserted below.
+@Isolated
 @ExtendWith(OutputCaptureExtension.class)
 class AccessTokenConfigTest {
 
