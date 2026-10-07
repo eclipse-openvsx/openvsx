@@ -64,6 +64,11 @@ public class ExtensionSizeLimitService {
         return settings.getMaxExtensionSize();
     }
 
+    /** The write-time ceiling {@link #requireValidSize} enforces; see {@link PublishingConfig#getMaxOverrideSize()}. */
+    public long getMaxOverrideSize() {
+        return publishingConfig.getMaxOverrideSize();
+    }
+
     /**
      * Largest package any namespace may publish. Used as the stream-time cap, before the namespace is
      * known. Evicted by {@link SettingsCache#clear()}, which every settings write triggers.

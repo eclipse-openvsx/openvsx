@@ -43,6 +43,13 @@ interface NotificationState {
 const NOTIFICATION_TIMEOUT = 2000;
 const BYTES_PER_MB = 1024 * 1024;
 
+// Flooring would understate a ceiling that is not a whole number of MB (e.g. 1.5 MiB reported as
+// "1 MB"), making a value the server would accept look invalid.
+const formatMB = (bytes: number): string => {
+    const mb = bytes / BYTES_PER_MB;
+    return Number.isInteger(mb) ? String(mb) : String(parseFloat(mb.toFixed(2)));
+};
+
 /**
  * The settings rendered as toggles. Keyed by the boolean members of `Settings` only: a numeric
  * setting such as `maxExtensionSize` has its own control and must not be routed through the toggle
@@ -238,8 +245,8 @@ export const RuntimeSettingsPage: FC = () => {
                         helperText={
                             maxExtensionSizeValid
                                 ? undefined
-                                : `Must be a whole number of bytes, greater than 0 and at most ${Math.floor(
-                                      (draftSettings?.maxOverrideSize ?? 0) / BYTES_PER_MB
+                                : `Must be a whole number of bytes, greater than 0 and at most ${formatMB(
+                                      draftSettings?.maxOverrideSize ?? 0
                                   )} MB`
                         }
                         inputProps={{ min: '1' }}

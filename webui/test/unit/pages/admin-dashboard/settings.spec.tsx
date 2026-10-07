@@ -73,6 +73,22 @@ describe('RuntimeSettingsPage', () => {
         expect(screen.getByText(/at most 1024 MB/i)).toBeInTheDocument();
     });
 
+    /**
+     * Flooring a ceiling that is not a whole number of MB understated it - a 1.5 MiB ceiling read "at
+     * most 1 MB" even though up to 1.5 MB was actually valid.
+     */
+    it('does not floor a ceiling that is not a whole number of MB', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxOverrideSize: 1.5 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '2');
+
+        expect(screen.getByText(/at most 1\.5 MB/i)).toBeInTheDocument();
+    });
+
     // parseInt stopped at the decimal point, so this used to save 1 MB while the field still read
     // 1.5 - a limit nobody chose, applied silently.
     it('keeps a fractional MB value instead of truncating it', async () => {

@@ -72,7 +72,7 @@ const describeVerified = (extensions: string[]): string => {
 export interface SizeOverrideFormDialogProps {
     open: boolean;
     sizeOverride?: SizeOverride;
-    /** The hard ceiling no override may exceed. Undefined while settings are still loading. */
+    /** The hard ceiling no override may exceed. Undefined while the size-overrides list is still loading. */
     maxOverrideSize?: number;
     onClose: () => void;
     onSubmit: (override: SizeOverride) => Promise<void>;
@@ -167,7 +167,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({
     // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be submitted as 1 and
     // 1e3 as 1, neither of which is what the field showed.
     const maxSize = Number(sizeValue) * UNIT_MULTIPLIERS[sizeUnit];
-    // undefined while settings are still loading - the server has the final say regardless, so this
+    // undefined while the size-overrides list is still loading - the server has the final say regardless,
     // only blocks submission once the ceiling is actually known.
     const exceedsCeiling = maxOverrideSize !== undefined && maxSize > maxOverrideSize;
     const canSubmit =

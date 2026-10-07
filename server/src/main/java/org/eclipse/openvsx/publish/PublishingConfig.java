@@ -37,10 +37,11 @@ public class PublishingConfig {
     private long maxContentSize = MAX_CONTENT_SIZE;
 
     /**
-     * Hard ceiling on any publish-accepted size. Bounds both the admin-adjustable default
+     * Write-time ceiling on any publish-accepted size: both the admin-adjustable default
      * ({@code SettingsService#updateFromJson}) and every {@code ExtensionSizeOverride}
-     * ({@code ExtensionSizeLimitService#requireValidSize}), so no runtime admin action can push what
-     * the service accepts above this.
+     * ({@code ExtensionSizeLimitService#requireValidSize}) are refused above this when created or
+     * updated. Lowering this property afterwards does not reach a default or override already stored
+     * above it - those stay enforced until an admin edits them down.
      * <p>
      * Property: {@code ovsx.publishing.max-override-size}
      * Default: {@code 1073741824} (1 GiB)
