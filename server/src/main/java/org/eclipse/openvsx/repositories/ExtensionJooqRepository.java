@@ -19,10 +19,12 @@ import java.util.Objects;
 import org.jooq.*;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.util.DisplayNameUtil;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.web.SitemapRow;
 
@@ -463,13 +465,20 @@ public class ExtensionJooqRepository {
      * @return the conflicting extension, or {@code null} if no other extension shows that name
      */
     public Extension findActiveExtensionByDisplayName(String displayName, Collection<String> excludeNamespaces) {
-        if (displayName == null || displayName.isBlank()) {
+        if (DisplayNameUtil.isBlank(displayName)) {
             return null;
         }
+        return findActiveExtensionByDisplayNameQuery(displayName, excludeNamespaces).fetchOne(this::toExtension);
+    }
 
+    /** Package-private so a test can check the rendered SQL uses the display name index. */
+    SelectQuery<Record> findActiveExtensionByDisplayNameQuery(
+            String displayName,
+            Collection<String> excludeNamespaces
+    ) {
         // Both sides are normalised by the database rather than one of them in Java, so that the
         // comparison cannot be thrown off by the two disagreeing on what lower casing means.
-        var normalizedDisplayName = DSL.lower(DSL.trim(DSL.val(displayName)));
+        var normalizedDisplayName = normalizeDisplayName(DSL.val(displayName));
 
         // The row that matches the display name. Aliased because the correlated subquery below selects
         // from the unaliased EXTENSION_VERSION and would otherwise be shadowed by this one.
@@ -489,8 +498,9 @@ public class ExtensionJooqRepository {
         var query = findAllActive();
         query.addJoin(evMatch, evMatch.EXTENSION_ID.eq(EXTENSION.ID));
         query.addConditions(
-                evMatch.ACTIVE.eq(true),
-                DSL.lower(DSL.trim(evMatch.DISPLAY_NAME)).eq(normalizedDisplayName),
+                // Bare, not a bound "active = $n", which a generic plan cannot match to the index's WHERE active.
+                DSL.condition(evMatch.ACTIVE),
+                normalizeDisplayName(evMatch.DISPLAY_NAME).eq(normalizedDisplayName),
                 evMatch.ID.eq(latestVersionId));
 
         if (excludeNamespaces != null && !excludeNamespaces.isEmpty()) {
@@ -512,6 +522,12 @@ public class ExtensionJooqRepository {
         // EXTENSION table when there is none. Which of several conflicting extensions gets named in the
         // rejection message is arbitrary, and not worth that.
         query.addLimit(1);
-        return query.fetchOne(this::toExtension);
+        return query;
+    }
+
+    private Field<String> normalizeDisplayName(Field<String> displayName) {
+        // Inlined, not bound: PostgreSQL matches an expression index only against a constant.
+        var characters = DSL.inline(DisplayNameUtil.SURROUNDING_WHITESPACE);
+        return DSL.lower(DSL.function("btrim", SQLDataType.VARCHAR, displayName, characters));
     }
 }

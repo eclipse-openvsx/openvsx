@@ -25,6 +25,8 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -786,6 +788,60 @@ class PublishExtensionVersionHandlerTest {
             when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
             when(repositories.findLatestVersion(existingExtension, null, false, true))
                     .thenReturn(buildVersionShowing("Demo OK"));
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "\u00A0", "\u1680", "\u2000", "\u2007", "\u200A", "\u202F", "\u205F", "\u3000" })
+    void shouldNotTreatUnicodeSpacePaddingAsRenamingTheExtension(String space) throws IOException {
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+            metadata.setDisplayName(space + "Demo OK" + space);
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            var existingExtension = buildExtension("publisher", "demo");
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", "Demo OK"));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(existingExtension);
+            when(repositories.findLatestVersion(existingExtension, null, false, true))
+                    .thenReturn(buildVersionShowing("Demo OK"));
+
+            handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
+
+            verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+        }
+    }
+
+    @Test
+    void shouldNotCheckANewExtensionWhoseDisplayNameIsOnlyUnicodeSpaces() throws IOException {
+        // Trimmed down to nothing, so it would match any active extension showing a blank name.
+        try (var processor = org.mockito.Mockito.mock(ExtensionProcessor.class)) {
+            var metadata = mockExtensionVersion("publisher", "demo", "2.0.0", null, processor);
+            metadata.setDisplayName("\u00A0\u3000\u2007");
+
+            var namespace = buildNamespace("publisher");
+            var user = new UserData();
+            var liu = new LoggedInAuthentication(user);
+
+            when(repositories.findNamespace("publisher")).thenReturn(namespace);
+            when(users.hasPublishPermission(user, namespace)).thenReturn(true);
+            when(validator.validateExtensionVersion("2.0.0")).thenReturn(Optional.empty());
+            when(validator.validateExtensionName("demo")).thenReturn(Optional.empty());
+            when(processor.getPackageMetadata()).thenReturn(
+                    new ExtensionProcessor.PackageMetadata("publisher", "demo", "2.0.0", null));
+            when(repositories.findExtensionForUpdate("demo", "publisher")).thenReturn(null);
 
             handler.createExtensionVersion(processor, liu, LocalDateTime.now(), false);
 

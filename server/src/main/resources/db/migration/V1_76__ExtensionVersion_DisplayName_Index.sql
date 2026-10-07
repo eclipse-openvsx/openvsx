@@ -6,8 +6,8 @@
 -- The expression has to match the one used by the query, or the planner falls back to a sequential
 -- scan over every version there is: the lookup normalises casing and surrounding whitespace away,
 -- because neither is visible enough to tell two extensions apart when they are read side by side.
--- jOOQ renders that normalisation as lower(TRIM(BOTH FROM display_name)), which PostgreSQL
--- canonicalises to lower(btrim(display_name)) -- the expression indexed here.
+-- The trimmed set is every Unicode space separator, and must stay identical to
+-- DisplayNameUtil.SURROUNDING_WHITESPACE (checked by ExtensionJooqRepositoryTest).
 --
 -- Restricted to the versions that are publicly visible, which is all the check looks at, and which
 -- keeps the index off the inactive versions that make up the bulk of the table.
@@ -28,12 +28,12 @@
 -- To deploy with no write pause at all, create the index out of band first, where nothing else holds
 -- a transaction open:
 --     CREATE INDEX CONCURRENTLY extension_version_display_name_idx
---         ON public.extension_version (lower(btrim(display_name))) WHERE active;
+--         ON public.extension_version (lower(btrim(display_name, U&' \00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000'))) WHERE active;
 -- IF NOT EXISTS then reduces this migration to a no-op. Note that a failed CONCURRENTLY build leaves
 -- an invalid index behind which IF NOT EXISTS will not replace; drop it before retrying.
 
 SET LOCAL lock_timeout = '5s';
 
 CREATE INDEX IF NOT EXISTS extension_version_display_name_idx
-    ON public.extension_version (lower(btrim(display_name)))
+    ON public.extension_version (lower(btrim(display_name, U&' \00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000')))
     WHERE active;

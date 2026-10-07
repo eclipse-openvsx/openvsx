@@ -369,7 +369,7 @@ public class ExtensionProcessor implements AutoCloseable {
     public String getDeclaredDisplayName() {
         loadVsixManifest();
         var displayName = vsixManifest.path(MANIFEST_METADATA).path("DisplayName").asString();
-        return StringUtils.isNotBlank(displayName) ? displayName : null;
+        return !DisplayNameUtil.isBlank(displayName) ? displayName : null;
     }
 
     /**

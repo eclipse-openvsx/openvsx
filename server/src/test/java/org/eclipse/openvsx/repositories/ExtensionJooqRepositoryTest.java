@@ -14,10 +14,17 @@ package org.eclipse.openvsx.repositories;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.jooq.DSLContext;
+import org.jooq.conf.Settings;
+import org.jooq.impl.DSL;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -25,6 +32,7 @@ import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.util.DisplayNameUtil;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.TargetPlatform;
 
@@ -39,6 +47,9 @@ class ExtensionJooqRepositoryTest extends AbstractPostgresContainerTest {
 
     @Autowired
     EntityManager em;
+
+    @Autowired
+    DSLContext dsl;
 
     /**
      * TOB-OVSX-37: {@code findFirstUnresolvedDependency} joined the extension table by name only, not
@@ -119,6 +130,75 @@ class ExtensionJooqRepositoryTest extends AbstractPostgresContainerTest {
         assertThat(repo.findActiveExtensionByDisplayName("  Pretty Formatter  ", List.of())).isNotNull();
     }
 
+    @ParameterizedTest
+    @MethodSource("spaceSeparators")
+    void matchesDisplayNamesPaddedWithAnySpaceSeparator(int separator) {
+        var space = Character.toString(separator);
+        var padded = persistExtension("dn-padded-ns", "padded-extension");
+        persistVersion(padded, "1.0.0", space + "Padded Formatter" + space, true);
+        var plain = persistExtension("dn-plain-ns", "plain-extension");
+        persistVersion(plain, "1.0.0", "Plain Formatter", true);
+
+        assertThat(repo.findActiveExtensionByDisplayName("Padded Formatter", List.of())).isNotNull();
+        assertThat(repo.findActiveExtensionByDisplayName(space + "plain formatter" + space, List.of())).isNotNull();
+    }
+
+    @Test
+    void matchesDisplayNamesPaddedWithMixedSpaceSeparators() {
+        var extension = persistExtension("dn-mixed-ns", "mixed-extension");
+        persistVersion(extension, "1.0.0", "\u2007\u00A0Pretty Formatter\u202F", true);
+
+        assertThat(repo.findActiveExtensionByDisplayName("\u3000 Pretty Formatter\u205F\u1680", List.of()))
+                .isNotNull();
+    }
+
+    @Test
+    void doesNotMatchADisplayNameDifferingInInteriorWhitespace() {
+        var extension = persistExtension("dn-interior-ns", "interior-extension");
+        persistVersion(extension, "1.0.0", "Pretty Formatter", true);
+
+        assertThat(repo.findActiveExtensionByDisplayName("Pretty\u00A0Formatter", List.of())).isNull();
+        assertThat(repo.findActiveExtensionByDisplayName("Pretty  Formatter", List.of())).isNull();
+    }
+
+    @Test
+    void reportsNoConflictForADisplayNameOfOnlySpaceSeparators() {
+        // Normalised to nothing, it would otherwise match every extension showing a blank name.
+        var blank = persistExtension("dn-blank-ns", "blank-extension");
+        persistVersion(blank, "1.0.0", "\u202F", true);
+
+        assertThat(repo.findActiveExtensionByDisplayName("\u00A0", List.of())).isNull();
+        assertThat(repo.findActiveExtensionByDisplayName("\u00A0\u2007", List.of())).isNull();
+    }
+
+    @Test
+    void displayNameLookupUsesTheDisplayNameIndexUnderAGenericPlan() {
+        // A generic plan keeps bind parameters unresolved, so it only uses the index when the query's
+        // expression is identical to the one V1_76 indexes.
+        for (var i = 0; i < 50; i++) {
+            persistVersion(persistExtension("dn-seed-ns-" + i, "seed-extension"), "1.0.0", "Seed Formatter " + i, true);
+        }
+        // On empty, unanalysed tables the planner picks indexes by tie-break rather than selectivity.
+        dsl.execute("ANALYZE namespace, extension, extension_version");
+
+        var query = repo.findActiveExtensionByDisplayNameQuery("Pretty Formatter", List.of("dn-publisher-ns"));
+        var sql = DSL.using(dsl.dialect(), new Settings().withRenderNamedParamPrefix("$")).renderNamedParams(query);
+        var arguments = query.getBindValues().stream()
+                .map(value -> dsl.renderInlined(DSL.inline(value)))
+                .collect(Collectors.joining(", "));
+
+        dsl.execute("SET LOCAL plan_cache_mode = force_generic_plan");
+        dsl.execute("SET LOCAL enable_seqscan = off");
+        dsl.execute("PREPARE display_name_lookup AS " + sql);
+        try {
+            var plan = dsl.fetch("EXPLAIN EXECUTE display_name_lookup(" + arguments + ")")
+                    .getValues(0, String.class);
+            assertThat(String.join("\n", plan)).contains("extension_version_display_name_idx");
+        } finally {
+            dsl.execute("DEALLOCATE display_name_lookup");
+        }
+    }
+
     @Test
     void reportsNoConflictForADisplayNameNobodyShows() {
         var extension = persistExtension("dn-unused-ns", "original-extension");
@@ -164,6 +244,10 @@ class ExtensionJooqRepositoryTest extends AbstractPostgresContainerTest {
 
         assertThat(repo.findActiveExtensionByDisplayName("Former Formatter", List.of())).isNull();
         assertThat(repo.findActiveExtensionByDisplayName("Current Formatter", List.of())).isNotNull();
+    }
+
+    static IntStream spaceSeparators() {
+        return DisplayNameUtil.SURROUNDING_WHITESPACE.chars();
     }
 
     private Extension persistExtension(String namespaceName, String extensionName) {

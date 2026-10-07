@@ -14,7 +14,6 @@ import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -53,6 +52,7 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
+import org.eclipse.openvsx.util.DisplayNameUtil;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.NamingUtil;
@@ -193,7 +193,10 @@ public class PublishExtensionVersionHandler {
         // The declared name, not the labelling fallback: gating on a name the package does not carry
         // would make this copy stricter than the one in createExtensionVersion that enforces it.
         checkDisplayNameAdoption(
-                namespace.getName(), processor.getDeclaredDisplayName(), latestVersion, userData);
+                namespace.getName(),
+                processor.getDeclaredDisplayName(),
+                latestVersion,
+                userData);
     }
 
     private Namespace checkPublishPermission(ExtensionProcessor processor, UserData user) {
@@ -409,11 +412,7 @@ public class PublishExtensionVersionHandler {
      */
     private boolean adoptsDisplayName(ExtensionVersion latestVersion, String displayName) {
         var currentDisplayName = latestVersion != null ? latestVersion.getDisplayName() : null;
-        return !normalizeDisplayName(currentDisplayName).equals(normalizeDisplayName(displayName));
-    }
-
-    private String normalizeDisplayName(String displayName) {
-        return StringUtils.trimToEmpty(displayName).toLowerCase(Locale.ROOT);
+        return !DisplayNameUtil.normalize(currentDisplayName).equals(DisplayNameUtil.normalize(displayName));
     }
 
     /**
@@ -436,7 +435,7 @@ public class PublishExtensionVersionHandler {
      * incomplete, as every run would fail on the same extension again.
      */
     private void checkDisplayNameConflict(String namespaceName, String displayName, UserData user) {
-        if (mirrorEnabled || StringUtils.isBlank(displayName)) {
+        if (mirrorEnabled || DisplayNameUtil.isBlank(displayName)) {
             return;
         }
 
