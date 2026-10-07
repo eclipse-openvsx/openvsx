@@ -1525,4 +1525,3 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 ### [v0.1.0] (13/04/2021)
 
 First release of Open VSX with the Eclipse Foundation.
-
