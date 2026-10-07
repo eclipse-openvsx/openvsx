@@ -70,7 +70,7 @@ describe('RuntimeSettingsPage', () => {
         await user.type(input, '2048');
 
         expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
-        expect(screen.getByText(/at most 1024 MB/i)).toBeInTheDocument();
+        expect(screen.getByText(/at most 1073741824 bytes/i)).toBeInTheDocument();
     });
 
     /**
@@ -86,7 +86,24 @@ describe('RuntimeSettingsPage', () => {
         await user.clear(input);
         await user.type(input, '2');
 
-        expect(screen.getByText(/at most 1\.5 MB/i)).toBeInTheDocument();
+        expect(screen.getByText(/at most 1572864 bytes \(~1\.50 MB\)/i)).toBeInTheDocument();
+    });
+
+    /**
+     * Rounding the MB approximation can overstate the ceiling near a boundary - 2 MiB - 1 byte rounds
+     * to "2.00 MB", which would name a value (2 MB) the server actually rejects. The exact byte count
+     * must be the authoritative part of the message.
+     */
+    it('names the exact byte ceiling near a rounding boundary', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxOverrideSize: 2 * 1024 * 1024 - 1 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '3');
+
+        expect(screen.getByText(/at most 2097151 bytes/i)).toBeInTheDocument();
     });
 
     // parseInt stopped at the decimal point, so this used to save 1 MB while the field still read

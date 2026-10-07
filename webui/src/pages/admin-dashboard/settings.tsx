@@ -44,10 +44,14 @@ const NOTIFICATION_TIMEOUT = 2000;
 const BYTES_PER_MB = 1024 * 1024;
 
 // Flooring would understate a ceiling that is not a whole number of MB (e.g. 1.5 MiB reported as
-// "1 MB"), making a value the server would accept look invalid.
-const formatMB = (bytes: number): string => {
+// "1 MB"), making a value the server would accept look invalid. Rounding instead can overstate it
+// at a near-boundary value (e.g. 2 MiB - 1 byte rounds to "2 MB", naming a value the server would
+// reject) - so the exact byte count is the authoritative part of the message, with the MB figure
+// only an approximation alongside it.
+const formatCeiling = (bytes: number): string => {
     const mb = bytes / BYTES_PER_MB;
-    return Number.isInteger(mb) ? String(mb) : String(parseFloat(mb.toFixed(2)));
+    const approxMB = Number.isInteger(mb) ? String(mb) : mb.toFixed(2);
+    return `${bytes} bytes (~${approxMB} MB)`;
 };
 
 /**
@@ -245,9 +249,9 @@ export const RuntimeSettingsPage: FC = () => {
                         helperText={
                             maxExtensionSizeValid
                                 ? undefined
-                                : `Must be a whole number of bytes, greater than 0 and at most ${formatMB(
+                                : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
                                       draftSettings?.maxOverrideSize ?? 0
-                                  )} MB`
+                                  )}`
                         }
                         inputProps={{ min: '1' }}
                         sx={{ maxWidth: 240 }}
