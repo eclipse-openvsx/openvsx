@@ -71,9 +71,8 @@ class PublishingConfigTest {
     }
 
     /**
-     * The default is the hard ceiling too: both bound the same thing - what the service accepts for
-     * publishing - and the ceiling is what {@code ExtensionSizeLimitService} and scanning are
-     * validated against, so a content size above it would make that validation meaningless.
+     * The configured fallback and the hard ceiling bound the same thing - what the service accepts
+     * for publishing - so a content size above the ceiling would make the ceiling meaningless.
      */
     @Test
     void refusesAMaxContentSizeAboveMaxOverrideSize() {

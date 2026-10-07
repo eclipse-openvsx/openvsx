@@ -40,9 +40,7 @@ public class PublishingConfig {
      * Hard ceiling on any publish-accepted size. Bounds both the admin-adjustable default
      * ({@code SettingsService#updateFromJson}) and every {@code ExtensionSizeOverride}
      * ({@code ExtensionSizeLimitService#requireValidSize}), so no runtime admin action can push what
-     * the service accepts above this. {@code ExtensionSizeLimitService} additionally refuses to start
-     * if this exceeds {@code ovsx.scanning.max-archive-size-bytes}, so a package at this ceiling is
-     * always fully scanned.
+     * the service accepts above this.
      * <p>
      * Property: {@code ovsx.publishing.max-override-size}
      * Default: {@code 1073741824} (1 GiB)
