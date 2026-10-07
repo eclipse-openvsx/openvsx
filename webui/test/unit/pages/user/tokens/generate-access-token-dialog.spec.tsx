@@ -75,6 +75,24 @@ describe('GenerateAccessTokenDialog', () => {
         expect(screen.getByLabelText('Extension (optional)')).toBeEnabled();
     });
 
+    it('drops the extension when the namespace is cleared', async () => {
+        const { createAccessToken } = renderDialog();
+
+        await openDialog();
+        await userEvent.type(screen.getByLabelText('Namespace (optional)'), 'foo');
+        await userEvent.type(screen.getByLabelText('Extension (optional)'), 'bar');
+        await userEvent.clear(screen.getByLabelText('Namespace (optional)'));
+        expect(screen.getByLabelText('Extension (optional)')).toHaveValue('');
+        await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
+
+        await waitFor(() => expect(createAccessToken).toHaveBeenCalledOnce());
+        expect(createAccessToken.mock.calls[0][3]).toEqual({
+            namespace: undefined,
+            extension: undefined,
+            publishingOnly: false
+        });
+    });
+
     it('starts afresh the next time it is opened', async () => {
         renderDialog();
 

@@ -53,9 +53,9 @@ public interface PersonalAccessTokenRepository extends Repository<PersonalAccess
 
     @Modifying
     @Query(
-        "update PersonalAccessToken t set t.expiresTimestamp = ?1 where t.active = true and t.expiresTimestamp is null and t.type = ?2"
+        "update PersonalAccessToken t set t.expiresTimestamp = ?1 where t.active = true and t.expiresTimestamp is null and t.type in ?2"
     )
-    int updateExpiresTimeForLegacyAccessTokens(LocalDateTime timestamp, PersonalAccessTokenType type);
+    int updateExpiresTimeForLegacyAccessTokens(LocalDateTime timestamp, Collection<PersonalAccessTokenType> types);
 
     List<PersonalAccessToken> findByExpiresTimestampLessThanEqualAndActiveTrueAndNotifiedFalseOrderById(
             LocalDateTime timestamp,

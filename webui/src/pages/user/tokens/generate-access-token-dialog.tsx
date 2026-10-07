@@ -61,7 +61,13 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                         label='Namespace (optional)'
                         helperText='Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
                         value={namespace}
-                        onChange={e => setNamespace(e.target.value)}
+                        onChange={e => {
+                            setNamespace(e.target.value);
+                            // the extension field is disabled without a namespace, so it could not be cleared by hand
+                            if (!e.target.value.trim()) {
+                                setExtension('');
+                            }
+                        }}
                     />
                     <TextField
                         fullWidth

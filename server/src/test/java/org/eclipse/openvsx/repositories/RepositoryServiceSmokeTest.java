@@ -384,7 +384,8 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories
                         .deleteExpiredPersonalAccessTokens(NOW, List.of(PersonalAccessTokenType.TPT)),
                 () -> repositories.findExpiringPersonalAccessTokensWithoutNotification(NOW, page),
-                () -> repositories.updateExpiresTimeForLegacyPersonalAccessTokens(NOW, PersonalAccessTokenType.LLT),
+                () -> repositories
+                        .updateExpiresTimeForLegacyPersonalAccessTokens(NOW, PersonalAccessTokenType.LONG_LIVED),
                 () -> repositories.findSimilarExtensionsByLevenshtein(
                         "extensionName",
                         "namespaceName",

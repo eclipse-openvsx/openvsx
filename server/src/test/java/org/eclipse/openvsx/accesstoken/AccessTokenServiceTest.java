@@ -319,6 +319,19 @@ class AccessTokenServiceTest {
         assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNotNull();
     }
 
+    // Tokens made while expiry was off have no expiry; enabling it must reach every long-lived type.
+    @Test
+    void backfillsTheExpiryOfEveryLongLivedTokenType() {
+        var expiration = LocalDateTime.now(ZoneId.of("UTC")).plusDays(7);
+        when(repositories.updateExpiresTimeForLegacyPersonalAccessTokens(any(), any())).thenReturn(3);
+
+        assertThat(accessTokenService.setExpirationTimeForLegacyAccessTokens(expiration)).isEqualTo(3);
+
+        verify(repositories).updateExpiresTimeForLegacyPersonalAccessTokens(
+                expiration,
+                List.of(PersonalAccessTokenType.LLT, PersonalAccessTokenType.LLP));
+    }
+
     @Test
     void createsAPublishingOnlyLongLivedTokenWhenAsked() {
         when(config.getPrefix()).thenReturn("ovsx");

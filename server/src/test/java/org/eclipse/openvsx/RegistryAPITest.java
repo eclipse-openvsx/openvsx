@@ -1889,6 +1889,16 @@ class RegistryAPITest {
                 .andExpect(status().isBadRequest());
     }
 
+    // A blank namespace would otherwise reach the VerifyNamespace constructor, which rejects it with an
+    // IllegalArgumentException the endpoint does not catch.
+    @Test
+    void testVerifyTokenRejectsABlankNamespace() throws Exception {
+        mockAccessToken();
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", " ", "my_token"))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test
     void testVerifyTokenNoNamespace() throws Exception {
         mockAccessToken();

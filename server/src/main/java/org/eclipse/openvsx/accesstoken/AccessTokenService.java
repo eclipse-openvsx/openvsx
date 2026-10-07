@@ -472,7 +472,8 @@ public class AccessTokenService {
 
     @Transactional
     public int setExpirationTimeForLegacyAccessTokens(LocalDateTime expirationTime) {
-        return repositories.updateExpiresTimeForLegacyPersonalAccessTokens(expirationTime, PersonalAccessTokenType.LLT);
+        return repositories
+                .updateExpiresTimeForLegacyPersonalAccessTokens(expirationTime, PersonalAccessTokenType.LONG_LIVED);
     }
 
     /**
