@@ -68,8 +68,6 @@ something to argue for in the pull request description.
   each documented with its property name and default, and validated in a
   `@PostConstruct`. A property with an invalid value should fail startup rather
   than misbehave later.
-- The server has **no CHANGELOG** — only `cli/` and `webui/` do. Do not invent
-  one; put the reasoning in the commit message and pull request instead.
 
 ## The formatter's versions have one source of truth
 
@@ -140,3 +138,25 @@ you touch configuration, diff all four and say which you changed.
 A configuration property that has never appeared in a release can be renamed
 outright; one that has shipped needs a fallback to its old key (see
 `ovsx.access-token.prefix`). Check the tags before assuming either.
+
+## Changelog
+
+Location: `CHANGELOG.md`.
+
+- **Keep entries short — one line per change.** State what changed and why it
+  matters to someone running or integrating the server; link the issue/PR for
+  detail instead of writing the detail out.
+- New entries go under `### [next] (unreleased)`, in `#### Added` /
+  `#### Changed` / `#### Fixed` / `#### Dependencies` as needed. Read the
+  section first and append to an existing subsection rather than duplicating
+  it. A release commit renames that heading to the version and date — don't do
+  that yourself.
+- Released sections are immutable; never modify them.
+- Never describe a change against something that is itself unreleased: if your
+  work modifies behaviour introduced by an entry under `[next]`, edit that
+  entry to describe the final state.
+- Call out anything an operator must act on at upgrade time (a Flyway
+  migration that needs care, a renamed configuration property, a changed
+  deployment descriptor) in its own entry, not buried in a feature line.
+- Internal-only changes (tests, CI, docs, refactors with no behaviour change)
+  get no entry.
