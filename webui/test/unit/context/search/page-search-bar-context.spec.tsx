@@ -68,6 +68,24 @@ describe('useSearchBar', () => {
         expect(focusRequests()).toBe(before + 1);
     });
 
+    it('does not hand focus away when the viewport shrinks (mobile keyboard) while focused', async () => {
+        const { viewport } = renderBar();
+        await userEvent.click(navFieldProbe());
+        const before = focusRequests();
+        expect(pageField()).toHaveFocus();
+
+        const originalHeight = window.innerHeight;
+        Object.defineProperty(window, 'innerHeight', { value: originalHeight - 300, configurable: true });
+        try {
+            viewport.setInView(false);
+
+            expect(focusRequests()).toBe(before);
+            expect(pageField()).toHaveAttribute('data-registered', 'true');
+        } finally {
+            Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true });
+        }
+    });
+
     it('hands focus back to the nav field when unmounted while focused', async () => {
         const { rerender } = renderBar();
         await userEvent.click(navFieldProbe());

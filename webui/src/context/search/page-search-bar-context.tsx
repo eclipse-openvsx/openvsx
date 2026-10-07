@@ -25,6 +25,7 @@ import {
 } from 'react';
 import { useInView } from '../../hooks/use-in-view';
 import { useSignalEffect } from '../../hooks/use-signal-effect';
+import { moveCursorToEnd } from '../../utils';
 import { useSearchFocus } from './search-focus-context';
 
 /**
@@ -55,8 +56,7 @@ export function usePageSearchBar(): PageSearchBarValue {
 const focusAtEnd = (node: HTMLElement) => {
     node.focus();
     if (node instanceof HTMLInputElement) {
-        // Move cursor to end so the user can keep typing.
-        requestAnimationFrame(() => node.setSelectionRange(node.value.length, node.value.length));
+        moveCursorToEnd(node);
     }
 };
 
@@ -74,28 +74,75 @@ export function useSearchBar(ref: RefObject<HTMLElement>): boolean {
     // Follows the bar out of view, and assumes it in view until measured so the nav field doesn't flash on load.
     const inView = useInView(ref, { once: false, rootMargin: '0px', initialInView: true });
 
-    // Layout effect so the count is updated before other layout effects in the same commit.
-    useLayoutEffect(() => {
-        if (!inView) {
+    // `isRegistered` (not `inView`) is what callers see: a guarded skip below (viewport shrunk
+    // while focused) keeps registration alive for an instant where `inView` itself still reads
+    // false, so returning `inView` directly would misreport "unregistered" during that window.
+    const [isRegistered, setIsRegistered] = useState(false);
+    const unregisterRef = useRef<(() => void) | null>(null);
+    const lastViewportHeight = useRef(typeof window === 'undefined' ? 0 : window.innerHeight);
+
+    const handOff = useCallback(() => {
+        if (!unregisterRef.current) {
             return;
         }
-        const unregister = registerPageSearchBar();
-        return () => {
-            const hadFocus = ref.current != null && document.activeElement === ref.current;
-            unregister();
-            // Scrolled away or unmounted mid-typing: hand focus to the nav field, or it falls to <body>.
-            if (hadFocus) searchFocusSignal.emit();
-        };
-    }, [inView, ref, registerPageSearchBar, searchFocusSignal.emit]);
+        const hadFocus = ref.current != null && document.activeElement === ref.current;
+        unregisterRef.current();
+        unregisterRef.current = null;
+        setIsRegistered(false);
+        // Scrolled away or unmounted mid-typing: hand focus to the nav field, or it falls to <body>.
+        if (hadFocus) searchFocusSignal.emit();
+    }, [ref, searchFocusSignal.emit]);
+
+    // Layout effect so the count is updated before other layout effects in the same commit.
+    useLayoutEffect(() => {
+        if (inView) {
+            lastViewportHeight.current = window.innerHeight;
+            if (!unregisterRef.current) {
+                unregisterRef.current = registerPageSearchBar();
+                setIsRegistered(true);
+            }
+            return;
+        }
+        // A mobile virtual keyboard opening shrinks the viewport around a field that never
+        // actually moved, which can report it as having left the viewport although the user is
+        // still typing into it. Ignore that specific case rather than yanking focus away - this
+        // can still misfire if a real scroll happens to coincide with the browser chrome
+        // resizing (e.g. hiding the address bar), but that is a much rarer combination.
+        const hasFocus = ref.current != null && document.activeElement === ref.current;
+        if (hasFocus && window.innerHeight < lastViewportHeight.current) {
+            return;
+        }
+        handOff();
+    }, [inView, ref, registerPageSearchBar, handOff]);
+
+    // Unmounting while registered always hands focus back, regardless of the guard above.
+    // A layout effect: by the time a passive effect's cleanup would run, React has already
+    // detached `ref.current` and the browser has already moved focus off the removed node.
+    useLayoutEffect(() => handOff, [handOff]);
 
     useSignalEffect(
         searchFocusSignal,
         useCallback(() => {
-            if (inView && ref.current) focusAtEnd(ref.current);
-        }, [inView, ref])
+            if (isRegistered && ref.current) focusAtEnd(ref.current);
+        }, [isRegistered, ref])
     );
 
-    return inView;
+    return isRegistered;
+}
+
+/**
+ * The mirror of `useSearchBar`'s own handoff: give up focus to a page search bar that just
+ * registered, if the element behind `ref` had it (e.g. the nav field, about to go `inert`).
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useYieldSearchFocus(ref: RefObject<HTMLElement>): void {
+    const { hasPageSearchBar } = usePageSearchBar();
+    const { searchFocusSignal } = useSearchFocus();
+    useLayoutEffect(() => {
+        if (hasPageSearchBar && ref.current != null && document.activeElement === ref.current) {
+            searchFocusSignal.emit();
+        }
+    }, [hasPageSearchBar, ref, searchFocusSignal.emit]);
 }
 
 export const PageSearchBarProvider: FunctionComponent<{ children: ReactNode }> = ({ children }) => {
