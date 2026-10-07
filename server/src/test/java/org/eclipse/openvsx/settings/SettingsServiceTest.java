@@ -47,6 +47,8 @@ class SettingsServiceTest {
         // isReadOnly() unboxes SettingsCache#getBoolean's Boolean return value; an unstubbed mock
         // would hand back null here and NPE on every call that reaches it.
         when(cache.getBoolean(anyString(), anyBoolean())).thenReturn(false);
+        // lenient: only the ceiling-rejection test below cares about a specific value.
+        Mockito.lenient().when(publishingConfig.getMaxOverrideSize()).thenReturn(Long.MAX_VALUE);
         settings = new SettingsService(null, cache, publishingConfig, new AfterCommitExecutor());
     }
 
@@ -174,6 +176,25 @@ class SettingsServiceTest {
         newSettings.setMaxExtensionSize(0L);
 
         assertThatThrownBy(() -> settings.updateFromJson(newSettings)).isInstanceOf(ErrorResultException.class);
+    }
+
+    @Test
+    void updateFromJsonRejectsMaxExtensionSizeAboveTheOverrideCeiling() {
+        when(publishingConfig.getMaxOverrideSize()).thenReturn(1000L);
+
+        var newSettings = new SettingsJson();
+        newSettings.setMaxExtensionSize(1001L);
+
+        assertThatThrownBy(() -> settings.updateFromJson(newSettings))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("exceeds the maximum");
+    }
+
+    @Test
+    void getCurrentSettingsReportsTheOverrideCeiling() {
+        when(publishingConfig.getMaxOverrideSize()).thenReturn(1024L * 1024 * 1024);
+
+        assertThat(settings.getCurrentSettings().getMaxOverrideSize()).isEqualTo(1024L * 1024 * 1024);
     }
 
     @Test

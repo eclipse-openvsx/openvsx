@@ -159,7 +159,9 @@ export const RuntimeSettingsPage: FC = () => {
     const maxExtensionSizeValid =
         draftSettings === null ||
         !maxExtensionSizeChanged ||
-        (Number.isSafeInteger(draftSettings.maxExtensionSize) && draftSettings.maxExtensionSize > 0);
+        (Number.isSafeInteger(draftSettings.maxExtensionSize) &&
+            draftSettings.maxExtensionSize > 0 &&
+            draftSettings.maxExtensionSize <= draftSettings.maxOverrideSize);
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -234,7 +236,11 @@ export const RuntimeSettingsPage: FC = () => {
                         disabled={loading || saving || !draftSettings}
                         error={!maxExtensionSizeValid}
                         helperText={
-                            maxExtensionSizeValid ? undefined : 'Must be a whole number of bytes, greater than 0'
+                            maxExtensionSizeValid
+                                ? undefined
+                                : `Must be greater than 0 and at most ${Math.floor(
+                                      (draftSettings?.maxOverrideSize ?? 0) / BYTES_PER_MB
+                                  )} MB`
                         }
                         inputProps={{ min: '1' }}
                         sx={{ maxWidth: 240 }}

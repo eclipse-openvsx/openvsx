@@ -19,6 +19,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import type { SizeOverride } from '../../../extension-registry-types';
 import { handleError } from '../../../utils';
+import { useSettings } from '../use-settings';
 import { DeleteSizeOverrideDialog } from './delete-size-override-dialog';
 import { SizeOverrideFormDialog } from './size-override-form-dialog';
 import {
@@ -46,6 +47,7 @@ export const SizeOverrides: FC = () => {
     const [errorDismissed, setErrorDismissed] = useState(false);
 
     const { data, isFetching: loading, error: loadError } = useSizeOverrides();
+    const { data: settings } = useSettings();
     const { mutateAsync: createSizeOverride } = useCreateSizeOverride();
     const { mutateAsync: updateSizeOverride } = useUpdateSizeOverride();
     const { mutateAsync: deleteSizeOverride } = useDeleteSizeOverride();
@@ -175,6 +177,7 @@ export const SizeOverrides: FC = () => {
             <SizeOverrideFormDialog
                 open={formDialogOpen}
                 sizeOverride={selected}
+                maxOverrideSize={settings?.maxOverrideSize}
                 onClose={() => {
                     setFormDialogOpen(false);
                     setSelected(undefined);

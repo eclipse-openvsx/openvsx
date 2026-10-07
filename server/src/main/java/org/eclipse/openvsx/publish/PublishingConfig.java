@@ -26,6 +26,7 @@ import org.eclipse.openvsx.ExtensionProcessor;
 public class PublishingConfig {
     // long, not int: an int literal for a default above 2 GiB silently overflows.
     private static final long MAX_CONTENT_SIZE = 512L * 1024 * 1024;
+    private static final long MAX_OVERRIDE_SIZE = 1024L * 1024 * 1024;
 
     /**
      * Largest package accepted for publishing when no namespace or extension override applies.
@@ -34,6 +35,19 @@ public class PublishingConfig {
      * Default: {@code 536870912} (512 MiB)
      */
     private long maxContentSize = MAX_CONTENT_SIZE;
+
+    /**
+     * Hard ceiling on any publish-accepted size. Bounds both the admin-adjustable default
+     * ({@code SettingsService#updateFromJson}) and every {@code ExtensionSizeOverride}
+     * ({@code ExtensionSizeLimitService#requireValidSize}), so no runtime admin action can push what
+     * the service accepts above this. {@code ExtensionSizeLimitService} additionally refuses to start
+     * if this exceeds {@code ovsx.scanning.max-archive-size-bytes}, so a package at this ceiling is
+     * always fully scanned.
+     * <p>
+     * Property: {@code ovsx.publishing.max-override-size}
+     * Default: {@code 1073741824} (1 GiB)
+     */
+    private long maxOverrideSize = MAX_OVERRIDE_SIZE;
 
     private boolean requireLicense;
 
@@ -67,6 +81,14 @@ public class PublishingConfig {
 
     public void setMaxContentSize(long maxContentSize) {
         this.maxContentSize = maxContentSize;
+    }
+
+    public long getMaxOverrideSize() {
+        return maxOverrideSize;
+    }
+
+    public void setMaxOverrideSize(long maxOverrideSize) {
+        this.maxOverrideSize = maxOverrideSize;
     }
 
     public boolean isRequireLicense() {
@@ -106,6 +128,15 @@ public class PublishingConfig {
         if (maxContentSize <= 0) {
             throw new IllegalArgumentException(
                     "ovsx.publishing.max-content-size must be greater than zero, got: " + maxContentSize);
+        }
+        if (maxOverrideSize <= 0) {
+            throw new IllegalArgumentException(
+                    "ovsx.publishing.max-override-size must be greater than zero, got: " + maxOverrideSize);
+        }
+        if (maxContentSize > maxOverrideSize) {
+            throw new IllegalArgumentException(
+                    "ovsx.publishing.max-content-size (" + maxContentSize + ") must not exceed "
+                            + "ovsx.publishing.max-override-size (" + maxOverrideSize + ")");
         }
     }
 }

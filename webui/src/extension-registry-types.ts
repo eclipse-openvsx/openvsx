@@ -673,6 +673,8 @@ export interface Settings {
     readOnly: boolean;
     /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
     maxExtensionSize: number;
+    /** Read-only: the hard ceiling neither the default above nor a size override can be raised past. */
+    maxOverrideSize: number;
 }
 
 export interface SearchIndex {

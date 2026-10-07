@@ -22,6 +22,7 @@ import { renderWithProviders } from '../../support/test-providers';
 const settings = (overrides: Partial<Settings> = {}): Settings => ({
     readOnly: false,
     maxExtensionSize: 512 * 1024 * 1024,
+    maxOverrideSize: Number.MAX_SAFE_INTEGER,
     ...overrides
 });
 
@@ -53,6 +54,23 @@ describe('RuntimeSettingsPage', () => {
         await user.type(input, '0');
 
         expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    });
+
+    /**
+     * The server refuses a default above ovsx.publishing.max-override-size, so saying so here beats
+     * letting the admin discover it from the save's error response.
+     */
+    it('disables save once the typed size exceeds the override ceiling', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxOverrideSize: 1024 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '2048');
+
+        expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+        expect(screen.getByText(/at most 1024 MB/i)).toBeInTheDocument();
     });
 
     // parseInt stopped at the decimal point, so this used to save 1 MB while the field still read
