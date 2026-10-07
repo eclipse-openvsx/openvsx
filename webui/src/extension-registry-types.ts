@@ -610,6 +610,8 @@ export interface SizeOverride {
 
 export interface SizeOverrideList {
     sizeOverrides: SizeOverride[];
+    /** Read-only: neither a size override nor the registry-wide default can be raised past this ceiling. */
+    maxOverrideSize: number;
 }
 
 export enum EnforcementState {
@@ -675,6 +677,8 @@ export interface Settings {
     readOnly: boolean;
     /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
     maxExtensionSize: number;
+    /** Read-only: neither maxExtensionSize nor a size override can be raised past this ceiling. */
+    maxOverrideSize: number;
 }
 
 export interface SearchIndex {

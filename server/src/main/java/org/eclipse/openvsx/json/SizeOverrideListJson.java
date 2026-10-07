@@ -18,4 +18,4 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonInclude(Include.NON_NULL)
-public record SizeOverrideListJson(List<SizeOverrideJson> sizeOverrides) {}
+public record SizeOverrideListJson(List<SizeOverrideJson> sizeOverrides, long maxOverrideSize) {}

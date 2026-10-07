@@ -72,11 +72,19 @@ const describeVerified = (extensions: string[]): string => {
 export interface SizeOverrideFormDialogProps {
     open: boolean;
     sizeOverride?: SizeOverride;
+    /** The hard ceiling no override may exceed. Undefined while the size-overrides list is still loading. */
+    maxOverrideSize?: number;
     onClose: () => void;
     onSubmit: (override: SizeOverride) => Promise<void>;
 }
 
-export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, sizeOverride, onClose, onSubmit }) => {
+export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({
+    open,
+    sizeOverride,
+    maxOverrideSize,
+    onClose,
+    onSubmit
+}) => {
     const { service } = useContext(MainContext);
     const isEditMode = sizeOverride !== undefined;
 
@@ -159,7 +167,11 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
     // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be submitted as 1 and
     // 1e3 as 1, neither of which is what the field showed.
     const maxSize = Number(sizeValue) * UNIT_MULTIPLIERS[sizeUnit];
-    const canSubmit = check.state === 'verified' && Number.isSafeInteger(maxSize) && maxSize > 0 && !saving;
+    // undefined while the size-overrides list is still loading - the server has the final say regardless,
+    // only blocks submission once the ceiling is actually known.
+    const exceedsCeiling = maxOverrideSize !== undefined && maxSize > maxOverrideSize;
+    const canSubmit =
+        check.state === 'verified' && Number.isSafeInteger(maxSize) && maxSize > 0 && !exceedsCeiling && !saving;
 
     const handleSubmit = async () => {
         if (!canSubmit || check.state !== 'verified') {
@@ -246,6 +258,14 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({ open, 
                             type='number'
                             value={sizeValue}
                             fullWidth
+                            error={exceedsCeiling}
+                            helperText={
+                                exceedsCeiling
+                                    ? `Exceeds the maximum of ${splitSize(maxOverrideSize ?? 0).value} ${
+                                          splitSize(maxOverrideSize ?? 0).unit
+                                      }`
+                                    : ' '
+                            }
                             inputProps={{ min: '1' }}
                             onChange={event => setSizeValue(event.target.value)}
                         />
