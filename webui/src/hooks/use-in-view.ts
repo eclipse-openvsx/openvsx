@@ -49,7 +49,8 @@ export function useInView(
                 // A latching hook only ever takes in the element coming into view.
                 if (visible || !once) setObservedInView(visible);
             },
-            rootMargin
+            rootMargin,
+            once
         );
     }, [observe, ref, enabled, latched, once, rootMargin]);
 

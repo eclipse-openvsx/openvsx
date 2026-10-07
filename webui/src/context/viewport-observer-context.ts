@@ -17,8 +17,11 @@ export interface ViewportObserver {
     /**
      * Reports whether `node` is within `rootMargin` of the viewport — once right away,
      * then on every change — until the returned function is called.
+     * <p>
+     * `once`: the caller only cares about the first time `node` is in view, so if the
+     * right-away report already says so, no live watch is worth setting up for it.
      */
-    observe: (node: Element, onChange: (inView: boolean) => void, rootMargin: string) => () => void;
+    observe: (node: Element, onChange: (inView: boolean) => void, rootMargin: string, once?: boolean) => () => void;
 }
 
 const isOnScreen = (node: Element): boolean => {
@@ -31,13 +34,18 @@ const isOnScreen = (node: Element): boolean => {
  * older browsers) everything counts as in view, so nothing waits on it indefinitely.
  */
 export const browserViewportObserver: ViewportObserver = {
-    observe(node, onChange, rootMargin) {
+    observe(node, onChange, rootMargin, once = false) {
         if (typeof IntersectionObserver === 'undefined') {
             onChange(true);
             return () => {};
         }
         // The observer's own first callback is async, so measure directly.
-        onChange(isOnScreen(node));
+        const visible = isOnScreen(node);
+        onChange(visible);
+        if (once && visible) {
+            // Already latched by the measurement above - nothing left to watch for.
+            return () => {};
+        }
         const observer = new IntersectionObserver(entries => onChange(entries[entries.length - 1].isIntersecting), {
             rootMargin
         });

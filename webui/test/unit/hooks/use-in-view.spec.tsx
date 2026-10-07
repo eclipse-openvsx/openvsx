@@ -144,6 +144,22 @@ describe('browserViewportObserver', () => {
         expect(onChange).toHaveBeenLastCalledWith(true);
     });
 
+    it('never constructs an IntersectionObserver for a latching caller already on screen', () => {
+        const node = document.createElement('div');
+        vi.spyOn(node, 'getBoundingClientRect').mockReturnValue({
+            top: 0,
+            bottom: 10,
+            left: 0,
+            right: 10
+        } as DOMRect);
+        const onChange = vi.fn();
+
+        browserViewportObserver.observe(node, onChange, '300px', true);
+
+        expect(onChange).toHaveBeenCalledWith(true);
+        expect(FakeIntersectionObserver.instances).toHaveLength(0);
+    });
+
     it('disconnects when stopped', () => {
         const stop = browserViewportObserver.observe(document.createElement('div'), () => {}, '0px');
 

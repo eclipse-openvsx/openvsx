@@ -31,9 +31,13 @@ export function createTestViewport({ initiallyInView = false } = {}): TestViewpo
     const watched = new Map<Element, { onChange: (inView: boolean) => void; rootMargin: string }>();
     return {
         observer: {
-            observe(node, onChange, rootMargin) {
-                watched.set(node, { onChange, rootMargin });
+            observe(node, onChange, rootMargin, once = false) {
                 onChange(initiallyInView);
+                if (once && initiallyInView) {
+                    // Mirrors browserViewportObserver: already latched, nothing left to watch.
+                    return () => {};
+                }
+                watched.set(node, { onChange, rootMargin });
                 return () => watched.delete(node);
             }
         },
