@@ -572,13 +572,16 @@ public class RepositoryService {
 
     public Streamable<PersonalAccessToken> findActivePersonalAccessTokensAndType(
             UserData user,
-            PersonalAccessTokenType type
+            Collection<PersonalAccessTokenType> types
     ) {
-        return personalAccessTokenRepo.findByUserAndActiveTrueAndType(user, type);
+        return personalAccessTokenRepo.findByUserAndActiveTrueAndTypeIn(user, types);
     }
 
-    public long countActivePersonalAccessTokensAndType(UserData user, PersonalAccessTokenType type) {
-        return personalAccessTokenRepo.countByUserAndActiveTrueAndType(user, type);
+    public long countActivePersonalAccessTokensAndType(
+            UserData user,
+            Collection<PersonalAccessTokenType> types
+    ) {
+        return personalAccessTokenRepo.countByUserAndActiveTrueAndTypeIn(user, types);
     }
 
     public PersonalAccessToken findPersonalAccessToken(String value) {

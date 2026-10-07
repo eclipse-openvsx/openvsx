@@ -44,6 +44,8 @@ public class AccessTokenJson extends ResultJson {
 
     private String deleteTokenUrl;
 
+    private boolean publishingOnly;
+
     @Nullable
     private String scopeNamespace;
 
@@ -133,5 +135,13 @@ public class AccessTokenJson extends ResultJson {
 
     public void setScopeExtension(@Nullable String scopeExtension) {
         this.scopeExtension = scopeExtension;
+    }
+
+    public boolean isPublishingOnly() {
+        return publishingOnly;
+    }
+
+    public void setPublishingOnly(boolean publishingOnly) {
+        this.publishingOnly = publishingOnly;
     }
 }

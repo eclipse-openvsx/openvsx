@@ -1464,7 +1464,7 @@ class AdminAPITest {
         token.setType(PersonalAccessTokenType.LLT);
 
         when(repositories.findUserByLoginName("github", "test")).thenReturn(user);
-        when(repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT))
+        when(repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED))
                 .thenReturn(1L);
         when(repositories.findLatestVersions(user)).thenReturn(versions);
         when(repositories.findActiveReviews(user)).thenReturn(Streamable.empty());

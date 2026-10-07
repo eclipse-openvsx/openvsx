@@ -193,7 +193,7 @@ public class UserAPI {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         var serverUrl = UrlUtil.getBaseUrl();
-        return repositories.findActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT)
+        return repositories.findActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED)
                 .map(token -> {
                     var json = token.toAccessTokenJson();
                     json.setDeleteTokenUrl(
@@ -211,7 +211,8 @@ public class UserAPI {
     public ResponseEntity<AccessTokenJson> createAccessToken(
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String namespace,
-            @RequestParam(required = false) String extension
+            @RequestParam(required = false) String extension,
+            @RequestParam(required = false) boolean publishingOnly
     ) {
         if (description != null && description.length() > TOKEN_DESCRIPTION_SIZE) {
             var json = AccessTokenJson
@@ -253,7 +254,7 @@ public class UserAPI {
         }
 
         return new ResponseEntity<>(
-                tokens.createLongLivedAccessToken(user, description, scopeNamespace, scopeExtension),
+                tokens.createLongLivedAccessToken(user, description, scopeNamespace, scopeExtension, publishingOnly),
                 HttpStatus.CREATED);
     }
 

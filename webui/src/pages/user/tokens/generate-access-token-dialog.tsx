@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { FunctionComponent, useContext, useRef, useState } from 'react';
-import { Box, Button, TextField } from '@mui/material';
+import { Box, Button, Checkbox, FormControlLabel, FormHelperText, TextField } from '@mui/material';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { isError } from '../../../extension-registry-types';
 import { MainContext } from '../../../context';
@@ -20,6 +20,7 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
     const [open, setOpen] = useState(false);
     const [namespace, setNamespace] = useState('');
     const [extension, setExtension] = useState('');
+    const [publishingOnly, setPublishingOnly] = useState(false);
 
     const handleGenerate = async (description: string): Promise<string> => {
         if (!context.user) {
@@ -27,7 +28,8 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
         }
         const token = await context.service.createAccessToken(abortController.current, context.user, description, {
             namespace: namespace.trim() || undefined,
-            extension: extension.trim() || undefined
+            extension: extension.trim() || undefined,
+            publishingOnly
         });
         if (isError(token)) {
             throw token;
@@ -49,6 +51,7 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                     setOpen(false);
                     setNamespace('');
                     setExtension('');
+                    setPublishingOnly(false);
                 }}
                 onGenerate={handleGenerate}
                 onError={context.handleError}>
@@ -68,6 +71,21 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                         value={extension}
                         onChange={e => setExtension(e.target.value)}
                     />
+                    <Box>
+                        <FormControlLabel
+                            label='Publishing only'
+                            control={
+                                <Checkbox
+                                    checked={publishingOnly}
+                                    onChange={e => setPublishingOnly(e.target.checked)}
+                                />
+                            }
+                        />
+                        <FormHelperText>
+                            The token can only publish extensions. It cannot create namespaces, delete extensions or use
+                            administration endpoints.
+                        </FormHelperText>
+                    </Box>
                 </Box>
             </GenerateTokenDialog>
         </>

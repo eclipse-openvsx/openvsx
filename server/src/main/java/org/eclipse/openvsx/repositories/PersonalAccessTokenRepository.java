@@ -30,11 +30,14 @@ public interface PersonalAccessTokenRepository extends Repository<PersonalAccess
 
     Streamable<PersonalAccessToken> findByUser(UserData user);
 
-    Streamable<PersonalAccessToken> findByUserAndActiveTrueAndType(UserData user, PersonalAccessTokenType type);
+    Streamable<PersonalAccessToken> findByUserAndActiveTrueAndTypeIn(
+            UserData user,
+            Collection<PersonalAccessTokenType> types
+    );
 
     Streamable<PersonalAccessToken> findByVersion(int version);
 
-    long countByUserAndActiveTrueAndType(UserData user, PersonalAccessTokenType type);
+    long countByUserAndActiveTrueAndTypeIn(UserData user, Collection<PersonalAccessTokenType> types);
 
     PersonalAccessToken findById(long id);
 

@@ -1830,6 +1830,48 @@ class RegistryAPITest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void testVerifyTokenScopedToNamespace() throws Exception {
+        var token = mockForPublish("contributor");
+        token.setScopeNamespace(repositories.findNamespace("foo"));
+        var other = new Namespace();
+        other.setName("other");
+        Mockito.when(repositories.findNamespace("other")).thenReturn(other);
+        Mockito.when(repositories.canPublishInNamespace(token.getUser(), other)).thenReturn(true);
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "foo", "my_token"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "other", "my_token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void testVerifyTokenScopedToExtension() throws Exception {
+        var token = mockForPublish("contributor");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(repositories.findNamespace("foo"));
+        token.setScopeExtension(extension);
+        var other = new Namespace();
+        other.setName("other");
+        Mockito.when(repositories.findNamespace("other")).thenReturn(other);
+        Mockito.when(repositories.canPublishInNamespace(token.getUser(), other)).thenReturn(true);
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "foo", "my_token"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "other", "my_token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void testVerifyTokenPublishingOnly() throws Exception {
+        var token = mockForPublish("contributor");
+        token.setType(PersonalAccessTokenType.LLP);
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "foo", "my_token"))
+                .andExpect(status().isOk());
+    }
+
     /**
      * A blank parameter would otherwise reach {@code VerifyPublishVersion}, whose constructor rejects
      * it with an IllegalArgumentException the endpoint does not catch - a client mistake reported as
@@ -3547,7 +3589,7 @@ class RegistryAPITest {
         return token;
     }
 
-    private void mockForPublish(String mode) {
+    private PersonalAccessToken mockForPublish(String mode) {
         var token = mockAccessToken();
         if (mode.equals("invalid")) {
             token.setActive(false);
@@ -3663,6 +3705,7 @@ class RegistryAPITest {
 
         Mockito.when(entityManager.merge(any(Extension.class)))
                 .then((Answer<Extension>) invocation -> invocation.getArgument(0, Extension.class));
+        return token;
     }
 
     private String reviewJson(Consumer<ReviewJson> content) throws JacksonException {

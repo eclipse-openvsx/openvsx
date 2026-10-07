@@ -12,6 +12,8 @@
  *****************************************************************************/
 package org.eclipse.openvsx.entities;
 
+import java.util.List;
+
 /**
  * The type of the personal access token.
  */
@@ -19,30 +21,47 @@ public enum PersonalAccessTokenType {
     /**
      * Long-lived personal access token (classic).
      */
-    LLT("at_", false, false, true),
+    LLT("at_", false, false, true, false),
+    /**
+     * Long-lived personal publishing token, usable only for publishing.
+     */
+    LLP("ap_", false, false, true, true),
     /**
      * One time usable general personal access token.
      * Legacy: was used until 1.2.0; but is not anymore.
      */
     @Deprecated
-    OTT("ot_", true, true, false),
+    OTT("ot_", true, true, false, false),
     /**
      * Trusted publishing issued access token. Short-lived and scoped to a single extension, but usable
      * more than once within its lifetime: a release commonly publishes one version per target platform,
      * and those are separate publish requests that share the one token the exchange issued.
      */
-    TPT("tp_", false, true, false);
+    TPT("tp_", false, true, false, true);
+
+    /**
+     * The long-lived types, which a user creates and manages themselves.
+     */
+    public static final List<PersonalAccessTokenType> LONG_LIVED = List.of(LLT, LLP);
 
     private final String tokenMarker;
     private final boolean oneTime;
     private final boolean ephemeral;
     private final boolean notify;
+    private final boolean publishOnly;
 
-    PersonalAccessTokenType(String tokenMarker, boolean oneTime, boolean ephemeral, boolean notify) {
+    PersonalAccessTokenType(
+            String tokenMarker,
+            boolean oneTime,
+            boolean ephemeral,
+            boolean notify,
+            boolean publishOnly
+    ) {
         this.tokenMarker = tokenMarker;
         this.oneTime = oneTime;
         this.ephemeral = ephemeral;
         this.notify = notify;
+        this.publishOnly = publishOnly;
     }
 
     /**
@@ -73,7 +92,18 @@ public enum PersonalAccessTokenType {
         return ephemeral;
     }
 
+    /**
+     * Whether the token expiration should cause a notification to token owner or not. Usually "long living" tokens
+     * do have this set, while the "short living" not.
+     */
     public boolean isNotify() {
         return notify;
+    }
+
+    /**
+     * Whether the token may be used <em>for publishing extensions only</em> or not.
+     */
+    public boolean isPublishOnly() {
+        return publishOnly;
     }
 }

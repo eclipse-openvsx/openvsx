@@ -272,6 +272,7 @@ export interface PersonalAccessToken {
     notified?: boolean;
     description: string;
     deleteTokenUrl: UrlString;
+    publishingOnly?: boolean;
     scopeNamespace?: string;
     scopeExtension?: string;
 }

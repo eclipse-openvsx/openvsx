@@ -125,7 +125,8 @@ public class AccessTokenService {
             UserData user,
             String description,
             @Nullable Namespace scopeNamespace,
-            @Nullable Extension scopeExtension
+            @Nullable Extension scopeExtension,
+            boolean publishingOnly
     ) {
         requireNonNull(user);
         final LocalDateTime expiresTimestamp = config.isTokenExpiryEnabled()
@@ -139,7 +140,7 @@ public class AccessTokenService {
                 null,
                 scopeExtension,
                 scopeNamespace,
-                PersonalAccessTokenType.LLT);
+                publishingOnly ? PersonalAccessTokenType.LLP : PersonalAccessTokenType.LLT);
     }
 
     /**
@@ -414,13 +415,14 @@ public class AccessTokenService {
         } else {
             scope = new AccessTokenScope.Unrestricted();
         }
-        if (token.getType() == PersonalAccessTokenType.TPT) {
-            // VerifyPublishVersion asks whether this token could publish, which is strictly less than
-            // publishing and is what the size-limit preflight runs before the publish itself.
+        if (token.getType().isPublishOnly()) {
+            // The verify actions ask whether this token could publish, which is strictly less than
+            // publishing: the size-limit preflight and `ovsx verify-pat` run them before the publish itself.
             scope = scope.and(
                     new AccessTokenScope.ActionScoped(
                             AccessTokenAction.PublishVersion.class,
-                            AccessTokenAction.VerifyPublishVersion.class));
+                            AccessTokenAction.VerifyPublishVersion.class,
+                            AccessTokenAction.VerifyNamespace.class));
         }
         return scope;
     }
