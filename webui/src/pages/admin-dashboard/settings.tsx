@@ -238,7 +238,7 @@ export const RuntimeSettingsPage: FC = () => {
                         helperText={
                             maxExtensionSizeValid
                                 ? undefined
-                                : `Must be greater than 0 and at most ${Math.floor(
+                                : `Must be a whole number of bytes, greater than 0 and at most ${Math.floor(
                                       (draftSettings?.maxOverrideSize ?? 0) / BYTES_PER_MB
                                   )} MB`
                         }

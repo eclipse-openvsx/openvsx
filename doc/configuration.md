@@ -49,8 +49,6 @@ The maximum content size the server accepts when publishing an extension. This i
 
 The hard ceiling on any publish-accepted size. It bounds both the runtime default - the admin API refuses to raise the **Default max extension size** above it - and any single size override - the admin API refuses to create or update one above it either. Must be greater than zero, and `ovsx.publishing.max-content-size` must not exceed it: the two bound the same thing, so a content size above this ceiling would make the ceiling meaningless.
 
-The server additionally refuses to start if this value exceeds `ovsx.scanning.max-archive-size-bytes`: scanning silently skips whatever is past its own archive-size limit rather than failing closed, so a publish-accepted package larger than that would publish partially scanned, or not scanned at all. Raise the scanning property, or lower this one, to fix a startup failure that names both.
-
 | Property      | `ovsx.publishing.unsupported-icon-formats`
 |---------------|-----------------------------------
 | Type          | string[]

@@ -33,11 +33,9 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.scanning.ExtensionScanConfig;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -55,7 +53,6 @@ class ExtensionSizeLimitServiceTest {
     private ExtensionSizeOverrideRepository overrides;
     private RepositoryService repositories;
     private PublishingConfig publishingConfig;
-    private ExtensionScanConfig scanConfig;
     private ExtensionSizeLimitService limits;
 
     @BeforeEach
@@ -64,10 +61,9 @@ class ExtensionSizeLimitServiceTest {
         overrides = Mockito.mock(ExtensionSizeOverrideRepository.class);
         repositories = Mockito.mock(RepositoryService.class);
         publishingConfig = Mockito.mock(PublishingConfig.class);
-        scanConfig = Mockito.mock(ExtensionScanConfig.class);
         // lenient: the write tests below never read the default limit.
         Mockito.lenient().when(settings.getMaxExtensionSize()).thenReturn(DEFAULT_LIMIT);
-        limits = new ExtensionSizeLimitService(settings, overrides, repositories, publishingConfig, scanConfig);
+        limits = new ExtensionSizeLimitService(settings, overrides, repositories, publishingConfig);
     }
 
     @Test
@@ -89,36 +85,6 @@ class ExtensionSizeLimitServiceTest {
         when(overrides.findHighestMaxSize()).thenReturn(1024L);
 
         assertThat(limits.getCeiling()).isEqualTo(DEFAULT_LIMIT);
-    }
-
-    @Test
-    void startupAcceptsWhenTheOverrideCeilingFitsInsideTheScanLimit() {
-        when(scanConfig.isEnabled()).thenReturn(true);
-        when(scanConfig.getMaxArchiveSizeBytes()).thenReturn(1000L);
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(1000L);
-
-        assertThatCode(limits::validateAgainstScanLimit).doesNotThrowAnyException();
-    }
-
-    @Test
-    void startupRefusesWhenTheOverrideCeilingExceedsTheScanLimit() {
-        when(scanConfig.isEnabled()).thenReturn(true);
-        when(scanConfig.getMaxArchiveSizeBytes()).thenReturn(1000L);
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(1001L);
-
-        assertThatThrownBy(limits::validateAgainstScanLimit)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("ovsx.publishing.max-override-size")
-                .hasMessageContaining("ovsx.scanning.max-archive-size-bytes");
-    }
-
-    @Test
-    void startupSkipsTheScanLimitCheckWhenScanningIsDisabled() {
-        when(scanConfig.isEnabled()).thenReturn(false);
-        when(scanConfig.getMaxArchiveSizeBytes()).thenReturn(1000L);
-        when(publishingConfig.getMaxOverrideSize()).thenReturn(Long.MAX_VALUE);
-
-        assertThatCode(limits::validateAgainstScanLimit).doesNotThrowAnyException();
     }
 
     @Test

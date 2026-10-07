@@ -15,7 +15,6 @@ package org.eclipse.openvsx.settings;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
@@ -36,7 +35,6 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.scanning.ExtensionScanConfig;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 @Service
@@ -49,39 +47,17 @@ public class ExtensionSizeLimitService {
     private final ExtensionSizeOverrideRepository overrides;
     private final RepositoryService repositories;
     private final PublishingConfig publishingConfig;
-    private final ExtensionScanConfig scanConfig;
 
     public ExtensionSizeLimitService(
             SettingsService settings,
             ExtensionSizeOverrideRepository overrides,
             RepositoryService repositories,
-            PublishingConfig publishingConfig,
-            ExtensionScanConfig scanConfig
+            PublishingConfig publishingConfig
     ) {
         this.settings = settings;
         this.overrides = overrides;
         this.repositories = repositories;
         this.publishingConfig = publishingConfig;
-        this.scanConfig = scanConfig;
-    }
-
-    /**
-     * Fails startup if the hard ceiling on publish-accepted sizes ({@link
-     * PublishingConfig#getMaxOverrideSize()}) is wider than what scanning will actually inspect -
-     * otherwise a package at that ceiling could publish partially scanned, or not scanned at all past
-     * {@code ovsx.scanning.max-archive-size-bytes}. Skipped while scanning is disabled: there is
-     * nothing to fit inside then.
-     */
-    @PostConstruct
-    void validateAgainstScanLimit() {
-        var ceiling = publishingConfig.getMaxOverrideSize();
-        var scanLimit = scanConfig.getMaxArchiveSizeBytes();
-        if (scanConfig.isEnabled() && ceiling > scanLimit) {
-            throw new IllegalArgumentException(
-                    "ovsx.publishing.max-override-size (" + ceiling + ") must not exceed "
-                            + "ovsx.scanning.max-archive-size-bytes (" + scanLimit + "); otherwise a package "
-                            + "could publish larger than what scanning can inspect");
-        }
     }
 
     public long getDefaultLimit() {
