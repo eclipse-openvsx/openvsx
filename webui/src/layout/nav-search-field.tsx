@@ -28,9 +28,10 @@ import { ExtensionListRoutes } from '../pages/extension-list/extension-list-rout
 import { useSearch } from '../hooks/use-search';
 import { useSearchQuery } from '../context/search/search-context';
 import { useSearchFocus } from '../context/search/search-focus-context';
-import { usePageSearchBar } from '../context/search/page-search-bar-context';
+import { usePageSearchBar, useYieldSearchFocus } from '../context/search/page-search-bar-context';
 import { useSignalEffect } from '../hooks/use-signal-effect';
 import { useShortcut } from '../hooks/use-shortcut';
+import { moveCursorToEnd } from '../utils';
 
 export const NavSearchField: FunctionComponent = () => {
     const { pathname } = useLocation();
@@ -56,11 +57,8 @@ export const NavSearchField: FunctionComponent = () => {
     // component re-rendered); it is honored here once the field is visible again.
     const fieldRef = useRef<HTMLDivElement>(null);
     const pendingFocus = useRef(false);
+    useYieldSearchFocus(inputRef);
     useLayoutEffect(() => {
-        // A page search bar taking over while this field has focus inherits it (e.g. the hero scrolled back into view).
-        if (hasPageSearchBar && document.activeElement === inputRef.current) {
-            searchFocusSignal.emit();
-        }
         if (fieldRef.current) {
             fieldRef.current.inert = hasPageSearchBar;
         }
@@ -68,7 +66,7 @@ export const NavSearchField: FunctionComponent = () => {
             pendingFocus.current = false;
             inputRef.current?.focus({ preventScroll: true });
         }
-    }, [hasPageSearchBar, searchFocusSignal.emit]);
+    }, [hasPageSearchBar]);
 
     // Take focus when requested — unless a page search bar is registered and owns focus instead.
     useSignalEffect(
@@ -104,13 +102,11 @@ export const NavSearchField: FunctionComponent = () => {
         [search, pathname, filter.query, resultsNavigationSignal.emit]
     );
 
-    // Move cursor to end when the input gains focus (e.g. after view-transition morphs
-    // the hero search into this field — browsers select-all by default on programmatic focus)
+    // Move cursor to end when the input gains focus (e.g. after view-transition morphs the hero search into this field)
     const handleInputFocus = useCallback(
         (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
             setSearchFocused(true);
-            const { target } = e;
-            requestAnimationFrame(() => target.setSelectionRange(target.value.length, target.value.length));
+            moveCursorToEnd(e.target);
         },
         [setSearchFocused]
     );
