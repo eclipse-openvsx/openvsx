@@ -71,12 +71,14 @@ class ExtensionSizeOverrideAPITest {
     void listReturnsEveryOverride() throws Exception {
         when(admins.checkPermission(Permission.MANAGE_EXTENSIONS)).thenReturn(adminUser());
         when(limits.listOverrides()).thenReturn(List.of(override("foo", null, 100L)));
+        when(limits.getMaxOverrideSize()).thenReturn(1024L * 1024 * 1024);
 
         mockMvc.perform(get("/admin/size-overrides").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sizeOverrides[0].namespace").value("foo"))
                 .andExpect(jsonPath("$.sizeOverrides[0].maxSize").value(100))
-                .andExpect(jsonPath("$.sizeOverrides[0].extension").doesNotExist());
+                .andExpect(jsonPath("$.sizeOverrides[0].extension").doesNotExist())
+                .andExpect(jsonPath("$.maxOverrideSize").value(1073741824));
     }
 
     @Test

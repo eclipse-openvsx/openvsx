@@ -43,6 +43,17 @@ interface NotificationState {
 const NOTIFICATION_TIMEOUT = 2000;
 const BYTES_PER_MB = 1024 * 1024;
 
+// Flooring would understate a ceiling that is not a whole number of MB (e.g. 1.5 MiB reported as
+// "1 MB"), making a value the server would accept look invalid. Rounding instead can overstate it
+// at a near-boundary value (e.g. 2 MiB - 1 byte rounds to "2 MB", naming a value the server would
+// reject) - so the exact byte count is the authoritative part of the message, with the MB figure
+// only an approximation alongside it.
+const formatCeiling = (bytes: number): string => {
+    const mb = bytes / BYTES_PER_MB;
+    const approxMB = Number.isInteger(mb) ? String(mb) : mb.toFixed(2);
+    return `${bytes} bytes (~${approxMB} MB)`;
+};
+
 /**
  * The settings rendered as toggles. Keyed by the boolean members of `Settings` only: a numeric
  * setting such as `maxExtensionSize` has its own control and must not be routed through the toggle
@@ -159,7 +170,9 @@ export const RuntimeSettingsPage: FC = () => {
     const maxExtensionSizeValid =
         draftSettings === null ||
         !maxExtensionSizeChanged ||
-        (Number.isSafeInteger(draftSettings.maxExtensionSize) && draftSettings.maxExtensionSize > 0);
+        (Number.isSafeInteger(draftSettings.maxExtensionSize) &&
+            draftSettings.maxExtensionSize > 0 &&
+            draftSettings.maxExtensionSize <= draftSettings.maxOverrideSize);
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -234,7 +247,11 @@ export const RuntimeSettingsPage: FC = () => {
                         disabled={loading || saving || !draftSettings}
                         error={!maxExtensionSizeValid}
                         helperText={
-                            maxExtensionSizeValid ? undefined : 'Must be a whole number of bytes, greater than 0'
+                            maxExtensionSizeValid
+                                ? undefined
+                                : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
+                                      draftSettings?.maxOverrideSize ?? 0
+                                  )}`
                         }
                         inputProps={{ min: '1' }}
                         sx={{ maxWidth: 240 }}

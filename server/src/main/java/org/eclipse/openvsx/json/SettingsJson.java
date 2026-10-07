@@ -28,6 +28,9 @@ public class SettingsJson extends ResultJson {
 
     private @Nullable Long maxExtensionSize;
 
+    /** Read-only: the hard ceiling neither an override nor this default can be raised past. */
+    private long maxOverrideSize;
+
     public @Nullable Boolean getReadOnly() {
         return readOnly;
     }
@@ -42,5 +45,13 @@ public class SettingsJson extends ResultJson {
 
     public void setMaxExtensionSize(@Nullable Long maxExtensionSize) {
         this.maxExtensionSize = maxExtensionSize;
+    }
+
+    public long getMaxOverrideSize() {
+        return maxOverrideSize;
+    }
+
+    public void setMaxOverrideSize(long maxOverrideSize) {
+        this.maxOverrideSize = maxOverrideSize;
     }
 }

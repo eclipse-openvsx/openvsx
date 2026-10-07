@@ -13,8 +13,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Add a "Caches" page to the admin dashboard, with per-cache hit/eviction stats and a way to clear one or all without restarting the server (#2203)
 - Add a weekly downloads card to the extension detail page, with a hoverable sparkline of the year's weekly totals (#2135)
 - Prompt anonymous visitors to log in on an extension's reviews tab, where "Write a Review" was previously blank (#2148)
-- Add a default max extension size field to the admin dashboard's Settings page, backed by a new `max-extension-size` runtime setting; falls back to the server's configured `ovsx.publishing.max-content-size` until an admin sets it explicitly ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
-- Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- Add a default max extension size field to the admin dashboard's Settings page, backed by a new `max-extension-size` runtime setting; falls back to the server's configured `ovsx.publishing.max-content-size` until an admin sets it explicitly, and cannot be raised past the server's `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits, each capped at the same `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
 ### Changed
 

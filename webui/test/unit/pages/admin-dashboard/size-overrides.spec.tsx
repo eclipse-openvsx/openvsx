@@ -21,9 +21,9 @@ import { renderWithProviders } from '../../support/test-providers';
 
 // not named render*, so the testing-library naming rule does not treat the service stub it returns
 // as a render result
-const mountPage = (sizeOverrides: SizeOverride[]) => {
+const mountPage = (sizeOverrides: SizeOverride[], maxOverrideSize = Number.MAX_SAFE_INTEGER) => {
     const admin = {
-        getSizeOverrides: vi.fn().mockResolvedValue({ sizeOverrides }),
+        getSizeOverrides: vi.fn().mockResolvedValue({ sizeOverrides, maxOverrideSize }),
         createSizeOverride: vi.fn().mockResolvedValue({ success: 'ok' }),
         updateSizeOverride: vi.fn().mockResolvedValue({ success: 'ok' }),
         deleteSizeOverride: vi.fn().mockResolvedValue({ success: 'ok' }),
@@ -98,6 +98,24 @@ describe('SizeOverrides', () => {
 
         expect(await screen.findByText(/boom/i)).toBeInTheDocument();
         expect(screen.getByText('foo')).toBeInTheDocument();
+    });
+
+    /**
+     * The ceiling has to come from this page's own query (authorized for manage_extensions), not from
+     * /admin/settings - that endpoint requires manage_settings, a permission this page's own users may
+     * not hold, which silently dropped the client-side validation below for them.
+     */
+    it('validates a new override against the ceiling from its own query', async () => {
+        const user = userEvent.setup();
+        mountPage([], 100 * 1024 * 1024);
+
+        await user.click(screen.getByRole('button', { name: /create override/i }));
+        await user.type(await screen.findByLabelText(/namespace/i), 'foo');
+        await screen.findByText(/verified namespace/i);
+        await user.clear(screen.getByLabelText(/max size/i));
+        await user.type(screen.getByLabelText(/max size/i), '200');
+
+        expect(await screen.findByText(/exceeds the maximum of 100 mb/i)).toBeInTheDocument();
     });
 
     it('deletes the override whose row action was used', async () => {
