@@ -14,7 +14,6 @@ package org.eclipse.openvsx.ratelimit.config;
 
 import java.util.Optional;
 
-import org.eclipse.openvsx.ratelimit.jobs.UnblockEdgeCustomersHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,17 +57,6 @@ public class ScheduleRateLimitJobs {
         } else {
             scheduler.deleteRecurringJob("collect-usage-stats");
             scheduler.deleteRecurringJob("calculate-daily-usage-stats");
-        }
-
-        if (rateLimitProperties != null && rateLimitProperties.getEdge().isEnabled()) {
-            var unblockSchedule = rateLimitProperties.getEdge().getUnblockSchedule();
-            logger.info("Scheduling unblock edge customers job with schedule '{}'", unblockSchedule);
-            scheduler.scheduleRecurrently(
-                    "unblock-edge-customers",
-                    unblockSchedule,
-                    new HandlerJobRequest<>(UnblockEdgeCustomersHandler.class));
-        } else {
-            scheduler.deleteRecurringJob("unblock-edge-customers");
         }
     }
 }

@@ -17,7 +17,6 @@ import java.util.Optional;
 
 import com.giffing.bucket4j.spring.boot.starter.context.ExpressionParams;
 import jakarta.servlet.http.HttpServletRequest;
-import org.eclipse.openvsx.ratelimit.config.EdgeProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -46,6 +45,7 @@ public class IdentityService {
     private final CustomerService customerService;
     private final AccessTokenService tokenService;
     private final RateLimitProperties rateLimitProperties;
+    private final Optional<IdentityServiceHelper> identityServiceHelper;
 
     public IdentityService(
             ExpressionParser expressionParser,
@@ -53,7 +53,8 @@ public class IdentityService {
             TierService tierService,
             CustomerService customerService,
             AccessTokenService tokenService,
-            RateLimitProperties rateLimitProperties
+            RateLimitProperties rateLimitProperties,
+            Optional<IdentityServiceHelper> identityServiceHelper
     ) {
         this.expressionParser = expressionParser;
         this.beanFactory = beanFactory;
@@ -61,25 +62,26 @@ public class IdentityService {
         this.customerService = customerService;
         this.tokenService = tokenService;
         this.rateLimitProperties = rateLimitProperties;
+        this.identityServiceHelper = identityServiceHelper;
     }
 
     public ResolvedIdentity resolveIdentity(HttpServletRequest request) {
         String ipAddress = getIPAddress(request);
-        var edge = rateLimitProperties.getEdge();
-        if (edge.isTrusted(request.getHeader(EdgeProperties.HEADER_SECRET))) {
-            // only a verified edge may name the client; otherwise the client could name itself
-            var edgeClientIp = request.getHeader(EdgeProperties.HEADER_CLIENT_IP);
-            if (edgeClientIp != null && !edgeClientIp.isBlank()) {
-                ipAddress = edgeClientIp.trim();
-            }
-
-            var edgeCustomer = request.getHeader(EdgeProperties.HEADER_CUSTOMER);
-            if (edgeCustomer != null && !edgeCustomer.isEmpty()) {
-                var customer = customerService.getCustomerByName(edgeCustomer);
-                if (customer.isPresent()) {
-                    return forCustomer(customer.get(), ipAddress, true);
+        if (identityServiceHelper.isPresent()) {
+            IdentityServiceHelper identityServiceHelper = this.identityServiceHelper.orElseThrow();
+            Optional<IdentityServiceHelper.HelperIdentity> helperIdentity = identityServiceHelper.resolveClient(request);
+            if (helperIdentity.isPresent()) {
+                IdentityServiceHelper.HelperIdentity identity = helperIdentity.orElseThrow();
+                if (identity.clientIpAddress().isPresent()) {
+                    ipAddress = identity.clientIpAddress().orElseThrow();
                 }
-                logger.warn("Edge resolved unknown customer {}, resolving on the origin", edgeCustomer);
+                if (identity.clientIdentity().isPresent()) {
+                    var customer = customerService.getCustomerByName(identity.clientIdentity().orElseThrow());
+                    if (customer.isPresent()) {
+                        return forCustomer(customer.get(), ipAddress, true);
+                    }
+                    logger.warn("IdentityServiceHelper resolved unknown customer {}, resolving on the origin", identity.clientIdentity().orElseThrow());
+                }
             }
         }
 

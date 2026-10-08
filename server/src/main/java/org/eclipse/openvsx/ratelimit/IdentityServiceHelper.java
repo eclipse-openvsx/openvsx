@@ -10,14 +10,17 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
-package org.eclipse.openvsx.ratelimit.edge;
+package org.eclipse.openvsx.ratelimit;
 
-/**
- * The key-value store the edge reads its configuration and block verdicts from.
- */
-public interface EdgeKvClient {
+import jakarta.servlet.http.HttpServletRequest;
 
-    void put(String key, String value);
+import java.util.Optional;
 
-    void delete(String key);
+public class IdentityServiceHelper {
+
+    public record HelperIdentity(Optional<String> clientIdentity, Optional<String> clientIpAddress) {}
+
+    public Optional<HelperIdentity> resolveClient(HttpServletRequest request) {
+        return Optional.empty();
+    }
 }
