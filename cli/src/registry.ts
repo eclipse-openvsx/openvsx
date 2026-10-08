@@ -300,44 +300,8 @@ export class Registry {
     async postFile<T extends Response>(file: string, url: URL, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): Promise<T> {
         const { size } = await fs.promises.stat(file);
         checkBodySize(size, maxBodyLength);
-
-        // fetch cannot replay a streamed body, so it fails on any redirect of one; redirects are
-        // followed here instead, reopening the file for each hop.
-        let target = url;
-        let sendHeaders = this.withBasicAuth(headers);
-        for (let hops = 0; ; hops++) {
-            const response = await request(target, {
-                method: 'POST',
-                headers: sendHeaders,
-                body: fs.createReadStream(file),
-                redirect: 'manual',
-                timeout: this.timeout
-            });
-            const location = response.headers.get('location');
-            if (!REDIRECT_STATUSES.has(response.status) || location === null) {
-                return parseJson<T>(response);
-            }
-            await response.body?.cancel();
-
-            const next = new URL(location, target);
-            if (response.status !== 307 && response.status !== 308) {
-                // 301/302/303 turn the POST into a GET without a body, so the package would never arrive.
-                throw withStatus(new Error(`The upload to ${redactUrl(target)} was redirected to ${redactUrl(next)} `
-                    + `with status ${response.status}, which drops the package. Use the redirect target as the registry URL.`),
-                    response.status);
-            }
-            if (hops >= MAX_REDIRECTS) {
-                throw new Error(`The upload to ${redactUrl(url)} was redirected more than ${MAX_REDIRECTS} times.`);
-            }
-            if (next.protocol !== 'https:' && next.protocol !== 'http:') {
-                throw new Error(`The upload to ${redactUrl(target)} was redirected to unsupported URL ${redactUrl(next)}.`);
-            }
-            if (next.origin !== target.origin) {
-                // same rule fetch applies to the redirects it follows itself
-                sendHeaders = withoutHeader(sendHeaders, 'authorization');
-            }
-            target = next;
-        }
+        // a stream can be read once, so each redirect hop reopens the file
+        return this.send<T>(url, 'POST', headers, () => fs.createReadStream(file));
     }
 
     /**
@@ -391,14 +355,52 @@ export class Registry {
         return normalized;
     }
 
-    private async send<T extends Response>(url: URL, method: string, headers?: http.OutgoingHttpHeaders, body?: RequestBody): Promise<T> {
-        const response = await request(url, {
-            method,
-            headers: this.withBasicAuth(headers),
-            body,
-            timeout: this.timeout
-        });
-        return parseJson<T>(response);
+    /**
+     * Follows redirects itself rather than leaving them to fetch, which cannot replay a streamed body
+     * and only strips `Authorization` when a redirect changes origin - the PAT can also travel in
+     * `TOKEN_HEADER`.
+     */
+    private async send<T extends Response>(
+        url: URL,
+        method: string,
+        headers?: http.OutgoingHttpHeaders,
+        body?: RequestBody | (() => RequestBody)
+    ): Promise<T> {
+        const nextBody = typeof body === 'function' ? body : () => body;
+        let target = url;
+        let sendHeaders = this.withBasicAuth(headers);
+        for (let hops = 0; ; hops++) {
+            const response = await request(target, {
+                method,
+                headers: sendHeaders,
+                body: nextBody(),
+                redirect: 'manual',
+                timeout: this.timeout
+            });
+            const location = response.headers.get('location');
+            if (!REDIRECT_STATUSES.has(response.status) || location === null) {
+                return parseJson<T>(response);
+            }
+            await response.body?.cancel();
+
+            const next = new URL(location, target);
+            if (hops >= MAX_REDIRECTS) {
+                throw new Error(`The request to ${redactUrl(url)} was redirected more than ${MAX_REDIRECTS} times.`);
+            }
+            if (next.protocol !== 'https:' && next.protocol !== 'http:') {
+                throw new Error(`The request to ${redactUrl(target)} was redirected to unsupported URL ${redactUrl(next)}.`);
+            }
+            if (response.status !== 307 && response.status !== 308 && method !== 'GET') {
+                // 301/302/303 turn the request into a GET without its body, so it could never succeed.
+                throw withStatus(new Error(`The ${method} request to ${redactUrl(target)} was redirected to ${redactUrl(next)} `
+                    + `with status ${response.status}, which drops the request body. Use the redirect target as the registry URL.`),
+                    response.status);
+            }
+            if (next.origin !== target.origin) {
+                sendHeaders = withoutHeader(withoutHeader(sendHeaders, 'authorization'), TOKEN_HEADER.toLowerCase());
+            }
+            target = next;
+        }
     }
 
 }

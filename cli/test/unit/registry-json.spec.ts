@@ -153,10 +153,10 @@ describe('Registry JSON requests', () => {
         });
     });
 
-    describe('publish redirects', () => {
-        interface Received { method?: string; path: string; bytes: number; authorization?: string }
+    describe('redirects', () => {
+        interface Received { method?: string; path: string; bytes: number; authorization?: string; token?: string }
 
-        /** Redirects publish requests with `status` to `location`, and records any other request it receives. */
+        /** Redirects API requests with `status` to `location`, and records any other request it receives. */
         async function serveRedirect(status: number, location: string, received: Received[] = []): Promise<string> {
             return serve((req, res) => {
                 const path = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
@@ -165,7 +165,7 @@ describe('Registry JSON requests', () => {
                     res.end(JSON.stringify({ version: '1.3.0' }));
                     return;
                 }
-                if (path === '/api/-/publish') {
+                if (path.startsWith('/api/')) {
                     req.resume();
                     res.writeHead(status, { Location: location });
                     res.end();
@@ -174,7 +174,7 @@ describe('Registry JSON requests', () => {
                 const chunks: Buffer[] = [];
                 req.on('data', chunk => chunks.push(chunk));
                 req.on('end', () => {
-                    received.push({ method: req.method, path, bytes: Buffer.concat(chunks).length, authorization: req.headers.authorization });
+                    received.push({ method: req.method, path, bytes: Buffer.concat(chunks).length, authorization: req.headers.authorization, token: req.headers['x-openvsx-token'] as string | undefined });
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ success: 'ok' }));
                 });
@@ -193,7 +193,7 @@ describe('Registry JSON requests', () => {
                 const registry = new Registry({ registryUrl: await serveRedirect(status, '/moved', received) });
 
                 await withPackage(1000, file => expect(registry.publish(file, 'the.pat')).resolves.toEqual({ success: 'ok' }));
-                expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: 'Bearer the.pat' }]);
+                expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: 'Bearer the.pat', token: undefined }]);
             });
         }
 
@@ -203,7 +203,37 @@ describe('Registry JSON requests', () => {
             const registry = new Registry({ registryUrl: await serveRedirect(308, `${target}/moved`) });
 
             await withPackage(1000, file => expect(registry.publish(file, 'the.pat')).resolves.toEqual({ success: 'ok' }));
-            expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: undefined }]);
+            expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: undefined, token: undefined }]);
+        });
+
+        // With proxy credentials, Basic auth claims Authorization and the PAT travels in X-OpenVSX-Token.
+        const proxyCredentials = { username: 'proxy-user', password: 'proxy-pass' };
+        const basicAuth = 'Basic ' + Buffer.from('proxy-user:proxy-pass').toString('base64');
+
+        it('drops both credential headers when a publish redirect leaves the origin', async () => {
+            const received: Received[] = [];
+            const target = await serveRedirect(307, '/unused', received);
+            const registry = new Registry({ registryUrl: await serveRedirect(307, `${target}/moved`), ...proxyCredentials });
+
+            await withPackage(1000, file => expect(registry.publish(file, 'the.pat')).resolves.toEqual({ success: 'ok' }));
+            expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: undefined, token: undefined }]);
+        });
+
+        it('drops both credential headers when a JSON request redirect leaves the origin', async () => {
+            const received: Received[] = [];
+            const target = await serveRedirect(302, '/unused', received);
+            const registry = new Registry({ registryUrl: await serveRedirect(302, `${target}/moved`), ...proxyCredentials });
+
+            await expect(registry.verifyPat('foo', 'the.pat')).resolves.toEqual({ success: 'ok' });
+            expect(received).toEqual([{ method: 'GET', path: '/moved', bytes: 0, authorization: undefined, token: undefined }]);
+        });
+
+        it('keeps both credential headers on a same-origin redirect', async () => {
+            const received: Received[] = [];
+            const registry = new Registry({ registryUrl: await serveRedirect(302, '/moved', received), ...proxyCredentials });
+
+            await expect(registry.verifyPat('foo', 'the.pat')).resolves.toEqual({ success: 'ok' });
+            expect(received).toEqual([{ method: 'GET', path: '/moved', bytes: 0, authorization: basicAuth, token: 'the.pat' }]);
         });
 
         for (const status of [301, 302, 303]) {
@@ -213,7 +243,7 @@ describe('Registry JSON requests', () => {
                 const registry = new Registry({ registryUrl: url });
 
                 const err = await withPackage(10, file => registry.publish(file, 'the.pat').catch(e => e));
-                expect(err.message).toContain(`redirected to ${url}/moved with status ${status}, which drops the package`);
+                expect(err.message).toContain(`redirected to ${url}/moved with status ${status}, which drops the request body`);
                 expect(err.status).toBe(status);
                 expect(received).toEqual([]);
             });
