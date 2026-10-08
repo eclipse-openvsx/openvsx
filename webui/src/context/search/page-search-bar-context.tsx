@@ -55,7 +55,7 @@ export function usePageSearchBar(): PageSearchBarValue {
 
 const focusAtEnd = (node: HTMLElement) => {
     node.focus();
-    if (node instanceof HTMLInputElement) {
+    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
         moveCursorToEnd(node);
     }
 };

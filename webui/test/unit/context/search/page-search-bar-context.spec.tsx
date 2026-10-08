@@ -11,9 +11,11 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { describe, expect, it } from 'vitest';
+import { useRef } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useSearchBar } from '../../../../src/context/search/page-search-bar-context';
 import { renderWithProviders } from '../../support/test-providers';
 import { createTestViewport } from '../../support/viewport';
 import { NavFieldProbe, PageSearchBarProbe } from '../../support/page-search-bar';
@@ -84,6 +86,28 @@ describe('useSearchBar', () => {
         } finally {
             Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true });
         }
+    });
+
+    it("moves a textarea-backed bar's cursor to the end on a focus request too", async () => {
+        const viewport = createTestViewport({ initiallyInView: true });
+        const TextareaBarProbe = () => {
+            const ref = useRef<HTMLTextAreaElement>(null);
+            useSearchBar(ref);
+            return <textarea ref={ref} aria-label='page search' defaultValue='hello' />;
+        };
+        renderWithProviders(
+            <>
+                <NavFieldProbe />
+                <TextareaBarProbe />
+            </>,
+            { viewport: viewport.observer }
+        );
+        const textarea = screen.getByLabelText('page search') as HTMLTextAreaElement;
+        const setSelectionRange = vi.spyOn(textarea, 'setSelectionRange');
+
+        await userEvent.click(navFieldProbe());
+
+        await vi.waitFor(() => expect(setSelectionRange).toHaveBeenCalledWith(5, 5));
     });
 
     it('hands focus back to the nav field when unmounted while focused', async () => {
