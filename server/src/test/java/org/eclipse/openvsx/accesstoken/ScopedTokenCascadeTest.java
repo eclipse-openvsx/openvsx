@@ -14,6 +14,7 @@ package org.eclipse.openvsx.accesstoken;
 
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,6 +52,20 @@ class ScopedTokenCascadeTest extends AbstractPostgresContainerTest {
 
     @MockitoBean
     JobRequestScheduler scheduler;
+
+    // The database is shared with every other container-backed test, and an active extension with no
+    // version breaks the gallery queries of those that run after this one.
+    @AfterEach
+    void cleanUp() {
+        inTransaction(() -> {
+            em.createQuery("delete from PersonalAccessToken t where t.user.loginName like 'cascade-%'")
+                    .executeUpdate();
+            em.createQuery("delete from Extension e where e.name like 'cascade-%'").executeUpdate();
+            em.createQuery("delete from Namespace n where n.name like 'cascade-%'").executeUpdate();
+            em.createQuery("delete from UserData u where u.loginName like 'cascade-%'").executeUpdate();
+            return null;
+        });
+    }
 
     @Test
     void removingAnExtensionRemovesItsScopedTokensOnly() {
