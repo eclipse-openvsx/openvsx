@@ -15,16 +15,21 @@ package org.eclipse.openvsx.accesstoken;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.migration.HandlerJobRequest;
+import org.eclipse.openvsx.util.TimeUtil;
 
 @Component
 public class ScheduleAccessTokenJobs {
 
     private final Logger logger = LoggerFactory.getLogger(ScheduleAccessTokenJobs.class);
+
+    @Value("${ovsx.migrations.delay.seconds:0}")
+    long delay;
 
     private final AccessTokenConfig config;
     private final JobRequestScheduler scheduler;
@@ -39,10 +44,12 @@ public class ScheduleAccessTokenJobs {
         var expirationEnabled = config.isTokenExpiryEnabled();
         var notificationEnabled = config.isTokenExpiryNotificationEnabled();
 
-        scheduler.enqueue(new HandlerJobRequest<>(UpgradePersonalAccessTokenHandler.class));
+        // These one-shot jobs no-op in read-only mode, so give an operator time to leave it after a rollout.
+        var runAt = TimeUtil.getCurrentUTC().plusSeconds(delay);
+        scheduler.schedule(runAt, new HandlerJobRequest<>(UpgradePersonalAccessTokenHandler.class));
 
         if (expirationEnabled) {
-            scheduler.enqueue(new HandlerJobRequest<>(LegacyPersonalAccessTokenExpirationHandler.class));
+            scheduler.schedule(runAt, new HandlerJobRequest<>(LegacyPersonalAccessTokenExpirationHandler.class));
         }
 
         if (expirationEnabled && config.hasExpirationSchedule()) {

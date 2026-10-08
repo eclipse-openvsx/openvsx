@@ -22,6 +22,7 @@ import { renderWithProviders } from '../../support/test-providers';
 const settings = (overrides: Partial<Settings> = {}): Settings => ({
     readOnly: false,
     maxExtensionSize: 512 * 1024 * 1024,
+    maxOverrideSize: Number.MAX_SAFE_INTEGER,
     ...overrides
 });
 
@@ -53,6 +54,56 @@ describe('RuntimeSettingsPage', () => {
         await user.type(input, '0');
 
         expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    });
+
+    /**
+     * The server refuses a default above ovsx.publishing.max-override-size, so saying so here beats
+     * letting the admin discover it from the save's error response.
+     */
+    it('disables save once the typed size exceeds the override ceiling', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxOverrideSize: 1024 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '2048');
+
+        expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+        expect(screen.getByText(/at most 1073741824 bytes/i)).toBeInTheDocument();
+    });
+
+    /**
+     * Flooring a ceiling that is not a whole number of MB understated it - a 1.5 MiB ceiling read "at
+     * most 1 MB" even though up to 1.5 MB was actually valid.
+     */
+    it('does not floor a ceiling that is not a whole number of MB', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxOverrideSize: 1.5 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '2');
+
+        expect(screen.getByText(/at most 1572864 bytes \(~1\.50 MB\)/i)).toBeInTheDocument();
+    });
+
+    /**
+     * Rounding the MB approximation can overstate the ceiling near a boundary - 2 MiB - 1 byte rounds
+     * to "2.00 MB", which would name a value (2 MB) the server actually rejects. The exact byte count
+     * must be the authoritative part of the message.
+     */
+    it('names the exact byte ceiling near a rounding boundary', async () => {
+        const user = userEvent.setup();
+        mountPage(settings({ maxOverrideSize: 2 * 1024 * 1024 - 1 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '3');
+
+        expect(screen.getByText(/at most 2097151 bytes/i)).toBeInTheDocument();
     });
 
     // parseInt stopped at the decimal point, so this used to save 1 MB while the field still read

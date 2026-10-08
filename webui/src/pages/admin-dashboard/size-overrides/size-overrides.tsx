@@ -175,6 +175,7 @@ export const SizeOverrides: FC = () => {
             <SizeOverrideFormDialog
                 open={formDialogOpen}
                 sizeOverride={selected}
+                maxOverrideSize={data?.maxOverrideSize}
                 onClose={() => {
                     setFormDialogOpen(false);
                     setSelected(undefined);

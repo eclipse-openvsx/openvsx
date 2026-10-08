@@ -26,10 +26,20 @@ const namespaceResult = (extensions: Record<string, string> = {}, verified = tru
 
 // not named render*, so the testing-library naming rule does not treat the stubs it returns as a
 // render result
-const mountDialog = (getNamespace = vi.fn(), onSubmit = vi.fn().mockResolvedValue(undefined)) => {
+const mountDialog = (
+    getNamespace = vi.fn(),
+    onSubmit = vi.fn().mockResolvedValue(undefined),
+    maxOverrideSize?: number
+) => {
     const admin = { getNamespace };
     renderWithProviders(
-        <SizeOverrideFormDialog open sizeOverride={undefined} onClose={vi.fn()} onSubmit={onSubmit} />,
+        <SizeOverrideFormDialog
+            open
+            sizeOverride={undefined}
+            maxOverrideSize={maxOverrideSize}
+            onClose={vi.fn()}
+            onSubmit={onSubmit}
+        />,
         { mainContext: { service: { admin } as unknown as ExtensionRegistryService } }
     );
     return { admin, onSubmit };
@@ -87,6 +97,27 @@ describe('SizeOverrideFormDialog', () => {
         await waitFor(() =>
             expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ maxSize: 1.5 * 1024 * 1024 }))
         );
+    });
+
+    /**
+     * The server refuses an override above ovsx.publishing.max-override-size, so saying so here beats
+     * letting the admin discover it from the submit's error response.
+     */
+    it('refuses to submit a size above the override ceiling', async () => {
+        const user = userEvent.setup();
+        const { onSubmit } = mountDialog(
+            vi.fn().mockResolvedValue(namespaceResult()),
+            vi.fn().mockResolvedValue(undefined),
+            100 * 1024 * 1024
+        );
+
+        await enterVerifiedNamespace(user);
+        await user.clear(screen.getByLabelText(/max size/i));
+        await user.type(screen.getByLabelText(/max size/i), '200');
+
+        expect(screen.getByText(/exceeds the maximum of 100 mb/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /create/i })).toBeDisabled();
+        expect(onSubmit).not.toHaveBeenCalled();
     });
 
     it('offers the namespace extensions to choose from once it checks out', async () => {

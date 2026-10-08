@@ -816,7 +816,7 @@ public class LocalRegistryService implements IExtensionRegistry {
     }
 
     public ResultJson verifyToken(String namespaceName, String tokenValue) {
-        var tau = tokens.useAccessToken(tokenValue, new AccessTokenAction.Verify());
+        var tau = tokens.useAccessToken(tokenValue, new AccessTokenAction.VerifyNamespace(namespaceName));
         if (tau == null) {
             throw new ErrorResultException(ACCESS_TOKEN_ERROR, HttpStatus.UNAUTHORIZED);
         }

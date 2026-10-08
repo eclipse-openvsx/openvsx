@@ -14,6 +14,7 @@ description: The workflow for changing webui source code — understand, impleme
 
 - Match the style of the surrounding code.
 - Keep comments short (1–3 lines): state the non-obvious constraint or rationale, never narrate what the code does.
+- Reach browser APIs (`IntersectionObserver`, `matchMedia`, `ResizeObserver`, …) only through a custom hook, and have that hook talk to the API through a context whose default value is the real implementation — so the app mounts no provider and tests swap in a controllable one. Ship a controllable fake of that context value with it in `test/unit/support/` (the `write-tests` skill covers how specs use it). Model: `useInView` over `ViewportObserverContext` (`src/context/viewport-observer-context.ts`).
 - Ask before removing functionality that looks intentional. Don't preserve backward compatibility unless asked.
 
 ## 3. Test — required, not optional

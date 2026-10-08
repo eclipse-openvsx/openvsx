@@ -274,6 +274,7 @@ class AdminAPITest {
         var currentSettings = new SettingsJson();
         currentSettings.setReadOnly(false);
         currentSettings.setMaxExtensionSize(536_870_912L);
+        currentSettings.setMaxOverrideSize(1_073_741_824L);
         Mockito.when(settings.getCurrentSettings()).thenReturn(currentSettings);
 
         mockMvc.perform(
@@ -282,7 +283,8 @@ class AdminAPITest {
                         .with(csrf().asHeader()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readOnly").value(false))
-                .andExpect(jsonPath("$.maxExtensionSize").value(536870912));
+                .andExpect(jsonPath("$.maxExtensionSize").value(536870912))
+                .andExpect(jsonPath("$.maxOverrideSize").value(1073741824));
     }
 
     @Test
@@ -1462,7 +1464,7 @@ class AdminAPITest {
         token.setType(PersonalAccessTokenType.LLT);
 
         when(repositories.findUserByLoginName("github", "test")).thenReturn(user);
-        when(repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT))
+        when(repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED))
                 .thenReturn(1L);
         when(repositories.findLatestVersions(user)).thenReturn(versions);
         when(repositories.findActiveReviews(user)).thenReturn(Streamable.empty());

@@ -89,6 +89,7 @@ public class SettingsService {
         var json = new SettingsJson();
         json.setReadOnly(isReadOnly());
         json.setMaxExtensionSize(getMaxExtensionSize());
+        json.setMaxOverrideSize(publishingConfig.getMaxOverrideSize());
         return json;
     }
 
@@ -100,8 +101,14 @@ public class SettingsService {
     public String updateFromJson(SettingsJson newSettings) {
         var readOnly = newSettings.getReadOnly();
         var maxExtensionSize = newSettings.getMaxExtensionSize();
-        if (maxExtensionSize != null && maxExtensionSize <= 0) {
-            throw new ErrorResultException("Max extension size must be greater than zero.");
+        if (maxExtensionSize != null) {
+            if (maxExtensionSize <= 0) {
+                throw new ErrorResultException("Max extension size must be greater than zero.");
+            }
+            var ceiling = publishingConfig.getMaxOverrideSize();
+            if (maxExtensionSize > ceiling) {
+                throw new ErrorResultException("Max extension size exceeds the maximum of " + ceiling + " bytes.");
+            }
         }
 
         // Every setting the request carries is written, even one that matches what is read back now.

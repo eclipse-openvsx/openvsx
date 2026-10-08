@@ -56,7 +56,7 @@ public class ExtensionSizeOverrideAPI {
         try {
             admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             var json = limits.listOverrides().stream().map(ExtensionSizeOverrideAPI::toJson).toList();
-            return ResponseEntity.ok(new SizeOverrideListJson(json));
+            return ResponseEntity.ok(new SizeOverrideListJson(json, limits.getMaxOverrideSize()));
         } catch (ErrorResultException exc) {
             // Not exc.toResponseEntity(SizeOverrideListJson.class): that overload is
             // <T extends ResultJson>, and the list type is a record.

@@ -13,8 +13,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Add a "Caches" page to the admin dashboard, with per-cache hit/eviction stats and a way to clear one or all without restarting the server (#2203)
 - Add a weekly downloads card to the extension detail page, with a hoverable sparkline of the year's weekly totals (#2135)
 - Prompt anonymous visitors to log in on an extension's reviews tab, where "Write a Review" was previously blank (#2148)
-- Add a default max extension size field to the admin dashboard's Settings page, backed by a new `max-extension-size` runtime setting; falls back to the server's configured `ovsx.publishing.max-content-size` until an admin sets it explicitly ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
-- Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- Add a default max extension size field to the admin dashboard's Settings page, backed by a new `max-extension-size` runtime setting; falls back to the server's configured `ovsx.publishing.max-content-size` until an admin sets it explicitly, and cannot be raised past the server's `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits, each capped at the same `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+
+- Let a personal access token be restricted to a namespace or a single extension, and to publishing only, when it is generated, choosing the namespace from the ones the user is a member of and the extension from its active extensions, and show that in the token list ([#957](https://github.com/eclipse-openvsx/openvsx/issues/957))
 
 ### Changed
 
@@ -23,6 +25,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Return to the page a login started from, instead of always landing on the front page (#2148)
 - Load an extension's icon only when it comes near the viewport, instead of every icon on the page at once (#2213)
 - Group the admin dashboard's sidebar into Content, Search, Maintenance, Administration, Rate Limiting, and Analytics sections instead of one flat list. The first section starts expanded, as does whichever section holds the current page, whether opened directly or navigated to ([#2278](https://github.com/eclipse-openvsx/openvsx/issues/2278))
+- Redesign the 404 page to match the new web UI, with a search field prefilled with the last segment of the requested path
+- **Breaking:** rename `useRegisterPageSearchBar` to `useSearchBar(ref)` (the ref is now required), which also takes `/` focus requests and gives focus back to the nav field when the bar leaves view
 
 ### Fixed
 

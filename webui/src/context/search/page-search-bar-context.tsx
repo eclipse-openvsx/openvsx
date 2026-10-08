@@ -23,6 +23,10 @@ import {
     useRef,
     useState
 } from 'react';
+import { useInView } from '../../hooks/use-in-view';
+import { useSignalEffect } from '../../hooks/use-signal-effect';
+import { moveCursorToEnd } from '../../utils';
+import { useSearchFocus } from './search-focus-context';
 
 /**
  * Tracks whether a page-level search bar (e.g. the home hero) is active — the
@@ -49,44 +53,96 @@ export function usePageSearchBar(): PageSearchBarValue {
     return useContext(PageSearchBarContext);
 }
 
+const focusAtEnd = (node: HTMLElement) => {
+    node.focus();
+    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+        moveCursorToEnd(node);
+    }
+};
+
 /**
- * Marks the calling component as the page's search bar, so the nav bar hides its
- * own field and hands focus requests over. Registered while mounted, or — when
- * `visibilityRef` is given — only while that element is in the viewport. Returns
- * whether the bar is currently registered; callers gate focus handling and their
- * view-transition name on it.
+ * Makes the element behind `ref` the page's search bar while it is in the viewport: the
+ * nav bar hides its own field and hands focus requests (e.g. the '/' shortcut) over to it,
+ * and gets focus back when the bar scrolls away or unmounts while focused. Returns whether
+ * the bar is registered; callers gate their view-transition name on it. Whether any bar is
+ * registered is read with `usePageSearchBar`.
  */
 // eslint-disable-next-line react-refresh/only-export-components
-export function useRegisterPageSearchBar(visibilityRef?: RefObject<Element>): boolean {
+export function useSearchBar(ref: RefObject<HTMLElement>): boolean {
     const { registerPageSearchBar } = usePageSearchBar();
-    const [registered, setRegistered] = useState(true);
+    const { searchFocusSignal } = useSearchFocus();
+    // Follows the bar out of view, and assumes it in view until measured so the nav field doesn't flash on load.
+    const inView = useInView(ref, { once: false, rootMargin: '0px', initialInView: true });
+
+    // `isRegistered` (not `inView`) is what callers see: a guarded skip below (viewport shrunk
+    // while focused) keeps registration alive for an instant where `inView` itself still reads
+    // false, so returning `inView` directly would misreport "unregistered" during that window.
+    const [isRegistered, setIsRegistered] = useState(false);
+    const unregisterRef = useRef<(() => void) | null>(null);
+    const lastViewportHeight = useRef(typeof window === 'undefined' ? 0 : window.innerHeight);
+
+    const handOff = useCallback(() => {
+        if (!unregisterRef.current) {
+            return;
+        }
+        const hadFocus = ref.current != null && document.activeElement === ref.current;
+        unregisterRef.current();
+        unregisterRef.current = null;
+        setIsRegistered(false);
+        // Scrolled away or unmounted mid-typing: hand focus to the nav field, or it falls to <body>.
+        if (hadFocus) searchFocusSignal.emit();
+    }, [ref, searchFocusSignal.emit]);
+
     // Layout effect so the count is updated before other layout effects in the same commit.
     useLayoutEffect(() => {
-        const el = visibilityRef?.current;
-        if (!el) {
-            return registerPageSearchBar();
-        }
-        let unregister: (() => void) | undefined;
-        const update = (visible: boolean) => {
-            if (visible && !unregister) {
-                unregister = registerPageSearchBar();
-            } else if (!visible && unregister) {
-                unregister();
-                unregister = undefined;
+        if (inView) {
+            lastViewportHeight.current = window.innerHeight;
+            if (!unregisterRef.current) {
+                unregisterRef.current = registerPageSearchBar();
+                setIsRegistered(true);
             }
-            setRegistered(visible);
-        };
-        // Seed synchronously — the observer's first callback is async and the nav field would flash.
-        const rect = el.getBoundingClientRect();
-        update(rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth);
-        const observer = new IntersectionObserver(entries => update(entries[entries.length - 1].isIntersecting));
-        observer.observe(el);
-        return () => {
-            observer.disconnect();
-            unregister?.();
-        };
-    }, [registerPageSearchBar, visibilityRef]);
-    return registered;
+            return;
+        }
+        // A mobile virtual keyboard opening shrinks the viewport around a field that never
+        // actually moved, which can report it as having left the viewport although the user is
+        // still typing into it. Ignore that specific case rather than yanking focus away - this
+        // can still misfire if a real scroll happens to coincide with the browser chrome
+        // resizing (e.g. hiding the address bar), but that is a much rarer combination.
+        const hasFocus = ref.current != null && document.activeElement === ref.current;
+        if (hasFocus && window.innerHeight < lastViewportHeight.current) {
+            return;
+        }
+        handOff();
+    }, [inView, ref, registerPageSearchBar, handOff]);
+
+    // Unmounting while registered always hands focus back, regardless of the guard above.
+    // A layout effect: by the time a passive effect's cleanup would run, React has already
+    // detached `ref.current` and the browser has already moved focus off the removed node.
+    useLayoutEffect(() => handOff, [handOff]);
+
+    useSignalEffect(
+        searchFocusSignal,
+        useCallback(() => {
+            if (isRegistered && ref.current) focusAtEnd(ref.current);
+        }, [isRegistered, ref])
+    );
+
+    return isRegistered;
+}
+
+/**
+ * The mirror of `useSearchBar`'s own handoff: give up focus to a page search bar that just
+ * registered, if the element behind `ref` had it (e.g. the nav field, about to go `inert`).
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useYieldSearchFocus(ref: RefObject<HTMLElement>): void {
+    const { hasPageSearchBar } = usePageSearchBar();
+    const { searchFocusSignal } = useSearchFocus();
+    useLayoutEffect(() => {
+        if (hasPageSearchBar && ref.current != null && document.activeElement === ref.current) {
+            searchFocusSignal.emit();
+        }
+    }, [hasPageSearchBar, ref, searchFocusSignal.emit]);
 }
 
 export const PageSearchBarProvider: FunctionComponent<{ children: ReactNode }> = ({ children }) => {

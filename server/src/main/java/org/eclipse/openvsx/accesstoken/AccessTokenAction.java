@@ -42,12 +42,34 @@ public sealed interface AccessTokenAction {
     }
 
     /**
-     * Action that verifies token only (does not "use" it).
+     * Action that verifies token only (does not "use" it). Applies to every token regardless of its scope.
      */
     record Verify() implements AccessTokenAction {
         @Override
         public boolean isUsing() {
             return false;
+        }
+    }
+
+    /**
+     * Action that checks whether a token is valid for a namespace, without using it. A token scoped to an
+     * extension is valid for the namespace of that extension.
+     */
+    record VerifyNamespace(String namespaceName) implements AccessTokenAction {
+        public VerifyNamespace {
+            if (namespaceName == null || namespaceName.isBlank()) {
+                throw new IllegalArgumentException("Namespace cannot be null or blank");
+            }
+        }
+
+        @Override
+        public boolean isUsing() {
+            return false;
+        }
+
+        @Override
+        public Optional<String> namespace() {
+            return Optional.of(namespaceName);
         }
     }
 

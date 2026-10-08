@@ -430,7 +430,7 @@ public class AdminService {
         userPublishInfo.setUser(userJson);
         eclipse.adminEnrichUserJson(userPublishInfo.getUser(), user);
         userPublishInfo.setActiveAccessTokenNum(
-                (int) repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT));
+                (int) repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED));
         var extVersions = repositories.findLatestVersions(user);
         var types = new String[] { DOWNLOAD, MANIFEST, ICON, README, LICENSE, CHANGELOG, VSIXMANIFEST };
         var fileUrls = storageUtil.getFileUrls(extVersions, UrlUtil.getBaseUrl(), types);

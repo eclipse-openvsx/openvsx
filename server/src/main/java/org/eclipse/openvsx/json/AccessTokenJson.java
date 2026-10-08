@@ -44,6 +44,14 @@ public class AccessTokenJson extends ResultJson {
 
     private String deleteTokenUrl;
 
+    private boolean publishingOnly;
+
+    @Nullable
+    private String scopeNamespace;
+
+    @Nullable
+    private String scopeExtension;
+
     public Long getId() {
         return id;
     }
@@ -109,5 +117,31 @@ public class AccessTokenJson extends ResultJson {
 
     public void setDeleteTokenUrl(String deleteTokenUrl) {
         this.deleteTokenUrl = deleteTokenUrl;
+    }
+
+    @Nullable
+    public String getScopeNamespace() {
+        return scopeNamespace;
+    }
+
+    public void setScopeNamespace(@Nullable String scopeNamespace) {
+        this.scopeNamespace = scopeNamespace;
+    }
+
+    @Nullable
+    public String getScopeExtension() {
+        return scopeExtension;
+    }
+
+    public void setScopeExtension(@Nullable String scopeExtension) {
+        this.scopeExtension = scopeExtension;
+    }
+
+    public boolean isPublishingOnly() {
+        return publishingOnly;
+    }
+
+    public void setPublishingOnly(boolean publishingOnly) {
+        this.publishingOnly = publishingOnly;
     }
 }
