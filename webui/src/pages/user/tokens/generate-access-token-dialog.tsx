@@ -14,6 +14,7 @@ import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { isError } from '../../../extension-registry-types';
 import { MainContext } from '../../../context';
 import { useUserNamespaces } from '../namespaces/use-user-namespaces';
+import { useNamespaceExtensions } from './use-namespace-extensions';
 
 export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogProps> = props => {
     const context = useContext(MainContext);
@@ -22,6 +23,7 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
     const [open, setOpen] = useState(false);
     const [namespace, setNamespace] = useState('');
     const [extension, setExtension] = useState('');
+    const { data: extensions = [], isLoading: extensionsLoading } = useNamespaceExtensions(namespace);
     const [publishingOnly, setPublishingOnly] = useState(false);
 
     const handleGenerate = async (description: string): Promise<string> => {
@@ -30,7 +32,7 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
         }
         const token = await context.service.createAccessToken(abortController.current, context.user, description, {
             namespace: namespace || undefined,
-            extension: extension.trim() || undefined,
+            extension: extension || undefined,
             publishingOnly
         });
         if (isError(token)) {
@@ -76,13 +78,20 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                             />
                         )}
                     />
-                    <TextField
+                    <Autocomplete
                         fullWidth
-                        label='Extension (optional)'
-                        helperText='Restrict the token to one extension of the namespace.'
+                        options={extensions}
+                        loading={extensionsLoading}
                         disabled={!namespace}
-                        value={extension}
-                        onChange={e => setExtension(e.target.value)}
+                        value={extension || null}
+                        onChange={(_, value) => setExtension(value ?? '')}
+                        renderInput={params => (
+                            <TextField
+                                {...params}
+                                label='Extension (optional)'
+                                helperText='Restrict the token to one extension of the namespace.'
+                            />
+                        )}
                     />
                     <Box>
                         <FormControlLabel

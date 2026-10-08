@@ -24,15 +24,21 @@ function renderDialog() {
     const createAccessToken = vi.fn().mockResolvedValue({ id: 1, value: 'the-token' });
     const handleTokenGenerated = vi.fn();
     const getNamespaces = vi.fn().mockResolvedValue([testNamespace({ name: 'foo' }), testNamespace({ name: 'baz' })]);
-    const service = { createAccessToken, getNamespaces } as unknown as ExtensionRegistryService;
+    const getPublicNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: { bar: 'u1', qux: 'u2' } });
+    const service = { createAccessToken, getNamespaces, getPublicNamespace } as unknown as ExtensionRegistryService;
     renderWithProviders(<GenerateAccessTokenDialog handleTokenGenerated={handleTokenGenerated} />, {
         mainContext: { service, user: testUser }
     });
-    return { createAccessToken, handleTokenGenerated };
+    return { createAccessToken, getPublicNamespace, handleTokenGenerated };
 }
 
 async function openDialog() {
     await userEvent.click(screen.getByRole('button', { name: 'Generate new token' }));
+}
+
+async function selectExtension(name: string) {
+    await userEvent.click(screen.getByRole('combobox', { name: 'Extension (optional)' }));
+    await userEvent.click(await screen.findByRole('option', { name }));
 }
 
 async function selectNamespace(name: string) {
@@ -60,7 +66,7 @@ describe('GenerateAccessTokenDialog', () => {
 
         await openDialog();
         await selectNamespace('foo');
-        await userEvent.type(screen.getByLabelText('Extension (optional)'), 'bar');
+        await selectExtension('bar');
         await userEvent.click(screen.getByRole('checkbox', { name: 'Publishing only' }));
         await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
 
@@ -82,6 +88,18 @@ describe('GenerateAccessTokenDialog', () => {
         expect(screen.getByRole('option', { name: 'baz' })).toBeInTheDocument();
     });
 
+    it('offers the active extensions of the chosen namespace', async () => {
+        const { getPublicNamespace } = renderDialog();
+
+        await openDialog();
+        await selectNamespace('foo');
+        await userEvent.click(screen.getByRole('combobox', { name: 'Extension (optional)' }));
+
+        expect(getPublicNamespace.mock.calls[0][1]).toBe('foo');
+        expect(await screen.findAllByRole('option')).toHaveLength(2);
+        expect(screen.getByRole('option', { name: 'qux' })).toBeInTheDocument();
+    });
+
     it('does not allow an extension scope without a namespace', async () => {
         renderDialog();
 
@@ -97,8 +115,8 @@ describe('GenerateAccessTokenDialog', () => {
 
         await openDialog();
         await selectNamespace('foo');
-        await userEvent.type(screen.getByLabelText('Extension (optional)'), 'bar');
-        await userEvent.click(screen.getByTitle('Clear'));
+        await selectExtension('bar');
+        await userEvent.click(screen.getAllByTitle('Clear')[0]);
         expect(screen.getByLabelText('Extension (optional)')).toHaveValue('');
         await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
 

@@ -124,6 +124,11 @@ export class ExtensionRegistryService {
         return sendNonRetriableRequest<DownloadSeries>({ abortController, endpoint });
     }
 
+    /** The public namespace listing, which names only the namespace's active extensions. */
+    async getPublicNamespace(abortController: AbortController, name: string): Promise<Readonly<Namespace>> {
+        return sendStrictRequest({ abortController, endpoint: createAbsoluteURL([this.serverUrl, 'api', name]) });
+    }
+
     async getNamespaceDetails(abortController: AbortController, name: string): Promise<Readonly<NamespaceDetails>> {
         const endpoint = createAbsoluteURL([this.serverUrl, 'api', name, 'details']);
         return sendStrictRequest({ abortController, endpoint });
