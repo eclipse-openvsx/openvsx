@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import * as http from 'http';
-import * as followRedirects from 'follow-redirects';
+import * as https from 'https';
 import { TrustedPublishingOptions } from './trusted-publishing-options';
 import { configuredTimeout, redactUrl, statusError } from './util';
 
@@ -64,7 +64,7 @@ async function getGitHubActionsIdToken(audience: string): Promise<string> {
  */
 function getJson<T>(url: URL, headers: http.OutgoingHttpHeaders): Promise<T> {
     return new Promise((resolve, reject) => {
-        const protocol = url.protocol === 'https:' ? followRedirects.https : followRedirects.http;
+        const protocol = url.protocol === 'https:' ? https : http;
         // OVSX_TIMEOUT covers this request too. Read here rather than taken from the registry's
         // options, since this one carries none of the registry's configuration - only the clock is
         // shared, and having two of those to explain would be worse.

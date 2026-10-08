@@ -9,10 +9,10 @@
  ********************************************************************************/
 
 import * as http from 'http';
+import * as https from 'https';
 import * as fs from 'fs';
 import * as semver from 'semver';
-import { pipeline, Writable } from 'stream';
-import * as followRedirects from 'follow-redirects';
+import { pipeline } from 'stream';
 import { RegistryOptions } from './registry-options';
 import { DEFAULT_TIMEOUT, redactUrl, rejectError, statusError, withStatus } from './util';
 
@@ -26,6 +26,12 @@ export const DEFAULT_DELETE_SIZE = 64 * 1024;
 // Fallback only, for when Authorization is already claimed by Basic auth to a fronting proxy (see
 // tokenHeaders/getRequestOptions).
 const TOKEN_HEADER = 'X-OpenVSX-Token';
+
+// Hop limit the fetch standard uses.
+const MAX_REDIRECTS = 20;
+
+// Dropped on a redirect to another origin; TOKEN_HEADER carries the PAT just like Authorization.
+const CREDENTIAL_HEADERS = /^(?:authorization|cookie|proxy-authorization|x-openvsx-token)$/i;
 
 /**
  * Oldest registry version that resolves the personal access token from a header (see #1344).
@@ -120,7 +126,7 @@ export class Registry {
     /**
      * `sizeLimit` is the limit the registry reports for this package, when it could report one. The
      * transport body cap is raised to it, because a namespace granted more than the default would
-     * otherwise have its upload refused here - by follow-redirects, before anything reached the
+     * otherwise have its upload refused here - by the body size check, before anything reached the
      * registry that allowed it.
      */
     async publish(file: string, pat: string, sizeLimit?: number): Promise<Extension> {
@@ -287,9 +293,7 @@ export class Registry {
                 fs.rm(partial, { force: true }, () => reject(err));
             };
 
-            const requestOptions = this.getRequestOptions();
-            const request = this.getProtocol(url)
-                                .request(url, requestOptions, response => {
+            this.send(url, this.getRequestOptions(), undefined, response => {
                 if (response.statusCode !== undefined && (response.statusCode < 200 || response.statusCode > 299)) {
                     response.resume();
                     reject(statusError(response));
@@ -316,52 +320,30 @@ export class Registry {
                         fs.rename(partial, file, renameErr => renameErr ? fail(renameErr) : resolve());
                     }
                 });
-            });
-            request.on('error', (err: Error) => fail(err));
-            this.failOnTimeout(request, url, fail);
-            request.end();
+            }, fail);
         });
     }
 
     getJson<T extends Response>(url: URL, headers?: http.OutgoingHttpHeaders): Promise<T> {
         return new Promise((resolve, reject) => {
-            const requestOptions = this.getRequestOptions('GET', headers);
-            const request = this.getProtocol(url)
-                                .request(url, requestOptions, this.getJsonResponse<T>(resolve, reject));
-            request.on('error', reject);
-            this.failOnTimeout(request, url, reject);
-            request.end();
+            this.send(url, this.getRequestOptions('GET', headers), undefined, this.getJsonResponse<T>(resolve, reject), reject);
         });
     }
 
     post<T extends Response>(content: string | Buffer | Uint8Array, url: URL, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): Promise<T> {
         return new Promise((resolve, reject) => {
-            const requestOptions = this.getRequestOptions('POST', headers, maxBodyLength);
-            const request = this.getProtocol(url)
-                                .request(url, requestOptions, this.getJsonResponse<T>(resolve, reject));
-            request.on('error', reject);
-            this.failOnTimeout(request, url, reject);
-            request.write(content);
-            request.end();
+            const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength;
+            checkBodySize(size, maxBodyLength);
+            this.send(url, this.getRequestOptions('POST', headers), () => content, this.getJsonResponse<T>(resolve, reject), reject);
         });
     }
 
-    postFile<T extends Response>(file: string, url: URL, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): Promise<T> {
+    async postFile<T extends Response>(file: string, url: URL, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): Promise<T> {
+        checkBodySize((await fs.promises.stat(file)).size, maxBodyLength);
         return new Promise((resolve, reject) => {
-            const stream = fs.createReadStream(file);
-            const requestOptions = this.getRequestOptions('POST', headers, maxBodyLength);
-            const request = this.getProtocol(url)
-                                .request(url, requestOptions, this.getJsonResponse<T>(resolve, reject));
-            stream.on('error', (err: Error) => {
-                request.destroy();
-                reject(err);
-            });
-            request.on('error', (err: Error) => {
-                stream.close();
-                reject(err);
-            });
-            this.failOnTimeout(request, url, reject);
-            stream.on('open', () => stream.pipe(request));
+            // a stream can be read once, so each redirect hop opens the file again
+            this.send(url, this.getRequestOptions('POST', headers), () => fs.createReadStream(file),
+                this.getJsonResponse<T>(resolve, reject), reject);
         });
     }
 
@@ -407,8 +389,63 @@ export class Registry {
         return url;
     }
 
-    private getProtocol(url: URL) {
-        return url.protocol === 'https:' ? followRedirects.https : followRedirects.http;
+    /**
+     * Sends a request and follows redirects to `onResponse`'s final response, reporting any failure
+     * to `fail`. A GET follows every redirect; a request with a body follows only 307/308, sending
+     * the body again, because 301/302/303 turn it into a GET without one. Credentials are dropped
+     * once a redirect leaves the origin.
+     */
+    private send(
+        url: URL,
+        options: http.RequestOptions,
+        body: (() => string | Buffer | Uint8Array | fs.ReadStream) | undefined,
+        onResponse: (response: http.IncomingMessage) => void,
+        fail: (err: Error) => void,
+        hops = 0
+    ): void {
+        const protocol = url.protocol === 'https:' ? https : http;
+        const request = protocol.request(url, options, response => {
+            const status = response.statusCode ?? 0;
+            const location = response.headers.location;
+            if (status < 300 || status > 399 || !location) {
+                onResponse(response);
+                return;
+            }
+            response.resume();
+
+            let next: URL;
+            try {
+                next = new URL(location, url);
+            } catch (err) {
+                fail(err as Error);
+                return;
+            }
+            if (hops >= MAX_REDIRECTS) {
+                fail(new Error(`The request to ${redactUrl(url)} was redirected more than ${MAX_REDIRECTS} times.`));
+            } else if (next.protocol !== 'https:' && next.protocol !== 'http:') {
+                fail(new Error(`The request to ${redactUrl(url)} was redirected to unsupported URL ${redactUrl(next)}.`));
+            } else if (body && status !== 307 && status !== 308) {
+                fail(withStatus(new Error(`The ${options.method} request to ${redactUrl(url)} was redirected to ${redactUrl(next)} `
+                    + `with status ${status}, which drops the request body. Use the redirect target as the registry URL.`), status));
+            } else {
+                const headers = next.origin === url.origin ? options.headers : withoutCredentials(options.headers as http.OutgoingHttpHeaders);
+                this.send(next, { ...options, headers }, body, onResponse, fail, hops + 1);
+            }
+        });
+        request.on('error', fail);
+        this.failOnTimeout(request, url, fail);
+
+        const content = body?.();
+        if (content instanceof fs.ReadStream) {
+            content.on('error', (err: Error) => {
+                request.destroy();
+                fail(err);
+            });
+            request.on('error', () => content.close());
+            content.on('open', () => content.pipe(request));
+        } else {
+            request.end(content);
+        }
     }
 
     /**
@@ -418,9 +455,7 @@ export class Registry {
      * has, so a stalled request rejects the way any other failure does. With a timeout of zero the
      * event never fires and this does nothing.
      */
-    // Typed on Writable because both http.ClientRequest and follow-redirects' wrapper are ones, and
-    // all this needs is the timeout event and destroy.
-    private failOnTimeout(request: Writable, url: URL, fail: (err: Error) => void): void {
+    private failOnTimeout(request: http.ClientRequest, url: URL, fail: (err: Error) => void): void {
         request.on('timeout', () => {
             // Reported before the request is torn down, rather than by destroying it with the error.
             // Destroying raises errors of its own - ECONNRESET on the response, a premature close
@@ -433,7 +468,7 @@ export class Registry {
         });
     }
 
-    private getRequestOptions(method?: string, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): http.RequestOptions {
+    private getRequestOptions(method?: string, headers?: http.OutgoingHttpHeaders): http.RequestOptions {
         if (this.username && this.password) {
             headers ??= {};
             const credentials = Buffer.from(this.username + ':' + this.password).toString('base64');
@@ -442,9 +477,8 @@ export class Registry {
         return {
             method,
             headers,
-            maxBodyLength,
             timeout: this.timeout
-        } as http.RequestOptions;
+        };
     }
 
     private getJsonResponse<T extends Response>(resolve: (value: T) => void, reject: (reason: any) => void): (res: http.IncomingMessage) => void {
@@ -486,6 +520,17 @@ export class Registry {
         };
     }
 
+}
+
+/** Refuses a request body larger than `maxBodyLength` before anything is sent. */
+function checkBodySize(size: number, maxBodyLength?: number): void {
+    if (maxBodyLength !== undefined && size > maxBodyLength) {
+        throw new Error(`The request body of ${size} bytes is larger than the limit of ${maxBodyLength} bytes.`);
+    }
+}
+
+function withoutCredentials(headers: http.OutgoingHttpHeaders = {}): http.OutgoingHttpHeaders {
+    return Object.fromEntries(Object.entries(headers).filter(([name]) => !CREDENTIAL_HEADERS.test(name)));
 }
 
 export interface Response {
