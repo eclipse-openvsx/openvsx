@@ -14,10 +14,10 @@
 import { Agent, fetch } from 'undici';
 import { redactUrl } from './util';
 
-// undici's own headers/body timeouts default to 5 minutes and would cap OVSX_TIMEOUT; the
+// undici's own connect (10 s) and headers/body (5 min) timeouts would cap OVSX_TIMEOUT; the
 // inactivity timer below is the only one that should apply. fetch and Agent come from the same
 // undici, since a dispatcher is not guaranteed to work with the copy bundled in node.
-const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+const dispatcher = new Agent({ connectTimeout: 0, headersTimeout: 0, bodyTimeout: 0 });
 
 export type RequestBody = string | Uint8Array | AsyncIterable<Uint8Array>;
 

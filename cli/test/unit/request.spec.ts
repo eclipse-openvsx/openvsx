@@ -56,4 +56,14 @@ describe('request', () => {
 
         expect(await response.text()).toBe('late');
     }, 330_000);
+
+    // undici's own connect timeout is 10 seconds; a longer OVSX_TIMEOUT must govern connection setup
+    // too. Needs an address that silently drops packets, so it is opt-in like the test above.
+    it.skipIf(!process.env.OVSX_SLOW_TESTS)('is not cut off by undici\'s default connect timeout', async () => {
+        const url = new URL('http://10.255.255.1:81/');
+
+        const err: Error = await request(url, { timeout: 15_000 }).then(() => new Error('resolved'), e => e);
+
+        expect(err.message).toContain('No response from');
+    }, 30_000);
 });
