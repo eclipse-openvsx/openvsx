@@ -16,11 +16,9 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Optional;
 
-public class IdentityServiceHelper {
+public interface IdentityServiceHelper {
 
-    public record HelperIdentity(Optional<String> clientIdentity, Optional<String> clientIpAddress) {}
+    record HelperIdentity(Optional<String> clientIdentity, Optional<String> clientIpAddress) {}
 
-    public Optional<HelperIdentity> resolveClient(HttpServletRequest request) {
-        return Optional.empty();
-    }
+    Optional<HelperIdentity> resolveClient(HttpServletRequest request);
 }
