@@ -9,13 +9,15 @@
  ********************************************************************************/
 
 import { FunctionComponent, useContext, useRef, useState } from 'react';
-import { Box, Button, Checkbox, FormControlLabel, FormHelperText, TextField } from '@mui/material';
+import { Autocomplete, Box, Button, Checkbox, FormControlLabel, FormHelperText, TextField } from '@mui/material';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { isError } from '../../../extension-registry-types';
 import { MainContext } from '../../../context';
+import { useUserNamespaces } from '../namespaces/use-user-namespaces';
 
 export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogProps> = props => {
     const context = useContext(MainContext);
+    const { data: namespaces = [], isLoading } = useUserNamespaces();
     const abortController = useRef<AbortController>(new AbortController());
     const [open, setOpen] = useState(false);
     const [namespace, setNamespace] = useState('');
@@ -27,7 +29,7 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
             throw new Error('Not logged in');
         }
         const token = await context.service.createAccessToken(abortController.current, context.user, description, {
-            namespace: namespace.trim() || undefined,
+            namespace: namespace || undefined,
             extension: extension.trim() || undefined,
             publishingOnly
         });
@@ -56,24 +58,29 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                 onGenerate={handleGenerate}
                 onError={context.handleError}>
                 <Box mt={2} display='flex' flexDirection='column' gap={2}>
-                    <TextField
+                    <Autocomplete
                         fullWidth
-                        label='Namespace (optional)'
-                        helperText='Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
-                        value={namespace}
-                        onChange={e => {
-                            setNamespace(e.target.value);
-                            // the extension field is disabled without a namespace, so it could not be cleared by hand
-                            if (!e.target.value.trim()) {
-                                setExtension('');
-                            }
+                        options={namespaces.map(ns => ns.name)}
+                        loading={isLoading}
+                        value={namespace || null}
+                        onChange={(_, value) => {
+                            setNamespace(value ?? '');
+                            // the extension belongs to the namespace, so a stale one must not outlive it
+                            setExtension('');
                         }}
+                        renderInput={params => (
+                            <TextField
+                                {...params}
+                                label='Namespace (optional)'
+                                helperText='Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
+                            />
+                        )}
                     />
                     <TextField
                         fullWidth
                         label='Extension (optional)'
                         helperText='Restrict the token to one extension of the namespace.'
-                        disabled={!namespace.trim()}
+                        disabled={!namespace}
                         value={extension}
                         onChange={e => setExtension(e.target.value)}
                     />
