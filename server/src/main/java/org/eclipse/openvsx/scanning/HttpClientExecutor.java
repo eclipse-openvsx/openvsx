@@ -136,10 +136,26 @@ public class HttpClientExecutor {
 
     /**
      * Execute an HTTP request based on configuration.
+     * 4xx responses with a body are returned as-is; see {@link #execute(RemoteScannerProperties.HttpOperation,
+     * TempFile, boolean)}.
      */
     public String execute(
             RemoteScannerProperties.HttpOperation operation,
             TempFile file
+    ) throws ScannerException {
+        return execute(operation, file, false);
+    }
+
+    /**
+     * Execute an HTTP request based on configuration.
+     *
+     * @param strict if true, every non-2xx response throws instead of returning a 4xx body. Needed for status
+     *               polling, where an error body must not be read as a scan status.
+     */
+    public String execute(
+            RemoteScannerProperties.HttpOperation operation,
+            TempFile file,
+            boolean strict
     ) throws ScannerException {
         try {
             // Build request entity (includes auth headers)
@@ -161,7 +177,7 @@ public class HttpClientExecutor {
 
         } catch (HttpStatusCodeException e) {
             // 5xx = server error — always treat as failure even if body is present
-            if (e.getStatusCode().is5xxServerError()) {
+            if (strict || e.getStatusCode().is5xxServerError()) {
                 String bodySnippet = e.getResponseBodyAsString();
                 if (bodySnippet != null && bodySnippet.length() > 200) {
                     bodySnippet = bodySnippet.substring(0, 200) + "...";

@@ -36,6 +36,9 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
     protected final Logger logger = LoggerFactory.getLogger(ScannerPollHandler.class);
 
+    // Job error message marking a first, not yet confirmed, error status from the scanner.
+    static final String UNCONFIRMED_FAILURE = "Scanner reported an error status";
+
     private final ScannerJobRepository scanJobRepository;
     private final ScannerRegistry scannerRegistry;
     private final ExtensionScanPersistenceService persistenceService;
@@ -107,6 +110,10 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
                 handlePollResult(scanJobId, pollContext.scanner(), pollContext.submission(), status);
             }
 
+        } catch (ScannerException e) {
+            // Scanner unreachable or unusable response: keep polling instead of ending the chain.
+            logger.warn("Transient error polling scan job {}: {}", scanJobId, e.getMessage());
+            retryPollLater(scanJobId, pollContext.scanner(), e);
         } catch (Exception e) {
             // Error during polling - clear lease so job can be polled again
             logger.error("Error polling scan job " + scanJobId, e);
@@ -191,7 +198,10 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
         switch (status) {
             case FAILED -> handleFailedStatus(job, scanner, submission);
-            case PROCESSING, SUBMITTED -> handleProcessingStatus(job, scanner);
+            case PROCESSING, SUBMITTED -> {
+                job.setErrorMessage(null);
+                handleProcessingStatus(job, scanner);
+            }
             case COMPLETED -> {
             } // Handled separately via saveCompletedResults
         }
@@ -216,6 +226,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
         // Mark job complete and clear lease
         job.setStatus(ScannerJob.JobStatus.COMPLETE);
+        job.setErrorMessage(null);
         job.setPollLeaseUntil(null);
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
         scanJobRepository.save(job);
@@ -241,6 +252,20 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
     }
 
     /**
+     * Record a failed poll and schedule the next one. Attempts count towards max-attempts, so this is bounded.
+     */
+    private void retryPollLater(long scanJobId, Scanner scanner, ScannerException error) {
+        ScannerJob job = scanJobRepository.findById(scanJobId).orElse(null);
+        if (job == null || job.getStatus().isTerminal()) {
+            return;
+        }
+
+        String message = "Poll failed: " + error.getMessage();
+        job.setErrorMessage(message.length() > 500 ? message.substring(0, 500) : message);
+        handleProcessingStatus(job, scanner);
+    }
+
+    /**
      * Clear job lease after an error.
      */
     private void clearJobLease(long scanJobId) {
@@ -260,6 +285,14 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
      * Attempts to fetch error details from the scanner if possible.
      */
     private void handleFailedStatus(ScannerJob job, Scanner scanner, Scanner.Submission submission) {
+        // Scanners can report a transient error and recover, so only a second consecutive one is final.
+        if (!UNCONFIRMED_FAILURE.equals(job.getErrorMessage())) {
+            logger.warn("Scan job {} reported an error status, confirming on next poll", job.getId());
+            job.setErrorMessage(UNCONFIRMED_FAILURE);
+            handleProcessingStatus(job, scanner);
+            return;
+        }
+
         // Try to get the actual error from the scanner's result endpoint
         String errorDetail = fetchErrorDetail(scanner, submission);
         String errorMessage = errorDetail != null
