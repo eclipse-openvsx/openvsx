@@ -19,6 +19,7 @@ export interface RequestOptions {
     method?: string;
     headers?: Record<string, string>;
     body?: RequestBody;
+    redirect?: RequestRedirect;
     /** Inactivity timeout in milliseconds, see RegistryOptions.timeout. Zero disables it. */
     timeout: number;
 }
@@ -52,6 +53,7 @@ export async function request(url: URL, options: RequestOptions): Promise<Respon
             method: options.method,
             headers: options.headers,
             body: streamed ? trackProgress(body, touch) : body,
+            redirect: options.redirect,
             signal: controller.signal,
             // required by fetch for a streamed request body
             ...(streamed ? { duplex: 'half' } : {})
@@ -104,9 +106,10 @@ async function* trackProgress(body: AsyncIterable<Uint8Array>, touch: () => void
 
 /**
  * fetch reports network failures as a bare `TypeError` ('fetch failed', 'terminated') and keeps
- * what actually happened, such as ECONNREFUSED or a dropped socket, in its cause.
+ * what actually happened, such as ECONNREFUSED or a dropped socket, in its cause. Some causes
+ * carry no message at all, and an empty error says even less than 'fetch failed'.
  */
 function unwrapFetchError(err: unknown): unknown {
     const cause = err instanceof TypeError ? (err as { cause?: unknown }).cause : undefined;
-    return cause instanceof Error ? cause : err;
+    return cause instanceof Error && cause.message ? cause : err;
 }

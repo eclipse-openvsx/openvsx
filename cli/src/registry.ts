@@ -15,7 +15,7 @@ import { pipeline } from 'stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { RegistryOptions } from './registry-options';
 import { request, RequestBody } from './request';
-import { DEFAULT_TIMEOUT, formatBytes, rejectError, statusError, withStatus } from './util';
+import { DEFAULT_TIMEOUT, formatBytes, redactUrl, rejectError, statusError, withStatus } from './util';
 
 export const DEFAULT_URL = 'https://open-vsx.org';
 export const DEFAULT_NAMESPACE_SIZE = 1024;
@@ -299,7 +299,44 @@ export class Registry {
     async postFile<T extends Response>(file: string, url: URL, headers?: Record<string, string>, maxBodyLength?: number): Promise<T> {
         const { size } = await fs.promises.stat(file);
         checkBodySize(size, maxBodyLength);
-        return this.send<T>(url, 'POST', headers, fs.createReadStream(file));
+
+        // fetch cannot replay a streamed body, so it fails on any redirect of one; redirects are
+        // followed here instead, reopening the file for each hop.
+        let target = url;
+        let sendHeaders = this.withBasicAuth(headers);
+        for (let hops = 0; ; hops++) {
+            const response = await request(target, {
+                method: 'POST',
+                headers: sendHeaders,
+                body: fs.createReadStream(file),
+                redirect: 'manual',
+                timeout: this.timeout
+            });
+            const location = response.headers.get('location');
+            if (!REDIRECT_STATUSES.has(response.status) || location === null) {
+                return parseJson<T>(response);
+            }
+            await response.body?.cancel();
+
+            const next = new URL(location, target);
+            if (response.status !== 307 && response.status !== 308) {
+                // 301/302/303 turn the POST into a GET without a body, so the package would never arrive.
+                throw withStatus(new Error(`The upload to ${redactUrl(target)} was redirected to ${redactUrl(next)} `
+                    + `with status ${response.status}, which drops the package. Use the redirect target as the registry URL.`),
+                    response.status);
+            }
+            if (hops >= MAX_REDIRECTS) {
+                throw new Error(`The upload to ${redactUrl(url)} was redirected more than ${MAX_REDIRECTS} times.`);
+            }
+            if (next.protocol !== 'https:' && next.protocol !== 'http:') {
+                throw new Error(`The upload to ${redactUrl(target)} was redirected to unsupported URL ${redactUrl(next)}.`);
+            }
+            if (next.origin !== target.origin) {
+                // same rule fetch applies to the redirects it follows itself
+                sendHeaders = withoutHeader(sendHeaders, 'authorization');
+            }
+            target = next;
+        }
     }
 
     /**
@@ -359,18 +396,30 @@ export class Registry {
             body,
             timeout: this.timeout
         });
-        const json = await response.text();
-        if (!response.ok) {
-            const message = errorMessage(json);
-            // keep the status: the message alone cannot say whether retrying is worth it
-            throw message ? withStatus(new Error(message), response.status) : statusError(response);
-        }
-        if (json.startsWith('<!DOCTYPE html>')) {
-            throw json;
-        }
-        return JSON.parse(json);
+        return parseJson<T>(response);
     }
 
+}
+
+// Hop limit fetch itself uses.
+const MAX_REDIRECTS = 20;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+async function parseJson<T>(response: globalThis.Response): Promise<T> {
+    const json = await response.text();
+    if (!response.ok) {
+        const message = errorMessage(json);
+        // keep the status: the message alone cannot say whether retrying is worth it
+        throw message ? withStatus(new Error(message), response.status) : statusError(response);
+    }
+    if (json.startsWith('<!DOCTYPE html>')) {
+        throw json;
+    }
+    return JSON.parse(json);
+}
+
+function withoutHeader(headers: Record<string, string>, name: string): Record<string, string> {
+    return Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== name));
 }
 
 function errorMessage(json: string): string | undefined {

@@ -136,6 +136,79 @@ describe('Registry JSON requests', () => {
         });
     });
 
+    describe('publish redirects', () => {
+        interface Received { method?: string; path: string; bytes: number; authorization?: string }
+
+        /** Redirects publish requests with `status` to `location`, and records any other request it receives. */
+        async function serveRedirect(status: number, location: string, received: Received[] = []): Promise<string> {
+            return serve((req, res) => {
+                const path = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+                if (path === '/api/version') {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ version: '1.3.0' }));
+                    return;
+                }
+                if (path === '/api/-/publish') {
+                    req.resume();
+                    res.writeHead(status, { Location: location });
+                    res.end();
+                    return;
+                }
+                const chunks: Buffer[] = [];
+                req.on('data', chunk => chunks.push(chunk));
+                req.on('end', () => {
+                    received.push({ method: req.method, path, bytes: Buffer.concat(chunks).length, authorization: req.headers.authorization });
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: 'ok' }));
+                });
+            });
+        }
+
+        function withPackage<T>(size: number, run: (file: string) => Promise<T>): Promise<T> {
+            const file = path.join(os.tmpdir(), `ovsx-registry-test-${process.pid}-${Math.random().toString(36).slice(2)}.vsix`);
+            fs.writeFileSync(file, Buffer.alloc(size, 1));
+            return run(file).finally(() => fs.rmSync(file, { force: true }));
+        }
+
+        for (const status of [307, 308]) {
+            it(`re-sends the whole package on a same-origin ${status}`, async () => {
+                const received: Received[] = [];
+                const registry = new Registry({ registryUrl: await serveRedirect(status, '/moved', received) });
+
+                await withPackage(1000, file => expect(registry.publish(file, 'the.pat')).resolves.toEqual({ success: 'ok' }));
+                expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: 'Bearer the.pat' }]);
+            });
+        }
+
+        it('drops Authorization when a 308 leaves the origin', async () => {
+            const received: Received[] = [];
+            const target = await serveRedirect(308, '/unused', received);
+            const registry = new Registry({ registryUrl: await serveRedirect(308, `${target}/moved`) });
+
+            await withPackage(1000, file => expect(registry.publish(file, 'the.pat')).resolves.toEqual({ success: 'ok' }));
+            expect(received).toEqual([{ method: 'POST', path: '/moved', bytes: 1000, authorization: undefined }]);
+        });
+
+        for (const status of [301, 302, 303]) {
+            it(`refuses a ${status}, which would turn the upload into a GET without the package`, async () => {
+                const received: Received[] = [];
+                const url = await serveRedirect(status, '/moved', received);
+                const registry = new Registry({ registryUrl: url });
+
+                const err = await withPackage(10, file => registry.publish(file, 'the.pat').catch(e => e));
+                expect(err.message).toContain(`redirected to ${url}/moved with status ${status}, which drops the package`);
+                expect(err.status).toBe(status);
+                expect(received).toEqual([]);
+            });
+        }
+
+        it('stops following a redirect loop', async () => {
+            const registry = new Registry({ registryUrl: await serveRedirect(307, '/api/-/publish') });
+
+            await withPackage(10, file => expect(registry.publish(file, 'the.pat')).rejects.toThrow('redirected more than 20 times'));
+        });
+    });
+
     // The timeout can also fire once part of the body has arrived. The request's error has to be what
     // settles the promise there, so the message says what happened rather than reporting a reset.
     it('reports a stalled response as a timeout, not as a reset', async () => {
