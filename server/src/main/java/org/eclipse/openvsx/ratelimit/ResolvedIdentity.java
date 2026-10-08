@@ -18,13 +18,28 @@ import org.jspecify.annotations.Nullable;
 import org.eclipse.openvsx.entities.Customer;
 import org.eclipse.openvsx.entities.Tier;
 
+/**
+ * @param countedAtEdge the edge reports this request in its usage log, so the origin must check
+ *                      the bucket but not debit it
+ */
 public record ResolvedIdentity(
         @NonNull String ipAddress,
         @NonNull String cacheKey,
         @Nullable Customer customer,
         @Nullable Tier freeTier,
-        @Nullable Tier safetyTier
+        @Nullable Tier safetyTier,
+        boolean countedAtEdge
 ) {
+    public ResolvedIdentity(
+            @NonNull String ipAddress,
+            @NonNull String cacheKey,
+            @Nullable Customer customer,
+            @Nullable Tier freeTier,
+            @Nullable Tier safetyTier
+    ) {
+        this(ipAddress, cacheKey, customer, freeTier, safetyTier, false);
+    }
+
     public boolean isCustomer() {
         return customer != null;
     }

@@ -86,6 +86,15 @@ public class CustomerService {
         }
     }
 
+    @Cacheable(
+            value = RateLimitCacheService.CACHE_CUSTOMER,
+            key = "'name:' + #name",
+            cacheManager = RateLimitCacheService.CACHE_MANAGER
+    )
+    public Optional<Customer> getCustomerByName(String name) {
+        return Optional.ofNullable(repositories.findCustomer(name));
+    }
+
     @Cacheable(value = RateLimitCacheService.CACHE_TOKEN, cacheManager = RateLimitCacheService.CACHE_MANAGER)
     public Optional<Long> getCustomerIdByRateLimitToken(String tokenValue) {
         var token = repositories.findRateLimitToken(tokenValue);

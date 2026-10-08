@@ -84,7 +84,9 @@ public class SecurityConfig {
                                         "/documents/**",
                                         "/admin/api/**",
                                         "/admin/report",
-                                        "/admin/search-explain"))
+                                        "/admin/search-explain",
+                                        // authenticated with the edge's shared secret
+                                        "/internal/edge/usage"))
                         .permitAll()
                         // Coarse gate only - the caller must have some admin access. Which capability a given
                         // endpoint needs is decided per-handler by AdminService's checkPermission/checkAdminUser.
@@ -107,7 +109,8 @@ public class SecurityConfig {
                                         // authenticated with a personal access token, not with a session
                                         "/api/*/*/delete",
                                         "/vscode/**",
-                                        "/admin/api/**")))
+                                        "/admin/api/**",
+                                        "/internal/edge/usage")))
                 .exceptionHandling(configurer -> configurer.authenticationEntryPoint(new Http403ForbiddenEntryPoint()));
 
         if (userServices.canLogin()) {

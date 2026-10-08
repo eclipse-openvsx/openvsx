@@ -1379,6 +1379,23 @@ Content type of that response.
 
 Body of that response.
 
+| Property      | `ovsx.rate-limit.edge`
+|---------------|----------------------
+| Type          | object
+| Default       |
+| Compatibility | Since TBD
+
+Counting and blocking customer traffic in a Fastly Compute service (`edge/` in this repository), for deployments where a CDN serves requests the origin never sees. Requires `ovsx.rate-limit.enabled`. Takes:
+
+- `enabled` (default `false`).
+- `shared-secret`: proves that a request, or a batch of usage records, came through the edge. Required when enabled. It must match the `edge-shared-secret` in the Compute service's `ratelimit` secret store.
+- `fastly-api-url` (default `https://api.fastly.com`), `fastly-api-token` and `kv-store-id`: where the origin publishes the customer configuration (key `ratelimit-config`) and the blocked customers (keys `block:<customer>`, each holding the unix time the block ends). The token and store id are required when enabled.
+- `unblock-schedule` (default `* * * * *`): cron schedule of the job that unblocks customers whose tier has refilled. The stored end time lifts a block on its own if the job does not run.
+
+The edge attributes each request to a customer the way the origin does, from `X-RateLimit-Token` or the client address. It rejects a blocked customer with `429`. It reports every request it attributed to a customer to a Fastly HTTPS logging endpoint that posts to `/internal/edge/usage` on the origin. The exceptions are requests the origin rejected with `429`, which are not charged, as on the origin. Point that endpoint at the origin's own host name, not the public one, or the posts would loop back through the edge. The origin charges the reported requests to the customer's tier and blocks the customer at the edge once the tier is exhausted.
+
+A request the edge forwards carries `X-OpenVSX-Edge-Secret`, `X-OpenVSX-Edge-Customer` and `X-OpenVSX-Client-IP`. With a valid secret the origin takes the client address from `X-OpenVSX-Client-IP` instead of `ip-address-function`. For a request the edge attributed to a customer, the origin checks the tier without charging it, since the edge has already reported that request. With the edge enabled, the `filters` should cover every path, for example `^(?!/actuator/|/internal/).*`.
+
 ## Trusted Publishing
 
 Publishing with a short-lived token proved by an OIDC ID token from a CI provider, rather than

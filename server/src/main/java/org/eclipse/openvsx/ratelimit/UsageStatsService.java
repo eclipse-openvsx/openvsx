@@ -66,10 +66,15 @@ public class UsageStatsService {
     }
 
     public void incrementUsage(Customer customer) {
+        incrementUsage(customer, 1);
+    }
+
+    public void incrementUsage(Customer customer, long requests) {
         var key = customer.getId();
         var window = getCurrentUsageWindow();
 
-        var count = usageCache.asMap().compute(key + ":" + window, (_, v) -> v == null ? 1 : ((Long) v) + 1);
+        var count = usageCache.asMap()
+                .compute(key + ":" + window, (_, v) -> v == null ? requests : ((Long) v) + requests);
         logger.debug("Local usage count for {}: {}", customer.getName(), count);
     }
 

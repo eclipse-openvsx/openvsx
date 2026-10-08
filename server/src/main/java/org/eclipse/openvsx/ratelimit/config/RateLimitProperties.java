@@ -45,6 +45,9 @@ public class RateLimitProperties {
     private UsageStatsProperties usageStats = new UsageStatsProperties();
 
     @Valid
+    private EdgeProperties edge = new EdgeProperties();
+
+    @Valid
     private List<RateLimitFilterProperties> filters = new ArrayList<>();
 
     @NotBlank
@@ -90,6 +93,14 @@ public class RateLimitProperties {
         this.usageStats = usageData;
     }
 
+    public EdgeProperties getEdge() {
+        return edge;
+    }
+
+    public void setEdge(EdgeProperties edge) {
+        this.edge = edge;
+    }
+    
     public List<RateLimitFilterProperties> getFilters() {
         return filters;
     }

@@ -15,10 +15,10 @@ package org.eclipse.openvsx.ratelimit.filter;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.eclipse.openvsx.ratelimit.ResolvedIdentity;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +69,11 @@ public class RateLimitServletFilter extends OncePerRequestFilter implements Orde
         var identity = identityService.resolveIdentity(request);
         logger.debug("Rate limit filter: {}: {}", request.getRequestURI(), identity.ipAddress());
 
+        if (identity.countedAtEdge()) {
+            checkWithoutConsuming(identity, request, response, chain);
+            return;
+        }
+
         if (identity.isCustomer()) {
             var customer = identity.getCustomer();
             logger.debug("Increasing usage stats for customer {}", customer.getName());
@@ -103,19 +108,42 @@ public class RateLimitServletFilter extends OncePerRequestFilter implements Orde
             response.setHeader(HEADER_RATE_LIMIT_REMAINING, Long.toString(remainingTokens));
             chain.doFilter(request, response);
         } else {
-            handleHttpResponseOnRateLimiting(response, probe);
+            handleHttpResponseOnRateLimiting(response, probe.getNanosToWaitForReset(), probe.getNanosToWaitForRefill());
         }
     }
 
-    private void handleHttpResponseOnRateLimiting(HttpServletResponse response, ConsumptionProbe probe)
+    /**
+     * The edge already reports this request in its usage log, so debiting here would charge it
+     * twice. Rejecting an exhausted bucket still enforces without waiting for the edge's block.
+     */
+    private void checkWithoutConsuming(
+            ResolvedIdentity identity,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain chain
+    ) throws ServletException, IOException {
+        var bucket = rateLimitService.getBucket(identity).bucket();
+        if (bucket == null) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        var estimate = bucket.estimateAbilityToConsume(1);
+        if (estimate.canBeConsumed()) {
+            chain.doFilter(request, response);
+        } else {
+            var refill = estimate.getNanosToWaitForRefill();
+            handleHttpResponseOnRateLimiting(response, refill, refill);
+        }
+    }
+
+    private void handleHttpResponseOnRateLimiting(HttpServletResponse response, long nanosToReset, long nanosToRefill)
             throws IOException {
         response.setStatus(filterProperties.getHttpStatusCode().value());
 
         response.setHeader(HEADER_RATE_LIMIT_REMAINING, "0");
-        response.setHeader(
-                HEADER_RATE_LIMIT_RESET,
-                "" + TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForReset()));
-        var refillInSeconds = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill());
+        response.setHeader(HEADER_RATE_LIMIT_RESET, "" + TimeUnit.NANOSECONDS.toSeconds(nanosToReset));
+        var refillInSeconds = TimeUnit.NANOSECONDS.toSeconds(nanosToRefill);
         response.setHeader("Retry-After", Long.toString(refillInSeconds));
 
         filterProperties.getHttpResponseHeaders().forEach(response::setHeader);
