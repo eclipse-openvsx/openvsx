@@ -33,6 +33,10 @@ public record SettingRows(Map<String, Object> rows) {
         return rows.get(rowKey) instanceof Boolean value ? value : fallback;
     }
 
+    public long asLong(String rowKey, long fallback) {
+        return rows.get(rowKey) instanceof Number value ? value.longValue() : fallback;
+    }
+
     public String asString(String rowKey, String fallback) {
         return rows.get(rowKey) instanceof String value ? value : fallback;
     }

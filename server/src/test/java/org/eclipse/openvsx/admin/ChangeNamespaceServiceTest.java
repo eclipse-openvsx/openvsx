@@ -30,6 +30,7 @@ import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.TargetPlatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,6 +64,9 @@ class ChangeNamespaceServiceTest {
 
     @Mock
     SearchUtilService search;
+
+    @Mock
+    ExtensionSizeLimitService sizeLimits;
 
     @InjectMocks
     ChangeNamespaceService service;
@@ -98,6 +102,24 @@ class ChangeNamespaceServiceTest {
         when(repositories.findExtensions(oldNamespace)).thenReturn(Streamable.of(extension));
         when(repositories.findMemberships(oldNamespace)).thenReturn(Streamable.empty());
         when(repositories.findMemberships(newNamespace)).thenReturn(Streamable.empty());
+    }
+
+    /**
+     * Nothing else in this transaction touches the size override table, so without this call an
+     * extension-scoped override keeps pointing at the namespace the extension just left - unreachable,
+     * and indistinguishable from having no override.
+     */
+    @Test
+    void renamingCarriesTheSizeOverridesToTheNewNamespace() {
+        var oldNamespace = namespace("old");
+        var newNamespace = namespace("new");
+        var extension = extension(oldNamespace);
+        stubRename(oldNamespace, newNamespace, extension);
+        when(repositories.findVersions(extension)).thenReturn(Streamable.empty());
+
+        service.changeNamespaceInDatabase(newNamespace, oldNamespace, List.of(), true, true);
+
+        verify(sizeLimits).moveOverridesToNamespace(oldNamespace, newNamespace, true);
     }
 
     @Test

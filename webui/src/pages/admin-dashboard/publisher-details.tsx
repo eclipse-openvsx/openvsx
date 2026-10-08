@@ -8,21 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useState } from 'react';
-import {
-    Alert,
-    Avatar,
-    Box,
-    Chip,
-    Divider,
-    LinearProgress,
-    Paper,
-    Stack,
-    ToggleButton,
-    ToggleButtonGroup,
-    Tooltip,
-    Typography
-} from '@mui/material';
+import { FunctionComponent, ReactNode, useContext } from 'react';
+import { Alert, Avatar, Box, Chip, Divider, LinearProgress, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import { useIsMutating } from '@tanstack/react-query';
 import { Link as RouterLink } from 'react-router';
 import GitHubIcon from '@mui/icons-material/GitHub';
@@ -31,28 +18,19 @@ import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import GavelIcon from '@mui/icons-material/Gavel';
-import { UserRelationships } from '../../extension-registry-types';
+import { PublisherInfo, UserRelationships } from '../../extension-registry-types';
 import { ErrorResponse } from '../../server-request';
 import { MainContext } from '../../context';
 import { ExtensionCardList } from '../../components/extension/extension-card-list';
-import { handleError as formatError, toLocalTime } from '../../utils';
+import { createRoute, handleError as formatError, toLocalTime } from '../../utils';
+import { hasPermission } from '../../permissions';
+import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
+import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-routes';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { PublisherForgetUserButton } from './publisher-forget-user-button';
 import { PublisherRevokeContributionsButton } from './publisher-revoke-dialog';
 import { PublisherRevokeTokensButton } from './publisher-revoke-tokens-button';
-import {
-    type PublisherRole,
-    publisherMutationKey,
-    usePublisherInfo,
-    useUpdatePublisherRole
-} from './use-publisher-admin';
-
-// Ordered as an escalating permission scale, low → high.
-const ROLE_OPTIONS: { value: PublisherRole; label: string }[] = [
-    { value: 'none', label: 'No role' },
-    { value: 'privileged', label: 'Privileged' },
-    { value: 'admin', label: 'Admin' }
-];
+import { publisherMutationKey, usePublisherInfo } from './use-publisher-admin';
 
 const AGREEMENT_META = {
     signed: { label: 'Signed', color: 'success' as const },
@@ -80,6 +58,63 @@ const DetailSection: FunctionComponent<{ icon: ReactNode; title: string; count?:
     </Box>
 );
 
+/** The destructive publisher actions, shown only to a caller the server would let through. */
+const DangerZone: FunctionComponent<{ publisherInfo: PublisherInfo }> = ({ publisherInfo }) => {
+    const loginName = publisherInfo.user.loginName;
+    return (
+        <Box sx={{ border: 1, borderColor: 'error.light', borderRadius: 1, overflow: 'hidden' }}>
+            {publisherInfo.activeAccessTokenNum > 0 && (
+                <>
+                    <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
+                        <Box>
+                            <Typography variant='body2' fontWeight={600}>
+                                Revoke access tokens
+                            </Typography>
+                            <Typography variant='body2' color='text.secondary'>
+                                Deactivate {publisherInfo.activeAccessTokenNum} active access token
+                                {publisherInfo.activeAccessTokenNum === 1 ? '' : 's'} for {loginName}. This cannot be
+                                undone.
+                            </Typography>
+                        </Box>
+                        <Box sx={{ flexShrink: 0, ml: 2 }}>
+                            <PublisherRevokeTokensButton publisherInfo={publisherInfo} />
+                        </Box>
+                    </Stack>
+                    <Divider />
+                </>
+            )}
+            <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
+                <Box>
+                    <Typography variant='body2' fontWeight={600}>
+                        Revoke publisher contributions
+                    </Typography>
+                    <Typography variant='body2' color='text.secondary'>
+                        Deactivate all extensions, access tokens, and revoke the publisher agreement for {loginName}.
+                        This cannot be undone.
+                    </Typography>
+                </Box>
+                <Box sx={{ flexShrink: 0, ml: 2 }}>
+                    <PublisherRevokeContributionsButton publisherInfo={publisherInfo} />
+                </Box>
+            </Stack>
+            <Divider />
+            <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
+                <Box>
+                    <Typography variant='body2' fontWeight={600}>
+                        Forget user
+                    </Typography>
+                    <Typography variant='body2' color='text.secondary'>
+                        Erase {loginName} in response to a data-protection erasure request. This cannot be undone.
+                    </Typography>
+                </Box>
+                <Box sx={{ flexShrink: 0, ml: 2 }}>
+                    <PublisherForgetUserButton publisherInfo={publisherInfo} />
+                </Box>
+            </Stack>
+        </Box>
+    );
+};
+
 /**
  * The details card for the publisher selected in the search. Identity and role are
  * available immediately from the search result; the account info (agreement, tokens,
@@ -90,30 +125,27 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
     const { user: currentUser } = useContext(MainContext);
     const isCurrentUser = currentUser?.loginName === user.loginName && currentUser?.provider === user.provider;
 
-    const [selectedRole, setSelectedRole] = useState<PublisherRole>(() => (user.role as PublisherRole) ?? 'none');
-    const updateRole = useUpdatePublisherRole();
     const busy = useIsMutating({ mutationKey: publisherMutationKey }) > 0;
+
+    // The server refuses to revoke or erase a user who has a role or permissions of their own
+    // unless the caller is a full admin (AdminService#checkMayStripAccessOf) - taking away access
+    // another admin granted is not delegable. Offering the buttons anyway would be a confirmation
+    // dialog that can only end in a 403.
+    const targetHasAccess = Boolean(user.role) || (user.permissions?.length ?? 0) > 0;
+    const mayActOnTarget = !targetHasAccess || currentUser?.role === 'admin';
 
     const { data: publisherInfo, error } = usePublisherInfo(user.loginName, user.provider ?? 'github', true);
 
-    const handleRoleChange = (role: PublisherRole) => {
-        if (role === selectedRole || !user.provider) {
-            return;
-        }
-        // Optimistic: reflect the choice immediately, revert if the save fails.
-        setSelectedRole(role);
-        updateRole.mutate(
-            { provider: user.provider, login: user.loginName, role },
-            {
-                onSuccess() {
-                    setTimeout(() => {
-                        updateRole.reset();
-                    }, 3000);
-                },
-                onError: () => setSelectedRole((user.role as PublisherRole) ?? 'none')
-            }
-        );
-    };
+    // A publisher's namespaces and extensions are legitimately on show here, but the admin pages for
+    // them need their own permissions - so without those, link to the public pages rather than to a
+    // page that would only answer "not authorized".
+    const namespaceRoute = (name: string) =>
+        hasPermission(currentUser, 'manage_namespaces')
+            ? `${AdminDashboardRoutes.NAMESPACE_ADMIN}/${encodeURIComponent(name)}`
+            : createRoute([NamespaceDetailRoutes.ROOT, name]);
+    const extensionRoutePrefix = hasPermission(currentUser, 'manage_extensions')
+        ? AdminDashboardRoutes.EXTENSION_ADMIN
+        : createRoute([ExtensionDetailRoutes.ROOT]);
 
     const agreementStatus = publisherInfo?.user.publisherAgreement?.status ?? 'none';
     const agreement = AGREEMENT_META[agreementStatus];
@@ -162,44 +194,16 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                 sx={{ height: 18, '& .MuiChip-label': { px: 0.5, fontSize: '0.65rem' } }}
                             />
                         )}
+                        {/* Read-only here - role and permissions are edited on the Access Control page. */}
+                        {user.role && <Chip label={user.role} size='small' variant='outlined' />}
                     </Stack>
                     <Typography variant='body2' color='text.secondary' noWrap>
                         {user.fullName || '—'}
                     </Typography>
                 </Box>
-                <Stack spacing={0.5} sx={{ flexShrink: 0, alignItems: { xs: 'flex-start', md: 'flex-end' } }}>
-                    <Typography variant='caption' color='text.secondary'>
-                        Role
-                    </Typography>
-                    <ToggleButtonGroup
-                        exclusive
-                        size='small'
-                        color='primary'
-                        value={selectedRole}
-                        disabled={!user.provider || busy}
-                        onChange={(_event, value) => value && handleRoleChange(value)}>
-                        {ROLE_OPTIONS.map(o => (
-                            <ToggleButton key={o.value} value={o.value} sx={{ textTransform: 'none', px: 1.5 }}>
-                                {o.label}
-                            </ToggleButton>
-                        ))}
-                    </ToggleButtonGroup>
-                </Stack>
             </Stack>
 
             <Divider sx={{ my: 3 }} />
-
-            {updateRole.isError && (
-                <Alert severity='error' sx={{ mb: 2 }} onClose={() => updateRole.reset()}>
-                    {formatError(updateRole.error as Error | Partial<ErrorResponse>)}
-                </Alert>
-            )}
-
-            {updateRole.isSuccess && (
-                <Alert severity='success' sx={{ mb: 2 }}>
-                    {updateRole.data.success}
-                </Alert>
-            )}
 
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <DetailSection
@@ -214,7 +218,7 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                     label={ns.name}
                                     size='small'
                                     component={RouterLink}
-                                    to={`${AdminDashboardRoutes.NAMESPACE_ADMIN}/${encodeURIComponent(ns.name)}`}
+                                    to={namespaceRoute(ns.name)}
                                     clickable
                                 />
                             ))}
@@ -260,7 +264,7 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                                 <ExtensionCardList
                                     extensions={publisherInfo.extensions}
                                     loading={false}
-                                    routePrefix={AdminDashboardRoutes.EXTENSION_ADMIN}
+                                    routePrefix={extensionRoutePrefix}
                                 />
                             ) : (
                                 <Typography variant='body2' color='text.secondary'>
@@ -273,75 +277,14 @@ export const PublisherDetails: FunctionComponent<{ entry: UserRelationships }> =
                             <Typography variant='h6' sx={{ mb: 1.5 }}>
                                 Danger Zone
                             </Typography>
-                            <Box
-                                sx={{
-                                    border: 1,
-                                    borderColor: 'error.light',
-                                    borderRadius: 1,
-                                    overflow: 'hidden'
-                                }}>
-                                {publisherInfo.activeAccessTokenNum > 0 && (
-                                    <>
-                                        <Stack
-                                            direction='row'
-                                            alignItems='center'
-                                            justifyContent='space-between'
-                                            sx={{ px: 2, py: 1.5 }}>
-                                            <Box>
-                                                <Typography variant='body2' fontWeight={600}>
-                                                    Revoke access tokens
-                                                </Typography>
-                                                <Typography variant='body2' color='text.secondary'>
-                                                    Deactivate {publisherInfo.activeAccessTokenNum} active access token
-                                                    {publisherInfo.activeAccessTokenNum === 1 ? '' : 's'} for{' '}
-                                                    {user.loginName}. This cannot be undone.
-                                                </Typography>
-                                            </Box>
-                                            <Box sx={{ flexShrink: 0, ml: 2 }}>
-                                                <PublisherRevokeTokensButton publisherInfo={publisherInfo} />
-                                            </Box>
-                                        </Stack>
-                                        <Divider />
-                                    </>
-                                )}
-                                <Stack
-                                    direction='row'
-                                    alignItems='center'
-                                    justifyContent='space-between'
-                                    sx={{ px: 2, py: 1.5 }}>
-                                    <Box>
-                                        <Typography variant='body2' fontWeight={600}>
-                                            Revoke publisher contributions
-                                        </Typography>
-                                        <Typography variant='body2' color='text.secondary'>
-                                            Deactivate all extensions, access tokens, and revoke the publisher agreement
-                                            for {user.loginName}. This cannot be undone.
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ flexShrink: 0, ml: 2 }}>
-                                        <PublisherRevokeContributionsButton publisherInfo={publisherInfo} />
-                                    </Box>
-                                </Stack>
-                                <Divider />
-                                <Stack
-                                    direction='row'
-                                    alignItems='center'
-                                    justifyContent='space-between'
-                                    sx={{ px: 2, py: 1.5 }}>
-                                    <Box>
-                                        <Typography variant='body2' fontWeight={600}>
-                                            Forget user
-                                        </Typography>
-                                        <Typography variant='body2' color='text.secondary'>
-                                            Erase {user.loginName} in response to a data-protection erasure request.
-                                            This cannot be undone.
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ flexShrink: 0, ml: 2 }}>
-                                        <PublisherForgetUserButton publisherInfo={publisherInfo} />
-                                    </Box>
-                                </Stack>
-                            </Box>
+                            {mayActOnTarget ? (
+                                <DangerZone publisherInfo={publisherInfo} />
+                            ) : (
+                                <Alert severity='info' variant='outlined'>
+                                    {user.loginName} has a role or individually granted permissions. Only a full admin
+                                    can revoke or erase an account that holds admin access of its own.
+                                </Alert>
+                            )}
                         </Box>
                     </>
                 )}

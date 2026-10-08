@@ -42,7 +42,7 @@ export * from './components/page-container';
 // Leaf hook modules keep their helpers private, so `export *` exposes only the
 // public hook plus its types (e.g. useSearch + SearchFilter).
 export * from './hooks/use-search';
-export { useRegisterPageSearchBar } from './context/search/page-search-bar-context';
+export { useSearchBar } from './context/search/page-search-bar-context';
 
 // Keyboard shortcuts: register shortcuts from custom pages/components. The hook
 // only takes effect below a KeyboardShortcutsProvider — the built-in AppLayout
@@ -72,6 +72,8 @@ export { AppProviders } from './app-providers';
 // `createAbsoluteURL` and `addQuery` are the other half of the request layer above:
 // building an endpoint against `service.serverUrl` needs them.
 export { createRoute, createAbsoluteURL, addQuery, formatCompactNumber, formatRating, toRelativeTime } from './utils';
+// So a deployment with its own menu content can gate an admin entry the same way the built-in ones do.
+export { hasPermission, hasAnyAdminAccess } from './permissions';
 export { NotFound } from './not-found';
 
 // Theme tokens shared with the library chrome, so custom pages line up with it.

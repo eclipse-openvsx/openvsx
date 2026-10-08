@@ -254,7 +254,7 @@ public class ExtensionVersion extends TableImpl<ExtensionVersionRecord> {
     /**
      * The column <code>public.extension_version.published_by_id</code>.
      */
-    public final TableField<ExtensionVersionRecord, Long> PUBLISHED_BY_ID = createField(DSL.name("published_by_id"), SQLDataType.BIGINT, this, "");
+    public final TableField<ExtensionVersionRecord, Long> PUBLISHED_BY_ID = createField(DSL.name("published_by_id"), SQLDataType.BIGINT.nullable(false), this, "");
 
     /**
      * The column <code>public.extension_version.published_with_tt</code>.

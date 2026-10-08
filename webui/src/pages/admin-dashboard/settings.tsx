@@ -23,6 +23,7 @@ import {
     DialogContentText,
     DialogTitle,
     Stack,
+    TextField,
     Typography
 } from '@mui/material';
 import type { Settings } from '../../extension-registry-types';
@@ -41,6 +42,18 @@ interface NotificationState {
 }
 
 const NOTIFICATION_TIMEOUT = 2000;
+const BYTES_PER_MB = 1024 * 1024;
+
+// Flooring would understate a ceiling that is not a whole number of MB (e.g. 1.5 MiB reported as
+// "1 MB"), making a value the server would accept look invalid. Rounding instead can overstate it
+// at a near-boundary value (e.g. 2 MiB - 1 byte rounds to "2 MB", naming a value the server would
+// reject) - so the exact byte count is the authoritative part of the message, with the MB figure
+// only an approximation alongside it.
+const formatCeiling = (bytes: number): string => {
+    const mb = bytes / BYTES_PER_MB;
+    const approxMB = Number.isInteger(mb) ? String(mb) : mb.toFixed(2);
+    return `${bytes} bytes (~${approxMB} MB)`;
+};
 
 /** Settings rendered as a plain on/off toggle. */
 type FlagKey = 'read-only';
@@ -60,7 +73,7 @@ const BANNER_KEYS = [
 
 // `banner-dismiss-id` is not edited: it is stamped into the patch at save time, when the admin
 // asks for the banner to be shown again to everyone who dismissed it.
-const SETTING_KEYS = ['read-only', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
+const SETTING_KEYS = ['read-only', 'max-extension-size', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
 
 const hasMessage = (settings: Settings) => (settings['banner-message'] ?? '').trim().length > 0;
 
@@ -73,6 +86,9 @@ export const RuntimeSettingsPage: FC = () => {
 
     const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
     const [showAgain, setShowAgain] = useState(true);
+    // The field holds what was typed, not the draft's number rendered back. Deriving it meant an
+    // emptied field parsed as 0 and was immediately rewritten as "0", so it could not be cleared.
+    const [sizeInput, setSizeInput] = useState('');
     const [errorDismissed, setErrorDismissed] = useState(false);
     const [notifications, setNotifications] = useState<NotificationState[]>([]);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -82,6 +98,7 @@ export const RuntimeSettingsPage: FC = () => {
     useEffect(() => {
         if (settings) {
             setDraftSettings(settings);
+            setSizeInput(String((settings['max-extension-size'] ?? 0) / BYTES_PER_MB));
         }
     }, [settings]);
 
@@ -131,6 +148,21 @@ export const RuntimeSettingsPage: FC = () => {
         [clearSaved]
     );
 
+    const handleMaxExtensionSizeChange = useCallback(
+        (event: ChangeEvent<HTMLInputElement>) => {
+            const typed = event.target.value;
+            setSizeInput(typed);
+            // Number, not parseInt: parseInt stops at the first non-digit, so 1.5 would be stored as
+            // 1 MB and 1e3 as 1 MB while the field kept showing what was typed. An empty field is not
+            // zero either - Number('') is - so it is held as invalid until something is typed.
+            const mb = typed.trim() === '' ? Number.NaN : Number(typed);
+            const bytes = Number.isFinite(mb) ? mb * BYTES_PER_MB : Number.NaN;
+            setDraftSettings(current => (current ? { ...current, 'max-extension-size': bytes } : current));
+            clearSaved();
+        },
+        [clearSaved]
+    );
+
     const edited = draftSettings !== null && settings != null;
     const flagsChanged = edited && (Object.keys(FLAGS) as FlagKey[]).some(k => draftSettings[k] !== settings[k]);
     const hasChanges = edited && SETTING_KEYS.some(key => draftSettings[key] !== settings[key]);
@@ -143,6 +175,16 @@ export const RuntimeSettingsPage: FC = () => {
     useEffect(() => {
         if (!canShowAgain) setShowAgain(true);
     }, [canShowAgain]);
+
+    const maxExtensionSizeChanged = edited && draftSettings['max-extension-size'] !== settings['max-extension-size'];
+    // Only validated once the admin has actually edited it, because only then is it sent. The server
+    // stores the limit as a long, and one beyond JavaScript's safe-integer range would otherwise fail
+    // this check on arrival and block every unrelated setting from being saved.
+    const maxExtensionSizeValid =
+        !maxExtensionSizeChanged ||
+        (Number.isSafeInteger(draftSettings['max-extension-size']) &&
+            (draftSettings['max-extension-size'] ?? 0) > 0 &&
+            (draftSettings['max-extension-size'] ?? 0) <= (draftSettings['max-override-size'] ?? Infinity));
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -223,11 +265,40 @@ export const RuntimeSettingsPage: FC = () => {
                     />
                 </SettingsSection>
 
+                <SettingsSection title='Publishing' description='Limits applied when extensions are published.'>
+                    <Box sx={{ p: 3 }}>
+                        <Typography variant='subtitle1' gutterBottom>
+                            Default max extension size
+                        </Typography>
+                        <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                            The largest extension package accepted for publishing when no namespace or extension
+                            override applies.
+                        </Typography>
+                        <TextField
+                            label='Max extension size (MB)'
+                            type='number'
+                            value={sizeInput}
+                            onChange={handleMaxExtensionSizeChange}
+                            disabled={loading || saving || !draftSettings}
+                            error={!maxExtensionSizeValid}
+                            helperText={
+                                maxExtensionSizeValid
+                                    ? undefined
+                                    : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
+                                          draftSettings?.['max-override-size'] ?? 0
+                                      )}`
+                            }
+                            inputProps={{ min: '1' }}
+                            sx={{ maxWidth: 240 }}
+                        />
+                    </Box>
+                </SettingsSection>
+
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <SaveButton
                         size='large'
                         saved={saveSuccess}
-                        disabled={!hasChanges || saving}
+                        disabled={!hasChanges || saving || !maxExtensionSizeValid}
                         onClick={handleSaveClick}
                     />
                 </Box>

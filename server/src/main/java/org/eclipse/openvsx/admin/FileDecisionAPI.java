@@ -32,6 +32,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import org.eclipse.openvsx.entities.FileDecision;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.settings.MutatingOperation;
@@ -123,7 +124,7 @@ public class FileDecisionAPI {
             ) String dateDecidedTo
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var decidedFrom = parseUtcDateTime(dateDecidedFrom, "dateDecidedFrom");
             var decidedTo = parseUtcDateTime(dateDecidedTo, "dateDecidedTo");
@@ -181,7 +182,7 @@ public class FileDecisionAPI {
             @Parameter(description = "File decision ID", example = "123") long fileId
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var decision = repositories.findFileDecision(fileId);
             if (decision == null) {
@@ -220,7 +221,7 @@ public class FileDecisionAPI {
             @RequestBody FileDecisionRequest.Create request
     ) {
         try {
-            var adminUser = admins.checkAdminUser();
+            var adminUser = admins.checkPermission(Permission.MANAGE_SCANS);
 
             if (request.fileHashes() == null || request.fileHashes().isEmpty()) {
                 throw new ErrorResultException("File hashes are required", HttpStatus.BAD_REQUEST);
@@ -304,7 +305,7 @@ public class FileDecisionAPI {
             @RequestBody FileDecisionRequest.Delete request
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             if (request.fileIds() == null || request.fileIds().isEmpty()) {
                 throw new ErrorResultException("File IDs are required", HttpStatus.BAD_REQUEST);
@@ -375,7 +376,7 @@ public class FileDecisionAPI {
             ) String dateDecidedTo
     ) {
         try {
-            admins.checkAdminUser();
+            admins.checkPermission(Permission.MANAGE_SCANS);
 
             var decidedFrom = parseUtcDateTime(dateDecidedFrom, "dateDecidedFrom");
             var decidedTo = parseUtcDateTime(dateDecidedTo, "dateDecidedTo");

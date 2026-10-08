@@ -14,17 +14,26 @@ package org.eclipse.openvsx.entities;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.jspecify.annotations.Nullable;
 
 import org.eclipse.openvsx.json.UserJson;
@@ -59,6 +68,21 @@ public class UserData implements Serializable {
     @Column(length = 32)
     @Convert(converter = UserRoleConverter.class)
     private Role role;
+
+    // EAGER, unlike tokens/memberships below: UserService#findLoggedInUser loads this entity with a
+    // bare entityManager.find() outside any transaction, and every real deployment config sets
+    // spring.jpa.open-in-view: false, so there is no session left afterward for a LAZY collection to
+    // initialize from - exactly the LazyInitializationException role never has, being a plain column
+    // the find() call itself already materializes. findLoggedInUser runs on essentially every
+    // authenticated request app-wide, so @Fetch(JOIN) folds this into that same query (a LEFT JOIN,
+    // free of charge for the common case of zero permissions) instead of EAGER's default secondary
+    // SELECT, which would otherwise double the query count of every one of those calls.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.JOIN)
+    @CollectionTable(name = "user_data_permission", joinColumns = @JoinColumn(name = "user_data_id"))
+    @Column(name = "permission", length = 32)
+    @Convert(converter = PermissionConverter.class)
+    private Set<Permission> permissions = new HashSet<>();
 
     private String loginName;
 
@@ -126,6 +150,32 @@ public class UserData implements Serializable {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public Set<Permission> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(Set<Permission> permissions) {
+        this.permissions = permissions;
+    }
+
+    public Set<String> getPermissionsAsStrings() {
+        // Null-tolerant: PermissionConverter reads a value this build has no constant for as null
+        // rather than throwing, so one can be sitting in the collection.
+        return permissions.stream()
+                .filter(Objects::nonNull)
+                .map(Permission::toString)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Whether this user is allowed to perform an admin action requiring {@code permission}.
+     * {@link Role#ADMIN} always has every permission, including ones added after the role was
+     * granted, so it never needs to be reflected in {@link #permissions} itself.
+     */
+    public boolean hasPermission(Permission permission) {
+        return Role.ADMIN.equals(role) || permissions.contains(permission);
     }
 
     public String getLoginName() {
@@ -202,7 +252,8 @@ public class UserData implements Serializable {
 
     // tokens and memberships are deliberately excluded below: each of their elements holds this
     // user back (PersonalAccessToken#user, NamespaceMembership#user), so hashing them here would
-    // recurse into this user's hashCode again, unconditionally.
+    // recurse into this user's hashCode again, unconditionally. permissions has no such back-reference
+    // and is EAGER, so it carries no risk of either problem.
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -214,6 +265,7 @@ public class UserData implements Serializable {
         UserData userData = (UserData) o;
         return id == userData.id
                 && Objects.equals(role, userData.role)
+                && Objects.equals(permissions, userData.permissions)
                 && Objects.equals(loginName, userData.loginName)
                 && Objects.equals(fullName, userData.fullName)
                 && Objects.equals(email, userData.email)
@@ -230,6 +282,7 @@ public class UserData implements Serializable {
         return Objects.hash(
                 id,
                 role,
+                permissions,
                 loginName,
                 fullName,
                 email,

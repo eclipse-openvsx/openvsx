@@ -29,6 +29,7 @@ import {
 import { Link as RouterLink } from 'react-router';
 import { AdminDashboardRoutes } from '../admin-dashboard-routes';
 import { MainContext } from '../../../context';
+import { hasPermission } from '../../../permissions';
 import { Customer, UserData } from '../../../extension-registry-types';
 import { AddUserDialog } from '../../../components/add-user-dialog';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -39,7 +40,8 @@ import { useAddCustomerMember, useCustomerMembers, useRemoveCustomerMember } fro
 const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
 export const CustomerMemberList: FunctionComponent<CustomerMemberListProps> = props => {
-    const { handleError } = useContext(MainContext);
+    const { handleError, user: currentUser } = useContext(MainContext);
+    const canOpenPublisher = hasPermission(currentUser, 'manage_publishers');
     const [addDialogIsOpen, setAddDialogIsOpen] = useState(false);
 
     const { data, error } = useCustomerMembers(props.customer.name);
@@ -120,11 +122,17 @@ export const CustomerMemberList: FunctionComponent<CustomerMemberListProps> = pr
                             </ListItemAvatar>
                             <ListItemText
                                 primary={
-                                    <RouterLink
-                                        style={{ color: 'inherit' }}
-                                        to={createRoute([AdminDashboardRoutes.PUBLISHER_ADMIN, user.loginName])}>
-                                        {user.loginName}
-                                    </RouterLink>
+                                    // Publisher admin is the only page this could link to, and there is no
+                                    // public equivalent - so without the permission it stays plain text.
+                                    canOpenPublisher ? (
+                                        <RouterLink
+                                            style={{ color: 'inherit' }}
+                                            to={createRoute([AdminDashboardRoutes.PUBLISHER_ADMIN, user.loginName])}>
+                                            {user.loginName}
+                                        </RouterLink>
+                                    ) : (
+                                        user.loginName
+                                    )
                                 }
                                 secondary={user.fullName}
                             />

@@ -42,12 +42,34 @@ public sealed interface AccessTokenAction {
     }
 
     /**
-     * Action that verifies token only (does not "use" it).
+     * Action that verifies token only (does not "use" it). Applies to every token regardless of its scope.
      */
     record Verify() implements AccessTokenAction {
         @Override
         public boolean isUsing() {
             return false;
+        }
+    }
+
+    /**
+     * Action that checks whether a token is valid for a namespace, without using it. A token scoped to an
+     * extension is valid for the namespace of that extension.
+     */
+    record VerifyNamespace(String namespaceName) implements AccessTokenAction {
+        public VerifyNamespace {
+            if (namespaceName == null || namespaceName.isBlank()) {
+                throw new IllegalArgumentException("Namespace cannot be null or blank");
+            }
+        }
+
+        @Override
+        public boolean isUsing() {
+            return false;
+        }
+
+        @Override
+        public Optional<String> namespace() {
+            return Optional.of(namespaceName);
         }
     }
 
@@ -83,6 +105,40 @@ public sealed interface AccessTokenAction {
             if (extensionName == null || extensionName.isBlank()) {
                 throw new IllegalArgumentException("Extension name cannot be null or blank");
             }
+        }
+
+        @Override
+        public Optional<String> namespace() {
+            return Optional.of(namespaceName);
+        }
+
+        @Override
+        public Optional<String> extension() {
+            return Optional.of(extensionName);
+        }
+    }
+
+    /**
+     * Action that checks whether a token could publish an extension, without using it.
+     * <p>
+     * Unlike {@link Verify}, the namespace and extension are reported, so a scoped token is matched
+     * against the scope it actually has - every trusted publishing token is extension scoped. Unlike
+     * {@link PublishVersion}, this does not "use" the token, so its accessed timestamp is untouched and
+     * a one-time token survives to be used by the publish it was checked for.
+     */
+    record VerifyPublishVersion(String namespaceName, String extensionName) implements AccessTokenAction {
+        public VerifyPublishVersion {
+            if (namespaceName == null || namespaceName.isBlank()) {
+                throw new IllegalArgumentException("Namespace cannot be null or blank");
+            }
+            if (extensionName == null || extensionName.isBlank()) {
+                throw new IllegalArgumentException("Extension name cannot be null or blank");
+            }
+        }
+
+        @Override
+        public boolean isUsing() {
+            return false;
         }
 
         @Override

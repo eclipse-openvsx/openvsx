@@ -40,6 +40,15 @@ export function debounce(task: () => void, token: { timeout?: number }, delay: n
     token.timeout = window.setTimeout(task, delay);
 }
 
+/**
+ * Moves an input/textarea's cursor to the end of its current value. Deferred to the next frame:
+ * browsers select-all by default right after a programmatic `.focus()`, which would otherwise
+ * overwrite this.
+ */
+export function moveCursorToEnd(element: HTMLInputElement | HTMLTextAreaElement): void {
+    requestAnimationFrame(() => element.setSelectionRange(element.value.length, element.value.length));
+}
+
 const compactNumberFormat = new Intl.NumberFormat(undefined, {
     notation: 'compact',
     compactDisplay: 'short'

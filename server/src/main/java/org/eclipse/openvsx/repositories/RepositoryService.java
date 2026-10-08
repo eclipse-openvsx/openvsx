@@ -485,6 +485,14 @@ public class RepositoryService {
         return userDataRepo.findByProviderAndLoginName(provider, loginName);
     }
 
+    /**
+     * Loads users as mapped entities, unlike {@link #searchUsers} - which hands back objects carrying
+     * only the columns its jOOQ query selects, so without their permissions.
+     */
+    public List<UserData> findUsersById(Collection<Long> ids) {
+        return userDataRepo.findByIdIn(ids);
+    }
+
     public long countUsers() {
         return userDataRepo.count();
     }
@@ -564,13 +572,16 @@ public class RepositoryService {
 
     public Streamable<PersonalAccessToken> findActivePersonalAccessTokensAndType(
             UserData user,
-            PersonalAccessTokenType type
+            Collection<PersonalAccessTokenType> types
     ) {
-        return personalAccessTokenRepo.findByUserAndActiveTrueAndType(user, type);
+        return personalAccessTokenRepo.findByUserAndActiveTrueAndTypeIn(user, types);
     }
 
-    public long countActivePersonalAccessTokensAndType(UserData user, PersonalAccessTokenType type) {
-        return personalAccessTokenRepo.countByUserAndActiveTrueAndType(user, type);
+    public long countActivePersonalAccessTokensAndType(
+            UserData user,
+            Collection<PersonalAccessTokenType> types
+    ) {
+        return personalAccessTokenRepo.countByUserAndActiveTrueAndTypeIn(user, types);
     }
 
     public PersonalAccessToken findPersonalAccessToken(String value) {
@@ -609,8 +620,11 @@ public class RepositoryService {
                 .deleteExpiredAccessTokens(timestamp, types.stream().map(Enum::name).toList());
     }
 
-    public int updateExpiresTimeForLegacyPersonalAccessTokens(LocalDateTime timestamp, PersonalAccessTokenType type) {
-        return personalAccessTokenRepo.updateExpiresTimeForLegacyAccessTokens(timestamp, type);
+    public int updateExpiresTimeForLegacyPersonalAccessTokens(
+            LocalDateTime timestamp,
+            Collection<PersonalAccessTokenType> types
+    ) {
+        return personalAccessTokenRepo.updateExpiresTimeForLegacyAccessTokens(timestamp, types);
     }
 
     public PersonalAccessToken findPersonalAccessToken(UserData user, String description) {

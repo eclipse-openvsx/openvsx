@@ -55,7 +55,6 @@ import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -181,6 +180,12 @@ class UserAPITest {
                     t3.setDescription("This is token 3");
                     t3.setCreatedTimestamp("2000-01-01T10:00Z");
                     a.add(t3);
+                    var t4 = new AccessTokenJson();
+                    t4.setDescription("This is token 4");
+                    t4.setCreatedTimestamp("2000-01-01T10:00Z");
+                    t4.setPublishingOnly(true);
+                    t4.setScopeNamespace("foo");
+                    a.add(t4);
                 })));
     }
 
@@ -204,6 +209,128 @@ class UserAPITest {
                     t.setValue("foobar");
                     t.setDescription("This is my token");
                 })));
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToUnknownNamespace() throws Exception {
+        mockUserData();
+        mockMvc.perform(
+                post("/user/token/create?namespace={namespace}", "unknown")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToExtensionNeedsNamespace() throws Exception {
+        mockUserData();
+        mockMvc.perform(
+                post("/user/token/create?extension={extension}", "bar")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToNamespaceWithoutPublishPermission() throws Exception {
+        mockUserData();
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        Mockito.when(repositories.findNamespace("foo")).thenReturn(namespace);
+        Mockito.doReturn(false).when(users).hasPublishPermission(any(), any());
+        mockMvc.perform(
+                post("/user/token/create?namespace={namespace}", "foo")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToNamespace() throws Exception {
+        mockUserData();
+        Mockito.doReturn("foobar").when(accessTokenService).generateTokenValue(any());
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        Mockito.when(repositories.findNamespace("foo")).thenReturn(namespace);
+        Mockito.doReturn(true).when(users).hasPublishPermission(any(), any());
+        mockMvc.perform(
+                post("/user/token/create?description={description}&namespace={namespace}", "scoped", "foo")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isCreated())
+                .andExpect(content().json(accessTokenJson(t -> {
+                    t.setValue("foobar");
+                    t.setDescription("scoped");
+                    t.setScopeNamespace("foo");
+                })))
+                .andExpect(jsonPath("$.scopeExtension").doesNotExist());
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToExtension() throws Exception {
+        mockUserData();
+        Mockito.doReturn("foobar").when(accessTokenService).generateTokenValue(any());
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(namespace);
+        Mockito.when(repositories.findNamespace("foo")).thenReturn(namespace);
+        Mockito.when(repositories.findExtension("bar", namespace)).thenReturn(extension);
+        Mockito.doReturn(true).when(users).hasPublishPermission(any(), any());
+        mockMvc.perform(
+                post("/user/token/create?namespace={namespace}&extension={extension}", "foo", "bar")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isCreated())
+                .andExpect(content().json(accessTokenJson(t -> {
+                    t.setScopeNamespace("foo");
+                    t.setScopeExtension("bar");
+                })));
+    }
+
+    @Test
+    void testCreateAccessTokenScopedToUnknownExtension() throws Exception {
+        mockUserData();
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        Mockito.when(repositories.findNamespace("foo")).thenReturn(namespace);
+        Mockito.doReturn(true).when(users).hasPublishPermission(any(), any());
+        mockMvc.perform(
+                post("/user/token/create?namespace={namespace}&extension={extension}", "foo", "unknown")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testCreatePublishingOnlyAccessToken() throws Exception {
+        mockUserData();
+        Mockito.doReturn("foobar").when(accessTokenService).generateTokenValue(any());
+        mockMvc.perform(
+                post("/user/token/create?description={description}&publishingOnly=true", "ci")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isCreated())
+                .andExpect(content().json(accessTokenJson(t -> {
+                    t.setValue("foobar");
+                    t.setDescription("ci");
+                    t.setPublishingOnly(true);
+                })));
+        Mockito.verify(accessTokenService).generateTokenValue(PersonalAccessTokenType.LLP);
+    }
+
+    @Test
+    void testCreateAccessTokenIsNotPublishingOnlyByDefault() throws Exception {
+        mockUserData();
+        Mockito.doReturn("foobar").when(accessTokenService).generateTokenValue(any());
+        mockMvc.perform(
+                post("/user/token/create?description={description}", "ci")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.publishingOnly").value(false));
+        Mockito.verify(accessTokenService).generateTokenValue(PersonalAccessTokenType.LLT);
     }
 
     @Test
@@ -967,8 +1094,18 @@ class UserAPITest {
         token3.setCreatedTimestamp(LocalDateTime.parse("2000-01-01T10:00"));
         token3.setActive(true);
         token3.setType(PersonalAccessTokenType.LLT);
-        Mockito.when(repositories.findActivePersonalAccessTokensAndType(userData, PersonalAccessTokenType.LLT))
-                .thenReturn(Streamable.of(token1, token3));
+        var scopeNamespace = new Namespace();
+        scopeNamespace.setName("foo");
+        var token4 = new PersonalAccessToken();
+        token4.setUser(userData);
+        token4.setValue("token4");
+        token4.setDescription("This is token 4");
+        token4.setCreatedTimestamp(LocalDateTime.parse("2000-01-01T10:00"));
+        token4.setActive(true);
+        token4.setType(PersonalAccessTokenType.LLP);
+        token4.setScopeNamespace(scopeNamespace);
+        Mockito.when(repositories.findActivePersonalAccessTokensAndType(userData, PersonalAccessTokenType.LONG_LIVED))
+                .thenReturn(Streamable.of(token1, token3, token4));
     }
 
     private String accessTokenJson(Consumer<AccessTokenJson> content) throws JacksonException {
@@ -1266,7 +1403,7 @@ class UserAPITest {
                     cache,
                     integrityService,
                     similarityCheckService,
-                    new PublishingConfig(),
+                    TestSizeLimits.atConfigDefault(),
                     new TrustedPublishingConfig(),
                     new WebUiProperties(),
                     Duration.ofSeconds(30));
@@ -1304,7 +1441,7 @@ class UserAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
-                    new PublishingConfig(),
+                    TestSizeLimits.atConfigDefault(),
                     entityManager,
                     repositories,
                     search,

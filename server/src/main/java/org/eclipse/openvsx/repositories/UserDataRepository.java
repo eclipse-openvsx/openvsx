@@ -12,6 +12,9 @@
  *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import java.util.Collection;
+import java.util.List;
+
 import org.springframework.data.repository.Repository;
 
 import org.eclipse.openvsx.entities.UserData;
@@ -19,6 +22,8 @@ import org.eclipse.openvsx.entities.UserData;
 public interface UserDataRepository extends Repository<UserData, Long> {
 
     UserData findByProviderAndLoginName(String provider, String loginName);
+
+    List<UserData> findByIdIn(Collection<Long> ids);
 
     long count();
 

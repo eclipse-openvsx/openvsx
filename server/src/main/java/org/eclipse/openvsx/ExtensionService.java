@@ -46,11 +46,11 @@ import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
-import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.*;
 import org.eclipse.openvsx.util.auth.AuthenticatedUser;
 
@@ -61,7 +61,7 @@ public class ExtensionService {
 
     private static final Logger logger = LoggerFactory.getLogger(ExtensionService.class);
 
-    private final PublishingConfig publishingConfig;
+    private final ExtensionSizeLimitService sizeLimits;
     private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final SearchUtilService search;
@@ -73,7 +73,7 @@ public class ExtensionService {
     private final ExtensionScanPersistenceService scanPersistenceService;
 
     public ExtensionService(
-            PublishingConfig publishingConfig,
+            ExtensionSizeLimitService sizeLimits,
             EntityManager entityManager,
             RepositoryService repositories,
             SearchUtilService search,
@@ -84,7 +84,7 @@ public class ExtensionService {
             ExtensionScanService scanService,
             ExtensionScanPersistenceService scanPersistenceService
     ) {
-        this.publishingConfig = publishingConfig;
+        this.sizeLimits = sizeLimits;
         this.entityManager = entityManager;
         this.repositories = repositories;
         this.search = search;
@@ -97,7 +97,7 @@ public class ExtensionService {
     }
 
     private long getMaxContentSize() {
-        return publishingConfig.getMaxContentSize();
+        return sizeLimits.getCeiling();
     }
 
     @Transactional
@@ -118,7 +118,10 @@ public class ExtensionService {
     public TempFile createExtensionFile(InputStream content) {
         requireNonNull(content);
         long maxContentSize = getMaxContentSize();
-        try (var input = ByteStreams.limit(new BufferedInputStream(content), maxContentSize + 1)) {
+        // Saturating: the ceiling is an unrestricted positive long, and at Long.MAX_VALUE the extra
+        // byte wraps negative, which ByteStreams.limit rejects - failing every publish.
+        var readLimit = maxContentSize == Long.MAX_VALUE ? Long.MAX_VALUE : maxContentSize + 1;
+        try (var input = ByteStreams.limit(new BufferedInputStream(content), readLimit)) {
             long size;
             var extensionFile = new TempFile("extension_", ".vsix");
             try (var out = Files.newOutputStream(extensionFile.getPath())) {
@@ -724,6 +727,10 @@ public class ExtensionService {
         for (var review : repositories.findAllReviews(extension)) {
             entityManager.remove(review);
         }
+
+        // Removing the extension cascades any size override scoped to it, which can lower the
+        // ceiling - that is cached per node and published over Redis, so it has to be told.
+        sizeLimits.invalidateCeiling();
 
         var deprecatedExtensions = repositories.findDeprecatedExtensions(extension);
         for (var deprecatedExtension : deprecatedExtensions) {

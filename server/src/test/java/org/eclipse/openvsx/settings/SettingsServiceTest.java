@@ -16,15 +16,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.publish.PublishingConfig;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,14 +42,33 @@ import static org.mockito.Mockito.when;
 
 class SettingsServiceTest {
 
+    private static final long MB = 1024L * 1024;
+
     private final SettingsCache cache = mock(SettingsCache.class);
     private final SettingsUpdateChannel channel = mock(SettingsUpdateChannel.class);
     private final ReadOnlySetting readOnly = new ReadOnlySetting(cache);
+    private final PublishingConfig publishingConfig = mock(PublishingConfig.class);
+    private final MaxExtensionSizeSetting maxExtensionSize = new MaxExtensionSizeSetting(cache, publishingConfig);
     private final SettingsService settings = new SettingsService(
-            List.of(readOnly, new BannerSetting()),
+            List.of(readOnly, maxExtensionSize, new BannerSetting()),
             readOnly,
+            maxExtensionSize,
             cache,
-            channel);
+            channel,
+            new AfterCommitExecutor());
+
+    @BeforeEach
+    void setUp() {
+        when(publishingConfig.getMaxContentSize()).thenReturn(512L * MB);
+        when(publishingConfig.getMaxOverrideSize()).thenReturn(1024L * MB);
+    }
+
+    @AfterEach
+    void endTransaction() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
 
     private void stored(Object... keyValues) {
         var map = new LinkedHashMap<String, Object>();
@@ -60,6 +86,7 @@ class SettingsServiceTest {
             var value = keyValues[i + 1];
             switch (key) {
                 case ReadOnlySetting.KEY -> json.setReadOnly((Boolean) value);
+                case MaxExtensionSizeSetting.KEY -> json.setMaxExtensionSize((Long) value);
                 case BannerSetting.KEY_ENABLED -> json.setBannerEnabled((Boolean) value);
                 case BannerSetting.KEY_MESSAGE -> json.setBannerMessage((String) value);
                 case BannerSetting.KEY_SEVERITY -> json.setBannerSeverity((String) value);
@@ -220,7 +247,13 @@ class SettingsServiceTest {
                 throw WritableSetting.reject("nope");
             }
         };
-        var service = new SettingsService(List.of(readOnly, refusing), readOnly, cache, channel);
+        var service = new SettingsService(
+                List.of(readOnly, refusing),
+                readOnly,
+                maxExtensionSize,
+                cache,
+                channel,
+                new AfterCommitExecutor());
         stored(ReadOnlySetting.KEY, false);
 
         assertThatThrownBy(() -> service.updateFromJson(update(ReadOnlySetting.KEY, true)))
@@ -304,5 +337,120 @@ class SettingsServiceTest {
 
         stored();
         assertThat(settings.isReadOnly()).isFalse();
+    }
+
+    // A clear issued before the commit lets any node refill the ceiling from the rows as they still
+    // are, leaving an entry staler than if nothing had been evicted.
+    @Test
+    void invalidateCacheWaitsForTheCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        settings.invalidateCache();
+        verify(cache, never()).clear();
+
+        var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        TransactionSynchronizationManager.clearSynchronization();
+        synchronizations.forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+
+        verify(cache).clear();
+        verify(channel).publish();
+    }
+
+    @Test
+    void invalidateCacheClearsStraightAwayWithoutATransaction() {
+        settings.invalidateCache();
+
+        verify(cache).clear();
+    }
+
+    @Test
+    void maxExtensionSizeFallsBackToPublishingConfigWhenNothingIsStored() {
+        stored();
+
+        assertThat(settings.getMaxExtensionSize()).isEqualTo(512L * MB);
+    }
+
+    @Test
+    void maxExtensionSizeReturnsTheStoredValue() {
+        stored(MaxExtensionSizeSetting.KEY, 1024L * MB);
+
+        assertThat(settings.getMaxExtensionSize()).isEqualTo(1024L * MB);
+    }
+
+    @Test
+    void updateStoresNewMaxExtensionSizeAndReportsTheChange() {
+        stored(MaxExtensionSizeSetting.KEY, 512L * MB);
+
+        var changes = settings.updateFromJson(update(MaxExtensionSizeSetting.KEY, 1024L * MB));
+
+        verify(cache).set(MaxExtensionSizeSetting.KEY, 1024L * MB);
+        assertThat(changes).isEqualTo("max-extension-size -> 1073741824");
+    }
+
+    // With nothing stored the value read back is the configuration fallback, so storing that same
+    // number is the act of pinning it against a later change to the configuration file.
+    @Test
+    void updateStoresMaxExtensionSizeEvenWhenItMatchesWhatIsReadBack() {
+        stored();
+
+        var changes = settings.updateFromJson(update(MaxExtensionSizeSetting.KEY, 512L * MB));
+
+        verify(cache).set(MaxExtensionSizeSetting.KEY, 512L * MB);
+        assertThat(changes).isEqualTo("max-extension-size -> 536870912");
+    }
+
+    @Test
+    void updateLeavesAnOmittedMaxExtensionSizeAlone() {
+        stored();
+
+        settings.updateFromJson(update(ReadOnlySetting.KEY, true));
+
+        verify(cache, never()).set(eq(MaxExtensionSizeSetting.KEY), any());
+    }
+
+    @Test
+    void updateLeavesAnOmittedReadOnlyAlone() {
+        stored(ReadOnlySetting.KEY, true);
+
+        settings.updateFromJson(update(MaxExtensionSizeSetting.KEY, 1024L * MB));
+
+        verify(cache, never()).set(eq(ReadOnlySetting.KEY), any());
+    }
+
+    @Test
+    void updateAcceptsARequestThatCarriesNothing() {
+        stored();
+
+        assertThatCode(() -> settings.updateFromJson(new SettingsJson())).doesNotThrowAnyException();
+        verify(cache, never()).set(any(), any());
+    }
+
+    @Test
+    void updateRejectsNonPositiveMaxExtensionSize() {
+        stored();
+
+        assertThatThrownBy(() -> settings.updateFromJson(update(MaxExtensionSizeSetting.KEY, 0L)))
+                .isInstanceOf(ErrorResultException.class);
+        verify(cache, never()).set(any(), any());
+    }
+
+    @Test
+    void updateRejectsMaxExtensionSizeAboveTheOverrideCeiling() {
+        stored();
+        when(publishingConfig.getMaxOverrideSize()).thenReturn(1000L);
+
+        assertThatThrownBy(() -> settings.updateFromJson(update(MaxExtensionSizeSetting.KEY, 1001L)))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("exceeds the maximum");
+        verify(cache, never()).set(any(), any());
+    }
+
+    @Test
+    void theAdminViewReportsTheMaxExtensionSizeAndTheOverrideCeiling() {
+        stored();
+
+        var json = settings.getCurrentSettings();
+        assertThat(json.getMaxExtensionSize()).isEqualTo(512L * MB);
+        assertThat(json.getMaxOverrideSize()).isEqualTo(1024L * MB);
     }
 }

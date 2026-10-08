@@ -33,6 +33,8 @@ import org.jspecify.annotations.Nullable;
 public class SettingsJson extends ResultJson {
 
     public static final String READ_ONLY = "read-only";
+    public static final String MAX_EXTENSION_SIZE = "max-extension-size";
+    public static final String MAX_OVERRIDE_SIZE = "max-override-size";
     public static final String BANNER_ENABLED = "banner-enabled";
     public static final String BANNER_MESSAGE = "banner-message";
     public static final String BANNER_SEVERITY = "banner-severity";
@@ -41,6 +43,19 @@ public class SettingsJson extends ResultJson {
     @JsonProperty(READ_ONLY)
     @Schema(description = "Blocks write operations while keeping browsing, search and downloads available")
     private @Nullable Boolean readOnly;
+
+    @JsonProperty(MAX_EXTENSION_SIZE)
+    @Schema(
+        description = "Default max extension package size in bytes, applied when no namespace/extension override exists"
+    )
+    private @Nullable Long maxExtensionSize;
+
+    @JsonProperty(MAX_OVERRIDE_SIZE)
+    @Schema(
+        description = "Read-only: the hard ceiling neither an override nor the default size can be raised past",
+        accessMode = Schema.AccessMode.READ_ONLY
+    )
+    private @Nullable Long maxOverrideSize;
 
     @JsonProperty(BANNER_ENABLED)
     @Schema(description = "Whether the site banner is shown. A message can be drafted while this is off.")
@@ -67,6 +82,7 @@ public class SettingsJson extends ResultJson {
     public static SettingsJson of(Map<String, Object> rows) {
         var json = new SettingsJson();
         json.readOnly = bool(rows, READ_ONLY);
+        json.maxExtensionSize = rows.get(MAX_EXTENSION_SIZE) instanceof Number value ? value.longValue() : null;
         json.bannerEnabled = bool(rows, BANNER_ENABLED);
         json.bannerMessage = string(rows, BANNER_MESSAGE);
         json.bannerSeverity = string(rows, BANNER_SEVERITY);
@@ -78,6 +94,7 @@ public class SettingsJson extends ResultJson {
     public Map<String, Object> toRows() {
         var rows = new LinkedHashMap<String, Object>();
         putIfPresent(rows, READ_ONLY, readOnly);
+        putIfPresent(rows, MAX_EXTENSION_SIZE, maxExtensionSize);
         putIfPresent(rows, BANNER_ENABLED, bannerEnabled);
         putIfPresent(rows, BANNER_MESSAGE, bannerMessage);
         putIfPresent(rows, BANNER_SEVERITY, bannerSeverity);
@@ -105,6 +122,22 @@ public class SettingsJson extends ResultJson {
 
     public void setReadOnly(@Nullable Boolean readOnly) {
         this.readOnly = readOnly;
+    }
+
+    public @Nullable Long getMaxExtensionSize() {
+        return maxExtensionSize;
+    }
+
+    public void setMaxExtensionSize(@Nullable Long maxExtensionSize) {
+        this.maxExtensionSize = maxExtensionSize;
+    }
+
+    public @Nullable Long getMaxOverrideSize() {
+        return maxOverrideSize;
+    }
+
+    public void setMaxOverrideSize(@Nullable Long maxOverrideSize) {
+        this.maxOverrideSize = maxOverrideSize;
     }
 
     public @Nullable Boolean isBannerEnabled() {

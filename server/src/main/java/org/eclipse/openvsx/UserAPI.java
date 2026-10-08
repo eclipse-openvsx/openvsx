@@ -39,8 +39,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.eclipse.EclipseService;
+import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.ScanStatus;
@@ -163,6 +165,7 @@ public class UserAPI {
         var json = user.toUserJson();
         var serverUrl = UrlUtil.getBaseUrl();
         json.setRole(user.getRoleAsString());
+        json.setPermissions(user.getPermissionsAsStrings());
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
         eclipse.enrichUserJsonWithPublisherAgreement(json, user);
@@ -190,7 +193,7 @@ public class UserAPI {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         var serverUrl = UrlUtil.getBaseUrl();
-        return repositories.findActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT)
+        return repositories.findActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED)
                 .map(token -> {
                     var json = token.toAccessTokenJson();
                     json.setDeleteTokenUrl(
@@ -205,7 +208,12 @@ public class UserAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     @MutatingOperation
-    public ResponseEntity<AccessTokenJson> createAccessToken(@RequestParam(required = false) String description) {
+    public ResponseEntity<AccessTokenJson> createAccessToken(
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false) String namespace,
+            @RequestParam(required = false) String extension,
+            @RequestParam(required = false) boolean publishingOnly
+    ) {
         if (description != null && description.length() > TOKEN_DESCRIPTION_SIZE) {
             var json = AccessTokenJson
                     .error("The description must not be longer than " + TOKEN_DESCRIPTION_SIZE + " characters.");
@@ -216,7 +224,38 @@ public class UserAPI {
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
 
-        return new ResponseEntity<>(tokens.createLongLivedAccessToken(user, description), HttpStatus.CREATED);
+        if (namespace == null && extension != null) {
+            return new ResponseEntity<>(
+                    AccessTokenJson.error("An extension scope requires a namespace."),
+                    HttpStatus.BAD_REQUEST);
+        }
+        Namespace scopeNamespace = null;
+        Extension scopeExtension = null;
+        if (namespace != null) {
+            scopeNamespace = repositories.findNamespace(namespace);
+            if (scopeNamespace == null) {
+                return new ResponseEntity<>(
+                        AccessTokenJson.error("Namespace not found: " + namespace),
+                        HttpStatus.NOT_FOUND);
+            }
+            if (!users.hasPublishPermission(user, scopeNamespace)) {
+                return new ResponseEntity<>(
+                        AccessTokenJson.error("Insufficient access rights for namespace: " + namespace),
+                        HttpStatus.FORBIDDEN);
+            }
+            if (extension != null) {
+                scopeExtension = repositories.findExtension(extension, scopeNamespace);
+                if (scopeExtension == null) {
+                    return new ResponseEntity<>(
+                            AccessTokenJson.error("Extension not found: " + namespace + "." + extension),
+                            HttpStatus.NOT_FOUND);
+                }
+            }
+        }
+
+        return new ResponseEntity<>(
+                tokens.createLongLivedAccessToken(user, description, scopeNamespace, scopeExtension, publishingOnly),
+                HttpStatus.CREATED);
     }
 
     @PostMapping(
@@ -703,6 +742,7 @@ public class UserAPI {
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
+            json.setPermissions(user.getPermissionsAsStrings());
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
             eclipse.enrichUserJson(json, user, agreement);

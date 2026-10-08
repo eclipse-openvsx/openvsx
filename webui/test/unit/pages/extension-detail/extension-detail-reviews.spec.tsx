@@ -24,11 +24,21 @@ const extension = { namespace: 'foo', name: 'bar', displayName: 'Bar' } as Exten
 
 const emptyReviews: ExtensionReviewList = { postUrl: '/review', deleteUrl: '/review/delete', reviews: [] };
 
+const oneReview: ExtensionReviewList = {
+    ...emptyReviews,
+    reviews: [{ user: { loginName: 'reviewer' } as UserData, rating: 4, comment: 'fine', timestamp: '' }]
+};
+
 // where the IDE's star-rating link drops a visitor, and where a login from here must return them
 const reviewsRoute = '/extension/foo/bar/reviews';
 
-function renderReviews(options?: { user?: UserData; loginProviders?: Record<string, string>; userLoading?: boolean }) {
-    const getExtensionReviews = vi.fn().mockResolvedValue(emptyReviews);
+function renderReviews(options?: {
+    user?: UserData;
+    loginProviders?: Record<string, string>;
+    userLoading?: boolean;
+    reviews?: ExtensionReviewList;
+}) {
+    const getExtensionReviews = vi.fn().mockResolvedValue(options?.reviews ?? emptyReviews);
     renderWithProviders(<ExtensionDetailReviews extension={extension} reviewsDidUpdate={() => {}} />, {
         route: reviewsRoute,
         mainContext: {
@@ -99,5 +109,20 @@ describe('ExtensionDetailReviews', () => {
 
         expect(await screen.findByRole('button', { name: 'Write a Review' })).toBeInTheDocument();
         expect(screen.queryByText(/Log in to Review/)).not.toBeInTheDocument();
+    });
+
+    // Moderation follows manage_extensions rather than the admin role, so a plain signed-in user
+    // must not be offered a control the server would refuse.
+    it('offers no remove control to a user without manage_extensions', async () => {
+        renderReviews({ user: testUser, reviews: oneReview });
+
+        expect(await screen.findByText('fine')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Remove review' })).not.toBeInTheDocument();
+    });
+
+    it('offers the remove control to a user holding manage_extensions', async () => {
+        renderReviews({ user: { ...testUser, permissions: ['manage_extensions'] }, reviews: oneReview });
+
+        expect(await screen.findByRole('button', { name: 'Remove review' })).toBeInTheDocument();
     });
 });

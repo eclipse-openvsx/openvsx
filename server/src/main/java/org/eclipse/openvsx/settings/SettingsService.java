@@ -22,6 +22,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.util.AfterCommitExecutor;
 
 /**
  * Serves the registry's settings to the two endpoints that read them and applies an admin's update
@@ -34,8 +35,10 @@ public class SettingsService {
 
     private final List<WritableSetting<?>> settings;
     private final ReadOnlySetting readOnly;
+    private final MaxExtensionSizeSetting maxExtensionSize;
     private final SettingsCache cache;
     private final SettingsUpdateChannel channel;
+    private final AfterCommitExecutor afterCommit;
 
     /**
      * {@code readOnly} is injected only to serve the deprecated {@link #isReadOnly()}, and leaves
@@ -45,13 +48,17 @@ public class SettingsService {
     public SettingsService(
             List<WritableSetting<?>> settings,
             ReadOnlySetting readOnly,
+            MaxExtensionSizeSetting maxExtensionSize,
             SettingsCache cache,
-            SettingsUpdateChannel channel
+            SettingsUpdateChannel channel,
+            AfterCommitExecutor afterCommit
     ) {
         this.settings = settings.stream().sorted(Comparator.comparing(WritableSetting::getName)).toList();
         this.readOnly = readOnly;
+        this.maxExtensionSize = maxExtensionSize;
         this.cache = cache;
         this.channel = channel;
+        this.afterCommit = afterCommit;
     }
 
     /** @deprecated inject {@link ReadOnlySetting} and call {@link ReadOnlySetting#isEnabled()}. */
@@ -60,12 +67,18 @@ public class SettingsService {
         return readOnly.isEnabled();
     }
 
+    public long getMaxExtensionSize() {
+        return maxExtensionSize.getValue();
+    }
+
     /** Every setting's rows with its defaults applied, drafts included. The admin view. */
     public SettingsJson getCurrentSettings() {
         var stored = cache.snapshot();
         var rows = new LinkedHashMap<String, Object>();
         settings.forEach(setting -> rows.putAll(currentRows(setting, stored)));
-        return SettingsJson.of(rows);
+        var json = SettingsJson.of(rows);
+        json.setMaxOverrideSize(maxExtensionSize.getCeiling());
+        return json;
     }
 
     /** Only what the settings implementing {@link PublicSetting} choose to publish. */
@@ -78,6 +91,19 @@ public class SettingsService {
             }
         }
         return rows;
+    }
+
+    /**
+     * Drops every cached setting on this node and tells the others to. For callers that change data
+     * a setting derives from, such as the size overrides behind the ceiling: evicting one key is not
+     * enough. Deferred to after the commit, or a node could refill the cache from the rows as they
+     * still are.
+     */
+    public void invalidateCache() {
+        afterCommit.execute(() -> {
+            cache.clear();
+            channel.publish();
+        });
     }
 
     /**
@@ -118,7 +144,10 @@ public class SettingsService {
 
         var currentRows = setting.toRows(current);
         var changed = new LinkedHashMap<String, Object>(setting.toRows(merged));
-        changed.entrySet().removeIf(row -> Objects.equals(row.getValue(), currentRows.get(row.getKey())));
+        changed.entrySet()
+                .removeIf(
+                        row -> Objects.equals(row.getValue(), currentRows.get(row.getKey()))
+                                && !(setting.writesUnchanged() && update.rows().containsKey(row.getKey())));
         return changed;
     }
 

@@ -48,7 +48,7 @@ import { SearchListContainer } from './search-list-container';
 import { handleError as formatError } from '../../utils';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { useDebouncedCallback } from '../../hooks/use-debounced-callback';
-import { useInfinitePublishers } from './use-publisher-admin';
+import { useAdminUserSearch } from '../../hooks/use-admin-user-search';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const UpdateContext = createContext({ handleUpdate: () => {}, handleUserDeleted: () => {} });
@@ -79,7 +79,7 @@ export const PublisherAdmin: FunctionComponent = () => {
 
     const debouncedSetSearch = useDebouncedCallback(setSearchText);
 
-    const { data, isFetching, isFetchingNextPage, error, hasNextPage, fetchNextPage } = useInfinitePublishers(
+    const { data, isFetching, isFetchingNextPage, error, hasNextPage, fetchNextPage } = useAdminUserSearch(
         searchText,
         roleFilter
     );
@@ -120,13 +120,13 @@ export const PublisherAdmin: FunctionComponent = () => {
         () => ({
             handleUpdate: () => {
                 queryClient.invalidateQueries({ queryKey: ['admin', 'publisher'] });
-                queryClient.invalidateQueries({ queryKey: ['admin', 'publishers'] });
+                queryClient.invalidateQueries({ queryKey: ['admin', 'user-search'] });
             },
             // The selected user no longer exists under this login (deleted, or anonymized to a
             // tombstone login), so drop back to the search instead of refetching its details.
             handleUserDeleted: () => {
                 clearSelection();
-                queryClient.invalidateQueries({ queryKey: ['admin', 'publishers'] });
+                queryClient.invalidateQueries({ queryKey: ['admin', 'user-search'] });
             }
         }),
         [queryClient, clearSelection]

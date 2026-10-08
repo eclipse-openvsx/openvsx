@@ -13,9 +13,14 @@
 package org.eclipse.openvsx.admin;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -49,18 +54,21 @@ import org.eclipse.openvsx.entities.ExtensionReview;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ChangeNamespaceJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.ResultJson;
+import org.eclipse.openvsx.json.UserAccessJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.json.UserRelationshipsJson;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
@@ -96,6 +104,7 @@ public class AdminService {
     private final CacheService cache;
     private final JobRequestScheduler scheduler;
     private final MailService mail;
+    private final ExtensionSizeLimitService sizeLimits;
     private final LogService logs;
     private final AdminStatisticsService statistics;
 
@@ -112,6 +121,7 @@ public class AdminService {
             CacheService cache,
             JobRequestScheduler scheduler,
             MailService mail,
+            ExtensionSizeLimitService sizeLimits,
             LogService logs,
             AdminStatisticsService statistics
     ) {
@@ -127,6 +137,7 @@ public class AdminService {
         this.cache = cache;
         this.scheduler = scheduler;
         this.mail = mail;
+        this.sizeLimits = sizeLimits;
         this.logs = logs;
         this.statistics = statistics;
     }
@@ -263,6 +274,10 @@ public class AdminService {
         }
 
         entityManager.remove(namespace);
+
+        // Removing the namespace cascades any size override scoped to it, which can lower the
+        // ceiling - that is cached per node and published over Redis, so it has to be told.
+        sizeLimits.invalidateCeiling();
 
         // Clear cache for the namespace
         cache.evictNamespaceDetails(namespace);
@@ -415,7 +430,7 @@ public class AdminService {
         userPublishInfo.setUser(userJson);
         eclipse.adminEnrichUserJson(userPublishInfo.getUser(), user);
         userPublishInfo.setActiveAccessTokenNum(
-                (int) repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LLT));
+                (int) repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED));
         var extVersions = repositories.findLatestVersions(user);
         var types = new String[] { DOWNLOAD, MANIFEST, ICON, README, LICENSE, CHANGELOG, VSIXMANIFEST };
         var fileUrls = storageUtil.getFileUrls(extVersions, UrlUtil.getBaseUrl(), types);
@@ -444,40 +459,118 @@ public class AdminService {
 
     @Transactional
     public Page<UserRelationshipsJson> searchUsers(String search, String role, Pageable pageable) {
-        return repositories.searchUsers(search, role, pageable)
-                .map(user -> {
-                    var json = new UserRelationshipsJson();
-                    var userJson = user.toUserJson();
-                    userJson.setRole(user.getRoleAsString());
-                    json.setUser(userJson);
-                    json.setNamespaces(
-                            repositories.findMemberships(user).stream()
-                                    .map(membership -> membership.getNamespace().toNamespaceDetailsJson())
-                                    .toList());
-                    return json;
-                });
+        var page = repositories.searchUsers(search, role, pageable);
+        var permissions = permissionsById(page.getContent());
+        return page.map(user -> {
+            var json = new UserRelationshipsJson();
+            var userJson = user.toUserJson();
+            userJson.setRole(user.getRoleAsString());
+            userJson.setPermissions(permissions.getOrDefault(user.getId(), Set.of()));
+            json.setUser(userJson);
+            json.setNamespaces(
+                    repositories.findMemberships(user).stream()
+                            .map(membership -> membership.getNamespace().toNamespaceDetailsJson())
+                            .toList());
+            return json;
+        });
     }
 
+    /**
+     * The search above goes through a jOOQ query that selects {@code user_data} columns only, so the
+     * users it hands back never carry their permissions - an element collection in another table.
+     * Loading them as mapped entities fills that in, for the whole page in one query rather than per row.
+     */
+    private Map<Long, Set<String>> permissionsById(List<UserData> users) {
+        if (users.isEmpty()) {
+            return Map.of();
+        }
+
+        var ids = users.stream().map(UserData::getId).toList();
+        // Merge rather than the two-argument toMap: a join fetch of the permission collection can
+        // hand the same user back once per row, and toMap would answer that with an
+        // IllegalStateException - a 500 on the whole user search for every admin.
+        return repositories.findUsersById(ids).stream()
+                .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings, (a, b) -> a));
+    }
+
+    /**
+     * Replaces a user's role and permissions with the state described by {@code access}. Both are
+     * applied in one transaction, so a save that cannot be carried out in full leaves the user as
+     * they were rather than half-changed.
+     * <p>
+     * Deliberately not gated by {@link #checkPermission}, only by {@link #checkAdminUser()} at the
+     * call site in {@code AdminAPI} - assigning access is itself a privilege-escalation action and
+     * stays restricted to full admins, not delegable like the permissions it manages.
+     */
     @Transactional(rollbackOn = ErrorResultException.class)
-    public ResultJson updateUserRole(String provider, String loginName, String role, UserData admin) {
+    public ResultJson updateUserAccess(String provider, String loginName, UserAccessJson access, UserData admin) {
+        // Both fields are required rather than defaulted: this replaces the whole access state, so a
+        // partial body would quietly strip whatever it left out - demoting an admin because a field
+        // was forgotten is not something to infer from silence.
+        if (access.role() == null) {
+            throw new ErrorResultException(
+                    "Missing role. Send \"none\" to remove the user's role.",
+                    HttpStatus.BAD_REQUEST);
+        }
+        if (access.permissions() == null) {
+            throw new ErrorResultException(
+                    "Missing permissions. Send an empty list to revoke all of them.",
+                    HttpStatus.BAD_REQUEST);
+        }
+
         var user = repositories.findUserByLoginName(provider, loginName);
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(provider + "/" + loginName), HttpStatus.NOT_FOUND);
         }
 
-        var updatedRole = "none".equalsIgnoreCase(role) ? null : parseRole(role);
-        if (Objects.equals(user.getRole(), updatedRole)) {
-            throw new ErrorResultException(
-                    "User " + provider + "/" + loginName + " already has the role " + user.getRole() + ".");
+        var role = "none".equalsIgnoreCase(access.role()) ? null : parseRole(access.role());
+        var permissions = parsePermissions(access.permissions());
+        var granted = difference(permissions, user.getPermissions());
+        var revoked = difference(user.getPermissions(), permissions);
+
+        var changes = new ArrayList<String>();
+        if (!Objects.equals(user.getRole(), role)) {
+            changes.add(role == null ? "removed the role" : "set the role to " + role);
+        }
+        if (!granted.isEmpty()) {
+            changes.add("granted " + join(granted));
+        }
+        if (!revoked.isEmpty()) {
+            changes.add("revoked " + join(revoked));
+        }
+        if (changes.isEmpty()) {
+            return ResultJson.success("No access changes for user " + provider + "/" + loginName + ".");
         }
 
-        user.setRole(updatedRole);
-        var message = updatedRole == null
-                ? "Removed role from user " + provider + "/" + loginName + "."
-                : "Updated role for user " + provider + "/" + loginName + " to " + updatedRole + ".";
+        user.setRole(role);
+        user.getPermissions().clear();
+        user.getPermissions().addAll(permissions);
+
+        var message = "Updated access for user " + provider + "/" + loginName + ": " + String.join(", ", changes)
+                + ".";
         var result = ResultJson.success(message);
         logs.logAction(admin, result);
         return result;
+    }
+
+    private EnumSet<Permission> parsePermissions(List<String> permissions) {
+        var parsed = EnumSet.noneOf(Permission.class);
+        permissions.forEach(permission -> parsed.add(parsePermission(permission)));
+        return parsed;
+    }
+
+    // Not EnumSet.copyOf: that throws on an empty non-EnumSet collection, which both arguments can
+    // be. Nulls are filtered because PermissionConverter reads an unknown stored value as one, and
+    // EnumSet rejects them.
+    private EnumSet<Permission> difference(Collection<Permission> from, Collection<Permission> without) {
+        var result = EnumSet.noneOf(Permission.class);
+        from.stream().filter(Objects::nonNull).forEach(result::add);
+        result.removeAll(without);
+        return result;
+    }
+
+    private String join(Collection<Permission> permissions) {
+        return permissions.stream().map(Permission::toString).collect(Collectors.joining(", "));
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
@@ -491,6 +584,7 @@ public class AdminService {
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(loginName), HttpStatus.NOT_FOUND);
         }
+        checkMayStripAccessOf(user, admin);
 
         String revokeFailure = null;
         if (eclipse.isActive()) {
@@ -583,6 +677,7 @@ public class AdminService {
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(loginName), HttpStatus.NOT_FOUND);
         }
+        checkMayStripAccessOf(user, admin);
 
         var deactivatedTokenCount = repositories.deactivatePersonalAccessTokens(user);
         var result = ResultJson.success(
@@ -613,6 +708,7 @@ public class AdminService {
         if (user == null) {
             throw new ErrorResultException(userNotFoundMessage(provider + "/" + username), HttpStatus.NOT_FOUND);
         }
+        checkMayStripAccessOf(user, admin);
 
         // Handle namespace memberships, removing the users active memberships where found
         var removedMembershipCount = 0;
@@ -681,6 +777,9 @@ public class AdminService {
             user.setEclipsePersonId(null);
             user.setEclipseToken(null);
             user.setRole(null);
+            // Alongside the role for the same reason: a tombstone must not keep admin access of any
+            // kind, or it shows up as a "no role" account that still holds capabilities.
+            user.getPermissions().clear();
         }
 
         // The success message deliberately contains no personal data, only the tombstone id and counts.
@@ -721,6 +820,79 @@ public class AdminService {
         } catch (IllegalArgumentException ignored) {
             throw new ErrorResultException("Invalid role: " + role, HttpStatus.BAD_REQUEST);
         }
+    }
+
+    /**
+     * Checks that the logged-in user has {@code required}, throwing 403 otherwise. Unlike
+     * {@link #checkAdminUser()}, this also passes for a non-ADMIN user individually granted the
+     * permission via {@link #updateUserAccess}.
+     */
+    public UserData checkPermission(Permission required) {
+        return checkPermission(users.findLoggedInUser(), required);
+    }
+
+    public UserData checkPermission(String tokenValue, Permission required) {
+        var user = Optional.ofNullable(tokenValue)
+                .map(tv -> tokens.useAccessToken(tv, new AccessTokenAction.Administration()))
+                .map(AccessTokenAuthentication::userData)
+                .orElse(null);
+
+        return checkPermission(user, required);
+    }
+
+    private UserData checkPermission(UserData user, Permission required) {
+        if (user == null || !user.hasPermission(required)) {
+            throw new ErrorResultException("Missing required permission: " + required, HttpStatus.FORBIDDEN);
+        }
+        return user;
+    }
+
+    /**
+     * Refuses an action that would strip {@code target}'s role or permissions unless {@code caller}
+     * is a full admin.
+     * <p>
+     * A capability such as {@link Permission#MANAGE_PUBLISHERS} is delegated to get work done on
+     * ordinary accounts. Taking away access another admin granted is the same privilege-escalation
+     * step {@link #updateUserAccess} reserves for admins - without this, a capability holder could
+     * forget or revoke every admin in turn and leave nobody able to grant access back.
+     */
+    private void checkMayStripAccessOf(UserData target, UserData caller) {
+        var targetHasAccess = target.getRole() != null || !target.getPermissions().isEmpty();
+        if (targetHasAccess && !UserData.Role.ADMIN.equals(caller.getRole())) {
+            throw new ErrorResultException(
+                    "Administration role is required to act on a user who has a role or permissions.",
+                    HttpStatus.FORBIDDEN);
+        }
+    }
+
+    /**
+     * Checks that the logged-in user holds at least one of {@code required}. For a read that more
+     * than one capability legitimately needs - gating it on a single one would break the other's
+     * workflow rather than protect anything.
+     */
+    public UserData checkAnyPermission(Permission... required) {
+        var user = users.findLoggedInUser();
+        if (user != null && Stream.of(required).anyMatch(user::hasPermission)) {
+            return user;
+        }
+
+        var names = Stream.of(required).map(Permission::toString).collect(Collectors.joining(" or "));
+        throw new ErrorResultException("Missing required permission: " + names, HttpStatus.FORBIDDEN);
+    }
+
+    private Permission parsePermission(String permission) {
+        Permission parsed;
+        try {
+            // null for a null name, rather than throwing - a null entry in the JSON list has to be
+            // rejected here or it reaches EnumSet.add and surfaces as a 500.
+            parsed = Permission.valueOfIgnoreCase(permission);
+        } catch (IllegalArgumentException ignored) {
+            parsed = null;
+        }
+        if (parsed == null) {
+            throw new ErrorResultException("Invalid permission: " + permission, HttpStatus.BAD_REQUEST);
+        }
+        return parsed;
     }
 
     public AdminStatistics getAdminStatistics(int year, int month) throws ErrorResultException {

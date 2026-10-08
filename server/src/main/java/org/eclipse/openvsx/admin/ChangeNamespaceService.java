@@ -28,6 +28,7 @@ import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.util.TimeUtil;
 
 @Component
@@ -37,17 +38,20 @@ public class ChangeNamespaceService {
     private final EntityManager entityManager;
     private final CacheService cache;
     private final SearchUtilService search;
+    private final ExtensionSizeLimitService sizeLimits;
 
     public ChangeNamespaceService(
             RepositoryService repositories,
             EntityManager entityManager,
             CacheService cache,
-            SearchUtilService search
+            SearchUtilService search,
+            ExtensionSizeLimitService sizeLimits
     ) {
         this.repositories = repositories;
         this.entityManager = entityManager;
         this.cache = cache;
         this.search = search;
+        this.sizeLimits = sizeLimits;
     }
 
     @Transactional
@@ -84,6 +88,7 @@ public class ChangeNamespaceService {
         // Now under the new namespace - report the still-active versions there.
         recordNamespaceArrival(extensions, now);
         changeMembershipNamespace(oldNamespace, newNamespace, removeOldNamespace);
+        sizeLimits.moveOverridesToNamespace(oldNamespace, newNamespace, removeOldNamespace);
         renameResources(updatedResources);
 
         if (removeOldNamespace) {

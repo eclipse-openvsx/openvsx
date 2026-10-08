@@ -15,6 +15,7 @@ package org.eclipse.openvsx.publish;
 
 import java.util.List;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -23,9 +24,29 @@ import org.eclipse.openvsx.ExtensionProcessor;
 @Configuration
 @ConfigurationProperties("ovsx.publishing")
 public class PublishingConfig {
-    private static final int MAX_CONTENT_SIZE = 512 * 1024 * 1024;
+    // long, not int: an int literal for a default above 2 GiB silently overflows.
+    private static final long MAX_CONTENT_SIZE = 512L * 1024 * 1024;
+    private static final long MAX_OVERRIDE_SIZE = 1024L * 1024 * 1024;
 
+    /**
+     * Largest package accepted for publishing when no namespace or extension override applies.
+     * <p>
+     * Property: {@code ovsx.publishing.max-content-size}
+     * Default: {@code 536870912} (512 MiB)
+     */
     private long maxContentSize = MAX_CONTENT_SIZE;
+
+    /**
+     * Write-time ceiling on any publish-accepted size: both the admin-adjustable default
+     * ({@code SettingsService#updateFromJson}) and every {@code ExtensionSizeOverride}
+     * ({@code ExtensionSizeLimitService#requireValidSize}) are refused above this when created or
+     * updated. Lowering this property afterwards does not reach a default or override already stored
+     * above it - those stay enforced until an admin edits them down.
+     * <p>
+     * Property: {@code ovsx.publishing.max-override-size}
+     * Default: {@code 1073741824} (1 GiB)
+     */
+    private long maxOverrideSize = MAX_OVERRIDE_SIZE;
 
     private boolean requireLicense;
 
@@ -61,6 +82,14 @@ public class PublishingConfig {
         this.maxContentSize = maxContentSize;
     }
 
+    public long getMaxOverrideSize() {
+        return maxOverrideSize;
+    }
+
+    public void setMaxOverrideSize(long maxOverrideSize) {
+        this.maxOverrideSize = maxOverrideSize;
+    }
+
     public boolean isRequireLicense() {
         return requireLicense;
     }
@@ -91,5 +120,22 @@ public class PublishingConfig {
 
     public void setMaxInternalTags(int maxInternalTags) {
         this.maxInternalTags = maxInternalTags;
+    }
+
+    @PostConstruct
+    public void validate() {
+        if (maxContentSize <= 0) {
+            throw new IllegalArgumentException(
+                    "ovsx.publishing.max-content-size must be greater than zero, got: " + maxContentSize);
+        }
+        if (maxOverrideSize <= 0) {
+            throw new IllegalArgumentException(
+                    "ovsx.publishing.max-override-size must be greater than zero, got: " + maxOverrideSize);
+        }
+        if (maxContentSize > maxOverrideSize) {
+            throw new IllegalArgumentException(
+                    "ovsx.publishing.max-content-size (" + maxContentSize + ") must not exceed "
+                            + "ovsx.publishing.max-override-size (" + maxOverrideSize + ")");
+        }
     }
 }

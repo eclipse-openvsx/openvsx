@@ -21,6 +21,8 @@ import { renderWithProviders } from '../../support/test-providers';
 
 const defaults: Settings = {
     'read-only': false,
+    'max-extension-size': 512 * 1024 * 1024,
+    'max-override-size': Number.MAX_SAFE_INTEGER,
     'banner-enabled': false,
     'banner-message': '',
     'banner-severity': 'info',
@@ -29,6 +31,8 @@ const defaults: Settings = {
 
 const configured: Settings = {
     'read-only': false,
+    'max-extension-size': 512 * 1024 * 1024,
+    'max-override-size': Number.MAX_SAFE_INTEGER,
     'banner-enabled': true,
     'banner-message': 'Heads up',
     'banner-severity': 'info',
@@ -47,6 +51,8 @@ const mountPage = (settings: Settings = defaults) => {
     });
     return admin;
 };
+
+const sized = (overrides: Partial<Settings>): Settings => ({ ...defaults, ...overrides });
 
 const save = async () => {
     await userEvent.click(screen.getByText('Save'));
@@ -213,5 +219,171 @@ describe('RuntimeSettingsPage', () => {
 
         await userEvent.type(screen.getByLabelText('Message'), '!');
         expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+
+    it('shows the current default max extension size in MB', async () => {
+        mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+
+        await waitFor(() => expect(screen.getByLabelText('Max extension size (MB)')).toHaveValue(512));
+    });
+
+    it('disables save once the typed size is not greater than zero', async () => {
+        const user = userEvent.setup();
+        mountPage(defaults);
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '0');
+
+        expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    });
+
+    /**
+     * The server refuses a default above ovsx.publishing.max-override-size, so saying so here beats
+     * letting the admin discover it from the save's error response.
+     */
+    it('disables save once the typed size exceeds the override ceiling', async () => {
+        const user = userEvent.setup();
+        mountPage(sized({ 'max-override-size': 1024 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '2048');
+
+        expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+        expect(screen.getByText(/at most 1073741824 bytes/i)).toBeInTheDocument();
+    });
+
+    /**
+     * Flooring a ceiling that is not a whole number of MB understated it - a 1.5 MiB ceiling read "at
+     * most 1 MB" even though up to 1.5 MB was actually valid.
+     */
+    it('does not floor a ceiling that is not a whole number of MB', async () => {
+        const user = userEvent.setup();
+        mountPage(sized({ 'max-override-size': 1.5 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '2');
+
+        expect(screen.getByText(/at most 1572864 bytes \(~1\.50 MB\)/i)).toBeInTheDocument();
+    });
+
+    /**
+     * Rounding the MB approximation can overstate the ceiling near a boundary - 2 MiB - 1 byte rounds
+     * to "2.00 MB", which would name a value (2 MB) the server actually rejects. The exact byte count
+     * must be the authoritative part of the message.
+     */
+    it('names the exact byte ceiling near a rounding boundary', async () => {
+        const user = userEvent.setup();
+        mountPage(sized({ 'max-override-size': 2 * 1024 * 1024 - 1 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '3');
+
+        expect(screen.getByText(/at most 2097151 bytes/i)).toBeInTheDocument();
+    });
+
+    // parseInt stopped at the decimal point, so this used to save 1 MB while the field still read
+    // 1.5 - a limit nobody chose, applied silently.
+    it('keeps a fractional MB value instead of truncating it', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '1.5');
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() =>
+            expect(admin.updateSettings).toHaveBeenCalledWith(
+                expect.objectContaining({ 'max-extension-size': 1.5 * 1024 * 1024 })
+            )
+        );
+    });
+
+    /**
+     * Sending the whole object would carry every other setting as this page last read it, reverting
+     * anything another admin changed meanwhile. Only what this admin touched goes to the server.
+     */
+    it('sends only the settings that were changed', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(sized({ 'read-only': true, 'max-extension-size': 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '1024');
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
+        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['max-extension-size']);
+    });
+
+    /**
+     * The server stores the limit as a long, so one past JavaScript's safe-integer range arrives here
+     * intact. Validating a field the save will not even send would hold every other setting hostage
+     * until the admin replaced a size they never meant to touch.
+     */
+    it('saves an unrelated setting while the stored size exceeds the safe-integer range', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(sized({ 'read-only': false, 'max-extension-size': Number.MAX_SAFE_INTEGER + 1 }));
+
+        const toggle = await screen.findByLabelText('Toggle Read-only mode');
+        await waitFor(() => expect(toggle).toBeEnabled());
+        await user.click(toggle);
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
+        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['read-only']);
+    });
+
+    /**
+     * Number('') is 0, so deriving the field's value from the draft rewrote an emptied field as "0"
+     * on the keystroke that cleared it - the admin could not retype the number without selecting all
+     * of it first.
+     */
+    it('lets the size field be cleared instead of filling it with a zero', async () => {
+        const user = userEvent.setup();
+        mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+
+        expect(input).toHaveValue(null);
+        // empty is not a size, so there is nothing to save
+        expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    });
+
+    it('converts the typed MB value to bytes and saves it', async () => {
+        const user = userEvent.setup();
+        const admin = mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+
+        const input = await screen.findByLabelText('Max extension size (MB)');
+        await waitFor(() => expect(input).toBeEnabled());
+        await user.clear(input);
+        await user.type(input, '1024');
+
+        await user.click(screen.getByRole('button', { name: /save/i }));
+        await user.click(await screen.findByRole('button', { name: 'Apply' }));
+
+        await waitFor(() =>
+            expect(admin.updateSettings).toHaveBeenCalledWith(
+                expect.objectContaining({ 'max-extension-size': 1024 * 1024 * 1024 })
+            )
+        );
     });
 });

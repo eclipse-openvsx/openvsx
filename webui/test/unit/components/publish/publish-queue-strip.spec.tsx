@@ -68,7 +68,11 @@ function renderStrip(service: Partial<ExtensionRegistryService>) {
         }
     });
     return {
-        publish: (files: File[]) => act(() => queue.current?.publish(files)),
+        publish: async (files: File[]) => {
+            await act(async () => {
+                await queue.current?.publish(files);
+            });
+        },
         remountStrip: () => {
             mountKey += 1;
             rerender(tree(mountKey));
@@ -77,7 +81,7 @@ function renderStrip(service: Partial<ExtensionRegistryService>) {
 }
 
 describe('PublishQueueStrip', () => {
-    it('shows nothing until something is being published', () => {
+    it('shows nothing until something is being published', async () => {
         renderStrip({ publishExtension: vi.fn() });
 
         expect(screen.queryByLabelText('Publishing queue')).not.toBeInTheDocument();
@@ -86,7 +90,7 @@ describe('PublishQueueStrip', () => {
     it('stands in with the card skeleton while a package uploads', async () => {
         const { publish } = renderStrip({ publishExtension: vi.fn().mockReturnValue(new Promise(() => {})) });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByLabelText('Publishing queue')).toBeInTheDocument();
         expect(screen.getByText('Publishing 1')).toBeInTheDocument();
@@ -96,7 +100,7 @@ describe('PublishQueueStrip', () => {
     it('swaps in the real extension card once the registry accepts the package', async () => {
         const { publish } = renderStrip({ publishExtension: vi.fn().mockResolvedValue(published()) });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByText('Bar Tools')).toBeInTheDocument();
     });
@@ -104,7 +108,7 @@ describe('PublishQueueStrip', () => {
     it('sends a published package to its settings page, gear and all', async () => {
         const { publish } = renderStrip({ publishExtension: vi.fn().mockResolvedValue(published()) });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByLabelText('Bar Tools')).toHaveAttribute('href', '/user-settings/extensions/foo/bar');
     });
@@ -118,7 +122,7 @@ describe('PublishQueueStrip', () => {
                 .mockReturnValue(new Promise(() => {}))
         });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByText('Under review')).toBeInTheDocument();
         // The queue as a whole says what it is waiting on, rather than still claiming to upload.
@@ -133,7 +137,7 @@ describe('PublishQueueStrip', () => {
             getExtensions: vi.fn().mockResolvedValue([conflicted])
         });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByText('Namespace not verified')).toBeInTheDocument();
         expect(screen.queryByText('Under review')).not.toBeInTheDocument();
@@ -149,7 +153,7 @@ describe('PublishQueueStrip', () => {
             getExtensionIcon: vi.fn().mockResolvedValue(null)
         });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         // The name lands straight away; the icon slot stays a skeleton rather than
         // falling back to the placeholder, so the image never appears.
@@ -165,7 +169,7 @@ describe('PublishQueueStrip', () => {
             getExtensionIcon: vi.fn().mockResolvedValue('blob:icon')
         });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByAltText('Bar Tools')).toBeInTheDocument();
     });
@@ -180,7 +184,7 @@ describe('PublishQueueStrip', () => {
             })
         });
 
-        publish([vsix('catppuccin.vsix')]);
+        await publish([vsix('catppuccin.vsix')]);
 
         expect(await screen.findByText(/is already published and was removed/)).toBeInTheDocument();
     });
@@ -188,7 +192,7 @@ describe('PublishQueueStrip', () => {
     it('washes the card green once when the registry accepts a package', async () => {
         const { publish } = renderStrip({ publishExtension: vi.fn().mockResolvedValue(published()) });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByTestId('publish-accepted')).toBeInTheDocument();
     });
@@ -198,7 +202,7 @@ describe('PublishQueueStrip', () => {
             publishExtension: vi.fn().mockResolvedValue(published())
         });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
         await screen.findByTestId('publish-accepted');
 
         // Leaving and coming back finds the package already published: no repeat acknowledgement.
@@ -213,7 +217,7 @@ describe('PublishQueueStrip', () => {
             publishExtension: vi.fn().mockRejectedValue({ error: 'Extension too large' })
         });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
 
         expect(await screen.findByText('Extension too large')).toBeInTheDocument();
         expect(screen.getByText('one.vsix')).toBeInTheDocument();
@@ -222,7 +226,7 @@ describe('PublishQueueStrip', () => {
     it('clears the finished packages on request', async () => {
         const { publish } = renderStrip({ publishExtension: vi.fn().mockResolvedValue(published()) });
 
-        publish([vsix('one.vsix')]);
+        await publish([vsix('one.vsix')]);
         await screen.findByText('Bar Tools');
 
         await userEvent.click(screen.getByText('Clear'));

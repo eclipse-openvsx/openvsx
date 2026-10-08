@@ -33,8 +33,15 @@ public class RegistryVersionJson extends ResultJson {
     @NotNull
     private String version;
 
-    @Schema(description = "Maximum allowed extension package size in bytes")
+    @Schema(description = "Default maximum extension package size in bytes, when no override applies")
     private long maxExtensionSize;
+
+    @Schema(
+        description = "Largest extension package the registry can accept from any namespace: the default "
+                + "raised by the highest configured override. A package above this is rejected whoever "
+                + "publishes it; one below it may still exceed the limit for its own namespace."
+    )
+    private long maxExtensionSizeCeiling;
 
     @Schema(description = "Audience for trusted publishing on the registry, if feature enabled.")
     @Nullable
@@ -57,6 +64,14 @@ public class RegistryVersionJson extends ResultJson {
 
     public void setMaxExtensionSize(long maxExtensionSize) {
         this.maxExtensionSize = maxExtensionSize;
+    }
+
+    public long getMaxExtensionSizeCeiling() {
+        return maxExtensionSizeCeiling;
+    }
+
+    public void setMaxExtensionSizeCeiling(long maxExtensionSizeCeiling) {
+        this.maxExtensionSizeCeiling = maxExtensionSizeCeiling;
     }
 
     public String getTrustedPublishingAudience() {

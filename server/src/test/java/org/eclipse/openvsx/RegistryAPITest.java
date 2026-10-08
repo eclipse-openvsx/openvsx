@@ -1831,6 +1831,75 @@ class RegistryAPITest {
     }
 
     @Test
+    void testVerifyTokenScopedToNamespace() throws Exception {
+        var token = mockForPublish("contributor");
+        token.setScopeNamespace(repositories.findNamespace("foo"));
+        var other = new Namespace();
+        other.setName("other");
+        Mockito.when(repositories.findNamespace("other")).thenReturn(other);
+        Mockito.when(repositories.canPublishInNamespace(token.getUser(), other)).thenReturn(true);
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "foo", "my_token"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "other", "my_token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void testVerifyTokenScopedToExtension() throws Exception {
+        var token = mockForPublish("contributor");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(repositories.findNamespace("foo"));
+        token.setScopeExtension(extension);
+        var other = new Namespace();
+        other.setName("other");
+        Mockito.when(repositories.findNamespace("other")).thenReturn(other);
+        Mockito.when(repositories.canPublishInNamespace(token.getUser(), other)).thenReturn(true);
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "foo", "my_token"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "other", "my_token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void testVerifyTokenPublishingOnly() throws Exception {
+        var token = mockForPublish("contributor");
+        token.setType(PersonalAccessTokenType.LLP);
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", "foo", "my_token"))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * A blank parameter would otherwise reach {@code VerifyPublishVersion}, whose constructor rejects
+     * it with an IllegalArgumentException the endpoint does not catch - a client mistake reported as
+     * a server error.
+     */
+    @Test
+    void testSizeLimitRejectsABlankNamespace() throws Exception {
+        mockMvc.perform(get("/api/-/size-limit?namespace={ns}&extension={ext}&token={token}", "", "bar", "my_token"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testSizeLimitRejectsABlankExtension() throws Exception {
+        mockMvc.perform(get("/api/-/size-limit?namespace={ns}&extension={ext}&token={token}", "foo", "", "my_token"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // A blank namespace would otherwise reach the VerifyNamespace constructor, which rejects it with an
+    // IllegalArgumentException the endpoint does not catch.
+    @Test
+    void testVerifyTokenRejectsABlankNamespace() throws Exception {
+        mockAccessToken();
+
+        mockMvc.perform(get("/api/{namespace}/verify-pat?token={token}", " ", "my_token"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void testVerifyTokenNoNamespace() throws Exception {
         mockAccessToken();
 
@@ -3530,7 +3599,7 @@ class RegistryAPITest {
         return token;
     }
 
-    private void mockForPublish(String mode) {
+    private PersonalAccessToken mockForPublish(String mode) {
         var token = mockAccessToken();
         if (mode.equals("invalid")) {
             token.setActive(false);
@@ -3646,6 +3715,7 @@ class RegistryAPITest {
 
         Mockito.when(entityManager.merge(any(Extension.class)))
                 .then((Answer<Extension>) invocation -> invocation.getArgument(0, Extension.class));
+        return token;
     }
 
     private String reviewJson(Consumer<ReviewJson> content) throws JacksonException {
@@ -3911,7 +3981,7 @@ class RegistryAPITest {
                     cache,
                     integrityService,
                     similarityCheckService,
-                    publishingConfig,
+                    TestSizeLimits.atConfigDefault(),
                     trustedPublishingConfig,
                     new WebUiProperties(),
                     CHANGES_FEED_LAG);
@@ -3955,7 +4025,6 @@ class RegistryAPITest {
 
         @Bean
         ExtensionService extensionService(
-                PublishingConfig publishingConfig,
                 EntityManager entityManager,
                 RepositoryService repositories,
                 SearchUtilService search,
@@ -3967,7 +4036,7 @@ class RegistryAPITest {
                 ExtensionScanPersistenceService scanPersistenceService
         ) {
             return new ExtensionService(
-                    publishingConfig,
+                    TestSizeLimits.atConfigDefault(),
                     entityManager,
                     repositories,
                     search,

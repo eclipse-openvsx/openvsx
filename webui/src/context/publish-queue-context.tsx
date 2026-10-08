@@ -40,8 +40,12 @@ const REVIEW_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 // them) appear after the response. Worth a short wait, but plenty of extensions have no icon.
 const ASSET_POLL_TIMEOUT_MS = 60 * 1000;
 
-/** `blocked` is accepted-but-held: the registry has the package, and clearing what holds it back is the user's to do. */
-export type PublishStatus = 'uploading' | 'reviewing' | 'published' | 'blocked' | 'rejected' | 'failed';
+/**
+ * `checking` is before the upload: the queue is re-reading the registry's ceiling to find out whether
+ * the package may be sent at all. `blocked` is accepted-but-held: the registry has the package, and
+ * clearing what holds it back is the user's to do.
+ */
+export type PublishStatus = 'checking' | 'uploading' | 'reviewing' | 'published' | 'blocked' | 'rejected' | 'failed';
 
 export interface PublishItem {
     id: number;
@@ -59,7 +63,7 @@ export interface PublishItem {
 export interface PublishQueue {
     items: PublishItem[];
     /** Uploads every package straight away — there is no confirmation step. */
-    publish: (files: File[]) => void;
+    publish: (files: File[]) => void | Promise<void>;
     /** Drops everything that has finished, leaving work in flight alone. */
     clearFinished: () => void;
 }
@@ -78,7 +82,8 @@ export const usePublishQueue = (): PublishQueue => useContext(PublishQueueContex
 export const isVsixFile = (file: File): boolean => file.name.toLowerCase().endsWith('.vsix');
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const isFinished = (item: PublishItem): boolean => item.status !== 'uploading' && item.status !== 'reviewing';
+export const isFinished = (item: PublishItem): boolean =>
+    item.status !== 'checking' && item.status !== 'uploading' && item.status !== 'reviewing';
 
 const statusOf = (extension: Readonly<Extension>): PublishStatus => {
     // The registry parks a conflicting namespace under review, but only the user claiming it clears
@@ -124,7 +129,10 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
     const queryClient = useQueryClient();
     const [items, setItems] = useState<PublishItem[]>([]);
     const nextId = useRef(0);
-    const maxSize = useRegistryValue(version => version.maxExtensionSize);
+    // Falling back to the default keeps the gate working against a registry too old to report a
+    // ceiling. The ceiling is never below the default, so the fallback only ever refuses earlier than
+    // it has to - which beats not refusing at all, as an absent field would.
+    const maxSize = useRegistryValue(version => version.maxExtensionSizeCeiling ?? version.maxExtensionSize);
     // A poll outlives the provider only if the app is being torn down; stop it rather than
     // carrying on against a queue nobody can see.
     const stopped = useRef(false);
@@ -263,24 +271,44 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
         [update, pollUntilSettled, publishPackage, createNamespace, hydrate, handleError]
     );
 
+    /** The ceiling as the registry reports it now, falling back to what the app started with. */
+    const currentCeiling = useCallback(
+        async (fallback: number): Promise<number> => {
+            try {
+                // revalidate, or the five-minute cache hands back the very value being bypassed
+                const version = await service.getRegistryVersion(new AbortController(), { revalidate: true });
+                return version.maxExtensionSizeCeiling ?? fallback;
+            } catch {
+                // Refusing on the stale value is still better than letting a doomed upload run.
+                return fallback;
+            }
+        },
+        [service]
+    );
+
     const publish = useCallback(
-        (files: File[]) => {
+        async (files: File[]) => {
             if (!user) {
                 return;
             }
-            const queued = files.filter(isVsixFile).map(file => {
-                // The registry rejects an oversized package anyway, and uploading it first only wastes
-                // the user's bandwidth. Unknown limit (the version has not loaded): let the server say.
-                const tooLarge = maxSize !== undefined && file.size > maxSize;
-                return {
-                    id: nextId.current++,
-                    fileName: file.name,
-                    size: file.size,
-                    status: tooLarge ? ('failed' as const) : ('uploading' as const),
-                    error: tooLarge ? `Larger than the ${formatFileSize(maxSize)} limit.` : undefined,
-                    file
-                };
-            });
+            const candidates = files.filter(isVsixFile);
+            // Checked against the ceiling, not the default: a namespace with a size override may
+            // publish more than the default allows, and only the registry knows which applies - it
+            // cannot tell until it has parsed the package. Above the ceiling no namespace can
+            // publish, so rejecting here wastes nobody's bandwidth. Unknown limit (the version has
+            // not loaded): let the server say.
+            //
+            // The ceiling arrives once when the app starts and is never refreshed, so a tab opened
+            // before an admin granted the override would otherwise keep refusing the very package
+            // that override was created for. Re-read it before refusing anything - only then, so the
+            // common path still costs nothing.
+            let ceiling = maxSize;
+            const queued = candidates.map(file => ({
+                id: nextId.current++,
+                fileName: file.name,
+                size: file.size,
+                file
+            }));
             if (queued.length === 0) {
                 // Dropping a folder, or anything else that is not a package, would otherwise look
                 // like the app simply ignored the drop.
@@ -289,14 +317,48 @@ export const PublishQueueProvider: FunctionComponent<{ children: ReactNode }> = 
                 }
                 return;
             }
-            setItems(current => [...queued.map(({ file: _file, ...item }) => item), ...current]);
-            queued.forEach(({ id, file, status }) => {
+
+            // Only when something looks too big, so the common drop still reaches the registry in one
+            // go. The re-read is a network round trip, and the drop has already navigated here by
+            // now: a page showing nothing reads as a drop that failed, and the obvious response is to
+            // drop the same package again. So the cards go up first and are settled afterwards.
+            const revalidating = ceiling !== undefined && queued.some(file => file.size > ceiling!);
+            if (revalidating) {
+                setItems(current => [
+                    ...queued.map(({ file: _file, ...item }) => ({ ...item, status: 'checking' as const })),
+                    ...current
+                ]);
+                ceiling = await currentCeiling(ceiling!);
+            }
+
+            const settled = queued.map(item => {
+                // the limit it exceeded, so the message can name it without widening the type again
+                const exceeded = ceiling !== undefined && item.size > ceiling ? ceiling : undefined;
+                return {
+                    ...item,
+                    status: exceeded !== undefined ? ('failed' as const) : ('uploading' as const),
+                    error: exceeded !== undefined ? `Larger than the ${formatFileSize(exceeded)} limit.` : undefined
+                };
+            });
+
+            if (revalidating) {
+                const byId = new Map(settled.map(item => [item.id, item]));
+                setItems(current =>
+                    current.map(item => {
+                        const resolved = byId.get(item.id);
+                        return resolved ? { ...item, status: resolved.status, error: resolved.error } : item;
+                    })
+                );
+            } else {
+                setItems(current => [...settled.map(({ file: _file, ...item }) => item), ...current]);
+            }
+            settled.forEach(({ id, file, status }) => {
                 if (status === 'uploading') {
                     upload(id, file);
                 }
             });
         },
-        [user, upload, handleError, maxSize]
+        [user, upload, handleError, maxSize, currentCeiling]
     );
 
     const clearFinished = useCallback(() => setItems(current => current.filter(item => !isFinished(item))), []);

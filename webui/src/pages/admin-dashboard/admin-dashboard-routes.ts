@@ -19,10 +19,12 @@ export namespace AdminDashboardRoutes {
     export const PUBLISHER_ADMIN = createRoute([ROOT, 'publisher']);
     export const SCANS_ADMIN = createRoute([ROOT, 'scans']);
     export const TIERS = createRoute([ROOT, 'tiers']);
+    export const SIZE_OVERRIDES = createRoute([ROOT, 'size-overrides']);
     export const CUSTOMERS = createRoute([ROOT, 'customers']);
     export const USAGE_STATS = createRoute([ROOT, 'usage']);
     export const SETTINGS = createRoute([ROOT, 'settings']);
     export const LOGS = createRoute([ROOT, 'logs']);
+    export const ACCESS_CONTROL = createRoute([ROOT, 'access-control']);
     export const CONSISTENCY = createRoute([ROOT, 'consistency']);
     export const CACHES = createRoute([ROOT, 'caches']);
     export const SEARCH_INDEX = createRoute([ROOT, 'search-index']);

@@ -57,37 +57,45 @@ describe('publish queue', () => {
         const publishExtension = vi.fn().mockResolvedValue(published());
         const { result } = renderQueue({ publishExtension });
 
-        act(() => result.current.publish([vsix('one.vsix'), vsix('two.vsix')]));
+        await act(async () => {
+            await result.current.publish([vsix('one.vsix'), vsix('two.vsix')]);
+        });
 
         await waitFor(() => expect(publishExtension).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(result.current.items.map(item => item.status)).toEqual(['published', 'published']));
     });
 
-    it('ignores files that are not .vsix packages, and says so', () => {
+    it('ignores files that are not .vsix packages, and says so', async () => {
         const publishExtension = vi.fn().mockResolvedValue(published());
         const { result, handleError } = renderQueue({ publishExtension });
 
-        act(() => result.current.publish([new File([''], 'notes.txt')]));
+        await act(async () => {
+            await result.current.publish([new File([''], 'notes.txt')]);
+        });
 
         expect(publishExtension).not.toHaveBeenCalled();
         expect(result.current.items).toHaveLength(0);
         expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('.vsix') }));
     });
 
-    it('says nothing when the file picker comes back empty', () => {
+    it('says nothing when the file picker comes back empty', async () => {
         const publishExtension = vi.fn().mockResolvedValue(published());
         const { result, handleError } = renderQueue({ publishExtension });
 
-        act(() => result.current.publish([]));
+        await act(async () => {
+            await result.current.publish([]);
+        });
 
         expect(handleError).not.toHaveBeenCalled();
     });
 
-    it('publishes nothing without a logged-in user', () => {
+    it('publishes nothing without a logged-in user', async () => {
         const publishExtension = vi.fn().mockResolvedValue(published());
         const { result } = renderQueue({ publishExtension }, { loggedIn: false });
 
-        act(() => result.current.publish([vsix()]));
+        await act(async () => {
+            await result.current.publish([vsix()]);
+        });
 
         expect(publishExtension).not.toHaveBeenCalled();
     });
@@ -103,7 +111,9 @@ describe('publish queue', () => {
         const createNamespace = vi.fn().mockResolvedValue({ success: 'ok' });
         const { result } = renderQueue({ publishExtension, createNamespace });
 
-        act(() => result.current.publish([vsix()]));
+        await act(async () => {
+            await result.current.publish([vsix()]);
+        });
 
         await waitFor(() => expect(result.current.items[0].status).toBe('published'));
         expect(createNamespace).toHaveBeenCalledWith('foo');
@@ -118,7 +128,9 @@ describe('publish queue', () => {
         const createNamespace = vi.fn().mockResolvedValue({ success: 'ok' });
         const { result } = renderQueue({ publishExtension, createNamespace });
 
-        act(() => result.current.publish([vsix()]));
+        await act(async () => {
+            await result.current.publish([vsix()]);
+        });
 
         await waitFor(() => expect(createNamespace).toHaveBeenCalledWith('foo'));
     });
@@ -128,7 +140,9 @@ describe('publish queue', () => {
         const createNamespace = vi.fn();
         const { result, handleError } = renderQueue({ publishExtension, createNamespace });
 
-        act(() => result.current.publish([vsix()]));
+        await act(async () => {
+            await result.current.publish([vsix()]);
+        });
 
         await waitFor(() => expect(result.current.items[0].status).toBe('failed'));
         expect(result.current.items[0].error).toBe('Extension too large');
@@ -141,17 +155,24 @@ describe('publish queue', () => {
         const publishExtension = vi.fn().mockRejectedValue({ error: 'Bad Request', message: 'Unsupported manifest' });
         const { result } = renderQueue({ publishExtension });
 
-        act(() => result.current.publish([vsix()]));
+        await act(async () => {
+            await result.current.publish([vsix()]);
+        });
 
         await waitFor(() => expect(result.current.items[0].status).toBe('failed'));
         expect(result.current.items[0].error).toBe('Bad Request (Unsupported manifest)');
     });
 
-    it('fails an oversized package on its card instead of uploading it', async () => {
+    it('fails a package above the ceiling on its card instead of uploading it', async () => {
         const publishExtension = vi.fn().mockResolvedValue(published());
-        const { result } = renderQueue({ publishExtension }, { version: { version: '1.0.0', maxExtensionSize: 4 } });
+        const { result } = renderQueue(
+            { publishExtension },
+            { version: { version: '1.0.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 4 } }
+        );
 
-        act(() => result.current.publish([vsix('big.vsix'), new File(['x'], 'small.vsix')]));
+        await act(async () => {
+            await result.current.publish([vsix('big.vsix'), new File(['x'], 'small.vsix')]);
+        });
 
         const oversized = result.current.items.find(item => item.fileName === 'big.vsix');
         expect(oversized?.status).toBe('failed');
@@ -159,6 +180,122 @@ describe('publish queue', () => {
         // The rest of the drop is unaffected.
         await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
         expect(publishExtension).toHaveBeenCalledWith(expect.objectContaining({ name: 'small.vsix' }));
+    });
+
+    /**
+     * A registry too old to report a ceiling still reports a default, and this bundle can be talking
+     * to one - a rolling upgrade, a cached bundle, a third-party deployment. Reading only the ceiling
+     * left no gate at all there, while the publish page went on advertising the default.
+     */
+    it('falls back to the default limit when the registry reports no ceiling', async () => {
+        const publishExtension = vi.fn().mockResolvedValue(published());
+        const { result } = renderQueue({ publishExtension }, { version: { version: '1.0.0', maxExtensionSize: 4 } });
+
+        await act(async () => {
+            await result.current.publish([vsix('big.vsix')]);
+        });
+
+        const oversized = result.current.items.find(item => item.fileName === 'big.vsix');
+        expect(oversized?.status).toBe('failed');
+        expect(oversized?.error).toBe('Larger than the 4 B limit.');
+        expect(publishExtension).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The default limit says nothing about a namespace that has a size override: only the registry
+     * knows which applies, and it cannot say until it has parsed the package. Blocking on the default
+     * refused uploads the registry would have accepted.
+     */
+    /**
+     * The drop navigates to this page immediately and does not wait for the queue, so a page that
+     * shows nothing while the ceiling is re-read reads as a drop that failed - and the obvious
+     * response is to drop the same package again, which publishes it twice.
+     */
+    it('shows the package while the ceiling is being re-read', async () => {
+        let release: (value: unknown) => void = () => undefined;
+        const getRegistryVersion = vi.fn().mockImplementation(
+            () =>
+                new Promise(resolve => {
+                    release = resolve;
+                })
+        );
+        const { result } = renderQueue(
+            { publishExtension: vi.fn().mockResolvedValue(published()), getRegistryVersion },
+            { version: { version: '1.3.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 4 } }
+        );
+
+        // deliberately not awaited: the re-read is still in flight
+        let publishing: Promise<void>;
+        act(() => {
+            publishing = result.current.publish([vsix('big.vsix')]);
+        });
+
+        await waitFor(() => expect(result.current.items).toHaveLength(1));
+        expect(result.current.items[0].fileName).toBe('big.vsix');
+        expect(result.current.items[0].status).toBe('checking');
+
+        await act(async () => {
+            release({ version: '1.3.0', maxExtensionSizeCeiling: 4 });
+            await publishing;
+        });
+
+        expect(result.current.items[0].status).toBe('failed');
+        expect(result.current.items[0].error).toBe('Larger than the 4 B limit.');
+    });
+
+    /**
+     * The ceiling is read once when the app starts and never refreshed, so the tab a publisher
+     * already had open still holds the old one. That is exactly the tab they retry in after asking
+     * an admin for the override - refusing there would block the package the override was created
+     * for, and nothing on screen would suggest reloading.
+     */
+    it('re-reads the ceiling before refusing, so a just-granted override is honoured', async () => {
+        const publishExtension = vi.fn().mockResolvedValue(published());
+        const getRegistryVersion = vi.fn().mockResolvedValue({ version: '1.3.0', maxExtensionSizeCeiling: 1024 });
+        const { result } = renderQueue(
+            { publishExtension, getRegistryVersion },
+            { version: { version: '1.3.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 4 } }
+        );
+
+        await act(async () => {
+            await result.current.publish([vsix('big.vsix')]);
+        });
+
+        // revalidated, or the cached copy would answer with the ceiling being bypassed
+        expect(getRegistryVersion).toHaveBeenCalledWith(expect.anything(), { revalidate: true });
+        await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
+        expect(result.current.items[0].status).not.toBe('failed');
+    });
+
+    it('still refuses when the ceiling has not moved', async () => {
+        const publishExtension = vi.fn().mockResolvedValue(published());
+        const getRegistryVersion = vi.fn().mockResolvedValue({ version: '1.3.0', maxExtensionSizeCeiling: 4 });
+        const { result } = renderQueue(
+            { publishExtension, getRegistryVersion },
+            { version: { version: '1.3.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 4 } }
+        );
+
+        await act(async () => {
+            await result.current.publish([vsix('big.vsix')]);
+        });
+
+        expect(result.current.items[0].status).toBe('failed');
+        expect(publishExtension).not.toHaveBeenCalled();
+    });
+
+    it('uploads a package above the default limit but below the ceiling', async () => {
+        const publishExtension = vi.fn().mockResolvedValue(published());
+        const { result } = renderQueue(
+            { publishExtension },
+            { version: { version: '1.0.0', maxExtensionSize: 4, maxExtensionSizeCeiling: 1024 } }
+        );
+
+        await act(async () => {
+            await result.current.publish([vsix('big.vsix')]);
+        });
+
+        await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
+        expect(result.current.items[0].status).not.toBe('failed');
     });
 
     it('leaves the extension list holding what it read while following the package', async () => {
@@ -178,18 +315,24 @@ describe('publish queue', () => {
         );
         await waitFor(() => expect(result.current.extensions.data).toEqual([]));
 
-        act(() => result.current.queue.publish([vsix()]));
+        await act(async () => {
+            await result.current.queue.publish([vsix()]);
+        });
 
         await waitFor(() => expect(result.current.extensions.data).toEqual([published()]));
         expect(getExtensions).toHaveBeenCalledTimes(2);
     });
 
-    it('lists the newest upload first, so a fresh one always lands in the same place', () => {
+    it('lists the newest upload first, so a fresh one always lands in the same place', async () => {
         const publishExtension = vi.fn().mockReturnValue(new Promise(() => {}));
         const { result } = renderQueue({ publishExtension });
 
-        act(() => result.current.publish([vsix('first.vsix')]));
-        act(() => result.current.publish([vsix('second.vsix')]));
+        await act(async () => {
+            await result.current.publish([vsix('first.vsix')]);
+        });
+        await act(async () => {
+            await result.current.publish([vsix('second.vsix')]);
+        });
 
         expect(result.current.items.map(item => item.fileName)).toEqual(['second.vsix', 'first.vsix']);
     });
@@ -201,7 +344,9 @@ describe('publish queue', () => {
             .mockReturnValueOnce(new Promise(() => {}));
         const { result } = renderQueue({ publishExtension });
 
-        act(() => result.current.publish([vsix('done.vsix'), vsix('busy.vsix')]));
+        await act(async () => {
+            await result.current.publish([vsix('done.vsix'), vsix('busy.vsix')]);
+        });
         await waitFor(() => expect(result.current.items.some(item => item.status === 'published')).toBe(true));
 
         act(() => result.current.clearFinished());
@@ -225,7 +370,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         expect(result.current.items[0].status).toBe('reviewing');
 
@@ -252,7 +397,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         expect(result.current.items[0].extension?.files.icon).toBeUndefined();
 
@@ -274,7 +419,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         await act(async () => {
             await vi.advanceTimersByTimeAsync(90_000);
@@ -296,7 +441,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         await act(async () => {
             await vi.advanceTimersByTimeAsync(5000);
@@ -313,7 +458,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         // Longer under review than the whole icon budget, which only starts once it is through.
         await act(async () => {
@@ -343,7 +488,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix('one.vsix'), vsix('two.vsix')]);
+            await result.current.publish([vsix('one.vsix'), vsix('two.vsix')]);
         });
         // Both cards hydrate from the same list.
         expect(getExtensions).toHaveBeenCalledOnce();
@@ -362,7 +507,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         expect(result.current.items[0].status).toBe('blocked');
 
@@ -385,7 +530,7 @@ describe('publish queue — review polling', () => {
         const { result } = renderQueue({ publishExtension, getExtensions });
 
         await act(async () => {
-            result.current.publish([vsix()]);
+            await result.current.publish([vsix()]);
         });
         await act(async () => {
             await vi.advanceTimersByTimeAsync(5000);

@@ -22,6 +22,7 @@ import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
+import org.eclipse.openvsx.jooq.tables.ExtensionSizeOverride;
 import org.eclipse.openvsx.jooq.tables.ExtensionThreat;
 import org.eclipse.openvsx.jooq.tables.ExtensionValidationFailure;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
@@ -45,6 +46,7 @@ import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
 import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
+import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 import org.jooq.Catalog;
 import org.jooq.Sequence;
 import org.jooq.Table;
@@ -142,6 +144,11 @@ public class Public extends SchemaImpl {
      * The table <code>public.extension_scan</code>.
      */
     public final ExtensionScan EXTENSION_SCAN = ExtensionScan.EXTENSION_SCAN;
+
+    /**
+     * The table <code>public.extension_size_override</code>.
+     */
+    public final ExtensionSizeOverride EXTENSION_SIZE_OVERRIDE = ExtensionSizeOverride.EXTENSION_SIZE_OVERRIDE;
 
     /**
      * The table <code>public.extension_threat</code>.
@@ -259,6 +266,11 @@ public class Public extends SchemaImpl {
     public final UserData USER_DATA = UserData.USER_DATA;
 
     /**
+     * The table <code>public.user_data_permission</code>.
+     */
+    public final UserDataPermission USER_DATA_PERMISSION = UserDataPermission.USER_DATA_PERMISSION;
+
+    /**
      * No further instances allowed
      */
     private Public() {
@@ -283,6 +295,7 @@ public class Public extends SchemaImpl {
             Sequences.EXTENSION_REVIEW_SEQ,
             Sequences.EXTENSION_SCAN_SEQ,
             Sequences.EXTENSION_SEQ,
+            Sequences.EXTENSION_SIZE_OVERRIDE_SEQ,
             Sequences.EXTENSION_THREAT_SEQ,
             Sequences.EXTENSION_VALIDATION_FAILURE_SEQ,
             Sequences.EXTENSION_VERSION_CHANGE_SEQ,
@@ -325,6 +338,7 @@ public class Public extends SchemaImpl {
             Extension.EXTENSION,
             ExtensionReview.EXTENSION_REVIEW,
             ExtensionScan.EXTENSION_SCAN,
+            ExtensionSizeOverride.EXTENSION_SIZE_OVERRIDE,
             ExtensionThreat.EXTENSION_THREAT,
             ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE,
             ExtensionVersion.EXTENSION_VERSION,
@@ -347,7 +361,8 @@ public class Public extends SchemaImpl {
             Tier.TIER,
             TrustedPublisher.TRUSTED_PUBLISHER,
             UsageStats.USAGE_STATS,
-            UserData.USER_DATA
+            UserData.USER_DATA,
+            UserDataPermission.USER_DATA_PERMISSION
         );
     }
 }

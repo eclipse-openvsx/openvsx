@@ -22,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.repositories.RepositoryService;
 
 import static org.mockito.Mockito.*;
@@ -50,7 +51,7 @@ class FileDecisionAPITest {
     @Test
     void getFiles_pagination_validation_failures() throws Exception {
         // Always allow the request to pass the admin gate in this test setup.
-        when(admins.checkAdminUser()).thenReturn(TestData.adminUser());
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
         mockMvc.perform(
                 get("/admin/scans/files")

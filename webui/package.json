@@ -1,6 +1,6 @@
 {
     "name": "openvsx-webui",
-    "version": "1.2.0",
+    "version": "1.3.0-dev.0",
     "description": "User interface for Eclipse Open VSX",
     "keywords": [
         "react",
@@ -69,7 +69,8 @@
     },
     "//resolutions": "@types/react-infinite-scroller declares its @types/react dependency as *, which resolves to v19 and puts a second copy of the React types in the tree; the pin below holds it at 18 until this app moves to React 19",
     "resolutions": {
-        "@types/react": "^18.2.14"
+        "@types/react": "^18.2.14",
+        "node-gyp": "^13.1.0"
     },
     "devDependencies": {
         "@eslint/eslintrc": "^3.3.3",
@@ -105,8 +106,8 @@
         "rimraf": "^6.1.0",
         "rollup-plugin-visualizer": "^7.0.1",
         "typescript": "^5.9.0",
-        "vite": "^8.2.1",
-        "vitest": "^4.1.11"
+        "vite": "^8.3.2",
+        "vitest": "^5.0.3"
     },
     "scripts": {
         "clean": "rimraf lib && rimraf dist",

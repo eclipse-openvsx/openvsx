@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FC, useState } from 'react';
+import { FC, useContext, useState } from 'react';
 import { Box, Typography, Chip, CircularProgress, Link } from '@mui/material';
 import {
     AdminPanelSettings as AdminPanelIcon,
@@ -28,6 +28,8 @@ import { ICON_SIZE, isRunning, shouldShowStriped, getHypotheticalStatus, getStat
 import { createRoute } from '../../../utils';
 import { AdminDashboardRoutes } from '../../../pages/admin-dashboard/admin-dashboard-routes';
 import { ExtensionDetailRoutes } from '../../../pages/extension-detail/extension-detail-routes';
+import { MainContext } from '../../../context';
+import { hasPermission } from '../../../permissions';
 
 interface ScanCardHeaderProps {
     scan: ScanResult;
@@ -56,11 +58,16 @@ const getStatusIcon = (status: ScanResult['status']) => {
  */
 export const ScanCardHeader: FC<ScanCardHeaderProps> = ({ scan }) => {
     const theme = useTheme();
+    const { user: currentUser } = useContext(MainContext);
     const [imageError, setImageError] = useState(false);
 
     const hasValidIcon = scan.extensionIcon && !imageError;
     const extensionRoute = createRoute([ExtensionDetailRoutes.ROOT, scan.namespace, scan.extensionName]);
-    const adminRoute = createRoute([AdminDashboardRoutes.ROOT, 'extensions', scan.namespace, scan.extensionName]);
+    // Supplementary to the public link beside it, so it is simply left out for a user who cannot open
+    // the extension admin page - the extension itself stays reachable either way.
+    const adminRoute = hasPermission(currentUser, 'manage_extensions')
+        ? createRoute([AdminDashboardRoutes.ROOT, 'extensions', scan.namespace, scan.extensionName])
+        : undefined;
 
     return (
         <>

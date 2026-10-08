@@ -31,8 +31,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
+import org.eclipse.openvsx.accesstoken.AccessTokenAction;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.eclipse.EclipseService;
@@ -49,6 +52,7 @@ import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
+import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -60,10 +64,12 @@ import org.eclipse.openvsx.web.WebUiProperties;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -108,6 +114,9 @@ class LocalRegistryServiceTest {
     @Mock
     SimilarityCheckService similarityCheckService;
 
+    @Mock
+    ExtensionSizeLimitService sizeLimits;
+
     private LocalRegistryService registryService;
 
     private TempFile tempFile;
@@ -128,7 +137,7 @@ class LocalRegistryServiceTest {
                 cacheService,
                 integrityService,
                 similarityCheckService,
-                new PublishingConfig(),
+                sizeLimits,
                 new TrustedPublishingConfig(),
                 new WebUiProperties(),
                 Duration.ofSeconds(30));
@@ -136,6 +145,16 @@ class LocalRegistryServiceTest {
         // A permissive default for a void method rather than a per-test expectation: the tests of
         // visibleUntil exercise a pure function and touch no mock at all.
         lenient().doNothing().when(eclipse).checkPublisherAgreement(any());
+
+        // Publish tests supply a token that is meant to be live; the ones about an unusable token
+        // say so for their own value.
+        lenient().when(tokens.isTokenLive(anyString())).thenReturn(true);
+
+        // Behave like a registry with no override configured unless a test says otherwise.
+        var configDefault = new PublishingConfig().getMaxContentSize();
+        lenient().when(sizeLimits.getCeiling()).thenReturn(configDefault);
+        lenient().when(sizeLimits.getDefaultLimit()).thenReturn(configDefault);
+        lenient().when(sizeLimits.resolveLimit(anyString(), anyString())).thenReturn(configDefault);
     }
 
     /**
@@ -192,7 +211,9 @@ class LocalRegistryServiceTest {
         tempFile = new TempFile("extension_", ".vsix");
         Files.write(tempFile.getPath(), createExtensionPackage("bar", "1.0.0"));
 
+        when(tokens.isTokenLive("tok")).thenReturn(true);
         when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        // live, but its scope does not cover this package - rejected after the parse, before handoff
         when(tokens.useAccessToken(eq("tok"), any())).thenReturn(null);
 
         assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
@@ -376,5 +397,181 @@ class LocalRegistryServiceTest {
         membership.setNamespace(namespace);
         membership.setUser(user);
         return membership;
+    }
+
+    /**
+     * A token that is missing, unknown, expired or deactivated ends in this 401 either way, so the
+     * package is not worth writing to disk and parsing first - that is a file of up to the ceiling
+     * for a caller with nothing usable. Liveness is all that can be asked: every scope judges an
+     * action against the namespace its token is bound to, and that is still inside the package.
+     */
+    @Test
+    void shouldRefuseAPublishOnAnUnusableTokenBeforeWritingThePackage() {
+        when(tokens.isTokenLive("bogus")).thenReturn(false);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "bogus"))
+                .isInstanceOf(ErrorResultException.class)
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        verifyNoInteractions(extensions);
+    }
+
+    /**
+     * The resolved limit is specific to the namespace, and permission to publish there is otherwise
+     * not established until {@code PublishExtensionVersionHandler}. Anyone holding a valid token
+     * could read a namespace's override off the 413 by publishing packages of varying size.
+     */
+    @Test
+    void shouldRefuseBeforeDisclosingTheLimitToSomeoneWhoCannotPublishThere() throws IOException {
+        tempFile = new TempFile("extension_", ".vsix");
+        var content = createExtensionPackage("bar", "1.0.0");
+        Files.write(tempFile.getPath(), content);
+
+        var token = new PersonalAccessToken();
+        token.setUser(new UserData());
+        token.setType(PersonalAccessTokenType.LLT);
+        var tau = new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null);
+        var namespace = buildNamespace("foo");
+
+        when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tau);
+        when(repositories.findNamespace("foo")).thenReturn(namespace);
+        when(users.hasPublishPermission(token.getUser(), namespace)).thenReturn(false);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("Insufficient access rights")
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        // the limit is never even looked up, so there is nothing to leak
+        verify(sizeLimits, never()).resolveLimit(any(), any());
+        verify(extensions, never()).publishVersion(any(ExtensionProcessor.class), any());
+    }
+
+    /**
+     * Stage two of the size check: the request body is streamed against the global ceiling, because
+     * the namespace is unknown until the manifest is parsed. Once it is known, the resolved limit for
+     * that namespace/extension applies, and a package over it is rejected before being published.
+     */
+    @Test
+    void shouldRejectAPackageOverTheLimitResolvedForItsNamespace() throws IOException {
+        tempFile = new TempFile("extension_", ".vsix");
+        var content = createExtensionPackage("bar", "1.0.0");
+        Files.write(tempFile.getPath(), content);
+
+        var token = new PersonalAccessToken();
+        token.setUser(new UserData());
+        token.setType(PersonalAccessTokenType.LLT);
+        var tau = new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null);
+
+        when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tau);
+        when(sizeLimits.resolveLimit("foo", "bar")).thenReturn((long) content.length - 1);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("exceeds the size limit")
+                .hasMessageContaining("foo.bar")
+                // exact counts, or one byte over reads as "1 MB exceeds the size limit of 1 MB"
+                .hasMessageContaining(content.length + " bytes")
+                .hasMessageContaining((content.length - 1) + " bytes")
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+
+        verify(extensions, never()).publishVersion(any(ExtensionProcessor.class), any());
+    }
+
+    /**
+     * The two size fields answer different questions and come from different sources: the default is
+     * what applies without an override, the ceiling is the most any namespace could publish. Swapping
+     * them would be invisible on a registry that has no overrides configured.
+     */
+    @Test
+    void shouldReportBothTheDefaultLimitAndTheCeiling() {
+        registryService.registryVersion = "1.3.0";
+        when(sizeLimits.getDefaultLimit()).thenReturn(512L);
+        when(sizeLimits.getCeiling()).thenReturn(2048L);
+
+        var json = registryService.getRegistryVersion();
+
+        assertThat(json.getMaxExtensionSize()).isEqualTo(512L);
+        assertThat(json.getMaxExtensionSizeCeiling()).isEqualTo(2048L);
+    }
+
+    @Test
+    void sizeLimitRejectsAnInvalidToken() {
+        when(tokens.useAccessToken(eq("bad"), any())).thenReturn(null);
+
+        assertThatThrownBy(() -> registryService.getSizeLimit("foo", "bar", "bad"))
+                .isInstanceOf(ErrorResultException.class)
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * A first publish asks about a namespace that does not exist yet, so this cannot 404 or demand a
+     * permission there is nobody to hold. The default is the honest answer.
+     */
+    @Test
+    void sizeLimitReturnsTheDefaultForANamespaceThatDoesNotExistYet() {
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("new")).thenReturn(null);
+        when(sizeLimits.resolveLimit("new", "bar")).thenReturn(4096L);
+
+        assertThat(registryService.getSizeLimit("new", "bar", "tok").getMaxSize()).isEqualTo(4096L);
+    }
+
+    @Test
+    void sizeLimitRefusesANamespaceTheTokenMayNotPublishTo() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("foo")).thenReturn(namespace);
+        when(users.hasPublishPermission(any(), eq(namespace))).thenReturn(false);
+
+        assertThatThrownBy(() -> registryService.getSizeLimit("foo", "bar", "tok"))
+                .isInstanceOf(ErrorResultException.class)
+                .extracting(exc -> ((ErrorResultException) exc).getStatus())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void sizeLimitReturnsTheResolvedLimitForAPermittedNamespace() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("foo")).thenReturn(namespace);
+        when(users.hasPublishPermission(any(), eq(namespace))).thenReturn(true);
+        when(sizeLimits.resolveLimit("foo", "bar")).thenReturn(123L);
+
+        assertThat(registryService.getSizeLimit("foo", "bar", "tok").getMaxSize()).isEqualTo(123L);
+    }
+
+    /**
+     * The token must not be consumed: a one-time token checked here and then deleted would leave the
+     * publish it was checked for unable to authenticate. It must still carry the namespace and
+     * extension, or a scoped token - every trusted publishing token is one - fails the scope match.
+     */
+    @Test
+    void sizeLimitChecksTheTokenWithoutUsingIt() {
+        when(tokens.useAccessToken(eq("tok"), any())).thenReturn(tokenAuth());
+        when(repositories.findNamespace("foo")).thenReturn(null);
+
+        registryService.getSizeLimit("foo", "bar", "tok");
+
+        var action = ArgumentCaptor.forClass(AccessTokenAction.class);
+        verify(tokens).useAccessToken(eq("tok"), action.capture());
+        assertThat(action.getValue().isUsing()).isFalse();
+        assertThat(action.getValue().namespace()).contains("foo");
+        assertThat(action.getValue().extension()).contains("bar");
+    }
+
+    private AccessTokenAuthentication tokenAuth() {
+        var token = new PersonalAccessToken();
+        token.setUser(new UserData());
+        token.setType(PersonalAccessTokenType.LLT);
+        return new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), null);
     }
 }

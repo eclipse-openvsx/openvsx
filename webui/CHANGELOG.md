@@ -6,23 +6,46 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
+- Add fine-grained admin permissions: a user can hold individual admin capabilities instead of the all-or-nothing admin role, and reaches the dashboard with only the pages those capabilities cover (#2269)
+- Add an "Access Control" admin dashboard page, where a user's role and permissions are assigned together and applied on Save; both move here from Publisher admin (#2269)
+- Export `hasPermission` and `hasAnyAdminAccess`, so a deployment with its own menu content can gate an admin entry the way the built-in menu does (#2269)
+- A contributed `adminPages` entry can declare the `permission` it needs; without one it stays admin-only, as it was while the whole dashboard required that role (#2269)
 - Add a "Caches" page to the admin dashboard, with per-cache hit/eviction stats and a way to clear one or all without restarting the server (#2203)
 - Add a weekly downloads card to the extension detail page, with a hoverable sparkline of the year's weekly totals (#2135)
 - Add a configurable site banner to the admin dashboard's Settings page, with a Markdown message, severity, a live preview of what visitors will see and an opt-out for showing it again to everyone who dismissed it, served from `/api/-/settings` (#2257)
 - Prompt anonymous visitors to log in on an extension's reviews tab, where "Write a Review" was previously blank (#2148)
+- Add a default max extension size field to the admin dashboard's Settings page, backed by a new `max-extension-size` runtime setting; falls back to the server's configured `ovsx.publishing.max-content-size` until an admin sets it explicitly, and cannot be raised past the server's `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits, each capped at the same `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+
+- Let a personal access token be restricted to a namespace or a single extension, and to publishing only, when it is generated, choosing the namespace from the ones the user is a member of and the extension from its active extensions, and show that in the token list ([#957](https://github.com/eclipse-openvsx/openvsx/issues/957))
 
 ### Changed
 
+- **Breaking:** `AdminService.updateUserRole` is replaced by `updateUserAccess(provider, login, { role, permissions })`, which writes a user's role and permissions as one state in one request against the new `PUT /admin/user/{provider}/{login}/access` endpoint (#2269)
+- Removing an extension review follows the `manage_extensions` permission rather than the admin role, which admins hold either way (#2269)
 - Return to the page a login started from, instead of always landing on the front page (#2148)
 - Load an extension's icon only when it comes near the viewport, instead of every icon on the page at once (#2213)
+- Group the admin dashboard's sidebar into Content, Search, Maintenance, Administration, Rate Limiting, and Analytics sections instead of one flat list. The first section starts expanded, as does whichever section holds the current page, whether opened directly or navigated to ([#2278](https://github.com/eclipse-openvsx/openvsx/issues/2278))
+- Redesign the 404 page to match the new web UI, with a search field prefilled with the last segment of the requested path
+- **Breaking:** rename `useRegisterPageSearchBar` to `useSearchBar(ref)` (the ref is now required), which also takes `/` focus requests and gives focus back to the nav field when the bar leaves view
 
 ### Fixed
 
 - Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times (#2237)
+- The publish page no longer refuses a package larger than the registry's default limit without asking the server. A namespace with a size override may publish more than the default allows, so the upload is now only blocked above the registry's ceiling — the largest any namespace could publish. A package that looks too big is shown in the queue while that ceiling is re-read, rather than the page staying empty until the answer arrives ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- The admin dashboard's Settings page sends only the settings that were changed, so saving no longer reverts a setting another admin changed while the page was open ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
 ### Dependencies
 
+- Bump vitest from 4.1.11 to 5.0.3
+- Bump vite from 8.2.1 to 8.3.2
 - Bump ip-address from 10.4.0 to 10.7.2
+- Bump undici from 8.9.0 to 8.11.2
+- Bump markdown-it from 14.2.0 to 14.3.1
+- Bump brace-expansion from 1.1.18 to 1.1.21, 2.1.7, 5.0.12
+- Bump dompurify from 3.4.13 to 3.4.16
+- Bump fast-uri from 3.1.7 to 3.1.8
+- Pin the transitive `node-gyp` resolution to `^13.1.0` (from 12.2.0), which `fsevents`' optional dependency had resolved to `latest`
 
 ## [v1.2.0] (10/09/2026)
 

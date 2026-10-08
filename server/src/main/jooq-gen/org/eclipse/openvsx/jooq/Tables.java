@@ -19,6 +19,7 @@ import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
 import org.eclipse.openvsx.jooq.tables.ExtensionScan;
+import org.eclipse.openvsx.jooq.tables.ExtensionSizeOverride;
 import org.eclipse.openvsx.jooq.tables.ExtensionThreat;
 import org.eclipse.openvsx.jooq.tables.ExtensionValidationFailure;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
@@ -42,6 +43,7 @@ import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
 import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
+import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 
 
 /**
@@ -128,6 +130,11 @@ public class Tables {
      * The table <code>public.extension_scan</code>.
      */
     public static final ExtensionScan EXTENSION_SCAN = ExtensionScan.EXTENSION_SCAN;
+
+    /**
+     * The table <code>public.extension_size_override</code>.
+     */
+    public static final ExtensionSizeOverride EXTENSION_SIZE_OVERRIDE = ExtensionSizeOverride.EXTENSION_SIZE_OVERRIDE;
 
     /**
      * The table <code>public.extension_threat</code>.
@@ -243,4 +250,9 @@ public class Tables {
      * The table <code>public.user_data</code>.
      */
     public static final UserData USER_DATA = UserData.USER_DATA;
+
+    /**
+     * The table <code>public.user_data_permission</code>.
+     */
+    public static final UserDataPermission USER_DATA_PERMISSION = UserDataPermission.USER_DATA_PERMISSION;
 }

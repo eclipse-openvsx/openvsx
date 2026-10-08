@@ -40,7 +40,7 @@ export const useUpdateSettings = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (settings: Settings) => service.admin.updateSettings(settings),
+        mutationFn: (settings: Partial<Settings>) => service.admin.updateSettings(settings),
         onSuccess: updated => {
             queryClient.setQueryData(settingsQueryKey, updated);
             // The banner above the admin's own navbar reads the public settings, not these.

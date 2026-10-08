@@ -15,6 +15,7 @@ package org.eclipse.openvsx.repositories;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,9 +38,11 @@ import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.ExtensionVersionChange;
 import org.eclipse.openvsx.entities.ExtensionVersionState;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.util.TargetPlatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * {@link RepositoryService#wasReportedAsAvailable} needs the latest state for a version's <em>current</em>
@@ -90,7 +93,24 @@ class ExtensionVersionChangeRepositoryTest extends AbstractPostgresContainerTest
         extVersion.setVersion("1.0.0");
         extVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
         extVersion.setExtension(extension);
+        var publisher = new UserData();
+        publisher.setLoginName("publisher");
+        em.persist(publisher);
+        extVersion.setPublishedBy(publisher);
         em.persist(extVersion);
+    }
+
+    @Test
+    void publishedByIsRequired() {
+        var version = new ExtensionVersion();
+        version.setVersion("2.0.0");
+        version.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
+        version.setExtension(extVersion.getExtension());
+
+        assertThrows(PersistenceException.class, () -> {
+            em.persist(version);
+            em.flush();
+        });
     }
 
     @Test

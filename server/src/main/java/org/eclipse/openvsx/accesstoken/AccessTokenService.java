@@ -117,10 +117,17 @@ public class AccessTokenService {
     }
 
     /**
-     * Creates a long-lived token for user. Depending on configuration, the token expiration may be set as well.
+     * Creates a long-lived token for user, scoped to the extension if given, else to the namespace if given.
+     * Depending on configuration, the token expiration may be set as well.
      */
     @Transactional
-    public AccessTokenJson createLongLivedAccessToken(UserData user, String description) {
+    public AccessTokenJson createLongLivedAccessToken(
+            UserData user,
+            String description,
+            @Nullable Namespace scopeNamespace,
+            @Nullable Extension scopeExtension,
+            boolean publishingOnly
+    ) {
         requireNonNull(user);
         final LocalDateTime expiresTimestamp = config.isTokenExpiryEnabled()
                 ? TimeUtil.getCurrentUTC().plus(config.getExpiration())
@@ -131,9 +138,9 @@ public class AccessTokenService {
                 expiresTimestamp,
                 null,
                 null,
-                null,
-                null,
-                PersonalAccessTokenType.LLT);
+                scopeExtension,
+                scopeNamespace,
+                publishingOnly ? PersonalAccessTokenType.LLP : PersonalAccessTokenType.LLT);
     }
 
     /**
@@ -275,6 +282,53 @@ public class AccessTokenService {
     // or found expired.
     @Transactional(TxType.REQUIRES_NEW)
     public AccessTokenAuthentication useAccessToken(String tokenValue, AccessTokenAction accessTokenAction) {
+        var token = findLiveToken(tokenValue);
+        if (token == null) {
+            return null;
+        }
+        // scope
+        AccessTokenScope scope = getScope(token);
+        if (!(accessTokenAction instanceof AccessTokenAction.Verify) && !scope.allowsAction(accessTokenAction)) {
+            return null;
+        }
+        // bookkeeping; if "using"
+        if (accessTokenAction.isUsing()) {
+            token.setAccessedTimestamp(TimeUtil.getCurrentUTC());
+            if (token.getType().isOneTime()) {
+                // Deleted outright rather than deactivated: nothing reads the row again afterwards.
+                // A trusted publishing token is deliberately not one of these - it stays usable until it
+                // expires, so that the target platforms of one release can share the token they were
+                // issued rather than exchanging the CI identity again for each of them.
+                entityManager.remove(token);
+            }
+        }
+        return new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), token.getClaims());
+    }
+
+    /**
+     * Whether the token can be used at all - it exists, is active, has a user, has not expired, and
+     * for a trusted publishing token still has its registration. Says nothing about what it may do.
+     * <p>
+     * For work that has to happen before the thing being authorised is known. Publishing is the case:
+     * which namespace a package belongs to is inside the package, so no scope can be judged until the
+     * package has been received, and receiving it is exactly the expense a request with no usable
+     * token should not be able to impose. Every scope judges an action against the namespace its
+     * token is bound to, so there is no action that could ask this question through
+     * {@link #useAccessToken}.
+     * <p>
+     * Does not "use" the token: the accessed timestamp is untouched and a one-time token survives for
+     * the call that spends it properly.
+     */
+    @Transactional(TxType.REQUIRES_NEW)
+    public boolean isTokenLive(String tokenValue) {
+        return findLiveToken(tokenValue) != null;
+    }
+
+    /**
+     * The checks every use of a token shares, in order, stopping short of the scope. Returns the row
+     * so {@link #useAccessToken} can go on to judge the scope against it.
+     */
+    private @Nullable PersonalAccessToken findLiveToken(String tokenValue) {
         var token = repositories.findPersonalAccessToken(hashTokenValue(tokenValue));
         if (token == null) {
             // the pepper may have changed since this token was issued; the row is rewritten if so
@@ -319,23 +373,7 @@ public class AccessTokenService {
             entityManager.remove(token);
             return null;
         }
-        // scope
-        AccessTokenScope scope = getScope(token);
-        if (!scope.allowsAction(accessTokenAction)) {
-            return null;
-        }
-        // bookkeeping; if "using"
-        if (accessTokenAction.isUsing()) {
-            token.setAccessedTimestamp(now);
-            if (token.getType().isOneTime()) {
-                // Deleted outright rather than deactivated: nothing reads the row again afterwards.
-                // A trusted publishing token is deliberately not one of these - it stays usable until it
-                // expires, so that the target platforms of one release can share the token they were
-                // issued rather than exchanging the CI identity again for each of them.
-                entityManager.remove(token);
-            }
-        }
-        return new AccessTokenAuthentication(token.getUser(), token.getType(), token.getId(), token.getClaims());
+        return token;
     }
 
     /**
@@ -377,8 +415,14 @@ public class AccessTokenService {
         } else {
             scope = new AccessTokenScope.Unrestricted();
         }
-        if (token.getType() == PersonalAccessTokenType.TPT) {
-            scope = scope.and(new AccessTokenScope.ActionScoped(AccessTokenAction.PublishVersion.class));
+        if (token.getType().isPublishOnly()) {
+            // The verify actions ask whether this token could publish, which is strictly less than
+            // publishing: the size-limit preflight and `ovsx verify-pat` run them before the publish itself.
+            scope = scope.and(
+                    new AccessTokenScope.ActionScoped(
+                            AccessTokenAction.PublishVersion.class,
+                            AccessTokenAction.VerifyPublishVersion.class,
+                            AccessTokenAction.VerifyNamespace.class));
         }
         return scope;
     }
@@ -428,7 +472,8 @@ public class AccessTokenService {
 
     @Transactional
     public int setExpirationTimeForLegacyAccessTokens(LocalDateTime expirationTime) {
-        return repositories.updateExpiresTimeForLegacyPersonalAccessTokens(expirationTime, PersonalAccessTokenType.LLT);
+        return repositories
+                .updateExpiresTimeForLegacyPersonalAccessTokens(expirationTime, PersonalAccessTokenType.LONG_LIVED);
     }
 
     /**

@@ -24,6 +24,13 @@ import { UserData } from '../../../../src/extension-registry-types';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 
 const admin: UserData = { loginName: 'testuser', tokensUrl: '', createTokenUrl: '', role: 'admin' };
+const scanModerator: UserData = {
+    loginName: 'testuser',
+    tokensUrl: '',
+    createTokenUrl: '',
+    permissions: ['manage_scans']
+};
+const ordinaryUser: UserData = { loginName: 'testuser', tokensUrl: '', createTokenUrl: '' };
 
 // The logout entry wraps a real form that reads both of these while rendering.
 const service = {
@@ -45,9 +52,9 @@ const ConsumerEntry: FunctionComponent<UserMenuContentProps> = ({ MenuEntry }) =
     </MenuEntry>
 );
 
-function renderAvatar(userMenuContent?: PageSettings['elements']['userMenuContent']) {
+function renderAvatar(userMenuContent?: PageSettings['elements']['userMenuContent'], user: UserData = admin) {
     return renderWithProviders(<UserAvatar />, {
-        mainContext: { service, user: admin, pageSettings: { elements: { userMenuContent } } as PageSettings }
+        mainContext: { service, user, pageSettings: { elements: { userMenuContent } } as PageSettings }
     });
 }
 
@@ -89,5 +96,20 @@ describe('UserAvatar', () => {
         await openMenu();
 
         expect(menuItemLabels()).toEqual(['Settings', 'Admin Dashboard', 'Log out']);
+    });
+
+    // The dashboard is reachable by anyone holding a permission, so the only way in has to be too.
+    it('offers the admin entry to a user holding only a permission', async () => {
+        renderAvatar(undefined, scanModerator);
+        await openMenu();
+
+        expect(menuItemLabels()).toContain('Admin Dashboard');
+    });
+
+    it('hides the admin entry from a user with no role and no permissions', async () => {
+        renderAvatar(undefined, ordinaryUser);
+        await openMenu();
+
+        expect(menuItemLabels()).not.toContain('Admin Dashboard');
     });
 });

@@ -38,6 +38,7 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
 
@@ -319,6 +320,10 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
             extVersion.setTargetPlatform("universal");
             extVersion.setExtension(extension);
             extVersion.setActive(true);
+            var publisher = new UserData();
+            publisher.setLoginName("publisher");
+            entityManager.persist(publisher);
+            extVersion.setPublishedBy(publisher);
             entityManager.persist(extVersion);
             seededVersionId = extVersion.getId();
 
@@ -329,7 +334,7 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
             resource.setExtension(extVersion);
             entityManager.persist(resource);
 
-            seededEntities.addAll(List.of(namespace, extension, extVersion, resource));
+            seededEntities.addAll(List.of(namespace, extension, publisher, extVersion, resource));
             return extension;
         });
     }

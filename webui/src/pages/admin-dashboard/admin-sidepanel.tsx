@@ -22,20 +22,30 @@ export interface AdminSidepanelProps {
     items: NavEntry[];
 }
 
+/** Exact match or a `/`-delimited descendant, so e.g. `/search-index` doesn't match `/search-index-v2`. */
+const isActivePath = (pathname: string, path: string) => pathname === path || pathname.startsWith(`${path}/`);
+
 export const AdminSidepanel: FunctionComponent<AdminSidepanelProps> = ({ items }) => {
     const [open, setOpen] = useLocalStorage('openvsx-admin-sidepanel-open', true);
     const { pathname } = useLocation();
 
+    const firstGroupIndex = items.findIndex(isNavGroup);
+
     return (
         <Sidepanel open={open} onToggle={() => setOpen(prev => !prev)}>
-            {items.map(entry => {
+            {items.map((entry, index) => {
                 if (isNavGroup(entry)) {
+                    const isActiveGroup = entry.children.some(child => isActivePath(pathname, child.path));
                     return (
-                        <NavigationItem key={entry.name} label={entry.name} icon={entry.icon}>
+                        <NavigationItem
+                            key={entry.name}
+                            label={entry.name}
+                            icon={entry.icon}
+                            defaultExpanded={index === firstGroupIndex || isActiveGroup}>
                             {entry.children.map(child => (
                                 <NavigationItem
                                     key={child.path}
-                                    active={pathname.startsWith(child.path)}
+                                    active={isActivePath(pathname, child.path)}
                                     label={child.name}
                                     icon={child.icon}
                                     route={child.path}
@@ -47,7 +57,7 @@ export const AdminSidepanel: FunctionComponent<AdminSidepanelProps> = ({ items }
                 return (
                     <NavigationItem
                         key={entry.path}
-                        active={pathname.startsWith(entry.path)}
+                        active={isActivePath(pathname, entry.path)}
                         label={entry.name}
                         icon={entry.icon}
                         route={entry.path}

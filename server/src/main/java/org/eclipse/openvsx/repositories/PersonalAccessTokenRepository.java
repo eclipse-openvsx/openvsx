@@ -30,11 +30,14 @@ public interface PersonalAccessTokenRepository extends Repository<PersonalAccess
 
     Streamable<PersonalAccessToken> findByUser(UserData user);
 
-    Streamable<PersonalAccessToken> findByUserAndActiveTrueAndType(UserData user, PersonalAccessTokenType type);
+    Streamable<PersonalAccessToken> findByUserAndActiveTrueAndTypeIn(
+            UserData user,
+            Collection<PersonalAccessTokenType> types
+    );
 
     Streamable<PersonalAccessToken> findByVersion(int version);
 
-    long countByUserAndActiveTrueAndType(UserData user, PersonalAccessTokenType type);
+    long countByUserAndActiveTrueAndTypeIn(UserData user, Collection<PersonalAccessTokenType> types);
 
     PersonalAccessToken findById(long id);
 
@@ -50,9 +53,9 @@ public interface PersonalAccessTokenRepository extends Repository<PersonalAccess
 
     @Modifying
     @Query(
-        "update PersonalAccessToken t set t.expiresTimestamp = ?1 where t.active = true and t.expiresTimestamp is null and t.type = ?2"
+        "update PersonalAccessToken t set t.expiresTimestamp = ?1 where t.active = true and t.expiresTimestamp is null and t.type in ?2"
     )
-    int updateExpiresTimeForLegacyAccessTokens(LocalDateTime timestamp, PersonalAccessTokenType type);
+    int updateExpiresTimeForLegacyAccessTokens(LocalDateTime timestamp, Collection<PersonalAccessTokenType> types);
 
     List<PersonalAccessToken> findByExpiresTimestampLessThanEqualAndActiveTrueAndNotifiedFalseOrderById(
             LocalDateTime timestamp,

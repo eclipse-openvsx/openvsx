@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.analytics;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -36,6 +37,7 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 import org.eclipse.openvsx.storage.StorageUtilService;
 
@@ -84,6 +86,7 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
         new JdbcTemplate(dataSource).execute("TRUNCATE download_event");
         if (extension != null) {
             inTransaction(() -> {
+                var users = new ArrayList<>();
                 var managed = entityManager.find(Extension.class, extension.getId());
                 managed.getVersions().forEach(extVersion -> {
                     entityManager
@@ -91,7 +94,10 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
                             .setParameter("extVersion", extVersion)
                             .executeUpdate();
                     entityManager.remove(extVersion);
+                    // FK extVersion -> userData; doing it last
+                    users.add(extVersion.getPublishedBy());
                 });
+                users.forEach(user -> entityManager.remove(user));
                 var namespace = managed.getNamespace();
                 entityManager.remove(managed);
                 entityManager.remove(namespace);
@@ -210,6 +216,10 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
             extVersion.setTargetPlatform("universal");
             extVersion.setExtension(seeded);
             extVersion.setActive(true);
+            var publisher = new UserData();
+            publisher.setLoginName("publisher");
+            entityManager.persist(publisher);
+            extVersion.setPublishedBy(publisher);
             entityManager.persist(extVersion);
             return seeded;
         });
