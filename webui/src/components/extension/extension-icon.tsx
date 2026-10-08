@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext } from 'react';
+import { FunctionComponent, useContext, useRef } from 'react';
 import { Box, Skeleton, SxProps, Theme } from '@mui/material';
 import { MainContext } from '../../context';
 import { Extension, SearchEntry } from '../../extension-registry-types';
@@ -29,7 +29,8 @@ import { useExtensionIcon } from './use-extension-icon';
 export const ExtensionIcon: FunctionComponent<ExtensionIconProps> = ({ extension, alt, sx, pending }) => {
     const { pageSettings } = useContext(MainContext);
     const hasIcon = Boolean(extension.files?.icon);
-    const [ref, inView] = useInView({ enabled: hasIcon });
+    const ref = useRef<HTMLElement>(null);
+    const inView = useInView(ref, { enabled: hasIcon });
     const load = inView || !hasIcon;
     // Enabled only where there is something to fetch: a disabled query is not "loading", so an
     // extension without an icon renders the default on its first frame rather than a skeleton.
