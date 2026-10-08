@@ -207,7 +207,7 @@ public class RemoteScanner implements Scanner {
             processOperation(pollOp, placeholders);
 
             // Execute HTTP request
-            String response = httpExecutor.execute(pollOp, null, true);
+            String response = httpExecutor.execute(pollOp, null);
 
             logger.debug("Poll operation response: {}", response);
 

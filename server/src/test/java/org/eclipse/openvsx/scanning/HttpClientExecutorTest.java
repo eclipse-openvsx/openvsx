@@ -52,19 +52,14 @@ class HttpClientExecutorTest {
     }
 
     @Test
-    void lenientExecute_returnsBodyOf4xx() throws Exception {
-        assertEquals("{\"status\":\"error\"}", executor.execute(operation, null));
+    void execute_throwsOn4xxWithBody() {
+        assertThrows(ScannerException.class, () -> executor.execute(operation, null));
     }
 
     @Test
-    void strictExecute_throwsOn4xxWithBody() {
-        assertThrows(ScannerException.class, () -> executor.execute(operation, null, true));
-    }
-
-    @Test
-    void strictExecute_throwsOn3xxWithBody() {
+    void execute_throwsOn3xxWithBody() {
         operation.setUrl(operation.getUrl() + "redirect");
 
-        assertThrows(ScannerException.class, () -> executor.execute(operation, null, true));
+        assertThrows(ScannerException.class, () -> executor.execute(operation, null));
     }
 }
