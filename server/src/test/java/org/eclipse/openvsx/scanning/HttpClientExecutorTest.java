@@ -33,7 +33,8 @@ class HttpClientExecutorTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             byte[] body = "{\"status\":\"error\"}".getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(429, body.length);
+            int status = "/redirect".equals(exchange.getRequestURI().getPath()) ? 300 : 429;
+            exchange.sendResponseHeaders(status, body.length);
             exchange.getResponseBody().write(body);
             exchange.close();
         });
@@ -57,6 +58,13 @@ class HttpClientExecutorTest {
 
     @Test
     void strictExecute_throwsOn4xxWithBody() {
+        assertThrows(ScannerException.class, () -> executor.execute(operation, null, true));
+    }
+
+    @Test
+    void strictExecute_throwsOn3xxWithBody() {
+        operation.setUrl(operation.getUrl() + "redirect");
+
         assertThrows(ScannerException.class, () -> executor.execute(operation, null, true));
     }
 }

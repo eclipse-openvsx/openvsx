@@ -172,6 +172,13 @@ public class HttpClientExecutor {
                     requestEntity,
                     String.class);
 
+            // RestTemplate only throws for 4xx/5xx, so a 3xx must be rejected here.
+            if (strict && !response.getStatusCode().is2xxSuccessful()) {
+                throw new ScannerException(
+                        "Unexpected HTTP status " + response.getStatusCode() + " on " + operation.getMethod() + " "
+                                + operation.getUrl());
+            }
+
             // Return response body for successful requests
             return response.getBody();
 
