@@ -11,7 +11,13 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
+import { Agent, fetch } from 'undici';
 import { redactUrl } from './util';
+
+// undici's own headers/body timeouts default to 5 minutes and would cap OVSX_TIMEOUT; the
+// inactivity timer below is the only one that should apply. fetch and Agent come from the same
+// undici, since a dispatcher is not guaranteed to work with the copy bundled in node.
+const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
 
 export type RequestBody = string | Uint8Array | AsyncIterable<Uint8Array>;
 
@@ -55,9 +61,10 @@ export async function request(url: URL, options: RequestOptions): Promise<Respon
             body: streamed ? trackProgress(body, touch) : body,
             redirect: options.redirect,
             signal: controller.signal,
+            dispatcher,
             // required by fetch for a streamed request body
             ...(streamed ? { duplex: 'half' } : {})
-        } as RequestInit);
+        } as Parameters<typeof fetch>[1]) as unknown as Response;
     } catch (err) {
         stop();
         throw unwrapFetchError(err);

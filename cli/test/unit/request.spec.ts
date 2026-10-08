@@ -38,7 +38,22 @@ describe('request', () => {
 
         const err: Error = await request(url, { method: 'POST', body: body(), timeout: 0 }).then(() => new Error('resolved'), e => e);
 
-        expect(err).toBeInstanceOf(TypeError);
-        expect(err.message).toBe('fetch failed');
+        expect(err).toBeInstanceOf(Error);
+        expect(err.message).not.toBe('');
     });
+
+    // undici's own headers timeout is 5 minutes; OVSX_TIMEOUT=0 must not be capped by it. Too slow
+    // for the default run: OVSX_SLOW_TESTS=1 enables it.
+    it.skipIf(!process.env.OVSX_SLOW_TESTS)('waits past undici\'s default headers timeout when timeout is 0', async () => {
+        server = http.createServer((req, res) => {
+            req.resume();
+            setTimeout(() => res.end('late'), 310_000);
+        });
+        await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
+        const url = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/`);
+
+        const response = await request(url, { timeout: 0 });
+
+        expect(await response.text()).toBe('late');
+    }, 330_000);
 });

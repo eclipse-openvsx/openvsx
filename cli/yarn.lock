@@ -3281,6 +3281,7 @@ __metadata:
     rimraf: "npm:^6.0.1"
     semver: "npm:^7.6.0"
     typescript: "npm:^5.6.3"
+    undici: "npm:^7"
     vite: "npm:^8.3.2"
     vitest: "npm:^5.0.3"
     yauzl-promise: "npm:^4.0.0"
@@ -3919,6 +3920,13 @@ __metadata:
   version: 6.21.0
   resolution: "undici-types@npm:6.21.0"
   checksum: 10/ec8f41aa4359d50f9b59fa61fe3efce3477cc681908c8f84354d8567bb3701fafdddf36ef6bff307024d3feb42c837cf6f670314ba37fc8145e219560e473d14
+  languageName: node
+  linkType: hard
+
+"undici@npm:^7":
+  version: 7.30.0
+  resolution: "undici@npm:7.30.0"
+  checksum: 10/eb9e4bb5f1b4c35cb934c0d04fe676b62c3be06fb3be4a256ff73699bd77abc3d41f262597a4debd41f334c95ca3ea6e763268c3768882c3fc88a5d33234b8f6
   languageName: node
   linkType: hard
 

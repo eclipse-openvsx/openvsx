@@ -7,6 +7,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 #### Changed
 
 - `publish` checks a package against the size limit that applies to its own namespace, which a size override can raise above the registry default, and refuses an oversized upload before sending it. Against a registry older than 1.3.0, which cannot report that limit, it warns against the default and publishes anyway; if a registry that should be able to report it does not answer, it says the check did not happen rather than passing silently ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- Requests use `fetch` instead of `follow-redirects`: network errors report their underlying cause, a `POST` redirected with 301/302/303 fails with an explanatory error instead of being replayed as a body-less `GET`, and `maxNamespaceSize`/`maxPublishSize` are checked before anything is sent ([#2298](https://github.com/eclipse-openvsx/openvsx/pull/2298))
 
 #### Fixed
 
@@ -20,7 +21,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump vitest from 4.1.11 to 5.0.3, adding `vite` as a direct dev dependency - vitest 5 no longer bundles it, only requires it as a peer
 - Remove `leven`; the command-suggestion distance check now uses a vendored Levenshtein implementation, the same way `@vscode/vsce` itself replaced its own `leven` dependency in 4.0.0
 - Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`
-- Remove `follow-redirects`; requests now use Node's built-in `fetch`, which follows redirects itself
+- Remove `follow-redirects` in favour of `fetch` from `undici`, added as a dependency so its 5-minute headers and body timeouts can be disabled
 - Bump ip-address from 10.4.0 to 10.7.2
 - Bump brace-expansion to 1.1.21, 2.1.7, 5.0.12
 - Bump markdown-it from 14.2.0 to 14.3.2
