@@ -98,4 +98,13 @@ describe('ExtensionDetailOverview', () => {
         expect(await screen.findByText('Universal')).toBeInTheDocument();
         expect(screen.queryByLabelText(/installed size is larger/i)).not.toBeInTheDocument();
     });
+
+    it('links to the extension in a compatible client', async () => {
+        renderOverview();
+
+        expect(await screen.findByRole('link', { name: 'Open in Client' })).toHaveAttribute(
+            'href',
+            'vscode:extension/foo.bar'
+        );
+    });
 });
