@@ -194,6 +194,57 @@ class ScanAPITest {
     }
 
     @Test
+    void getScans_hidesErrorMessageOfActiveScannerJobs() throws Exception {
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
+
+        var scan = TestData.scan(
+                3,
+                "gamma",
+                "third",
+                "2.0.0",
+                "alpha-team",
+                ScanStatus.VALIDATING,
+                LocalDateTime.of(2024, 12, 3, 10, 0));
+        when(
+                repositories.findScansFullyFiltered(
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        anyBoolean(),
+                        any()))
+                .thenReturn(new PageImpl<>(List.of(scan), PageRequest.of(0, 1), 1));
+        when(repositories.findValidationFailures(any())).thenReturn(Streamable.empty());
+        when(repositories.findExtensionThreats(any())).thenReturn(Streamable.empty());
+        when(storageUtil.getFileUrls(anyList(), anyString(), any(), any())).thenReturn(Map.of());
+
+        var active = scannerJob(ScannerJob.JobStatus.PROCESSING);
+        var failed = scannerJob(ScannerJob.JobStatus.FAILED);
+        when(scanJobRepository.findByScanId(String.valueOf(scan.getId()))).thenReturn(List.of(active, failed));
+
+        mockMvc.perform(get("/admin/scans").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scans[0].scannerJobs[0].errorMessage").doesNotExist())
+                .andExpect(jsonPath("$.scans[0].scannerJobs[1].errorMessage").value("boom"));
+    }
+
+    private ScannerJob scannerJob(ScannerJob.JobStatus status) {
+        var job = new ScannerJob();
+        job.setScannerType("argus");
+        job.setStatus(status);
+        job.setErrorMessage("boom");
+        job.setCreatedAt(LocalDateTime.of(2024, 12, 3, 10, 0));
+        job.setUpdatedAt(LocalDateTime.of(2024, 12, 3, 10, 5));
+        return job;
+    }
+
+    @Test
     void getScans_namespace_partial_match_is_applied() throws Exception {
         when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
 
