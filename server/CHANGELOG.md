@@ -26,6 +26,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 #### Fixed
 
+- Keep polling async scanners through transient errors, and confirm an error status on a second poll before failing a scan ([#2307](https://github.com/eclipse-openvsx/openvsx/pull/2307))
 - Remove the max-override-size ceiling on extension size overrides ([#2297](https://github.com/eclipse-openvsx/openvsx/pull/2297))
 - TP: store extra information ([#2283](https://github.com/eclipse-openvsx/openvsx/pull/2283))
 - Lax the claim validation ([#2282](https://github.com/eclipse-openvsx/openvsx/pull/2282))
