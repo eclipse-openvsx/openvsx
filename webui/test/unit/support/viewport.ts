@@ -28,7 +28,10 @@ export interface TestViewport {
  * (which jsdom lacks). Elements start out of view unless `initiallyInView`.
  */
 export function createTestViewport({ initiallyInView = false } = {}): TestViewport {
-    const watched = new Map<Element, { onChange: (inView: boolean) => void; rootMargin: string }>();
+    // A list, not a Map keyed by element: the browser creates one independent
+    // IntersectionObserver per observe() call, so two hooks watching the same node (the
+    // consumer-owned-ref pattern useInView is built for) must not share, or clobber, a record.
+    let watched: Array<{ node: Element; onChange: (inView: boolean) => void; rootMargin: string }> = [];
     return {
         observer: {
             observe(node, onChange, rootMargin, once = false) {
@@ -37,11 +40,14 @@ export function createTestViewport({ initiallyInView = false } = {}): TestViewpo
                     // Mirrors browserViewportObserver: already latched, nothing left to watch.
                     return () => {};
                 }
-                watched.set(node, { onChange, rootMargin });
-                return () => watched.delete(node);
+                const record = { node, onChange, rootMargin };
+                watched.push(record);
+                return () => {
+                    watched = watched.filter(w => w !== record);
+                };
             }
         },
-        observed: () => [...watched].map(([node, { rootMargin }]) => ({ node, rootMargin })),
+        observed: () => watched.map(({ node, rootMargin }) => ({ node, rootMargin })),
         setInView: inView => act(() => watched.forEach(({ onChange }) => onChange(inView)))
     };
 }

@@ -68,6 +68,38 @@ describe('useInView', () => {
         expect(inView()).toBe(false);
     });
 
+    it('lets two hooks share one ref without one disconnecting the other', () => {
+        const viewport = createTestViewport();
+        const TwoHooksProbe = () => {
+            const ref = useRef<HTMLDivElement>(null);
+            const latched = useInView(ref);
+            const live = useInView(ref, { once: false });
+            return (
+                <>
+                    <div ref={ref} />
+                    <output data-testid='latched'>{String(latched)}</output>
+                    <output data-testid='live'>{String(live)}</output>
+                </>
+            );
+        };
+        render(
+            <ViewportObserverContext.Provider value={viewport.observer}>
+                <TwoHooksProbe />
+            </ViewportObserverContext.Provider>
+        );
+        expect(viewport.observed()).toHaveLength(2);
+
+        viewport.setInView(true);
+        expect(screen.getByTestId('latched').textContent).toBe('true');
+        expect(screen.getByTestId('live').textContent).toBe('true');
+        // The latching hook disconnected on seeing true; the non-latching one must still be watching.
+        expect(viewport.observed()).toHaveLength(1);
+
+        viewport.setInView(false);
+        expect(screen.getByTestId('latched').textContent).toBe('true'); // stays latched
+        expect(screen.getByTestId('live').textContent).toBe('false'); // follows
+    });
+
     it('still measures the element when `initialInView` assumes it is already visible', () => {
         const viewport = createTestViewport();
 
