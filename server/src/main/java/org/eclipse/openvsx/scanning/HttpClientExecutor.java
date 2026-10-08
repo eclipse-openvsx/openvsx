@@ -135,7 +135,8 @@ public class HttpClientExecutor {
     }
 
     /**
-     * Execute an HTTP request based on configuration. Any non-2xx response is an error.
+     * Execute an HTTP request based on configuration. Redirects are followed by the HTTP client; any non-2xx final
+     * response is an error.
      */
     public String execute(
             RemoteScannerProperties.HttpOperation operation,
@@ -156,7 +157,7 @@ public class HttpClientExecutor {
                     requestEntity,
                     String.class);
 
-            // RestTemplate only throws for 4xx/5xx, so a 3xx must be rejected here.
+            // RestTemplate only throws for 4xx/5xx; an unfollowed 3xx (e.g. 300, 304) must be rejected here.
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new ScannerException(
                         "Unexpected HTTP status " + response.getStatusCode() + " on " + operation.getMethod() + " "
