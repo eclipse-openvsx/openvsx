@@ -9,21 +9,32 @@
  ********************************************************************************/
 
 import { FunctionComponent, useContext, useRef, useState } from 'react';
-import { Button } from '@mui/material';
+import { Autocomplete, Box, Button, Checkbox, FormControlLabel, FormHelperText, TextField } from '@mui/material';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { isError } from '../../../extension-registry-types';
 import { MainContext } from '../../../context';
+import { useUserNamespaces } from '../namespaces/use-user-namespaces';
+import { useNamespaceExtensions } from './use-namespace-extensions';
 
 export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogProps> = props => {
     const context = useContext(MainContext);
+    const { data: namespaces = [], isLoading } = useUserNamespaces();
     const abortController = useRef<AbortController>(new AbortController());
     const [open, setOpen] = useState(false);
+    const [namespace, setNamespace] = useState('');
+    const [extension, setExtension] = useState('');
+    const { data: extensions = [], isLoading: extensionsLoading } = useNamespaceExtensions(namespace);
+    const [publishingOnly, setPublishingOnly] = useState(false);
 
     const handleGenerate = async (description: string): Promise<string> => {
         if (!context.user) {
             throw new Error('Not logged in');
         }
-        const token = await context.service.createAccessToken(abortController.current, context.user, description);
+        const token = await context.service.createAccessToken(abortController.current, context.user, description, {
+            namespace: namespace || undefined,
+            extension: extension || undefined,
+            publishingOnly
+        });
         if (isError(token)) {
             throw token;
         }
@@ -40,10 +51,65 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
             </Button>
             <GenerateTokenDialog
                 open={open}
-                onClose={() => setOpen(false)}
+                onClose={() => {
+                    setOpen(false);
+                    setNamespace('');
+                    setExtension('');
+                    setPublishingOnly(false);
+                }}
                 onGenerate={handleGenerate}
-                onError={context.handleError}
-            />
+                onError={context.handleError}>
+                <Box mt={2} display='flex' flexDirection='column' gap={2}>
+                    <Autocomplete
+                        fullWidth
+                        options={namespaces.map(ns => ns.name)}
+                        loading={isLoading}
+                        value={namespace || null}
+                        onChange={(_, value) => {
+                            setNamespace(value ?? '');
+                            // the extension belongs to the namespace, so a stale one must not outlive it
+                            setExtension('');
+                        }}
+                        renderInput={params => (
+                            <TextField
+                                {...params}
+                                label='Namespace (optional)'
+                                helperText='Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
+                            />
+                        )}
+                    />
+                    <Autocomplete
+                        fullWidth
+                        options={extensions}
+                        loading={extensionsLoading}
+                        disabled={!namespace}
+                        value={extension || null}
+                        onChange={(_, value) => setExtension(value ?? '')}
+                        renderInput={params => (
+                            <TextField
+                                {...params}
+                                label='Extension (optional)'
+                                helperText='Restrict the token to one extension of the namespace.'
+                            />
+                        )}
+                    />
+                    <Box>
+                        <FormControlLabel
+                            label='Publishing only'
+                            control={
+                                <Checkbox
+                                    checked={publishingOnly}
+                                    onChange={e => setPublishingOnly(e.target.checked)}
+                                />
+                            }
+                        />
+                        <FormHelperText>
+                            The token can only publish extensions. It cannot create namespaces, delete extensions or use
+                            administration endpoints.
+                        </FormHelperText>
+                    </Box>
+                </Box>
+            </GenerateTokenDialog>
         </>
     );
 };

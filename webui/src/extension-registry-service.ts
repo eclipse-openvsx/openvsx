@@ -124,6 +124,11 @@ export class ExtensionRegistryService {
         return sendNonRetriableRequest<DownloadSeries>({ abortController, endpoint });
     }
 
+    /** The public namespace listing, which names only the namespace's active extensions. */
+    async getPublicNamespace(abortController: AbortController, name: string): Promise<Readonly<Namespace>> {
+        return sendStrictRequest({ abortController, endpoint: createAbsoluteURL([this.serverUrl, 'api', name]) });
+    }
+
     async getNamespaceDetails(abortController: AbortController, name: string): Promise<Readonly<NamespaceDetails>> {
         const endpoint = createAbsoluteURL([this.serverUrl, 'api', name, 'details']);
         return sendStrictRequest({ abortController, endpoint });
@@ -352,7 +357,8 @@ export class ExtensionRegistryService {
     async createAccessToken(
         abortController: AbortController,
         user: UserData,
-        description: string
+        description: string,
+        scope?: { namespace?: string; extension?: string; publishingOnly?: boolean }
     ): Promise<Readonly<PersonalAccessToken>> {
         const csrfResponse = await this.getCsrfToken(abortController);
         const headers: Record<string, string> = {};
@@ -361,7 +367,12 @@ export class ExtensionRegistryService {
             headers[csrfToken.header] = csrfToken.value;
         }
 
-        const endpoint = addQuery(user.createTokenUrl, [{ key: 'description', value: description }]);
+        const endpoint = addQuery(user.createTokenUrl, [
+            { key: 'description', value: description },
+            { key: 'namespace', value: scope?.namespace },
+            { key: 'extension', value: scope?.extension },
+            { key: 'publishingOnly', value: scope?.publishingOnly ? 'true' : undefined }
+        ]);
         return sendRequest({
             abortController,
             method: 'POST',

@@ -117,10 +117,17 @@ public class AccessTokenService {
     }
 
     /**
-     * Creates a long-lived token for user. Depending on configuration, the token expiration may be set as well.
+     * Creates a long-lived token for user, scoped to the extension if given, else to the namespace if given.
+     * Depending on configuration, the token expiration may be set as well.
      */
     @Transactional
-    public AccessTokenJson createLongLivedAccessToken(UserData user, String description) {
+    public AccessTokenJson createLongLivedAccessToken(
+            UserData user,
+            String description,
+            @Nullable Namespace scopeNamespace,
+            @Nullable Extension scopeExtension,
+            boolean publishingOnly
+    ) {
         requireNonNull(user);
         final LocalDateTime expiresTimestamp = config.isTokenExpiryEnabled()
                 ? TimeUtil.getCurrentUTC().plus(config.getExpiration())
@@ -131,9 +138,9 @@ public class AccessTokenService {
                 expiresTimestamp,
                 null,
                 null,
-                null,
-                null,
-                PersonalAccessTokenType.LLT);
+                scopeExtension,
+                scopeNamespace,
+                publishingOnly ? PersonalAccessTokenType.LLP : PersonalAccessTokenType.LLT);
     }
 
     /**
@@ -281,7 +288,7 @@ public class AccessTokenService {
         }
         // scope
         AccessTokenScope scope = getScope(token);
-        if (!scope.allowsAction(accessTokenAction)) {
+        if (!(accessTokenAction instanceof AccessTokenAction.Verify) && !scope.allowsAction(accessTokenAction)) {
             return null;
         }
         // bookkeeping; if "using"
@@ -408,13 +415,14 @@ public class AccessTokenService {
         } else {
             scope = new AccessTokenScope.Unrestricted();
         }
-        if (token.getType() == PersonalAccessTokenType.TPT) {
-            // VerifyPublishVersion asks whether this token could publish, which is strictly less than
-            // publishing and is what the size-limit preflight runs before the publish itself.
+        if (token.getType().isPublishOnly()) {
+            // The verify actions ask whether this token could publish, which is strictly less than
+            // publishing: the size-limit preflight and `ovsx verify-pat` run them before the publish itself.
             scope = scope.and(
                     new AccessTokenScope.ActionScoped(
                             AccessTokenAction.PublishVersion.class,
-                            AccessTokenAction.VerifyPublishVersion.class));
+                            AccessTokenAction.VerifyPublishVersion.class,
+                            AccessTokenAction.VerifyNamespace.class));
         }
         return scope;
     }
@@ -464,7 +472,8 @@ public class AccessTokenService {
 
     @Transactional
     public int setExpirationTimeForLegacyAccessTokens(LocalDateTime expirationTime) {
-        return repositories.updateExpiresTimeForLegacyPersonalAccessTokens(expirationTime, PersonalAccessTokenType.LLT);
+        return repositories
+                .updateExpiresTimeForLegacyPersonalAccessTokens(expirationTime, PersonalAccessTokenType.LONG_LIVED);
     }
 
     /**

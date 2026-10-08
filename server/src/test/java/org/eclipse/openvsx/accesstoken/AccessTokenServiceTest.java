@@ -252,6 +252,7 @@ class AccessTokenServiceTest {
 
         assertThat(accessTokenService.generateTokenValue(PersonalAccessTokenType.TPT)).startsWith("ovsxtp_");
         assertThat(accessTokenService.generateTokenValue(PersonalAccessTokenType.LLT)).startsWith("ovsxat_");
+        assertThat(accessTokenService.generateTokenValue(PersonalAccessTokenType.LLP)).startsWith("ovsxap_");
     }
 
     @Test
@@ -262,6 +263,197 @@ class AccessTokenServiceTest {
                 () -> accessTokenService.generateTokenValue(PersonalAccessTokenType.LLT)).limit(100).toList();
 
         assertThat(values).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void scopesALongLivedTokenToTheExtensionWhenGiven() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(namespace);
+        when(config.getPrefix()).thenReturn("ovsx");
+
+        var json = accessTokenService.createLongLivedAccessToken(new UserData(), "scoped", namespace, extension, false);
+
+        var persisted = ArgumentCaptor.forClass(PersonalAccessToken.class);
+        verify(entityManager).persist(persisted.capture());
+        assertThat(persisted.getValue().getType()).isEqualTo(PersonalAccessTokenType.LLT);
+        assertThat(persisted.getValue().getScopeExtension()).isSameAs(extension);
+        assertThat(persisted.getValue().getScopeNamespace()).isNull();
+        assertThat(json.getScopeNamespace()).isEqualTo("foo");
+        assertThat(json.getScopeExtension()).isEqualTo("bar");
+    }
+
+    @Test
+    void scopesALongLivedTokenToTheNamespaceWhenGiven() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        when(config.getPrefix()).thenReturn("ovsx");
+
+        var json = accessTokenService.createLongLivedAccessToken(new UserData(), "scoped", namespace, null, false);
+
+        var persisted = ArgumentCaptor.forClass(PersonalAccessToken.class);
+        verify(entityManager).persist(persisted.capture());
+        assertThat(persisted.getValue().getScopeNamespace()).isSameAs(namespace);
+        assertThat(json.getScopeNamespace()).isEqualTo("foo");
+        assertThat(json.getScopeExtension()).isNull();
+    }
+
+    @Test
+    void enforcesTheNamespaceScopeOfALongLivedToken() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        token.setScopeNamespace(namespace);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "bar")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("other", "bar")))
+                .isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.VerifyNamespace("other")))
+                .isNull();
+        // identifying the caller is not an action on any namespace
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNotNull();
+    }
+
+    // Tokens made while expiry was off have no expiry; enabling it must reach every long-lived type.
+    @Test
+    void backfillsTheExpiryOfEveryLongLivedTokenType() {
+        var expiration = LocalDateTime.now(ZoneId.of("UTC")).plusDays(7);
+        when(repositories.updateExpiresTimeForLegacyPersonalAccessTokens(any(), any())).thenReturn(3);
+
+        assertThat(accessTokenService.setExpirationTimeForLegacyAccessTokens(expiration)).isEqualTo(3);
+
+        verify(repositories).updateExpiresTimeForLegacyPersonalAccessTokens(
+                expiration,
+                List.of(PersonalAccessTokenType.LLT, PersonalAccessTokenType.LLP));
+    }
+
+    @Test
+    void createsAPublishingOnlyLongLivedTokenWhenAsked() {
+        when(config.getPrefix()).thenReturn("ovsx");
+
+        var json = accessTokenService.createLongLivedAccessToken(new UserData(), "ci", null, null, true);
+
+        var persisted = ArgumentCaptor.forClass(PersonalAccessToken.class);
+        verify(entityManager).persist(persisted.capture());
+        assertThat(persisted.getValue().getType()).isEqualTo(PersonalAccessTokenType.LLP);
+        assertThat(json.isPublishingOnly()).isTrue();
+        assertThat(json.getValue()).startsWith("ovsxap_");
+    }
+
+    @Test
+    void createsAnOrdinaryLongLivedTokenByDefault() {
+        when(config.getPrefix()).thenReturn("ovsx");
+
+        var json = accessTokenService.createLongLivedAccessToken(new UserData(), "ci", null, null, false);
+
+        var persisted = ArgumentCaptor.forClass(PersonalAccessToken.class);
+        verify(entityManager).persist(persisted.capture());
+        assertThat(persisted.getValue().getType()).isEqualTo(PersonalAccessTokenType.LLT);
+        assertThat(json.isPublishingOnly()).isFalse();
+    }
+
+    @Test
+    void lettingAPublishingOnlyTokenPublishAndVerifyButNothingElse() {
+        var token = publishingOnlyToken(null, null);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "bar")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.VerifyPublishVersion("foo", "bar")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.VerifyNamespace("foo")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Verify())).isNotNull();
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.DeleteVersion("foo", "bar")))
+                .isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.CreateNamespace("foo"))).isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Administration())).isNull();
+    }
+
+    @Test
+    void keepsAPublishingOnlyTokenUsableAfterUse() {
+        var token = publishingOnlyToken(null, null);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        for (var i = 0; i < 2; i++) {
+            assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "bar")))
+                    .isNotNull();
+        }
+
+        assertThat(token.getAccessedTimestamp()).isNotNull();
+        verify(entityManager, never()).remove(any());
+    }
+
+    @Test
+    void appliesTheNamespaceScopeOnTopOfThePublishingOnlyRestriction() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var token = publishingOnlyToken(namespace, null);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "any")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("other", "any")))
+                .isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.VerifyNamespace("other")))
+                .isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.DeleteVersion("foo", "any")))
+                .isNull();
+    }
+
+    @Test
+    void appliesTheExtensionScopeOnTopOfThePublishingOnlyRestriction() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(namespace);
+        var token = publishingOnlyToken(null, extension);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "bar")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "other")))
+                .isNull();
+        // an extension scoped token is valid for the namespace its extension lives in
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.VerifyNamespace("foo")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.DeleteVersion("foo", "bar")))
+                .isNull();
+    }
+
+    @Test
+    void enforcesTheExtensionScopeOfALongLivedToken() {
+        var namespace = new Namespace();
+        namespace.setName("foo");
+        var extension = new Extension();
+        extension.setName("bar");
+        extension.setNamespace(namespace);
+        var token = activeUnrestrictedToken();
+        token.setUser(new UserData());
+        token.setScopeExtension(extension);
+        when(repositories.findPersonalAccessToken(anyString())).thenReturn(token);
+
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "bar")))
+                .isNotNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.PublishVersion("foo", "other")))
+                .isNull();
+        assertThat(accessTokenService.useAccessToken("tok", new AccessTokenAction.Administration())).isNull();
+    }
+
+    private PersonalAccessToken publishingOnlyToken(Namespace scopeNamespace, Extension scopeExtension) {
+        var token = activeUnrestrictedToken();
+        token.setType(PersonalAccessTokenType.LLP);
+        token.setUser(new UserData());
+        token.setScopeNamespace(scopeNamespace);
+        token.setScopeExtension(scopeExtension);
+        return token;
     }
 
     // How long a publishing token lives is the trusted publishing configuration's to decide, so this

@@ -29,9 +29,9 @@ const token: PersonalAccessToken = {
     deleteTokenUrl: ''
 };
 
-function renderTokens(mainContext: Partial<MainContext> = {}) {
+function renderTokens(mainContext: Partial<MainContext> = {}, tokens: PersonalAccessToken[] = [token]) {
     const deleteAccessToken = vi.fn().mockResolvedValue(undefined);
-    const getAccessTokens = vi.fn().mockResolvedValue([token]);
+    const getAccessTokens = vi.fn().mockResolvedValue(tokens);
     const service = {
         getAccessTokens,
         deleteAccessToken,
@@ -99,5 +99,39 @@ describe('UserSettingsTokens', () => {
 
         await waitFor(() => expect(screen.queryByText('Revoke access token')).not.toBeInTheDocument());
         expect(deleteAccessToken).not.toHaveBeenCalled();
+    });
+});
+
+describe('UserSettingsTokens — token scope', () => {
+    it('shows the namespace scope', async () => {
+        renderTokens({}, [{ ...token, scopeNamespace: 'foo' }]);
+
+        expect(await screen.findByText('Scope: foo')).toBeInTheDocument();
+    });
+
+    it('shows the extension scope as namespace.extension', async () => {
+        renderTokens({}, [{ ...token, scopeNamespace: 'foo', scopeExtension: 'bar' }]);
+
+        expect(await screen.findByText('Scope: foo.bar')).toBeInTheDocument();
+    });
+
+    it('marks a publishing only token, with its scope if it has one', async () => {
+        renderTokens({}, [{ ...token, publishingOnly: true, scopeNamespace: 'foo' }]);
+
+        expect(await screen.findByText('Scope: foo · Publishing only')).toBeInTheDocument();
+    });
+
+    it('marks a publishing only token that has no scope', async () => {
+        renderTokens({}, [{ ...token, publishingOnly: true }]);
+
+        expect(await screen.findByText('Publishing only')).toBeInTheDocument();
+    });
+
+    it('shows neither for an unrestricted token', async () => {
+        renderTokens();
+
+        await screen.findByText('publishing token');
+        expect(screen.queryByText(/Scope:/)).not.toBeInTheDocument();
+        expect(screen.queryByText('Publishing only')).not.toBeInTheDocument();
     });
 });

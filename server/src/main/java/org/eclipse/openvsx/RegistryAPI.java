@@ -157,6 +157,7 @@ public class RegistryAPI {
     public ResponseEntity<ResultJson> verifyToken(
             HttpServletRequest request,
             @PathVariable
+            @NotBlank(message = "namespace must not be blank")
             @Parameter(description = "Namespace", example = "GitLab") String namespace,
             @RequestParam(required = false)
             @Parameter(description = TOKEN_PARAM_DESCRIPTION, deprecated = true) String token

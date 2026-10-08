@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { ChangeEvent, FunctionComponent, useState } from 'react';
+import { ChangeEvent, FunctionComponent, ReactNode, useState } from 'react';
 import {
     Button,
     Dialog,
@@ -150,6 +150,7 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
                                         }}
                                     />
                                 </Box>
+                                {props.children}
                             </>
                         )}
                     </DialogContent>
@@ -177,4 +178,5 @@ export interface GenerateTokenDialogProps {
     onGenerate: (description: string) => Promise<string>;
     onError?: (err: unknown) => void;
     title?: string;
+    children?: ReactNode;
 }
