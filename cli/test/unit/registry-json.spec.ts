@@ -84,6 +84,23 @@ describe('Registry JSON requests', () => {
         await expect(registry.getJson(new URL(`${url}/api/old`))).resolves.toEqual({ success: '/api/new' });
     });
 
+    it('accepts node-style header values', async () => {
+        let received: http.IncomingHttpHeaders = {};
+        const url = await serve((req, res) => {
+            received = req.headers;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end('{}');
+        });
+        const registry = new Registry({ registryUrl: url });
+        const headers: http.OutgoingHttpHeaders = { 'X-Number': 42, 'X-List': ['a', 'b'], 'X-Unset': undefined };
+
+        await registry.getJson(new URL(`${url}/api/foo`), headers);
+
+        expect(received['x-number']).toBe('42');
+        expect(received['x-list']).toBe('a, b');
+        expect(received).not.toHaveProperty('x-unset');
+    });
+
     describe('request body limits', () => {
         async function serveRecording(): Promise<{ url: string; paths: string[] }> {
             const paths: string[] = [];

@@ -9,6 +9,7 @@
  ********************************************************************************/
 
 import * as fs from 'fs';
+import * as http from 'http';
 import * as semver from 'semver';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
@@ -286,17 +287,17 @@ export class Registry {
         }
     }
 
-    getJson<T extends Response>(url: URL, headers?: Record<string, string>): Promise<T> {
+    getJson<T extends Response>(url: URL, headers?: http.OutgoingHttpHeaders): Promise<T> {
         return this.send<T>(url, 'GET', headers);
     }
 
-    async post<T extends Response>(content: string | Buffer | Uint8Array, url: URL, headers?: Record<string, string>, maxBodyLength?: number): Promise<T> {
+    async post<T extends Response>(content: string | Buffer | Uint8Array, url: URL, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): Promise<T> {
         const size = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength;
         checkBodySize(size, maxBodyLength);
         return this.send<T>(url, 'POST', headers, content);
     }
 
-    async postFile<T extends Response>(file: string, url: URL, headers?: Record<string, string>, maxBodyLength?: number): Promise<T> {
+    async postFile<T extends Response>(file: string, url: URL, headers?: http.OutgoingHttpHeaders, maxBodyLength?: number): Promise<T> {
         const { size } = await fs.promises.stat(file);
         checkBodySize(size, maxBodyLength);
 
@@ -381,15 +382,16 @@ export class Registry {
         return url;
     }
 
-    private withBasicAuth(headers?: Record<string, string>): Record<string, string> {
+    private withBasicAuth(headers?: http.OutgoingHttpHeaders): Record<string, string> {
+        const normalized = toFetchHeaders(headers);
         if (this.username && this.password) {
             const credentials = Buffer.from(this.username + ':' + this.password).toString('base64');
-            return { ...headers, Authorization: 'Basic ' + credentials };
+            return { ...withoutHeader(normalized, 'authorization'), Authorization: 'Basic ' + credentials };
         }
-        return { ...headers };
+        return normalized;
     }
 
-    private async send<T extends Response>(url: URL, method: string, headers?: Record<string, string>, body?: RequestBody): Promise<T> {
+    private async send<T extends Response>(url: URL, method: string, headers?: http.OutgoingHttpHeaders, body?: RequestBody): Promise<T> {
         const response = await request(url, {
             method,
             headers: this.withBasicAuth(headers),
@@ -416,6 +418,20 @@ async function parseJson<T>(response: globalThis.Response): Promise<T> {
         throw json;
     }
     return JSON.parse(json);
+}
+
+/**
+ * The public request methods take node's header type; fetch wants strings. Array values are joined
+ * the way fetch's own Headers.append combines repeated headers.
+ */
+function toFetchHeaders(headers: http.OutgoingHttpHeaders = {}): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const [name, value] of Object.entries(headers)) {
+        if (value !== undefined) {
+            result[name] = Array.isArray(value) ? value.join(', ') : String(value);
+        }
+    }
+    return result;
 }
 
 function withoutHeader(headers: Record<string, string>, name: string): Record<string, string> {
