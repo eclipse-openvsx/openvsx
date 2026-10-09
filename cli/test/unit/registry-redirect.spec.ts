@@ -13,6 +13,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
+import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { AddressInfo } from 'node:net';
@@ -138,6 +139,28 @@ describe('Registry redirects', () => {
         await new Registry({ registryUrl: server.url }).publish(file, 'the.pat');
         const uploads = server.received.filter(r => r.method === 'POST').map(r => [r.path, r.body]);
         expect(uploads).toEqual([['/api/-/publish', 'package bytes'], ['/v2/publish', 'package bytes']]);
+    });
+
+    // A proxy can answer before reading the upload and then reset the connection.
+    it('follows a 307 sent before the upload is read, then reset', async () => {
+        // Answers after the reset, so an error from the abandoned hop would settle first.
+        const target = await serve((_, res) => setTimeout(() => json(res, { name: 'ext' }), 300));
+        const early = net.createServer(socket => {
+            socket.once('data', () => {
+                socket.pause();
+                socket.write(`HTTP/1.1 307 Temporary Redirect\r\nLocation: ${target.url}/upload\r\nContent-Length: 0\r\n\r\n`);
+                setTimeout(() => socket.resetAndDestroy(), 100);
+            });
+        });
+        await new Promise<void>(resolve => early.listen(0, '127.0.0.1', resolve));
+        try {
+            const file = tempFile('x'.repeat(16 * 1024 * 1024));
+            const url = new URL(`http://127.0.0.1:${(early.address() as AddressInfo).port}/upload`);
+            await expect(new Registry({ registryUrl: target.url }).postFile(file, url)).resolves.toEqual({ name: 'ext' });
+            expect(target.received[0].body.length).toBe(16 * 1024 * 1024);
+        } finally {
+            await new Promise<void>(resolve => early.close(() => resolve()));
+        }
     });
 
     it('sends a JSON body again on a 308', async () => {

@@ -428,6 +428,15 @@ export class Registry {
                 fail(withStatus(new Error(`The ${options.method} request to ${redactUrl(url)} was redirected to ${redactUrl(next)} `
                     + `with status ${status}, which drops the request body. Use the redirect target as the registry URL.`), status));
             } else {
+                // The server may answer before reading the body: abandon this hop so its stream
+                // releases the file and a late reset on its socket can't fail the next hop.
+                request.removeListener('error', fail);
+                request.on('error', () => { /* abandoned */ });
+                if (content instanceof fs.ReadStream) {
+                    content.unpipe(request);
+                    content.destroy();
+                }
+                request.destroy();
                 const headers = next.origin === url.origin ? options.headers : withoutCredentials(options.headers as http.OutgoingHttpHeaders);
                 this.send(next, { ...options, headers }, body, onResponse, fail, hops + 1);
             }
