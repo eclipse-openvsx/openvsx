@@ -33,6 +33,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times (#2237)
 - The publish page no longer refuses a package larger than the registry's default limit without asking the server. A namespace with a size override may publish more than the default allows, so the upload is now only blocked above the registry's ceiling — the largest any namespace could publish. A package that looks too big is shown in the queue while that ceiling is re-read, rather than the page staying empty until the answer arrives ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 - The admin dashboard's Settings page sends only the settings that were changed, so saving no longer reverts a setting another admin changed while the page was open ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- The namespace details form no longer enables Save after a social handle is typed and then cleared
 
 ### Dependencies
 
@@ -47,6 +48,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Pin the transitive `node-gyp` resolution to `^13.1.0` (from 12.2.0), which `fsevents`' optional dependency had resolved to `latest`
 - Bump source-map-js from 1.2.1 to 1.2.2
 - Bump proxy-addr from 2.0.7 to 2.0.8
+- Remove `lodash` and `@types/lodash`
 
 ## [v1.2.0] (10/09/2026)
 

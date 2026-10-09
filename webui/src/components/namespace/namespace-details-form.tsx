@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { ChangeEvent, FunctionComponent, useContext, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FunctionComponent, useContext, useEffect, useState } from 'react';
 import {
     Box,
     Link,
@@ -26,7 +26,6 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { MainContext } from '../../context';
 import { DelayedLoadIndicator } from '../delayed-load-indicator';
 import { Namespace, NamespaceDetails } from '../../extension-registry-types';
-import _ from 'lodash';
 import { styled } from '@mui/material/styles';
 import { SaveButton } from '../save-button';
 import { DetailRow, DetailsCard, DetailsGroupLabel } from '../details-card';
@@ -55,10 +54,14 @@ const parseLinkedInUrl = (url: string): { handle: string; accountType: string } 
 /** Placeholder shown for a details field the namespace hasn't filled in yet. */
 const NOT_SET = '—';
 
-/** Whether both details hold the same values, treating empty and missing fields alike. */
-const equalIgnoringEmpty = (a?: NamespaceDetails, b?: NamespaceDetails): boolean => {
-    const isFalsy = (x: unknown) => !x;
-    return _.isEqual(_.omitBy(a, isFalsy), _.omitBy(b, isFalsy));
+/** Deep equality that treats empty and missing values alike, at every level. */
+const equalIgnoringEmpty = (a: unknown, b: unknown): boolean => {
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') {
+        return (a || undefined) === (b || undefined);
+    }
+    const x = a as Record<string, unknown>;
+    const y = b as Record<string, unknown>;
+    return [...new Set([...Object.keys(x), ...Object.keys(y)])].every(key => equalIgnoringEmpty(x[key], y[key]));
 };
 
 export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> = props => {
@@ -81,8 +84,6 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
     const [editMode, setEditMode] = useState<boolean>(false);
     const { saved, flash } = useSavedFlash(1200, () => setEditMode(false));
     const [linkedInAccountType, setLinkedInAccountType] = useState<string>(LINKED_IN_PERSONAL);
-
-    const noChanges = useMemo(() => equalIgnoringEmpty(currentDetails, newDetails), [currentDetails, newDetails]);
 
     const copy = (arg: NamespaceDetails): NamespaceDetails => {
         return JSON.parse(JSON.stringify(arg));
@@ -141,6 +142,12 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
         },
         logo: source.logo
     });
+
+    // Compared as payloads, so only what Save would send counts as a change.
+    const noChanges =
+        !currentDetails ||
+        !newDetails ||
+        equalIgnoringEmpty(buildDetailsPayload(currentDetails), buildDetailsPayload(newDetails));
 
     const saveDetails = async () => {
         if (!newDetails) {
