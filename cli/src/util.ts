@@ -16,8 +16,6 @@ import * as http from 'http';
 import { RegistryOptions } from './registry-options';
 import { TrustedPublishingOptions } from './trusted-publishing-options';
 
-export { promisify } from 'util';
-
 export function addEnvOptions(options: RegistryOptions): void {
     options.registryUrl ??= process.env.OVSX_REGISTRY_URL;
     options.pat ??= process.env.OVSX_PAT;
@@ -103,27 +101,6 @@ export function levenshtein(a: string, b: string): number {
         }
     }
     return row[b.length];
-}
-
-export function optionalStat(path: fs.PathLike): Promise<fs.Stats | undefined> {
-    return new Promise((resolve, reject) => {
-        fs.stat(path, (err, stats) => resolve(stats));
-    });
-}
-
-export function makeDirs(path: fs.PathLike): Promise<void> {
-    return new Promise((resolve, reject) => {
-        if (fs.existsSync(path)) {
-            resolve();
-        } else {
-            fs.mkdir(path, { recursive: true }, (err: NodeJS.ErrnoException | null) => {
-                if (err)
-                    reject(err);
-                else
-                    resolve();
-            });
-        }
-    });
 }
 
 /**
@@ -216,24 +193,8 @@ export function statusError(response: http.IncomingMessage): StatusError {
     return withStatus(new Error(message), response.statusCode);
 }
 
-export function readFile(name: string, packagePath?: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {
-    return new Promise((resolve, reject) => {
-        fs.readFile(
-            path.join(packagePath ?? process.cwd(), name),
-            { encoding },
-            (err: NodeJS.ErrnoException | null, content: string) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(content);
-                }
-            }
-        );
-    });
-}
-
 export async function readManifest(packagePath?: string): Promise<Manifest> {
-    const content = await readFile('package.json', packagePath);
+    const content = await fs.promises.readFile(path.join(packagePath ?? process.cwd(), 'package.json'), 'utf-8');
     return JSON.parse(content);
 }
 
@@ -249,26 +210,9 @@ export function validateManifest(manifest: Manifest): void {
     }
 }
 
-export function writeFile(name: string, content: string, packagePath?: string, encoding: BufferEncoding = 'utf-8'): Promise<void> {
-    return new Promise((resolve, reject) => {
-        fs.writeFile(
-            path.join(packagePath ?? process.cwd(), name),
-            content,
-            { encoding },
-            (err: NodeJS.ErrnoException | null) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve();
-                }
-            }
-        );
-    });
-}
-
 export function writeManifest(manifest: Manifest, packagePath?: string): Promise<void> {
     const content = JSON.stringify(manifest, null, 4);
-    return writeFile('package.json', content, packagePath);
+    return fs.promises.writeFile(path.join(packagePath ?? process.cwd(), 'package.json'), content, 'utf-8');
 }
 
 export interface Manifest {

@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getTempFilePath, levenshtein } from '../../src/util';
+import { getTempFilePath, levenshtein, readManifest, writeManifest } from '../../src/util';
 
 describe('getTempFilePath', () => {
 
@@ -75,5 +75,39 @@ describe('levenshtein', () => {
     // main.ts suggests a command when its distance to the typo is under 40% of the command's length.
     it('stays under the 40%-of-length threshold main.ts suggests a command at', () => {
         expect(levenshtein('publish', 'pubilsh')).toBeLessThan('publish'.length * 0.4);
+    });
+});
+
+describe('file helpers', () => {
+
+    let dir: string;
+
+    afterEach(() => {
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    function givenTempDir(): string {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ovsx-util-'));
+        return dir;
+    }
+
+    it('writeManifest writes package.json to the package path', async () => {
+        givenTempDir();
+        const manifest = { publisher: 'p', name: 'n', version: '1.0.0', license: 'MIT' };
+
+        await writeManifest(manifest, dir);
+
+        expect(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))).toEqual(manifest);
+    });
+
+    it('readManifest parses package.json from the package path', async () => {
+        givenTempDir();
+        fs.writeFileSync(path.join(dir, 'package.json'), '{"publisher":"p","name":"n","version":"1.0.0"}');
+
+        expect(await readManifest(dir)).toEqual({ publisher: 'p', name: 'n', version: '1.0.0' });
+    });
+
+    it('readManifest rejects when package.json is missing', async () => {
+        await expect(readManifest(givenTempDir())).rejects.toMatchObject({ code: 'ENOENT' });
     });
 });
