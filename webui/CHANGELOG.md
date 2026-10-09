@@ -46,6 +46,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump fast-uri from 3.1.7 to 3.1.8
 - Pin the transitive `node-gyp` resolution to `^13.1.0` (from 12.2.0), which `fsevents`' optional dependency had resolved to `latest`
 - Bump source-map-js from 1.2.1 to 1.2.2
+- Bump proxy-addr from 2.0.7 to 2.0.8
 
 ## [v1.2.0] (10/09/2026)
 
