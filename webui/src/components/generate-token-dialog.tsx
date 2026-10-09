@@ -42,7 +42,7 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
     const [copied, setCopied] = useState(false);
     const [showToken, setShowToken] = useState(false);
 
-    const { open, onClose, title = 'Generate new token' } = props;
+    const { open, onClose, title = 'Generate new token', canGenerate: inputValid = true } = props;
 
     const resetState = () => {
         setLoading(false);
@@ -89,7 +89,7 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
         }
     };
 
-    const canGenerate = !descriptionError && !loading;
+    const canGenerate = !descriptionError && !loading && inputValid;
 
     return (
         <>
@@ -178,5 +178,6 @@ export interface GenerateTokenDialogProps {
     onGenerate: (description: string) => Promise<string>;
     onError?: (err: unknown) => void;
     title?: string;
+    canGenerate?: boolean;
     children?: ReactNode;
 }
