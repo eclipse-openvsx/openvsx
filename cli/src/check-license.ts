@@ -9,10 +9,11 @@
  ********************************************************************************/
 
 import * as fs from 'fs';
+import * as path from 'path';
 import * as isCI from 'is-ci';
 import { input, select } from '@inquirer/prompts';
 import {
-    readManifest, writeManifest, Manifest, writeFile, validateManifest, promisify
+    readManifest, writeManifest, Manifest, validateManifest
 } from './util';
 
 async function addLicense(packagePath: string, manifest: Manifest): Promise<void> {
@@ -87,14 +88,14 @@ async function useMITLicense(manifest: Manifest, packagePath?: string) {
     manifest.license = 'MIT';
     await writeManifest(manifest, packagePath);
     const license = MIT_LICENSE_TEXT.replace('<YEAR> <COPYRIGHT HOLDER>', copyright);
-    await writeFile('LICENSE', license, packagePath);
+    await fs.promises.writeFile(path.join(packagePath ?? process.cwd(), 'LICENSE'), license, 'utf-8');
     console.log('LICENSE file has been written. Please commit it to the source repository.');
 }
 
 const LICENSE_FILE_NAMES = ['license.md', 'license', 'license.txt', 'licence.md', 'licence', 'licence.txt'];
 
 async function hasLicenseFile(packagePath?: string): Promise<boolean> {
-    const fileNames = await promisify(fs.readdir)(packagePath ?? '.');
+    const fileNames = await fs.promises.readdir(packagePath ?? '.');
     for (const fileName of fileNames) {
         for (const licFileName of LICENSE_FILE_NAMES) {
             if (fileName.toLowerCase() === licFileName) {
