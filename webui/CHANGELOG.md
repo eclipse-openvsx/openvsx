@@ -17,7 +17,6 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Add a "Size overrides" page to the admin dashboard for managing per-namespace and per-extension upload size limits, each capped at the same `ovsx.publishing.max-override-size` ceiling ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 
 - Let a personal access token be restricted to a namespace or a single extension, and to publishing only, when it is generated, choosing the namespace from the ones the user is a member of and the extension from its active extensions, and show that in the token list ([#957](https://github.com/eclipse-openvsx/openvsx/issues/957))
-- Disable "Generate Token" while the namespace or extension field holds text that is not one of the listed options, instead of silently dropping it from the token's scope
 
 ### Changed
 
