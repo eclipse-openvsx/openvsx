@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_PUBLISH_SIZE, Registry } from '../../src/registry';
 
 /**
- * follow-redirects refuses a request body larger than `maxBodyLength`, inside the CLI and before
+ * The CLI refuses a request body larger than `maxBodyLength`, inside the CLI and before
  * anything reaches the registry. Leaving that at the default meant a namespace granted more than
  * 512 MiB could never use it: the size preflight passed and the upload then failed locally.
  */

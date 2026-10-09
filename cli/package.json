@@ -38,7 +38,6 @@
         "@vscode/vsce": "^4.0.0",
         "commander": "^14.0.3",
         "cross-keychain": "^1.1.0",
-        "follow-redirects": "^1.16.0",
         "is-ci": "^2.0.0",
         "semver": "^7.6.0",
         "yauzl-promise": "^4.0.0"
@@ -47,7 +46,6 @@
         "@eslint/eslintrc": "^3.2.0",
         "@eslint/js": "^9.15.0",
         "@stylistic/eslint-plugin": "^2.11.0",
-        "@types/follow-redirects": "^1.13.1",
         "@types/is-ci": "^2.0.0",
         "@types/node": "^22.0.0",
         "@types/semver": "^7.5.8",

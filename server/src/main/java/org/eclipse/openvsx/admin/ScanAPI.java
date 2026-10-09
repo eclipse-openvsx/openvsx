@@ -1027,7 +1027,10 @@ public class ScanAPI {
         json.setStatus(job.getStatus().name());
         json.setCreatedAt(TimeUtil.toUTCString(job.getCreatedAt()));
         json.setUpdatedAt(TimeUtil.toUTCString(job.getUpdatedAt()));
-        json.setErrorMessage(job.getErrorMessage());
+        // Active jobs may carry transient poll errors; the DTO contract is failed/removed only.
+        if (job.getStatus().isTerminal()) {
+            json.setErrorMessage(job.getErrorMessage());
+        }
         json.setExternalUrl(buildExternalScannerUrl(job));
         return json;
     }
