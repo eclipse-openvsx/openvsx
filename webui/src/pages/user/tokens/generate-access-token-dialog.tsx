@@ -23,8 +23,13 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
     const [open, setOpen] = useState(false);
     const [namespace, setNamespace] = useState('');
     const [extension, setExtension] = useState('');
+    const [namespaceInput, setNamespaceInput] = useState('');
+    const [extensionInput, setExtensionInput] = useState('');
     const { data: extensions = [], isLoading: extensionsLoading } = useNamespaceExtensions(namespace);
     const [publishingOnly, setPublishingOnly] = useState(false);
+    // typed text that is not a picked option would otherwise be silently dropped from the scope
+    const namespaceInvalid = namespaceInput !== namespace;
+    const extensionInvalid = extensionInput !== extension;
 
     const handleGenerate = async (description: string): Promise<string> => {
         if (!context.user) {
@@ -55,8 +60,11 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                     setOpen(false);
                     setNamespace('');
                     setExtension('');
+                    setNamespaceInput('');
+                    setExtensionInput('');
                     setPublishingOnly(false);
                 }}
+                canGenerate={!namespaceInvalid && !extensionInvalid}
                 onGenerate={handleGenerate}
                 onError={context.handleError}>
                 <Box mt={2} display='flex' flexDirection='column' gap={2}>
@@ -64,32 +72,50 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                         fullWidth
                         options={namespaces.map(ns => ns.name)}
                         loading={isLoading}
+                        clearOnBlur={false}
                         value={namespace || null}
+                        inputValue={namespaceInput}
+                        onInputChange={(_, value) => setNamespaceInput(value)}
                         onChange={(_, value) => {
                             setNamespace(value ?? '');
                             // the extension belongs to the namespace, so a stale one must not outlive it
                             setExtension('');
+                            setExtensionInput('');
                         }}
                         renderInput={params => (
                             <TextField
                                 {...params}
                                 label='Namespace (optional)'
-                                helperText='Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
+                                error={namespaceInvalid}
+                                helperText={
+                                    namespaceInvalid
+                                        ? 'Select a namespace from the list or clear the field.'
+                                        : 'Restrict the token to this namespace. Leave empty for a token that works everywhere you can publish.'
+                                }
                             />
                         )}
                     />
                     <Autocomplete
+                        key={namespace}
                         fullWidth
                         options={extensions}
                         loading={extensionsLoading}
                         disabled={!namespace}
+                        clearOnBlur={false}
                         value={extension || null}
+                        inputValue={extensionInput}
+                        onInputChange={(_, value) => setExtensionInput(value)}
                         onChange={(_, value) => setExtension(value ?? '')}
                         renderInput={params => (
                             <TextField
                                 {...params}
                                 label='Extension (optional)'
-                                helperText='Restrict the token to one extension of the namespace.'
+                                error={extensionInvalid}
+                                helperText={
+                                    extensionInvalid
+                                        ? 'Select an extension from the list or clear the field.'
+                                        : 'Restrict the token to one extension of the namespace.'
+                                }
                             />
                         )}
                     />
