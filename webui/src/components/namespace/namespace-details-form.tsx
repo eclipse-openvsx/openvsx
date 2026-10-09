@@ -84,6 +84,7 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
     const [editMode, setEditMode] = useState<boolean>(false);
     const { saved, flash } = useSavedFlash(1200, () => setEditMode(false));
     const [linkedInAccountType, setLinkedInAccountType] = useState<string>(LINKED_IN_PERSONAL);
+    const [savedLinkedInAccountType, setSavedLinkedInAccountType] = useState<string>(LINKED_IN_PERSONAL);
 
     const copy = (arg: NamespaceDetails): NamespaceDetails => {
         return JSON.parse(JSON.stringify(arg));
@@ -112,6 +113,7 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
         setCurrentDetails(copy(details));
         setNewDetails(copy(details));
         setLinkedInAccountType(linkedInAccountType);
+        setSavedLinkedInAccountType(linkedInAccountType);
     };
 
     const fetchedDetails = detailsQuery.data;
@@ -127,7 +129,7 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
 
     // Only the editable fields — echoing server-computed data back (extensions,
     // logoBytes) breaks the update endpoint. Social handles expand to full URLs.
-    const buildDetailsPayload = (source: NamespaceDetails): NamespaceDetails => ({
+    const buildDetailsPayload = (source: NamespaceDetails, accountType: string): NamespaceDetails => ({
         name: source.name,
         displayName: source.displayName,
         description: source.description,
@@ -135,7 +137,7 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
         supportLink: source.supportLink,
         socialLinks: {
             linkedin: source.socialLinks.linkedin
-                ? `https://www.linkedin.com/${linkedInAccountType}/${source.socialLinks.linkedin}`
+                ? `https://www.linkedin.com/${accountType}/${source.socialLinks.linkedin}`
                 : undefined,
             github: source.socialLinks.github ? 'https://github.com/' + source.socialLinks.github : undefined,
             twitter: source.socialLinks.twitter ? 'https://twitter.com/' + source.socialLinks.twitter : undefined
@@ -147,7 +149,10 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
     const noChanges =
         !currentDetails ||
         !newDetails ||
-        equalIgnoringEmpty(buildDetailsPayload(currentDetails), buildDetailsPayload(newDetails));
+        equalIgnoringEmpty(
+            buildDetailsPayload(currentDetails, savedLinkedInAccountType),
+            buildDetailsPayload(newDetails, linkedInAccountType)
+        );
 
     const saveDetails = async () => {
         if (!newDetails) {
@@ -157,9 +162,10 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
         try {
             await updateDetails.mutateAsync({
                 detailsUrl: props.namespace.detailsUrl,
-                details: buildDetailsPayload(newDetails)
+                details: buildDetailsPayload(newDetails, linkedInAccountType)
             });
             setCurrentDetails(copy(newDetails));
+            setSavedLinkedInAccountType(linkedInAccountType);
             flash();
         } catch (err) {
             context.handleError(err);

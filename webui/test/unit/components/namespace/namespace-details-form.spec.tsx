@@ -81,4 +81,28 @@ describe('NamespaceDetailsForm', () => {
 
         expect(saveButton).toBeDisabled();
     });
+
+    it('enables Save when only the LinkedIn account type changes', async () => {
+        const { user, saveButton } = await openForm(
+            namespaceDetails({ socialLinks: { linkedin: 'https://www.linkedin.com/in/octocat' } })
+        );
+
+        await user.click(screen.getByRole('combobox'));
+        await user.click(await screen.findByRole('option', { name: 'linkedin.com/company/' }));
+
+        expect(saveButton).toBeEnabled();
+    });
+
+    it('disables Save again when the LinkedIn account type is changed back', async () => {
+        const { user, saveButton } = await openForm(
+            namespaceDetails({ socialLinks: { linkedin: 'https://www.linkedin.com/in/octocat' } })
+        );
+
+        await user.click(screen.getByRole('combobox'));
+        await user.click(await screen.findByRole('option', { name: 'linkedin.com/company/' }));
+        await user.click(screen.getByRole('combobox'));
+        await user.click(await screen.findByRole('option', { name: 'linkedin.com/in/' }));
+
+        expect(saveButton).toBeDisabled();
+    });
 });

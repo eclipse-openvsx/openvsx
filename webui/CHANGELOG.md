@@ -33,7 +33,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times (#2237)
 - The publish page no longer refuses a package larger than the registry's default limit without asking the server. A namespace with a size override may publish more than the default allows, so the upload is now only blocked above the registry's ceiling — the largest any namespace could publish. A package that looks too big is shown in the queue while that ceiling is re-read, rather than the page staying empty until the answer arrives ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 - The admin dashboard's Settings page sends only the settings that were changed, so saving no longer reverts a setting another admin changed while the page was open ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
-- The namespace details form no longer enables Save after a social handle is typed and then cleared
+- The namespace details form no longer enables Save after a social handle is typed and then cleared, and now enables it when only the LinkedIn account type changes
 
 ### Dependencies
 
