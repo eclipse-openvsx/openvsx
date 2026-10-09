@@ -1355,13 +1355,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/lodash@npm:^4.14.195":
-  version: 4.17.4
-  resolution: "@types/lodash@npm:4.17.4"
-  checksum: 10/3ec19f9fc48200006e71733e08bcb1478b0398673657fcfb21a8643d41a80bcce09a01000077c3b23a3c6d86b9b314abe0672a8fdfc0fd66b893bd41955cfab8
-  languageName: node
-  linkType: hard
-
 "@types/luxon@npm:^3.7.1":
   version: 3.7.1
   resolution: "@types/luxon@npm:3.7.1"
@@ -4648,13 +4641,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:^4.17.21":
-  version: 4.18.1
-  resolution: "lodash@npm:4.18.1"
-  checksum: 10/306fea53dfd39dad1f03d45ba654a2405aebd35797b673077f401edb7df2543623dc44b9effbb98f69b32152295fff725a4cec99c684098947430600c6af0c3f
-  languageName: node
-  linkType: hard
-
 "loose-envify@npm:^1.0.0, loose-envify@npm:^1.1.0, loose-envify@npm:^1.4.0":
   version: 1.4.0
   resolution: "loose-envify@npm:1.4.0"
@@ -5081,7 +5067,6 @@ __metadata:
     "@testing-library/user-event": "npm:^14.6.1"
     "@types/dompurify": "npm:^3.0.2"
     "@types/express": "npm:^5.0.0"
-    "@types/lodash": "npm:^4.14.195"
     "@types/luxon": "npm:^3.7.1"
     "@types/markdown-it": "npm:^14.1.0"
     "@types/node": "npm:^22.0.0"
@@ -5104,7 +5089,6 @@ __metadata:
     express-rate-limit: "npm:^7.4.0"
     fetch-retry: "npm:^5.0.6"
     jsdom: "npm:^30.0.0"
-    lodash: "npm:^4.17.21"
     luxon: "npm:^3.7.2"
     markdown-it: "npm:^14.1.0"
     markdown-it-anchor: "npm:^9.2.0"
