@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -47,6 +48,7 @@ class SettingsServiceTest {
 
     private final SettingsCache cache = mock(SettingsCache.class);
     private final SettingsUpdateChannel channel = mock(SettingsUpdateChannel.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final ReadOnlySetting readOnly = new ReadOnlySetting(cache);
     private final PublishingConfig publishingConfig = mock(PublishingConfig.class);
     private final MaxExtensionSizeSetting maxExtensionSize = new MaxExtensionSizeSetting(cache, publishingConfig);
@@ -57,7 +59,8 @@ class SettingsServiceTest {
             publishingConfig,
             cache,
             channel,
-            new AfterCommitExecutor());
+            new AfterCommitExecutor(),
+            events);
 
     @BeforeEach
     void setUp() {
@@ -283,7 +286,8 @@ class SettingsServiceTest {
                 publishingConfig,
                 cache,
                 channel,
-                new AfterCommitExecutor());
+                new AfterCommitExecutor(),
+                events);
         stored(ReadOnlySetting.KEY, false);
 
         assertThatThrownBy(() -> service.updateFromJson(update(ReadOnlySetting.KEY, true)))
@@ -407,6 +411,46 @@ class SettingsServiceTest {
         settings.invalidateCache();
 
         verify(cache).clear();
+    }
+
+    @Test
+    void publishesAChangedEventWhenSettingsChange() {
+        stored(BannerSetting.KEY_MESSAGE, "old");
+
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "new"));
+
+        verify(events).publishEvent(any(SettingsChangedEvent.class));
+    }
+
+    @Test
+    void publishesNoEventWhenNothingChanged() {
+        stored();
+
+        settings.updateFromJson(new SettingsJson());
+
+        verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void publishesAChangedEventOnInvalidateCache() {
+        settings.invalidateCache();
+
+        verify(events).publishEvent(any(SettingsChangedEvent.class));
+    }
+
+    @Test
+    void publishesTheChangedEventOnlyAfterTheCommit() {
+        stored(BannerSetting.KEY_MESSAGE, "old");
+        TransactionSynchronizationManager.initSynchronization();
+
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "new"));
+        verify(events, never()).publishEvent(any(Object.class));
+
+        var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        TransactionSynchronizationManager.clearSynchronization();
+        synchronizations.forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+
+        verify(events).publishEvent(any(SettingsChangedEvent.class));
     }
 
     @Test

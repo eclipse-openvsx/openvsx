@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import org.eclipse.openvsx.json.SettingsJson;
@@ -42,6 +43,7 @@ public class SettingsService {
     private final SettingsCache cache;
     private final SettingsUpdateChannel channel;
     private final AfterCommitExecutor afterCommit;
+    private final ApplicationEventPublisher events;
 
     /**
      * {@code readOnly} is injected only to serve the deprecated {@link #isReadOnly()}, and leaves
@@ -55,7 +57,8 @@ public class SettingsService {
             PublishingConfig publishingConfig,
             SettingsCache cache,
             SettingsUpdateChannel channel,
-            AfterCommitExecutor afterCommit
+            AfterCommitExecutor afterCommit,
+            ApplicationEventPublisher events
     ) {
         this.settings = settings.stream().sorted(Comparator.comparing(WritableSetting::getName)).toList();
         this.readOnly = readOnly;
@@ -64,6 +67,7 @@ public class SettingsService {
         this.cache = cache;
         this.channel = channel;
         this.afterCommit = afterCommit;
+        this.events = events;
     }
 
     /** @deprecated inject {@link ReadOnlySetting} and call {@link ReadOnlySetting#isEnabled()}. */
@@ -108,6 +112,7 @@ public class SettingsService {
         afterCommit.execute(() -> {
             cache.clear();
             channel.publish();
+            events.publishEvent(new SettingsChangedEvent());
         });
     }
 
@@ -135,6 +140,7 @@ public class SettingsService {
         cache.setAll(pending);
         cache.clear();
         channel.publish();
+        afterCommit.execute(() -> events.publishEvent(new SettingsChangedEvent()));
         return String.join(", ", described);
     }
 
