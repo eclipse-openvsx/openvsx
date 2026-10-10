@@ -551,12 +551,8 @@ class UserAPITest {
                                                         TargetPlatform.NAME_UNIVERSAL,
                                                         true,
                                                         false)))));
-        Mockito.when(
-                storageUtil.getFileUrls(
-                        Mockito.anyCollection(),
-                        Mockito.anyString(),
-                        Mockito.any(String[].class)))
-                .thenReturn(java.util.Map.of(42L, new java.util.HashMap<>()));
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(42L, java.util.List.of()));
         mockMvc.perform(
                 get("/user/extension/{namespace}/{extension}", "foobar", "baz")
                         .with(user("test_user")))
@@ -607,12 +603,8 @@ class UserAPITest {
                                                         TargetPlatform.NAME_UNIVERSAL,
                                                         true,
                                                         false)))));
-        Mockito.when(
-                storageUtil.getFileUrls(
-                        Mockito.anyCollection(),
-                        Mockito.anyString(),
-                        Mockito.any(String[].class)))
-                .thenReturn(java.util.Map.of(42L, new java.util.HashMap<>()));
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(42L, java.util.List.of()));
         mockMvc.perform(
                 get("/user/extension/{namespace}/{extension}", "foobar", "baz")
                         .with(user("test_user")))
@@ -635,12 +627,8 @@ class UserAPITest {
         Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(false)))
                 .thenReturn(latest);
         Mockito.when(repositories.findTargetPlatformsGroupedByVersion(extension)).thenReturn(List.of());
-        Mockito.when(
-                storageUtil.getFileUrls(
-                        Mockito.anyCollection(),
-                        Mockito.anyString(),
-                        Mockito.any(String[].class)))
-                .thenReturn(java.util.Map.of(42L, new java.util.HashMap<>()));
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(42L, java.util.List.of()));
 
         var scan = new ExtensionScan();
         scan.setStatus(ScanStatus.QUARANTINED);
