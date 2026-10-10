@@ -282,9 +282,9 @@ class AdminAPITest {
                         .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .with(csrf().asHeader()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$['read-only']").value(false))
-                .andExpect(jsonPath("$['max-extension-size']").value(536870912))
-                .andExpect(jsonPath("$['max-override-size']").value(1073741824));
+                .andExpect(jsonPath("$.readOnly").value(false))
+                .andExpect(jsonPath("$.maxExtensionSize").value(536870912))
+                .andExpect(jsonPath("$.maxOverrideSize").value(1073741824));
     }
 
     @Test
@@ -301,9 +301,9 @@ class AdminAPITest {
                         .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .with(csrf().asHeader())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"read-only\":false,\"max-extension-size\":1073741824}"))
+                        .content("{\"readOnly\":false,\"maxExtensionSize\":1073741824}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$['max-extension-size']").value(1073741824));
+                .andExpect(jsonPath("$.maxExtensionSize").value(1073741824));
 
         Mockito.verify(logs).logAction(Mockito.eq(admin), Mockito.any());
     }

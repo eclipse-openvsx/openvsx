@@ -82,7 +82,7 @@ public class SettingsService {
     }
 
     /** Only what the settings implementing {@link PublicSetting} choose to publish. */
-    public Map<String, Object> getSiteSettings() {
+    public SettingsJson getSiteSettings() {
         var stored = cache.snapshot();
         var rows = new LinkedHashMap<String, Object>();
         for (var setting : settings) {
@@ -90,7 +90,7 @@ public class SettingsService {
                 rows.putAll(published.publicView(stored));
             }
         }
-        return rows;
+        return SettingsJson.of(rows);
     }
 
     /**

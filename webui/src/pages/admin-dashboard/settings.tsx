@@ -56,29 +56,25 @@ const formatCeiling = (bytes: number): string => {
 };
 
 /** Settings rendered as a plain on/off toggle. */
-type FlagKey = 'read-only';
+type FlagKey = 'readOnly';
 
 const FLAGS: Record<FlagKey, { title: string; description: string }> = {
-    'read-only': {
+    readOnly: {
         title: 'Read-only mode',
         description: 'Blocks write operations while keeping browsing, search, and downloads available.'
     }
 };
 
-const BANNER_KEYS = [
-    'banner-enabled',
-    'banner-message',
-    'banner-severity'
-] as const satisfies readonly (keyof Settings)[];
+const BANNER_KEYS = ['bannerEnabled', 'bannerMessage', 'bannerSeverity'] as const satisfies readonly (keyof Settings)[];
 
-// `banner-dismiss-id` is not edited: it is stamped into the patch at save time, when the admin
+// `bannerDismissId` is not edited: it is stamped into the patch at save time, when the admin
 // asks for the banner to be shown again to everyone who dismissed it.
-const SETTING_KEYS = ['read-only', 'max-extension-size', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
+const SETTING_KEYS = ['readOnly', 'maxExtensionSize', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
 
-const hasMessage = (settings: Settings) => (settings['banner-message'] ?? '').trim().length > 0;
+const hasMessage = (settings: Settings) => (settings.bannerMessage ?? '').trim().length > 0;
 
 /** Whether visitors would actually see a banner for these settings. */
-const bannerVisible = (settings: Settings) => Boolean(settings['banner-enabled']) && hasMessage(settings);
+const bannerVisible = (settings: Settings) => Boolean(settings.bannerEnabled) && hasMessage(settings);
 
 export const RuntimeSettingsPage: FC = () => {
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
@@ -98,7 +94,7 @@ export const RuntimeSettingsPage: FC = () => {
     useEffect(() => {
         if (settings) {
             setDraftSettings(settings);
-            setSizeInput(String((settings['max-extension-size'] ?? 0) / BYTES_PER_MB));
+            setSizeInput(String((settings.maxExtensionSize ?? 0) / BYTES_PER_MB));
         }
     }, [settings]);
 
@@ -157,7 +153,7 @@ export const RuntimeSettingsPage: FC = () => {
             // zero either - Number('') is - so it is held as invalid until something is typed.
             const mb = typed.trim() === '' ? Number.NaN : Number(typed);
             const bytes = Number.isFinite(mb) ? mb * BYTES_PER_MB : Number.NaN;
-            setDraftSettings(current => (current ? { ...current, 'max-extension-size': bytes } : current));
+            setDraftSettings(current => (current ? { ...current, maxExtensionSize: bytes } : current));
             clearSaved();
         },
         [clearSaved]
@@ -176,15 +172,15 @@ export const RuntimeSettingsPage: FC = () => {
         if (!canShowAgain) setShowAgain(true);
     }, [canShowAgain]);
 
-    const maxExtensionSizeChanged = edited && draftSettings['max-extension-size'] !== settings['max-extension-size'];
+    const maxExtensionSizeChanged = edited && draftSettings['maxExtensionSize'] !== settings.maxExtensionSize;
     // Only validated once the admin has actually edited it, because only then is it sent. The server
     // stores the limit as a long, and one beyond JavaScript's safe-integer range would otherwise fail
     // this check on arrival and block every unrelated setting from being saved.
     const maxExtensionSizeValid =
         !maxExtensionSizeChanged ||
-        (Number.isSafeInteger(draftSettings['max-extension-size']) &&
-            (draftSettings['max-extension-size'] ?? 0) > 0 &&
-            (draftSettings['max-extension-size'] ?? 0) <= (draftSettings['max-override-size'] ?? Infinity));
+        (Number.isSafeInteger(draftSettings['maxExtensionSize']) &&
+            (draftSettings['maxExtensionSize'] ?? 0) > 0 &&
+            (draftSettings['maxExtensionSize'] ?? 0) <= (draftSettings['maxOverrideSize'] ?? Infinity));
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -202,7 +198,7 @@ export const RuntimeSettingsPage: FC = () => {
         // A fresh token is what makes a dismissed banner come back; leaving the key out keeps the
         // stored one, so the banner stays hidden for whoever dismissed it.
         if (canShowAgain && showAgain) {
-            patch['banner-dismiss-id'] = crypto.randomUUID();
+            patch.bannerDismissId = crypto.randomUUID();
         }
         saveSettings(patch, {
             onSuccess: flashSaved,
@@ -285,7 +281,7 @@ export const RuntimeSettingsPage: FC = () => {
                                 maxExtensionSizeValid
                                     ? undefined
                                     : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
-                                          draftSettings?.['max-override-size'] ?? 0
+                                          draftSettings?.maxOverrideSize ?? 0
                                       )}`
                             }
                             inputProps={{ min: '1' }}

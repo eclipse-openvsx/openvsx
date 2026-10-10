@@ -17,13 +17,17 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
+import org.eclipse.openvsx.settings.BannerSetting;
+import org.eclipse.openvsx.settings.MaxExtensionSizeSetting;
+import org.eclipse.openvsx.settings.ReadOnlySetting;
+
 /**
- * The runtime settings an admin reads and writes. Property names are the keys the settings are
- * stored under and the public settings endpoint serves, so both speak the same vocabulary.
+ * The runtime settings an admin reads and writes, and the subset the public settings endpoint
+ * serves. The JSON properties are camelCase like every other DTO; {@link #of} and {@link #toRows}
+ * translate to and from the kebab-case keys the settings are stored under.
  * <p>
  * Every field is boxed: a null means the caller left the setting alone, so a client that knows
  * nothing about a setting cannot reset it by omitting it.
@@ -32,46 +36,31 @@ import org.jspecify.annotations.Nullable;
 @JsonInclude(Include.NON_NULL)
 public class SettingsJson extends ResultJson {
 
-    public static final String READ_ONLY = "read-only";
-    public static final String MAX_EXTENSION_SIZE = "max-extension-size";
-    public static final String MAX_OVERRIDE_SIZE = "max-override-size";
-    public static final String BANNER_ENABLED = "banner-enabled";
-    public static final String BANNER_MESSAGE = "banner-message";
-    public static final String BANNER_SEVERITY = "banner-severity";
-    public static final String BANNER_DISMISS_ID = "banner-dismiss-id";
-
-    @JsonProperty(READ_ONLY)
     @Schema(description = "Blocks write operations while keeping browsing, search and downloads available")
     private @Nullable Boolean readOnly;
 
-    @JsonProperty(MAX_EXTENSION_SIZE)
     @Schema(
         description = "Default max extension package size in bytes, applied when no namespace/extension override exists"
     )
     private @Nullable Long maxExtensionSize;
 
-    @JsonProperty(MAX_OVERRIDE_SIZE)
     @Schema(
         description = "Read-only: the hard ceiling neither an override nor the default size can be raised past",
         accessMode = Schema.AccessMode.READ_ONLY
     )
     private @Nullable Long maxOverrideSize;
 
-    @JsonProperty(BANNER_ENABLED)
     @Schema(description = "Whether the site banner is shown. A message can be drafted while this is off.")
     private @Nullable Boolean bannerEnabled;
 
-    @JsonProperty(BANNER_MESSAGE)
     @Schema(
         description = "Site banner text, as Markdown. Untrusted input: sanitize it before rendering it as HTML."
     )
     private @Nullable String bannerMessage;
 
-    @JsonProperty(BANNER_SEVERITY)
     @Schema(description = "Site banner tone", allowableValues = { "info", "warning" })
     private @Nullable String bannerSeverity;
 
-    @JsonProperty(BANNER_DISMISS_ID)
     @Schema(
         description = "Token a client stores when it dismisses the banner. It changes only when an admin asks for "
                 + "the banner to be shown again, so correcting the message leaves dismissals in place."
@@ -81,24 +70,26 @@ public class SettingsJson extends ResultJson {
     /** Reads the rows a setting reports back into the payload; anything unknown to this DTO is left out. */
     public static SettingsJson of(Map<String, Object> rows) {
         var json = new SettingsJson();
-        json.readOnly = bool(rows, READ_ONLY);
-        json.maxExtensionSize = rows.get(MAX_EXTENSION_SIZE) instanceof Number value ? value.longValue() : null;
-        json.bannerEnabled = bool(rows, BANNER_ENABLED);
-        json.bannerMessage = string(rows, BANNER_MESSAGE);
-        json.bannerSeverity = string(rows, BANNER_SEVERITY);
-        json.bannerDismissId = string(rows, BANNER_DISMISS_ID);
+        json.readOnly = bool(rows, ReadOnlySetting.KEY);
+        json.maxExtensionSize = rows.get(MaxExtensionSizeSetting.KEY) instanceof Number value
+                ? value.longValue()
+                : null;
+        json.bannerEnabled = bool(rows, BannerSetting.KEY_ENABLED);
+        json.bannerMessage = string(rows, BannerSetting.KEY_MESSAGE);
+        json.bannerSeverity = string(rows, BannerSetting.KEY_SEVERITY);
+        json.bannerDismissId = string(rows, BannerSetting.KEY_DISMISS_ID);
         return json;
     }
 
     /** The rows these settings are stored under. A null field is one the caller isn't touching, so it is left out. */
     public Map<String, Object> toRows() {
         var rows = new LinkedHashMap<String, Object>();
-        putIfPresent(rows, READ_ONLY, readOnly);
-        putIfPresent(rows, MAX_EXTENSION_SIZE, maxExtensionSize);
-        putIfPresent(rows, BANNER_ENABLED, bannerEnabled);
-        putIfPresent(rows, BANNER_MESSAGE, bannerMessage);
-        putIfPresent(rows, BANNER_SEVERITY, bannerSeverity);
-        putIfPresent(rows, BANNER_DISMISS_ID, bannerDismissId);
+        putIfPresent(rows, ReadOnlySetting.KEY, readOnly);
+        putIfPresent(rows, MaxExtensionSizeSetting.KEY, maxExtensionSize);
+        putIfPresent(rows, BannerSetting.KEY_ENABLED, bannerEnabled);
+        putIfPresent(rows, BannerSetting.KEY_MESSAGE, bannerMessage);
+        putIfPresent(rows, BannerSetting.KEY_SEVERITY, bannerSeverity);
+        putIfPresent(rows, BannerSetting.KEY_DISMISS_ID, bannerDismissId);
         return rows;
     }
 
@@ -116,7 +107,7 @@ public class SettingsJson extends ResultJson {
         return rows.get(key) instanceof String value ? value : null;
     }
 
-    public @Nullable Boolean isReadOnly() {
+    public @Nullable Boolean getReadOnly() {
         return readOnly;
     }
 
@@ -140,7 +131,7 @@ public class SettingsJson extends ResultJson {
         this.maxOverrideSize = maxOverrideSize;
     }
 
-    public @Nullable Boolean isBannerEnabled() {
+    public @Nullable Boolean getBannerEnabled() {
         return bannerEnabled;
     }
 

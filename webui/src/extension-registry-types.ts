@@ -677,20 +677,20 @@ export interface LogPageableList {
 export type BannerSeverity = 'info' | 'warning';
 
 /**
- * Runtime settings, one entry per setting key, exactly as the registry stores them. A key is
- * absent until an admin sets it. The public endpoint additionally omits `read-only`, and omits
- * every `banner-*` key while the banner is switched off.
+ * Runtime settings, one property per setting. A property is absent until an admin sets it. The
+ * public endpoint additionally omits `readOnly`, and omits every `banner*` property while the
+ * banner is switched off.
  */
 export interface Settings {
-    'read-only'?: boolean;
+    readOnly?: boolean;
     /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
-    'max-extension-size'?: number;
-    /** Read-only: neither max-extension-size nor a size override can be raised past this ceiling. */
-    'max-override-size'?: number;
-    'banner-enabled'?: boolean;
-    'banner-message'?: string;
-    'banner-severity'?: BannerSeverity;
-    'banner-dismiss-id'?: string;
+    maxExtensionSize?: number;
+    /** Read-only: neither maxExtensionSize nor a size override can be raised past this ceiling. */
+    maxOverrideSize?: number;
+    bannerEnabled?: boolean;
+    bannerMessage?: string;
+    bannerSeverity?: BannerSeverity;
+    bannerDismissId?: string;
 }
 
 export interface SearchIndex {

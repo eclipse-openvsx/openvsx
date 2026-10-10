@@ -20,16 +20,13 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
 
-/**
- * The admin payload has to use the same key names the settings are stored and served under, so the
- * web UI reads one shape from both endpoints.
- */
+/** The payload is camelCase like every other DTO, whatever the kebab-case keys the settings are stored under. */
 class SettingsJsonTest {
 
     private final JsonMapper mapper = JsonMapper.shared();
 
     @Test
-    void serializesToTheStoredSettingKeys() {
+    void serializesToCamelCaseProperties() {
         var json = new SettingsJson();
         json.setReadOnly(false);
         json.setBannerEnabled(true);
@@ -41,25 +38,25 @@ class SettingsJsonTest {
 
         assertThat(tree.propertyNames())
                 .containsExactlyInAnyOrder(
-                        "read-only",
-                        "banner-enabled",
-                        "banner-message",
-                        "banner-severity",
-                        "banner-dismiss-id");
-        assertThat(tree.get("read-only").booleanValue()).isFalse();
-        assertThat(tree.get("banner-enabled").booleanValue()).isTrue();
-        assertThat(tree.get("banner-message").stringValue()).isEqualTo("Maintenance tonight");
+                        "readOnly",
+                        "bannerEnabled",
+                        "bannerMessage",
+                        "bannerSeverity",
+                        "bannerDismissId");
+        assertThat(tree.get("readOnly").booleanValue()).isFalse();
+        assertThat(tree.get("bannerEnabled").booleanValue()).isTrue();
+        assertThat(tree.get("bannerMessage").stringValue()).isEqualTo("Maintenance tonight");
     }
 
     @Test
-    void deserializesFromTheStoredSettingKeys() {
+    void deserializesFromCamelCaseProperties() {
         var json = mapper.readValue("""
-                {"read-only":true,"banner-enabled":false,"banner-message":"Hi",\
-                "banner-severity":"info","banner-dismiss-id":"token-2"}\
+                {"readOnly":true,"bannerEnabled":false,"bannerMessage":"Hi",\
+                "bannerSeverity":"info","bannerDismissId":"token-2"}\
                 """, SettingsJson.class);
 
-        assertThat(json.isReadOnly()).isTrue();
-        assertThat(json.isBannerEnabled()).isFalse();
+        assertThat(json.getReadOnly()).isTrue();
+        assertThat(json.getBannerEnabled()).isFalse();
         assertThat(json.getBannerMessage()).isEqualTo("Hi");
         assertThat(json.getBannerSeverity()).isEqualTo("info");
         assertThat(json.getBannerDismissId()).isEqualTo("token-2");
@@ -67,15 +64,15 @@ class SettingsJsonTest {
 
     @Test
     void anOmittedSettingStaysNull() {
-        var json = mapper.readValue("{\"banner-message\":\"Hi\"}", SettingsJson.class);
+        var json = mapper.readValue("{\"bannerMessage\":\"Hi\"}", SettingsJson.class);
 
-        assertThat(json.isReadOnly()).isNull();
-        assertThat(json.isBannerEnabled()).isNull();
+        assertThat(json.getReadOnly()).isNull();
+        assertThat(json.getBannerEnabled()).isNull();
         assertThat(json.getBannerMessage()).isEqualTo("Hi");
     }
 
     @Test
-    void theRowsUseTheSameKeysAsTheWire() {
+    void theRowsUseTheStoredKebabCaseKeys() {
         var json = new SettingsJson();
         json.setReadOnly(true);
         json.setBannerMessage("Maintenance tonight");
@@ -96,9 +93,9 @@ class SettingsJsonTest {
         var json = SettingsJson
                 .of(Map.of("read-only", true, "banner-severity", "warning", "banner-message", "Hi"));
 
-        assertThat(json.isReadOnly()).isTrue();
+        assertThat(json.getReadOnly()).isTrue();
         assertThat(json.getBannerSeverity()).isEqualTo("warning");
         assertThat(json.getBannerMessage()).isEqualTo("Hi");
-        assertThat(json.isBannerEnabled()).isNull();
+        assertThat(json.getBannerEnabled()).isNull();
     }
 }

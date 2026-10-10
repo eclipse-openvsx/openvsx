@@ -139,10 +139,10 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
     onShowAgainChange
 }) => {
     const severityLabelId = useId();
-    const enabled = settings['banner-enabled'] ?? false;
-    const text = settings['banner-message'] ?? '';
+    const enabled = settings.bannerEnabled ?? false;
+    const text = settings.bannerMessage ?? '';
     // The server keeps a legacy severity it no longer accepts, and `Banner` has no variant for it.
-    const severity = settings['banner-severity'] === 'warning' ? 'warning' : 'info';
+    const severity = settings.bannerSeverity === 'warning' ? 'warning' : 'info';
     const message = text.trim();
 
     if (loading) {
@@ -170,7 +170,7 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
                         name='banner'
                         checked={enabled}
                         disabled={disabled}
-                        onChange={(_event, checked) => onChange({ 'banner-enabled': checked })}
+                        onChange={(_event, checked) => onChange({ bannerEnabled: checked })}
                     />
                 </HeaderRow>
 
@@ -184,7 +184,7 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
                 <TextField
                     label='Message'
                     value={text}
-                    onChange={event => onChange({ 'banner-message': event.target.value })}
+                    onChange={event => onChange({ bannerMessage: event.target.value })}
                     disabled={disabled}
                     helperText={`Markdown is supported, HTML is not. ${text.length}/${MAX_MESSAGE_LENGTH}`}
                     inputProps={{ maxLength: MAX_MESSAGE_LENGTH }}
@@ -205,7 +205,7 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
                             value={severity}
                             disabled={disabled}
                             onChange={(_event, value: BannerSeverity | null) =>
-                                value && onChange({ 'banner-severity': value })
+                                value && onChange({ bannerSeverity: value })
                             }>
                             {SEVERITIES.map(({ value, label, Icon }) => (
                                 <ToggleButton key={value} value={value} sx={{ gap: 1, px: 2 }}>

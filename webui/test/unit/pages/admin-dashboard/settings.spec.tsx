@@ -20,23 +20,23 @@ import { Settings } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
 
 const defaults: Settings = {
-    'read-only': false,
-    'max-extension-size': 512 * 1024 * 1024,
-    'max-override-size': Number.MAX_SAFE_INTEGER,
-    'banner-enabled': false,
-    'banner-message': '',
-    'banner-severity': 'info',
-    'banner-dismiss-id': ''
+    readOnly: false,
+    maxExtensionSize: 512 * 1024 * 1024,
+    maxOverrideSize: Number.MAX_SAFE_INTEGER,
+    bannerEnabled: false,
+    bannerMessage: '',
+    bannerSeverity: 'info',
+    bannerDismissId: ''
 };
 
 const configured: Settings = {
-    'read-only': false,
-    'max-extension-size': 512 * 1024 * 1024,
-    'max-override-size': Number.MAX_SAFE_INTEGER,
-    'banner-enabled': true,
-    'banner-message': 'Heads up',
-    'banner-severity': 'info',
-    'banner-dismiss-id': 'token-1'
+    readOnly: false,
+    maxExtensionSize: 512 * 1024 * 1024,
+    maxOverrideSize: Number.MAX_SAFE_INTEGER,
+    bannerEnabled: true,
+    bannerMessage: 'Heads up',
+    bannerSeverity: 'info',
+    bannerDismissId: 'token-1'
 };
 
 // not named render*, so the testing-library naming rule does not treat the service stub it returns
@@ -69,7 +69,7 @@ describe('RuntimeSettingsPage', () => {
         await save();
 
         await waitFor(() =>
-            expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-message': 'Maintenance tonight' })
+            expect(admin.updateSettings).toHaveBeenCalledWith({ bannerMessage: 'Maintenance tonight' })
         );
     });
 
@@ -81,8 +81,8 @@ describe('RuntimeSettingsPage', () => {
 
         await waitFor(() =>
             expect(admin.updateSettings).toHaveBeenCalledWith({
-                'banner-severity': 'warning',
-                'banner-dismiss-id': expect.any(String)
+                bannerSeverity: 'warning',
+                bannerDismissId: expect.any(String)
             })
         );
     });
@@ -93,18 +93,18 @@ describe('RuntimeSettingsPage', () => {
         await userEvent.click(await screen.findByLabelText('Toggle banner'));
         await save();
 
-        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-enabled': false }));
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ bannerEnabled: false }));
     });
 
     it('previews the message as the banner will render it', async () => {
-        mountPage({ ...configured, 'banner-message': 'Heads **up**' });
+        mountPage({ ...configured, bannerMessage: 'Heads **up**' });
 
         const emphasised = await screen.findByText('up');
         expect(emphasised.tagName).toBe('STRONG');
     });
 
     it('renders a stored severity the server no longer accepts as info', async () => {
-        mountPage({ ...configured, 'banner-severity': 'critical' as Settings['banner-severity'] });
+        mountPage({ ...configured, bannerSeverity: 'critical' as Settings['bannerSeverity'] });
 
         expect(await screen.findByText('Heads up', { selector: 'p' })).toBeVisible();
     });
@@ -118,9 +118,9 @@ describe('RuntimeSettingsPage', () => {
 
         await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
         const saved = admin.updateSettings.mock.calls[0][0] as Settings;
-        expect(saved['banner-message']).toBe('Heads up!');
-        expect(saved['banner-dismiss-id']).not.toBe('token-1');
-        expect(saved['banner-dismiss-id']).toHaveLength(36);
+        expect(saved.bannerMessage).toBe('Heads up!');
+        expect(saved.bannerDismissId).not.toBe('token-1');
+        expect(saved.bannerDismissId).toHaveLength(36);
     });
 
     it('keeps the dismissals when the admin unchecks the offer', async () => {
@@ -130,7 +130,7 @@ describe('RuntimeSettingsPage', () => {
         await userEvent.click(screen.getByLabelText(SHOW_AGAIN));
         await save();
 
-        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-message': 'Heads up!' }));
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ bannerMessage: 'Heads up!' }));
     });
 
     it('checks the offer again once a reverted edit is redone', async () => {
@@ -157,8 +157,8 @@ describe('RuntimeSettingsPage', () => {
 
         await waitFor(() =>
             expect(admin.updateSettings).toHaveBeenCalledWith({
-                'banner-message': 'Maintenance tonight',
-                'banner-enabled': true
+                bannerMessage: 'Maintenance tonight',
+                bannerEnabled: true
             })
         );
     });
@@ -181,7 +181,7 @@ describe('RuntimeSettingsPage', () => {
         expect(screen.getByText('nothing will be shown.')).toBeInTheDocument();
         await save();
 
-        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'banner-message': '' }));
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ bannerMessage: '' }));
     });
 
     it('says who the save reaches, and follows the offer', async () => {
@@ -214,7 +214,7 @@ describe('RuntimeSettingsPage', () => {
         expect(screen.queryByText('On save:')).toBeNull();
         await save();
 
-        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ 'read-only': true }));
+        await waitFor(() => expect(admin.updateSettings).toHaveBeenCalledWith({ readOnly: true }));
     });
 
     it('keeps Save disabled until a setting actually changes', async () => {
@@ -228,7 +228,7 @@ describe('RuntimeSettingsPage', () => {
     });
 
     it('shows the current default max extension size in MB', async () => {
-        mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+        mountPage(sized({ maxExtensionSize: 512 * 1024 * 1024 }));
 
         await waitFor(() => expect(screen.getByLabelText('Max extension size (MB)')).toHaveValue(512));
     });
@@ -251,7 +251,7 @@ describe('RuntimeSettingsPage', () => {
      */
     it('disables save once the typed size exceeds the override ceiling', async () => {
         const user = userEvent.setup();
-        mountPage(sized({ 'max-override-size': 1024 * 1024 * 1024 }));
+        mountPage(sized({ maxOverrideSize: 1024 * 1024 * 1024 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -268,7 +268,7 @@ describe('RuntimeSettingsPage', () => {
      */
     it('does not floor a ceiling that is not a whole number of MB', async () => {
         const user = userEvent.setup();
-        mountPage(sized({ 'max-override-size': 1.5 * 1024 * 1024 }));
+        mountPage(sized({ maxOverrideSize: 1.5 * 1024 * 1024 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -285,7 +285,7 @@ describe('RuntimeSettingsPage', () => {
      */
     it('names the exact byte ceiling near a rounding boundary', async () => {
         const user = userEvent.setup();
-        mountPage(sized({ 'max-override-size': 2 * 1024 * 1024 - 1 }));
+        mountPage(sized({ maxOverrideSize: 2 * 1024 * 1024 - 1 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -299,7 +299,7 @@ describe('RuntimeSettingsPage', () => {
     // 1.5 - a limit nobody chose, applied silently.
     it('keeps a fractional MB value instead of truncating it', async () => {
         const user = userEvent.setup();
-        const admin = mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+        const admin = mountPage(sized({ maxExtensionSize: 512 * 1024 * 1024 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -311,7 +311,7 @@ describe('RuntimeSettingsPage', () => {
 
         await waitFor(() =>
             expect(admin.updateSettings).toHaveBeenCalledWith(
-                expect.objectContaining({ 'max-extension-size': 1.5 * 1024 * 1024 })
+                expect.objectContaining({ maxExtensionSize: 1.5 * 1024 * 1024 })
             )
         );
     });
@@ -322,7 +322,7 @@ describe('RuntimeSettingsPage', () => {
      */
     it('sends only the settings that were changed', async () => {
         const user = userEvent.setup();
-        const admin = mountPage(sized({ 'read-only': true, 'max-extension-size': 512 * 1024 * 1024 }));
+        const admin = mountPage(sized({ readOnly: true, maxExtensionSize: 512 * 1024 * 1024 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -333,7 +333,7 @@ describe('RuntimeSettingsPage', () => {
         await user.click(await screen.findByRole('button', { name: 'Apply' }));
 
         await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
-        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['max-extension-size']);
+        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['maxExtensionSize']);
     });
 
     /**
@@ -343,7 +343,7 @@ describe('RuntimeSettingsPage', () => {
      */
     it('saves an unrelated setting while the stored size exceeds the safe-integer range', async () => {
         const user = userEvent.setup();
-        const admin = mountPage(sized({ 'read-only': false, 'max-extension-size': Number.MAX_SAFE_INTEGER + 1 }));
+        const admin = mountPage(sized({ readOnly: false, maxExtensionSize: Number.MAX_SAFE_INTEGER + 1 }));
 
         const toggle = await screen.findByLabelText('Toggle Read-only mode');
         await waitFor(() => expect(toggle).toBeEnabled());
@@ -353,7 +353,7 @@ describe('RuntimeSettingsPage', () => {
         await user.click(await screen.findByRole('button', { name: 'Apply' }));
 
         await waitFor(() => expect(admin.updateSettings).toHaveBeenCalled());
-        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['read-only']);
+        expect(Object.keys(admin.updateSettings.mock.calls[0][0])).toEqual(['readOnly']);
     });
 
     /**
@@ -363,7 +363,7 @@ describe('RuntimeSettingsPage', () => {
      */
     it('lets the size field be cleared instead of filling it with a zero', async () => {
         const user = userEvent.setup();
-        mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+        mountPage(sized({ maxExtensionSize: 512 * 1024 * 1024 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -376,7 +376,7 @@ describe('RuntimeSettingsPage', () => {
 
     it('converts the typed MB value to bytes and saves it', async () => {
         const user = userEvent.setup();
-        const admin = mountPage(sized({ 'max-extension-size': 512 * 1024 * 1024 }));
+        const admin = mountPage(sized({ maxExtensionSize: 512 * 1024 * 1024 }));
 
         const input = await screen.findByLabelText('Max extension size (MB)');
         await waitFor(() => expect(input).toBeEnabled());
@@ -388,7 +388,7 @@ describe('RuntimeSettingsPage', () => {
 
         await waitFor(() =>
             expect(admin.updateSettings).toHaveBeenCalledWith(
-                expect.objectContaining({ 'max-extension-size': 1024 * 1024 * 1024 })
+                expect.objectContaining({ maxExtensionSize: 1024 * 1024 * 1024 })
             )
         );
     });

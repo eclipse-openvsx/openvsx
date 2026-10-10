@@ -12,11 +12,11 @@
  *****************************************************************************/
 package org.eclipse.openvsx.settings;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import org.eclipse.openvsx.json.SettingsJson;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,23 +30,19 @@ class SettingsAPITest {
     // is anonymous comes from SecurityConfig's /api/** permitAll.
     @Test
     void returnsTheSiteSettingsAsJson() throws Exception {
-        Mockito.when(settings.getSiteSettings())
-                .thenReturn(
-                        Map.of(
-                                BannerSetting.KEY_ENABLED,
-                                true,
-                                BannerSetting.KEY_MESSAGE,
-                                "Maintenance tonight",
-                                BannerSetting.KEY_SEVERITY,
-                                "warning"));
+        var site = new SettingsJson();
+        site.setBannerEnabled(true);
+        site.setBannerMessage("Maintenance tonight");
+        site.setBannerSeverity("warning");
+        Mockito.when(settings.getSiteSettings()).thenReturn(site);
 
         MockMvcBuilders.standaloneSetup(new SettingsAPI(settings))
                 .build()
                 .perform(get("/api/-/settings"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.['banner-enabled']").value(true))
-                .andExpect(jsonPath("$.['banner-message']").value("Maintenance tonight"))
-                .andExpect(jsonPath("$.['banner-severity']").value("warning"))
-                .andExpect(jsonPath("$.['read-only']").doesNotExist());
+                .andExpect(jsonPath("$.bannerEnabled").value(true))
+                .andExpect(jsonPath("$.bannerMessage").value("Maintenance tonight"))
+                .andExpect(jsonPath("$.bannerSeverity").value("warning"))
+                .andExpect(jsonPath("$.readOnly").doesNotExist());
     }
 }

@@ -101,15 +101,17 @@ class SettingsServiceTest {
     void siteSettingsHoldBackReadOnlyMode() {
         stored(ReadOnlySetting.KEY, true, BannerSetting.KEY_ENABLED, true, BannerSetting.KEY_MESSAGE, "Hi");
 
-        assertThat(settings.getSiteSettings()).doesNotContainKey(ReadOnlySetting.KEY);
-        assertThat(settings.getSiteSettings()).containsEntry(BannerSetting.KEY_MESSAGE, "Hi");
+        assertThat(settings.getSiteSettings().getReadOnly()).isNull();
+        assertThat(settings.getSiteSettings().getBannerMessage()).isEqualTo("Hi");
     }
 
     @Test
     void siteSettingsHoldBackADraftedBanner() {
         stored(BannerSetting.KEY_ENABLED, false, BannerSetting.KEY_MESSAGE, "Security incident");
 
-        assertThat(settings.getSiteSettings()).isEmpty();
+        var site = settings.getSiteSettings();
+        assertThat(site.getBannerMessage()).isNull();
+        assertThat(site.getBannerEnabled()).isNull();
     }
 
     @Test
@@ -117,7 +119,7 @@ class SettingsServiceTest {
         stored(ReadOnlySetting.KEY, true, BannerSetting.KEY_MESSAGE, "Security incident");
 
         var json = settings.getCurrentSettings();
-        assertThat(json.isReadOnly()).isTrue();
+        assertThat(json.getReadOnly()).isTrue();
         assertThat(json.getBannerMessage()).isEqualTo("Security incident");
     }
 
@@ -268,8 +270,8 @@ class SettingsServiceTest {
         stored();
 
         var json = settings.getCurrentSettings();
-        assertThat(json.isReadOnly()).isFalse();
-        assertThat(json.isBannerEnabled()).isFalse();
+        assertThat(json.getReadOnly()).isFalse();
+        assertThat(json.getBannerEnabled()).isFalse();
         assertThat(json.getBannerMessage()).isEmpty();
         assertThat(json.getBannerSeverity()).isEqualTo("info");
         assertThat(json.getBannerDismissId()).isEmpty();

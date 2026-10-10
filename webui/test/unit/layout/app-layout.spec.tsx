@@ -27,10 +27,10 @@ const mountApp = (banner?: PageSettings['elements']['banner']) => {
         getUser: vi.fn().mockResolvedValue({ error: 'Not logged in' }),
         getRegistryVersion: vi.fn().mockResolvedValue({ version: '1.0.0' }),
         getSiteSettings: vi.fn().mockResolvedValue({
-            'banner-enabled': true,
-            'banner-message': 'Configured by an admin',
-            'banner-severity': 'info',
-            'banner-dismiss-id': 'token-1'
+            bannerEnabled: true,
+            bannerMessage: 'Configured by an admin',
+            bannerSeverity: 'info',
+            bannerDismissId: 'token-1'
         })
     } as unknown as ExtensionRegistryService;
     const pageSettings = {
