@@ -109,7 +109,11 @@ class BannerSettingTest {
             // Ordinary prose the rules must not refuse.
             "Migration of user data: complete",
             "Queue > 500 jobs, latency <2s",
-            "metadata: unavailable"
+            "metadata: unavailable",
+            // Markdown autolinks open with a letter but are not HTML.
+            "Status: <https://status.example.org>",
+            "Contact <ops@example.org>",
+            "Mail <mailto:ops@example.org>"
         }
     )
     void acceptsPlainMarkdownAndProse(String text) {
@@ -124,7 +128,9 @@ class BannerSettingTest {
             "<iframe src='https://evil.example'></iframe>",
             "<svg/onload=alert(1)>",
             "done <!-- comment -->",
-            "</b>"
+            "</b>",
+            "<a href=\"https://example.org\">x</a>",
+            "<a@b onclick=alert(1)>"
         }
     )
     void rejectsHtmlTags(String text) {
@@ -141,7 +147,11 @@ class BannerSettingTest {
             // Upper case: folding with the default locale would miss this on a Turkish JVM.
             "[click](JAVASCRIPT:alert(1))",
             "[click](vbscript:msgbox(1))",
-            "[click](data:text/html;base64,PHNjcmlwdD4=)"
+            "[click](data:text/html;base64,PHNjcmlwdD4=)",
+            // An autolink is not HTML, so these reach the scheme rule instead.
+            "<javascript:alert(1)>",
+            "<JAVASCRIPT:alert(1)>",
+            "<data:text/html;base64,PHNjcmlwdD4=>"
         }
     )
     void rejectsExecutableLinkDestinations(String text) {

@@ -44,15 +44,21 @@ public class BannerSetting implements WritableSetting<BannerSetting.Banner>, Pub
 
     private static final Set<String> SEVERITIES = Set.of("info", "warning");
     private static final Pattern DISMISS_ID = Pattern.compile("[A-Za-z0-9-]{0,64}");
-    /** A tag opener, so ordinary prose like "latency <2s" or "queue > 500" still passes. */
-    private static final Pattern HTML_TAG = Pattern.compile("</?[A-Za-z!?]");
+    /**
+     * A tag opener, so ordinary prose like "latency <2s" or "queue > 500" still passes. A Markdown
+     * autolink, {@code <https://status.example.org>} or {@code <ops@example.org>}, opens with a
+     * letter too but is not HTML, so it is let through here; {@link #EXECUTABLE_LINK} still catches
+     * a dangerous scheme inside one.
+     */
+    private static final Pattern HTML_TAG = Pattern.compile(
+            "</?(?![A-Za-z][A-Za-z0-9+.-]{1,31}:[^\\s<>]*>)(?![^\\s<>@]+@[^\\s<>]+>)[A-Za-z!?]");
     /**
      * URL schemes are case-insensitive. {@code Pattern.CASE_INSENSITIVE} on its own folds ASCII
      * only, so the match holds whatever the JVM's default locale is - Turkish lowercases {@code I}
      * to a dotless {@code i}.
      */
     private static final Pattern EXECUTABLE_LINK = Pattern
-            .compile("]\\((javascript|vbscript|data):", Pattern.CASE_INSENSITIVE);
+            .compile("(]\\(|<)(javascript|vbscript|data):", Pattern.CASE_INSENSITIVE);
 
     /** {@code dismissId} is the token a client stores when it dismisses this banner. */
     public record Banner(boolean enabled, String message, String severity, String dismissId) {}

@@ -30,13 +30,14 @@ export const RegistryBanner: FunctionComponent = () => {
     // The registry leaves the banner keys out entirely while the banner is switched off. Values are
     // checked rather than trusted: the banner renders above every page, so a surprise from an
     // unknown registry must not be able to throw here.
+    const enabled = settings?.bannerEnabled === true;
     const rawMessage = settings?.bannerMessage;
     const message = typeof rawMessage === 'string' ? rawMessage.trim() : '';
     const dismissId = settings?.bannerDismissId ?? '';
     const severity = settings?.bannerSeverity === 'warning' ? 'warning' : 'info';
     return (
         <Banner
-            open={message.length > 0 && dismissed !== dismissId}
+            open={enabled && message.length > 0 && dismissed !== dismissId}
             showDismissButton
             dismissButtonOnClick={() => setDismissed(dismissId)}
             color={severity}>

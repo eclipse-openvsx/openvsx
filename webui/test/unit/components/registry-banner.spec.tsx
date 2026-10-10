@@ -63,6 +63,14 @@ describe('RegistryBanner', () => {
         }
     });
 
+    it('stays collapsed for a message the registry has not switched on', async () => {
+        const getSiteSettings = mountBanner({ bannerEnabled: false, bannerMessage: 'A drafted notice' });
+
+        await waitFor(() => expect(getSiteSettings).toHaveBeenCalled());
+        // the banner renders its message even while collapsed, so what matters is that it is hidden
+        expect(await screen.findByText('A drafted notice')).not.toBeVisible();
+    });
+
     it('stays collapsed when the registry serves no banner keys', async () => {
         const getSiteSettings = mountBanner({});
 
