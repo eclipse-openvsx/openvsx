@@ -77,7 +77,9 @@ class SettingsServiceTest {
         for (var i = 0; i < keyValues.length; i += 2) {
             map.put((String) keyValues[i], keyValues[i + 1]);
         }
-        when(cache.snapshot()).thenReturn(new SettingRows(map));
+        var rows = new SettingRows(map);
+        when(cache.snapshot()).thenReturn(rows);
+        when(cache.load()).thenReturn(rows);
     }
 
     /** The rows the save handed to {@code setAll}; empty when it wrote nothing. */
@@ -116,6 +118,17 @@ class SettingsServiceTest {
 
         // SiteSettingsJson has no read-only property at all; the banner still comes through
         assertThat(settings.getSiteSettings().getBannerMessage()).isEqualTo("Hi");
+    }
+
+    @Test
+    void aPublishedBannerAlwaysCarriesAllFourSiteSettings() {
+        stored(BannerSetting.KEY_ENABLED, true, BannerSetting.KEY_MESSAGE, "Hi");
+
+        var site = settings.getSiteSettings();
+        assertThat(site.getBannerEnabled()).isTrue();
+        assertThat(site.getBannerMessage()).isEqualTo("Hi");
+        assertThat(site.getBannerSeverity()).isEqualTo("info");
+        assertThat(site.getBannerDismissId()).isEmpty();
     }
 
     @Test
@@ -331,6 +344,25 @@ class SettingsServiceTest {
 
         settings.updateFromJson(
                 update(BannerSetting.KEY_MESSAGE, "Something new", BannerSetting.KEY_DISMISS_ID, "token-1"));
+
+        assertThat(written().get(BannerSetting.KEY_DISMISS_ID)).asString().isNotBlank().isNotEqualTo("token-1");
+    }
+
+    // Another node may have cleared the banner already; this node's cached copy still holds the old
+    // message, and merging against it would keep the old token for a banner that is new.
+    @Test
+    void aSaveMergesAgainstTheStoreNotTheCachedSnapshot() {
+        stored(BannerSetting.KEY_MESSAGE, "", BannerSetting.KEY_DISMISS_ID, "token-1");
+        when(cache.snapshot())
+                .thenReturn(
+                        new SettingRows(
+                                Map.of(
+                                        BannerSetting.KEY_MESSAGE,
+                                        "Old banner",
+                                        BannerSetting.KEY_DISMISS_ID,
+                                        "token-1")));
+
+        settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "Something new"));
 
         assertThat(written().get(BannerSetting.KEY_DISMISS_ID)).asString().isNotBlank().isNotEqualTo("token-1");
     }

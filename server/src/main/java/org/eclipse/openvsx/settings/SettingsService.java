@@ -118,7 +118,7 @@ public class SettingsService {
      */
     public String updateFromJson(SettingsJson newSettings) {
         var update = new SettingRows(newSettings.toRows());
-        var stored = cache.snapshot();
+        var stored = cache.load();
 
         var pending = new LinkedHashMap<String, Object>();
         var described = new ArrayList<String>();

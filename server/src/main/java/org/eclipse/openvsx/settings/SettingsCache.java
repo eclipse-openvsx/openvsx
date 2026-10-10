@@ -44,6 +44,15 @@ public class SettingsCache {
      */
     @Cacheable(CACHE_SETTING)
     public SettingRows snapshot() {
+        return load();
+    }
+
+    /**
+     * The same rows read straight from the store. For a save: merging against a snapshot another
+     * node has already invalidated would decide, say, whether a banner is new from a state that is
+     * gone.
+     */
+    public SettingRows load() {
         var settings = new LinkedHashMap<String, Object>();
         for (var setting : repository.findAll()) {
             var value = JsonMapper.shared().readValue(setting.getValue(), Object.class);

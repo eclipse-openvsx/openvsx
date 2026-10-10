@@ -677,8 +677,8 @@ export interface LogPageableList {
 export type BannerSeverity = 'info' | 'warning';
 
 /**
- * The settings the registry serves to every visitor. A property is absent until an admin sets it,
- * and every one is absent while the banner is switched off.
+ * The settings the registry serves to every visitor. While the banner is switched on all four
+ * properties are present; while it is off, none are.
  */
 export interface SiteSettings {
     bannerEnabled?: boolean;

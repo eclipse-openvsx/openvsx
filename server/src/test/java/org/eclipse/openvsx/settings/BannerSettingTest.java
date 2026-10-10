@@ -224,9 +224,13 @@ class BannerSettingTest {
     }
 
     @Test
-    void aPublishedBannerOmitsTheRowsTheStoreDoesNotHold() {
+    void aPublishedBannerFillsInTheRowsTheStoreDoesNotHold() {
         var view = banner.publicView(rows(KEY_ENABLED, true, KEY_MESSAGE, "Maintenance tonight"));
 
-        assertThat(view).containsExactly(Map.entry(KEY_ENABLED, true), Map.entry(KEY_MESSAGE, "Maintenance tonight"));
+        assertThat(view).containsOnly(
+                Map.entry(KEY_ENABLED, true),
+                Map.entry(KEY_MESSAGE, "Maintenance tonight"),
+                Map.entry(KEY_SEVERITY, "info"),
+                Map.entry(KEY_DISMISS_ID, ""));
     }
 }

@@ -134,13 +134,13 @@ public class BannerSetting implements WritableSetting<BannerSetting.Banner>, Pub
     }
 
     /**
-     * Publishes the rows the store actually holds rather than the resolved value, so a registry that
-     * has never written a severity keeps serving none. A banner drafted with the switch down isn't
-     * public yet, switch included.
+     * All four rows with the defaults filled in, so a published banner always has the same shape. A
+     * banner drafted with the switch down isn't public yet, switch included.
      */
     @Override
     public Map<String, Object> publicView(SettingRows stored) {
-        return read(stored).enabled() ? stored.only(toRows(DEFAULT).keySet()) : Map.of();
+        var banner = read(stored);
+        return banner.enabled() ? toRows(banner) : Map.of();
     }
 
     /** The message body would blow the 512-character admin log column on its own. */
