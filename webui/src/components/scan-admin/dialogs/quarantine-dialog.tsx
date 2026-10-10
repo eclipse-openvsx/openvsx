@@ -91,10 +91,13 @@ export const QuarantineDialog: FunctionComponent = () => {
         );
     }, [confirmDialog.selectedExtensions]);
 
-    // Errored scans have no threats to allow-list: allowing one only activates the version.
+    // An errored scan can still carry threats persisted by scanners that finished; those go through
+    // the regular dialog so that the files about to be allow-listed are shown.
     const allErrored =
         confirmDialog.selectedExtensions.length > 0 &&
-        confirmDialog.selectedExtensions.every((scan: ScanResult) => scan.status === 'ERROR');
+        confirmDialog.selectedExtensions.every(
+            (scan: ScanResult) => scan.status === 'ERROR' && (scan.threats?.length ?? 0) === 0
+        );
 
     if (allErrored) {
         const count = confirmDialog.selectedExtensions.length;

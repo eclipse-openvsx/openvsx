@@ -409,7 +409,11 @@ public class ScanAPI {
                 array = @ArraySchema(
                     schema = @Schema(type = "string", allowableValues = { "allowed", "blocked", "needs-review" })
                 )
-            ) List<String> adminDecision
+            ) List<String> adminDecision,
+            @RequestParam(defaultValue = "false")
+            @Parameter(
+                description = "Match the status filter exactly. Without it, filtering by ERROR also returns scans in other statuses that have an errored check result."
+            ) boolean exactStatus
     ) {
         try {
             admins.checkPermission(Permission.MANAGE_SCANS);
@@ -440,7 +444,7 @@ public class ScanAPI {
             var pageable = PageRequest.of(pageNumber, size, sort);
 
             // Automatically include scans with errored check results when filtering by ERRORED status
-            var includeCheckErrors = statusFilter.contains(ScanStatus.ERRORED);
+            var includeCheckErrors = !exactStatus && statusFilter.contains(ScanStatus.ERRORED);
 
             var page = repositories.findScansFullyFiltered(
                     statusFilter.isEmpty() ? null : statusFilter,

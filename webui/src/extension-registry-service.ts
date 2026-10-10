@@ -740,6 +740,8 @@ export interface AdminService {
             dateStartedFrom?: string;
             dateStartedTo?: string;
             enforcement?: 'enforced' | 'notEnforced' | 'all';
+            adminDecision?: string[];
+            exactStatus?: boolean;
         }
     ): Promise<Readonly<ScanResultsResponse>>;
     getScan(abortController: AbortController, scanId: string): Promise<Readonly<ScanResultJson>>;
@@ -1111,6 +1113,7 @@ export class AdminServiceImpl implements AdminService {
             dateStartedTo?: string;
             enforcement?: 'enforced' | 'notEnforced' | 'all';
             adminDecision?: string[];
+            exactStatus?: boolean;
         }
     ): Promise<Readonly<ScanResultsResponse>> {
         const query: { key: string; value: string | number }[] = [];
@@ -1133,6 +1136,7 @@ export class AdminServiceImpl implements AdminService {
             if (params.enforcement) query.push({ key: 'enforcement', value: params.enforcement });
             if (params.adminDecision && params.adminDecision.length > 0)
                 query.push({ key: 'adminDecision', value: params.adminDecision.join(',') });
+            if (params.exactStatus) query.push({ key: 'exactStatus', value: 'true' });
         }
         const endpoint = createAbsoluteURL([this.registry.serverUrl, 'admin', 'scans'], query);
         return sendNonRetriableRequest({

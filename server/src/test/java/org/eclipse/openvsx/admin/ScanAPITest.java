@@ -620,6 +620,49 @@ class ScanAPITest {
     }
 
     @Test
+    void getScans_includes_check_errors_for_error_status_unless_exact_status_is_requested() throws Exception {
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
+        when(
+                repositories.findScansFullyFiltered(
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        anyBoolean(),
+                        any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+
+        mockMvc.perform(get("/admin/scans").param("status", "ERROR").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+        mockMvc.perform(
+                get("/admin/scans").param("status", "ERROR").param("exactStatus", "true")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        var includeCheckErrors = org.mockito.ArgumentCaptor.forClass(Boolean.class);
+        verify(repositories, times(2)).findScansFullyFiltered(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                includeCheckErrors.capture(),
+                any());
+        org.assertj.core.api.Assertions.assertThat(includeCheckErrors.getAllValues()).containsExactly(true, false);
+    }
+
+    @Test
     void makeScanDecisions_allows_errored_scan_and_activates_it() throws Exception {
         when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
         var scan = TestData

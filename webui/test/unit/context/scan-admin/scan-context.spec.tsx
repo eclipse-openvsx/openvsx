@@ -120,6 +120,7 @@ describe('ScanProvider — tab routing', () => {
 
         const params = (getAllScans.mock.calls[1] as unknown[])[1] as Record<string, unknown>;
         expect(params.status).toEqual(['ERROR']);
+        expect(params.exactStatus).toBe(true);
         expect(params.enforcement).toBe('all');
     });
 

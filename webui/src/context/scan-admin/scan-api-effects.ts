@@ -188,6 +188,7 @@ export const useScansEffect = (
             let validationTypeParam: string[] | undefined;
             let threatScannerParam: string[] | undefined;
             let adminDecisionParam: string[] | undefined;
+            let exactStatusParam: boolean | undefined;
 
             if (state.selectedTab === 0) {
                 // Scans tab - use statusFilters, expanding 'running' to explicit statuses
@@ -217,6 +218,7 @@ export const useScansEffect = (
             } else if (state.selectedTab === 3) {
                 // Errors tab - scans that errored and may need an admin decision
                 statusParam = ['ERROR'];
+                exactStatusParam = true;
                 if (state.quarantineFilters.size > 0) {
                     adminDecisionParam = Array.from(state.quarantineFilters);
                 }
@@ -232,6 +234,7 @@ export const useScansEffect = (
                 validationType: validationTypeParam,
                 threatScannerName: threatScannerParam,
                 adminDecision: adminDecisionParam,
+                exactStatus: exactStatusParam,
                 dateStartedFrom: dateParams.dateStartedFrom,
                 dateStartedTo: dateParams.dateStartedTo,
                 enforcement: state.enforcement
