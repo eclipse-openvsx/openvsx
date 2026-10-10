@@ -28,8 +28,8 @@ export const useSiteSettings = () => {
         queryKey: siteSettingsQueryKey,
         queryFn: ({ signal }) => service.getSiteSettings(controllerFromSignal(signal)),
         // The layout mounts this once and focus refetching is off app-wide, so a tab left open
-        // would never see a banner an admin puts up. Matches the endpoint's one-minute max-age, so
+        // would never see a banner an admin puts up. Matches the endpoint's five-minute max-age, so
         // a poll always gets a fresh answer, and TanStack leaves background tabs alone.
-        refetchInterval: 60_000
+        refetchInterval: 5 * 60_000
     });
 };

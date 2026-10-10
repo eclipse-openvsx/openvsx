@@ -48,9 +48,9 @@ public class SettingsAPI {
                 + "sanitize it before rendering it as HTML."
     )
     public ResponseEntity<SiteSettingsJson> getSiteSettings() {
-        // Short-lived: an admin changing a setting should reach visitors within the minute.
+        // Short-lived: an admin changing a setting should reach visitors within five minutes.
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(1, TimeUnit.MINUTES).cachePublic().mustRevalidate())
+                .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic().mustRevalidate())
                 .body(settings.getSiteSettings());
     }
 }

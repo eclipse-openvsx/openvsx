@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.eclipse.openvsx.json.SiteSettingsJson;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +41,7 @@ class SettingsAPITest {
                 .build()
                 .perform(get("/api/-/settings"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "max-age=300, must-revalidate, public"))
                 .andExpect(jsonPath("$.bannerEnabled").value(true))
                 .andExpect(jsonPath("$.bannerMessage").value("Maintenance tonight"))
                 .andExpect(jsonPath("$.bannerSeverity").value("warning"))

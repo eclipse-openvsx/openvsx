@@ -55,7 +55,7 @@ describe('RegistryBanner', () => {
             const getSiteSettings = mountBanner({});
             await waitFor(() => expect(getSiteSettings).toHaveBeenCalledTimes(1));
 
-            await vi.advanceTimersByTimeAsync(60_000);
+            await vi.advanceTimersByTimeAsync(5 * 60_000);
 
             await waitFor(() => expect(getSiteSettings).toHaveBeenCalledTimes(2));
         } finally {
