@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as semver from 'semver';
 import { Registry, Extension } from "./registry";
-import { promisify, matchExtensionId, optionalStat, makeDirs, addEnvOptions, rejectError } from './util';
+import { matchExtensionId, addEnvOptions, rejectError } from './util';
 import { GetOptions } from './get-options';
 
 /**
@@ -70,15 +70,15 @@ async function printMetadata(registry: Registry, extension: Extension, output?: 
         return;
     }
     let filePath: string | undefined;
-    const stats = await optionalStat(output);
+    const stats = fs.statSync(output, { throwIfNoEntry: false });
     if (stats?.isDirectory() || !stats && output.endsWith(path.sep)) {
         const fileName = `${extension.namespace}.${extension.name}-${extension.version}.json`;
         filePath = path.resolve(process.cwd(), output, fileName);
     } else {
         filePath = path.resolve(process.cwd(), output);
     }
-    await makeDirs(path.dirname(filePath));
-    await promisify(fs.writeFile)(filePath, metadata);
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.promises.writeFile(filePath, metadata);
 }
 
 async function download(registry: Registry, extension: Extension, output?: string): Promise<void> {
@@ -90,7 +90,7 @@ async function download(registry: Registry, extension: Extension, output?: strin
     const fileName = decodeURIComponent(downloadUrl.substring(fileNameIndex + 1));
     let filePath: string | undefined;
     if (output) {
-        const stats = await optionalStat(output);
+        const stats = fs.statSync(output, { throwIfNoEntry: false });
         if (stats?.isDirectory() || !stats && output.endsWith(path.sep)) {
             filePath = path.resolve(process.cwd(), output, fileName);
         } else {
@@ -99,7 +99,7 @@ async function download(registry: Registry, extension: Extension, output?: strin
     } else {
         filePath = path.resolve(process.cwd(), fileName);
     }
-    await makeDirs(path.dirname(filePath));
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
     const target = extension.targetPlatform !== 'universal' ? '@' + extension.targetPlatform : '';
     console.log(`Downloading ${extension.namespace}.${extension.name}-${extension.version}${target} to ${filePath}`);
     await registry.download(filePath, new URL(downloadUrl));

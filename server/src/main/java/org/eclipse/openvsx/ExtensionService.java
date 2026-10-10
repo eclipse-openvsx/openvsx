@@ -300,8 +300,8 @@ public class ExtensionService {
             return true;
         }
 
-        // if the extension was quarantined before, check if there is an admin decision
-        if (ScanStatus.QUARANTINED.equals(scan.getStatus())) {
+        // if the extension was quarantined or errored before, check if there is an admin decision
+        if (ScanStatus.QUARANTINED.equals(scan.getStatus()) || ScanStatus.ERRORED.equals(scan.getStatus())) {
             var scanDecision = repositories.findAdminScanDecision(scan);
             return scanDecision != null && scanDecision.isAllowed();
         }

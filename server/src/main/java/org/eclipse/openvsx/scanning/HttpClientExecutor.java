@@ -135,7 +135,8 @@ public class HttpClientExecutor {
     }
 
     /**
-     * Execute an HTTP request based on configuration.
+     * Execute an HTTP request based on configuration. Redirects are followed by the HTTP client; any non-2xx final
+     * response is an error.
      */
     public String execute(
             RemoteScannerProperties.HttpOperation operation,
@@ -156,34 +157,25 @@ public class HttpClientExecutor {
                     requestEntity,
                     String.class);
 
-            // Return response body for successful requests
+            // RestTemplate only throws for 4xx/5xx; an unfollowed 3xx (e.g. 300, 304) must be rejected here.
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new ScannerException(
+                        "Unexpected HTTP status " + response.getStatusCode() + " on " + operation.getMethod() + " "
+                                + operation.getUrl());
+            }
+
             return response.getBody();
 
         } catch (HttpStatusCodeException e) {
-            // 5xx = server error — always treat as failure even if body is present
-            if (e.getStatusCode().is5xxServerError()) {
-                String bodySnippet = e.getResponseBodyAsString();
-                if (bodySnippet != null && bodySnippet.length() > 200) {
-                    bodySnippet = bodySnippet.substring(0, 200) + "...";
-                }
-                throw new ScannerException(
-                        "Scanner service error: " + e.getStatusCode() + " " +
-                                e.getStatusText() + " on " + operation.getMethod() + " " +
-                                operation.getUrl() +
-                                (bodySnippet != null && !bodySnippet.isEmpty() ? " — " + bodySnippet : ""),
-                        e);
+            String bodySnippet = e.getResponseBodyAsString();
+            if (bodySnippet.length() > 200) {
+                bodySnippet = bodySnippet.substring(0, 200) + "...";
             }
-            // 4xx — some scanners use non-2xx for valid results (e.g., 406 = malware found).
-            // Return the body so the scanner can parse it.
-            String responseBody = e.getResponseBodyAsString();
-            if (responseBody != null && !responseBody.isEmpty()) {
-                return responseBody;
-            }
-            // No body on a 4xx — genuine error
             throw new ScannerException(
-                    "Failed to execute HTTP request: " + e.getStatusCode() + " " +
-                            e.getStatusText() + " on " + operation.getMethod() + " request for \"" +
-                            operation.getUrl() + "\"",
+                    "Scanner service error: " + e.getStatusCode() + " " +
+                            e.getStatusText() + " on " + operation.getMethod() + " " +
+                            operation.getUrl() +
+                            (!bodySnippet.isEmpty() ? " — " + bodySnippet : ""),
                     e);
         } catch (Exception e) {
             throw new ScannerException("Failed to execute HTTP request: " + e.getMessage(), e);

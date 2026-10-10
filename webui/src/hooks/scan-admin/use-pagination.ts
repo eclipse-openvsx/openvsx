@@ -53,10 +53,10 @@ export const usePagination = () => {
     }, [derived.totalPages, actions]);
 
     // Determine if we're in a loading state based on selected tab
-    const isLoading = state.selectedTab >= 3 ? state.isLoadingFiles : state.isLoadingScans;
+    const isLoading = state.selectedTab >= 4 ? state.isLoadingFiles : state.isLoadingScans;
 
     // Get total items based on selected tab
-    const totalItems = state.selectedTab >= 3 ? state.totalFiles : state.totalScans;
+    const totalItems = state.selectedTab >= 4 ? state.totalFiles : state.totalScans;
 
     return useMemo(
         () => ({

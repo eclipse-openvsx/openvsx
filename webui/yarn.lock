@@ -1355,13 +1355,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/lodash@npm:^4.14.195":
-  version: 4.17.4
-  resolution: "@types/lodash@npm:4.17.4"
-  checksum: 10/3ec19f9fc48200006e71733e08bcb1478b0398673657fcfb21a8643d41a80bcce09a01000077c3b23a3c6d86b9b314abe0672a8fdfc0fd66b893bd41955cfab8
-  languageName: node
-  linkType: hard
-
 "@types/luxon@npm:^3.7.1":
   version: 3.7.1
   resolution: "@types/luxon@npm:3.7.1"
@@ -4648,13 +4641,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:^4.17.21":
-  version: 4.18.1
-  resolution: "lodash@npm:4.18.1"
-  checksum: 10/306fea53dfd39dad1f03d45ba654a2405aebd35797b673077f401edb7df2543623dc44b9effbb98f69b32152295fff725a4cec99c684098947430600c6af0c3f
-  languageName: node
-  linkType: hard
-
 "loose-envify@npm:^1.0.0, loose-envify@npm:^1.1.0, loose-envify@npm:^1.4.0":
   version: 1.4.0
   resolution: "loose-envify@npm:1.4.0"
@@ -5081,7 +5067,6 @@ __metadata:
     "@testing-library/user-event": "npm:^14.6.1"
     "@types/dompurify": "npm:^3.0.2"
     "@types/express": "npm:^5.0.0"
-    "@types/lodash": "npm:^4.14.195"
     "@types/luxon": "npm:^3.7.1"
     "@types/markdown-it": "npm:^14.1.0"
     "@types/node": "npm:^22.0.0"
@@ -5104,7 +5089,6 @@ __metadata:
     express-rate-limit: "npm:^7.4.0"
     fetch-retry: "npm:^5.0.6"
     jsdom: "npm:^30.0.0"
-    lodash: "npm:^4.17.21"
     luxon: "npm:^3.7.2"
     markdown-it: "npm:^14.1.0"
     markdown-it-anchor: "npm:^9.2.0"
@@ -5387,12 +5371,12 @@ __metadata:
   linkType: hard
 
 "proxy-addr@npm:^2.0.7":
-  version: 2.0.7
-  resolution: "proxy-addr@npm:2.0.7"
+  version: 2.0.8
+  resolution: "proxy-addr@npm:2.0.8"
   dependencies:
     forwarded: "npm:0.2.0"
     ipaddr.js: "npm:1.9.1"
-  checksum: 10/f24a0c80af0e75d31e3451398670d73406ec642914da11a2965b80b1898ca6f66a0e3e091a11a4327079b2b268795f6fa06691923fef91887215c3d0e8ea3f68
+  checksum: 10/6922b732c5625a9ba174c053bf3a750a80c87f19b7c62919f88ff01834eb80e2467834cfa72fc48b3a7ed6b3d18daadf773f6efb21db1c5fcc76d784509fcf1f
   languageName: node
   linkType: hard
 
@@ -6114,9 +6098,9 @@ __metadata:
   linkType: hard
 
 "source-map-js@npm:^1.2.1":
-  version: 1.2.1
-  resolution: "source-map-js@npm:1.2.1"
-  checksum: 10/ff9d8c8bf096d534a5b7707e0382ef827b4dd360a577d3f34d2b9f48e12c9d230b5747974ee7c607f0df65113732711bb701fe9ece3c7edbd43cb2294d707df3
+  version: 1.2.2
+  resolution: "source-map-js@npm:1.2.2"
+  checksum: 10/4807c894bb6280c8b84886159b96080e3996f42c6e8015e647881edfd4f955f6024ceebb8bb40d33ce8b106e24b2e29c133575e1c60c01c8aae57a05fdf17761
   languageName: node
   linkType: hard
 

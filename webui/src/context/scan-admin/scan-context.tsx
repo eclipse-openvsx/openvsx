@@ -83,7 +83,7 @@ export const ScanProvider: FC<ScanProviderProps> = ({ children, service, handleE
 
     const totalPages = useMemo(() => {
         // For tabs 0-2 (scans), use totalScans; for tabs 3-4 (files), use totalFiles
-        const total = state.selectedTab >= 3 ? state.totalFiles : state.totalScans;
+        const total = state.selectedTab >= 4 ? state.totalFiles : state.totalScans;
         return Math.ceil(total / state.pageSize);
     }, [state.selectedTab, state.totalScans, state.totalFiles, state.pageSize]);
 

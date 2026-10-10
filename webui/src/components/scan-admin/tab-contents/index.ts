@@ -14,5 +14,6 @@
 export { ScansTabContent } from './scans-tab-content';
 export { QuarantinedTabContent } from './quarantined-tab-content';
 export { AutoRejectedTabContent } from './auto-rejected-tab-content';
+export { ErrorsTabContent } from './errors-tab-content';
 export { AllowListTabContent } from './allow-list-tab-content';
 export { BlockListTabContent } from './block-list-tab-content';

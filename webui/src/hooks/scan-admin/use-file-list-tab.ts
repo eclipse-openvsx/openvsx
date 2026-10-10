@@ -17,7 +17,7 @@ import { usePagination } from './use-pagination';
 import { useSearch } from './use-search';
 
 interface UseFileListTabOptions {
-    tabIndex: 3 | 4;
+    tabIndex: 4 | 5;
     decisionType: FileDecisionType;
     tabName: string;
 }
@@ -137,22 +137,22 @@ export const useFileListTab = ({ tabIndex, decisionType, tabName }: UseFileListT
 };
 
 /**
- * Hook specifically for the Allow List tab (tab index 3).
+ * Hook specifically for the Allow List tab (tab index 4).
  */
 export const useAllowListTab = () => {
     return useFileListTab({
-        tabIndex: 3,
+        tabIndex: 4,
         decisionType: 'allowed',
         tabName: 'Allow List'
     });
 };
 
 /**
- * Hook specifically for the Block List tab (tab index 4).
+ * Hook specifically for the Block List tab (tab index 5).
  */
 export const useBlockListTab = () => {
     return useFileListTab({
-        tabIndex: 4,
+        tabIndex: 5,
         decisionType: 'blocked',
         tabName: 'Block List'
     });

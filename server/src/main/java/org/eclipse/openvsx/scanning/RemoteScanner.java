@@ -221,6 +221,13 @@ public class RemoteScanner implements Scanner {
                     status,
                     mappedStatus);
 
+            if (mappedStatus == PollStatus.FAILED) {
+                String body = response != null && response.length() > 500
+                        ? response.substring(0, 500) + "..."
+                        : response;
+                logger.warn("Job {} reported status '{}', response: {}", submission.externalJobId(), status, body);
+            }
+
             return mappedStatus;
 
         } catch (Exception e) {

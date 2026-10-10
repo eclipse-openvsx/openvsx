@@ -141,4 +141,32 @@ describe('GenerateAccessTokenDialog', () => {
         expect(screen.getByLabelText('Namespace (optional)')).toHaveValue('');
         expect(screen.getByRole('checkbox', { name: 'Publishing only' })).not.toBeChecked();
     });
+
+    it('blocks generation while the typed text is not a listed option', async () => {
+        const { createAccessToken } = renderDialog();
+
+        await openDialog();
+        await userEvent.type(screen.getByRole('combobox', { name: 'Namespace (optional)' }), 'nope');
+        await userEvent.click(screen.getByLabelText('Description (optional)'));
+
+        expect(screen.getByText('Select a namespace from the list or clear the field.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Generate Token' })).toBeDisabled();
+        await userEvent.type(screen.getByLabelText('Description (optional)'), '{Enter}');
+        expect(createAccessToken).not.toHaveBeenCalled();
+
+        await userEvent.clear(screen.getByRole('combobox', { name: 'Namespace (optional)' }));
+        expect(screen.getByRole('button', { name: 'Generate Token' })).toBeEnabled();
+    });
+
+    it('blocks generation while the typed extension is not a listed option', async () => {
+        renderDialog();
+
+        await openDialog();
+        await selectNamespace('foo');
+        await userEvent.type(screen.getByRole('combobox', { name: 'Extension (optional)' }), 'nope');
+
+        expect(screen.getByRole('button', { name: 'Generate Token' })).toBeDisabled();
+        await userEvent.click(screen.getAllByTitle('Clear')[0]);
+        expect(screen.getByRole('button', { name: 'Generate Token' })).toBeEnabled();
+    });
 });

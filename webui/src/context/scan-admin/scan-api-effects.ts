@@ -142,7 +142,7 @@ export const useFilterOptionsEffect = (
 // ============================================================================
 
 /**
- * Hook to fetch scans from API (tabs 0, 1, 2: Scans, Quarantined, Auto Rejected)
+ * Hook to fetch scans from API (tabs 0-3: Scans, Quarantined, Auto Rejected, Errors)
  */
 export const useScansEffect = (
     service: any,
@@ -154,7 +154,7 @@ export const useScansEffect = (
     // threat scanners / validation types exist, so we skip the request entirely.
     const noQuarantineData = state.selectedTab === 1 && state.availableThreatScanners.length === 0;
     const noAutoRejectedData = state.selectedTab === 2 && state.availableValidationTypes.length === 0;
-    const enabled = state.selectedTab <= 2 && state.filterOptionsLoaded && !noQuarantineData && !noAutoRejectedData;
+    const enabled = state.selectedTab <= 3 && state.filterOptionsLoaded && !noQuarantineData && !noAutoRejectedData;
 
     const dateParams = getDateRangeParams(state.dateRange);
 
@@ -188,6 +188,7 @@ export const useScansEffect = (
             let validationTypeParam: string[] | undefined;
             let threatScannerParam: string[] | undefined;
             let adminDecisionParam: string[] | undefined;
+            let exactStatusParam: boolean | undefined;
 
             if (state.selectedTab === 0) {
                 // Scans tab - use statusFilters, expanding 'running' to explicit statuses
@@ -214,6 +215,13 @@ export const useScansEffect = (
                 } else {
                     validationTypeParam = state.availableValidationTypes;
                 }
+            } else if (state.selectedTab === 3) {
+                // Errors tab - scans that errored and may need an admin decision
+                statusParam = ['ERROR'];
+                exactStatusParam = true;
+                if (state.quarantineFilters.size > 0) {
+                    adminDecisionParam = Array.from(state.quarantineFilters);
+                }
             }
 
             const response = await service.admin.getAllScans(controllerFromSignal(signal), {
@@ -226,6 +234,7 @@ export const useScansEffect = (
                 validationType: validationTypeParam,
                 threatScannerName: threatScannerParam,
                 adminDecision: adminDecisionParam,
+                exactStatus: exactStatusParam,
                 dateStartedFrom: dateParams.dateStartedFrom,
                 dateStartedTo: dateParams.dateStartedTo,
                 enforcement: state.enforcement
@@ -354,7 +363,7 @@ export const useFilesEffect = (
     dispatch: Dispatch<ScanAction>,
     handleErrorRef: MutableRefObject<(error: any) => void>
 ) => {
-    const enabled = state.selectedTab >= 3;
+    const enabled = state.selectedTab >= 4;
     const dateParams = getFileDateRange(state.fileDateRange);
 
     const { data, error, isLoading } = useQuery({
@@ -375,7 +384,7 @@ export const useFilesEffect = (
         staleTime: 0,
         placeholderData: keepPreviousData,
         queryFn: async ({ signal }) => {
-            const decisionParam = state.selectedTab === 3 ? 'allowed' : 'blocked';
+            const decisionParam = state.selectedTab === 4 ? 'allowed' : 'blocked';
 
             const response = await service.admin.getFiles(controllerFromSignal(signal), {
                 size: state.pageSize,
@@ -430,7 +439,7 @@ export const useFileCountsEffect = (
     dispatch: Dispatch<ScanAction>,
     handleErrorRef: MutableRefObject<(error: any) => void>
 ) => {
-    const enabled = state.selectedTab >= 3;
+    const enabled = state.selectedTab >= 4;
     const dateParams = getFileDateRange(state.fileDateRange);
 
     const { data, error } = useQuery({

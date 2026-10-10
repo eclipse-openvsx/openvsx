@@ -21,11 +21,12 @@ export const TAB_DEFINITIONS = [
     { index: 0, name: 'Scans', path: 'scans' },
     { index: 1, name: 'Quarantined', path: 'quarantined' },
     { index: 2, name: 'Auto Rejected', path: 'auto-rejected' },
-    { index: 3, name: 'Allowed Files', path: 'allowed-files' },
-    { index: 4, name: 'Blocked Files', path: 'blocked-files' }
+    { index: 3, name: 'Errors', path: 'errors' },
+    { index: 4, name: 'Allowed Files', path: 'allowed-files' },
+    { index: 5, name: 'Blocked Files', path: 'blocked-files' }
 ] as const;
 
-export type TabIndex = 0 | 1 | 2 | 3 | 4;
+export type TabIndex = 0 | 1 | 2 | 3 | 4 | 5;
 export type TabName = (typeof TAB_DEFINITIONS)[number]['name'];
 
 /**
@@ -36,7 +37,7 @@ export const useTabNavigation = () => {
 
     const setTab = useCallback(
         (tab: number) => {
-            if (tab >= 0 && tab <= 4) {
+            if (tab >= 0 && tab <= 5) {
                 actions.setTab(tab);
             }
         },
@@ -50,11 +51,12 @@ export const useTabNavigation = () => {
     const isScansTab = state.selectedTab === 0;
     const isQuarantinedTab = state.selectedTab === 1;
     const isAutoRejectedTab = state.selectedTab === 2;
-    const isAllowListTab = state.selectedTab === 3;
-    const isBlockListTab = state.selectedTab === 4;
+    const isErrorsTab = state.selectedTab === 3;
+    const isAllowListTab = state.selectedTab === 4;
+    const isBlockListTab = state.selectedTab === 5;
 
-    const isScanDataTab = state.selectedTab <= 2;
-    const isFileDataTab = state.selectedTab >= 3;
+    const isScanDataTab = state.selectedTab <= 3;
+    const isFileDataTab = state.selectedTab >= 4;
 
     return useMemo(
         () => ({
@@ -65,6 +67,7 @@ export const useTabNavigation = () => {
             isScansTab,
             isQuarantinedTab,
             isAutoRejectedTab,
+            isErrorsTab,
             isAllowListTab,
             isBlockListTab,
             isScanDataTab,
@@ -77,6 +80,7 @@ export const useTabNavigation = () => {
             isScansTab,
             isQuarantinedTab,
             isAutoRejectedTab,
+            isErrorsTab,
             isAllowListTab,
             isBlockListTab,
             isScanDataTab,

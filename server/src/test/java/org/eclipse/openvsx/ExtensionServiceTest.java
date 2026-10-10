@@ -273,6 +273,24 @@ class ExtensionServiceTest {
     }
 
     @Test
+    void shouldReactivateExtensionsWithErroredScansAndAllowed() {
+        var user = mockUser();
+        var ext = mockExtension();
+        var extVersion = mockExtensionVersion(ext, "1.1.0", ScanStatus.ERRORED, user);
+        ext.getVersions().add(extVersion);
+
+        var scan = repositories.findLatestExtensionScan(extVersion);
+        var decision = new AdminScanDecision();
+        decision.setDecision(AdminScanDecision.ALLOWED);
+        Mockito.when(repositories.findAdminScanDecision(scan)).thenReturn(decision);
+
+        svc.reactivateExtensions(user);
+
+        assertThat(ext.isActive()).isTrue();
+        assertThat(extVersion.isActive()).isTrue();
+    }
+
+    @Test
     void shouldNotReactivateRemovedVersions() {
         var user = mockUser();
         var ext = mockExtension();

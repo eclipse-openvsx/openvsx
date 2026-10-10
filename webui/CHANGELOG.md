@@ -6,6 +6,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
+- Add an "Errors" tab to the scan admin page, where an admin can activate extension versions whose scan ended in an error that retrying cannot resolve. The Allowed Files and Blocked Files tabs move to positions 5 and 6, and their `tab` URL parameter values are unchanged
 - Add fine-grained admin permissions: a user can hold individual admin capabilities instead of the all-or-nothing admin role, and reaches the dashboard with only the pages those capabilities cover (#2269)
 - Add an "Access Control" admin dashboard page, where a user's role and permissions are assigned together and applied on Save; both move here from Publisher admin (#2269)
 - Export `hasPermission` and `hasAnyAdminAccess`, so a deployment with its own menu content can gate an admin entry the way the built-in menu does (#2269)
@@ -34,6 +35,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Fix `sendNonRetriableRequest` and `sendStrictRequest` still retrying network errors and aborted requests three times (#2237)
 - The publish page no longer refuses a package larger than the registry's default limit without asking the server. A namespace with a size override may publish more than the default allows, so the upload is now only blocked above the registry's ceiling — the largest any namespace could publish. A package that looks too big is shown in the queue while that ceiling is re-read, rather than the page staying empty until the answer arrives ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
 - The admin dashboard's Settings page sends only the settings that were changed, so saving no longer reverts a setting another admin changed while the page was open ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+- The namespace details form no longer enables Save after a social handle is typed and then cleared, and now enables it when only the LinkedIn account type changes
 
 ### Dependencies
 
@@ -46,6 +48,9 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump dompurify from 3.4.13 to 3.4.16
 - Bump fast-uri from 3.1.7 to 3.1.8
 - Pin the transitive `node-gyp` resolution to `^13.1.0` (from 12.2.0), which `fsevents`' optional dependency had resolved to `latest`
+- Bump source-map-js from 1.2.1 to 1.2.2
+- Bump proxy-addr from 2.0.7 to 2.0.8
+- Remove `lodash` and `@types/lodash`
 
 ## [v1.2.0] (10/09/2026)
 

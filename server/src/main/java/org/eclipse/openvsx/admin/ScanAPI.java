@@ -409,7 +409,11 @@ public class ScanAPI {
                 array = @ArraySchema(
                     schema = @Schema(type = "string", allowableValues = { "allowed", "blocked", "needs-review" })
                 )
-            ) List<String> adminDecision
+            ) List<String> adminDecision,
+            @RequestParam(defaultValue = "false")
+            @Parameter(
+                description = "Match the status filter exactly. Without it, filtering by ERROR also returns scans in other statuses that have an errored check result."
+            ) boolean exactStatus
     ) {
         try {
             admins.checkPermission(Permission.MANAGE_SCANS);
@@ -440,7 +444,7 @@ public class ScanAPI {
             var pageable = PageRequest.of(pageNumber, size, sort);
 
             // Automatically include scans with errored check results when filtering by ERRORED status
-            var includeCheckErrors = statusFilter.contains(ScanStatus.ERRORED);
+            var includeCheckErrors = !exactStatus && statusFilter.contains(ScanStatus.ERRORED);
 
             var page = repositories.findScansFullyFiltered(
                     statusFilter.isEmpty() ? null : statusFilter,
@@ -704,8 +708,9 @@ public class ScanAPI {
     }
 
     /**
-     * Make security decisions for one or more quarantined scans.
-     * Only valid for scans with QUARANTINED status.
+     * Make security decisions for one or more scans.
+     * Valid for scans with QUARANTINED status, and for ALLOWED decisions on scans with ERRORED
+     * status (e.g. a scanner bug that no retry can resolve).
      * Pass a single scanId for individual decisions, or multiple scanIds for bulk operations.
      * <p>
      * When a scan is allowed:
@@ -723,7 +728,7 @@ public class ScanAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     @CrossOrigin
-    @Operation(summary = "Make security decisions for quarantined scans")
+    @Operation(summary = "Make security decisions for quarantined or errored scans")
     @MutatingOperation
     @ApiResponse(
         responseCode = "200",
@@ -735,7 +740,7 @@ public class ScanAPI {
     )
     @ApiResponse(
         responseCode = "400",
-        description = "Invalid request or scan not in quarantined status",
+        description = "Invalid request or scan status does not accept the decision",
         content = @Content()
     )
     public ResponseEntity<ScanDecisionResponseJson> makeScanDecisions(
@@ -768,11 +773,15 @@ public class ScanAPI {
                         continue;
                     }
 
-                    if (scan.getStatus() != ScanStatus.QUARANTINED) {
+                    var decidable = scan.getStatus() == ScanStatus.QUARANTINED
+                            || (scan.getStatus() == ScanStatus.ERRORED
+                                    && AdminScanDecision.ALLOWED.equals(decisionValue));
+                    if (!decidable) {
                         results.add(
                                 ScanDecisionResultJson.failure(
                                         scanIdStr,
-                                        "Scan not in quarantined status: " + formatScanStatus(scan.getStatus())));
+                                        "Scan not in a status that accepts this decision: "
+                                                + formatScanStatus(scan.getStatus())));
                         failed++;
                         continue;
                     }
@@ -1027,7 +1036,10 @@ public class ScanAPI {
         json.setStatus(job.getStatus().name());
         json.setCreatedAt(TimeUtil.toUTCString(job.getCreatedAt()));
         json.setUpdatedAt(TimeUtil.toUTCString(job.getUpdatedAt()));
-        json.setErrorMessage(job.getErrorMessage());
+        // Active jobs may carry transient poll errors; the DTO contract is failed/removed only.
+        if (job.getStatus().isTerminal()) {
+            json.setErrorMessage(job.getErrorMessage());
+        }
         json.setExternalUrl(buildExternalScannerUrl(job));
         return json;
     }
