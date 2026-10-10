@@ -243,7 +243,10 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
     };
 
     const renderResourceLink = (label: string, resourceLink: SxProps<Theme>, href?: string): ReactNode => {
-        if (!href || !(href.startsWith('http') || href.startsWith('mailto'))) {
+        if (
+            !href ||
+            !(href.startsWith('http') || href.startsWith('mailto') || href.startsWith('vscode:extension/'))
+        ) {
             return '';
         }
         let icon: ReactNode;
@@ -393,6 +396,11 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
                         {renderResourceLink('Repository', resourceLink, extension.repository)}
                         {renderResourceLink('Bugs', resourceLink, extension.bugs)}
                         {renderResourceLink("Q'n'A", resourceLink, extension.qna)}
+                        {renderResourceLink(
+                            'Open in Client',
+                            resourceLink,
+                            `vscode:extension/${encodeURIComponent(`${extension.namespace}.${extension.name}`)}`
+                        )}
                         {downloadButton}
                         {DownloadTerms &&
                         extension.downloadable &&
