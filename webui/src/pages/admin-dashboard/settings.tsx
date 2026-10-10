@@ -26,7 +26,7 @@ import {
     TextField,
     Typography
 } from '@mui/material';
-import type { Settings } from '../../extension-registry-types';
+import type { Settings, SiteSettings } from '../../extension-registry-types';
 import { handleError } from '../../utils';
 import { useSavedFlash } from '../../hooks/use-saved-flash';
 import { SettingsBannerItem } from './settings-banner-item';
@@ -71,10 +71,10 @@ const BANNER_KEYS = ['bannerEnabled', 'bannerMessage', 'bannerSeverity'] as cons
 // asks for the banner to be shown again to everyone who dismissed it.
 const SETTING_KEYS = ['readOnly', 'maxExtensionSize', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
 
-const hasMessage = (settings: Settings) => (settings.bannerMessage ?? '').trim().length > 0;
+const hasMessage = (settings: SiteSettings) => (settings.bannerMessage ?? '').trim().length > 0;
 
 /** Whether visitors would actually see a banner for these settings. */
-const bannerVisible = (settings: Settings) => Boolean(settings.bannerEnabled) && hasMessage(settings);
+const bannerVisible = (settings: SiteSettings) => Boolean(settings.bannerEnabled) && hasMessage(settings);
 
 export const RuntimeSettingsPage: FC = () => {
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
@@ -137,7 +137,7 @@ export const RuntimeSettingsPage: FC = () => {
     );
 
     const handleBannerChange = useCallback(
-        (patch: Settings) => {
+        (patch: SiteSettings) => {
             setDraftSettings(current => (current ? { ...current, ...patch } : current));
             clearSaved();
         },
@@ -172,15 +172,15 @@ export const RuntimeSettingsPage: FC = () => {
         if (!canShowAgain) setShowAgain(true);
     }, [canShowAgain]);
 
-    const maxExtensionSizeChanged = edited && draftSettings['maxExtensionSize'] !== settings.maxExtensionSize;
+    const maxExtensionSizeChanged = edited && draftSettings.maxExtensionSize !== settings.maxExtensionSize;
     // Only validated once the admin has actually edited it, because only then is it sent. The server
     // stores the limit as a long, and one beyond JavaScript's safe-integer range would otherwise fail
     // this check on arrival and block every unrelated setting from being saved.
     const maxExtensionSizeValid =
         !maxExtensionSizeChanged ||
-        (Number.isSafeInteger(draftSettings['maxExtensionSize']) &&
-            (draftSettings['maxExtensionSize'] ?? 0) > 0 &&
-            (draftSettings['maxExtensionSize'] ?? 0) <= (draftSettings['maxOverrideSize'] ?? Infinity));
+        (Number.isSafeInteger(draftSettings.maxExtensionSize) &&
+            draftSettings.maxExtensionSize > 0 &&
+            draftSettings.maxExtensionSize <= draftSettings.maxOverrideSize);
 
     const handleSaveClick = () => setConfirmOpen(true);
 
@@ -191,7 +191,7 @@ export const RuntimeSettingsPage: FC = () => {
         setConfirmOpen(false);
         // Only the settings this admin changed, so a save doesn't revert what another admin
         // changed while this page was open.
-        const patch = SETTING_KEYS.filter(key => draftSettings[key] !== settings[key]).reduce<Settings>(
+        const patch = SETTING_KEYS.filter(key => draftSettings[key] !== settings[key]).reduce<Partial<Settings>>(
             (changed, key) => Object.assign(changed, { [key]: draftSettings[key] }),
             {}
         );

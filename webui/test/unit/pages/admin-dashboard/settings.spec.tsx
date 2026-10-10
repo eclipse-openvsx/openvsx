@@ -17,6 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { RuntimeSettingsPage } from '../../../../src/pages/admin-dashboard/settings';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 import { Settings } from '../../../../src/extension-registry-types';
+import { useSiteSettings } from '../../../../src/components/use-site-settings';
 import { renderWithProviders } from '../../support/test-providers';
 
 const defaults: Settings = {
@@ -41,13 +42,13 @@ const configured: Settings = {
 
 // not named render*, so the testing-library naming rule does not treat the service stub it returns
 // as a render result
-const mountPage = (settings: Settings = defaults) => {
+const mountPage = (settings: Settings = defaults, getSiteSettings = vi.fn().mockResolvedValue({})) => {
     const admin = {
         getSettings: vi.fn().mockResolvedValue(settings),
         updateSettings: vi.fn().mockImplementation((updated: Settings) => Promise.resolve(updated))
     };
     renderWithProviders(<RuntimeSettingsPage />, {
-        mainContext: { service: { admin } as unknown as ExtensionRegistryService }
+        mainContext: { service: { admin, getSiteSettings } as unknown as ExtensionRegistryService }
     });
     return admin;
 };
@@ -107,6 +108,55 @@ describe('RuntimeSettingsPage', () => {
         mountPage({ ...configured, bannerSeverity: 'critical' as Settings['bannerSeverity'] });
 
         expect(await screen.findByText('Heads up', { selector: 'p' })).toBeVisible();
+    });
+
+    // /api/-/settings can be answered from a browser or CDN cache, so a refetch could return the
+    // pre-save banner; the page seeds it from the update response instead.
+    it('shows the saved banner in the public settings without refetching them', async () => {
+        const getSiteSettings = vi.fn().mockResolvedValue({});
+        const saved: Settings = { ...configured, bannerMessage: 'Fresh' };
+        const admin = {
+            getSettings: vi.fn().mockResolvedValue(configured),
+            updateSettings: vi.fn().mockResolvedValue(saved)
+        };
+        const Probe = () => <output>{useSiteSettings().data?.bannerMessage ?? 'none'}</output>;
+        renderWithProviders(
+            <>
+                <RuntimeSettingsPage />
+                <Probe />
+            </>,
+            { mainContext: { service: { admin, getSiteSettings } as unknown as ExtensionRegistryService } }
+        );
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('none'));
+
+        await userEvent.type(await screen.findByLabelText('Message'), '!');
+        await save();
+
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Fresh'));
+        expect(getSiteSettings).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves nothing public once the saved banner is off', async () => {
+        const saved: Settings = { ...configured, bannerEnabled: false };
+        const admin = {
+            getSettings: vi.fn().mockResolvedValue(configured),
+            updateSettings: vi.fn().mockResolvedValue(saved)
+        };
+        const getSiteSettings = vi.fn().mockResolvedValue({ bannerMessage: 'Heads up' });
+        const Probe = () => <output>{useSiteSettings().data?.bannerMessage ?? 'none'}</output>;
+        renderWithProviders(
+            <>
+                <RuntimeSettingsPage />
+                <Probe />
+            </>,
+            { mainContext: { service: { admin, getSiteSettings } as unknown as ExtensionRegistryService } }
+        );
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Heads up'));
+
+        await userEvent.click(await screen.findByLabelText('Toggle banner'));
+        await save();
+
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('none'));
     });
 
     it('rotates the dismiss token by default once the banner is edited', async () => {

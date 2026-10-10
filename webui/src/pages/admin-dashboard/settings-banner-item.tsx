@@ -27,7 +27,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import type { BannerSeverity, Settings } from '../../extension-registry-types';
+import type { BannerSeverity, SiteSettings } from '../../extension-registry-types';
 import { SettingsBannerPreview } from './settings-banner-preview';
 import { SettingsSwitch } from './settings-switch';
 
@@ -116,7 +116,7 @@ const OutcomeRow = styled(Box)(({ theme }) => ({
 }));
 
 export interface SettingsBannerItemProps {
-    settings: Settings;
+    settings: SiteSettings;
     /** The draft banner differs from the saved one, so saving would change what visitors see. */
     changed?: boolean;
     /** Whether showing the banner again to the people who dismissed it is the admin's to choose. */
@@ -124,7 +124,7 @@ export interface SettingsBannerItemProps {
     showAgain?: boolean;
     disabled?: boolean;
     loading?: boolean;
-    onChange: (patch: Settings) => void;
+    onChange: (patch: SiteSettings) => void;
     onShowAgainChange: (showAgain: boolean) => void;
 }
 

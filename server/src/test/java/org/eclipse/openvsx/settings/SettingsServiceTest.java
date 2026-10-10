@@ -134,12 +134,14 @@ class SettingsServiceTest {
     }
 
     @Test
-    void updateWritesOnlyTheKeysThatChanged() {
+    void updateWritesEveryRowTheRequestCarriesAndNothingElse() {
         stored(
                 BannerSetting.KEY_ENABLED,
                 true,
                 BannerSetting.KEY_MESSAGE,
                 "tonigth",
+                BannerSetting.KEY_SEVERITY,
+                "warning",
                 BannerSetting.KEY_DISMISS_ID,
                 "token-1");
 
@@ -153,8 +155,20 @@ class SettingsServiceTest {
                         "token-1"));
 
         verify(cache).set(BannerSetting.KEY_MESSAGE, "tonight");
-        verify(cache, never()).set(eq(BannerSetting.KEY_ENABLED), any());
-        verify(cache, never()).set(eq(BannerSetting.KEY_DISMISS_ID), any());
+        verify(cache).set(BannerSetting.KEY_ENABLED, true);
+        verify(cache).set(BannerSetting.KEY_DISMISS_ID, "token-1");
+        verify(cache, never()).set(eq(BannerSetting.KEY_SEVERITY), any());
+    }
+
+    // The snapshot a node reads can be a minute behind: if another node just switched read-only on,
+    // this one still reads "off", and an admin switching it off must not be mistaken for a no-op.
+    @Test
+    void aValueEqualToAStaleSnapshotIsStillWritten() {
+        stored(ReadOnlySetting.KEY, false);
+
+        settings.updateFromJson(update(ReadOnlySetting.KEY, false));
+
+        verify(cache).set(ReadOnlySetting.KEY, false);
     }
 
     @Test
@@ -325,13 +339,12 @@ class SettingsServiceTest {
     }
 
     @Test
-    void anEmptyBannerMintsNoDismissTokenAndWritesNoMessage() {
+    void anEmptyBannerMintsNoDismissToken() {
         stored();
 
         settings.updateFromJson(update(BannerSetting.KEY_MESSAGE, "", BannerSetting.KEY_SEVERITY, "info"));
 
         verify(cache, never()).set(eq(BannerSetting.KEY_DISMISS_ID), any());
-        verify(cache, never()).set(eq(BannerSetting.KEY_MESSAGE), any());
     }
 
     @Test

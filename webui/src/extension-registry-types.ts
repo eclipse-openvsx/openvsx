@@ -687,13 +687,13 @@ export interface SiteSettings {
     bannerDismissId?: string;
 }
 
-/** Runtime settings as an admin reads and writes them, one property per setting. */
+/** Runtime settings as an admin reads them. A save sends a `Partial` of this, only what changed. */
 export interface Settings extends SiteSettings {
-    readOnly?: boolean;
+    readOnly: boolean;
     /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
-    maxExtensionSize?: number;
+    maxExtensionSize: number;
     /** Read-only: neither maxExtensionSize nor a size override can be raised past this ceiling. */
-    maxOverrideSize?: number;
+    maxOverrideSize: number;
 }
 
 export interface SearchIndex {

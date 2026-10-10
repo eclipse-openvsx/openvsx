@@ -52,15 +52,6 @@ public interface WritableSetting<T> {
     default void validate(T value, T current) {
     }
 
-    /**
-     * Whether a row the update carries is written even when it equals the current value. The
-     * current value may be a default read from configuration or a stale cache entry, and an admin
-     * who sets it means to store it.
-     */
-    default boolean writesUnchanged() {
-        return false;
-    }
-
     /** How a changed row reads in the admin log, whose message column caps at 512 characters. */
     default String describe(String rowKey, Object value) {
         return rowKey + " -> " + value;

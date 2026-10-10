@@ -69,10 +69,4 @@ public class MaxExtensionSizeSetting implements WritableSetting<Long> {
             throw WritableSetting.reject("Max extension size exceeds the maximum of " + ceiling + " bytes.");
         }
     }
-
-    /** Storing the default pins it, so a later change to the configured one no longer moves it. */
-    @Override
-    public boolean writesUnchanged() {
-        return true;
-    }
 }

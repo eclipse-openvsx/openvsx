@@ -149,10 +149,13 @@ public class SettingsService {
 
         var currentRows = setting.toRows(current);
         var changed = new LinkedHashMap<String, Object>(setting.toRows(merged));
+        // A row the update carries is written even when it equals the current value: that value
+        // comes from a node-local snapshot that can be a minute stale, so skipping the write could
+        // drop the very change the admin asked for.
         changed.entrySet()
                 .removeIf(
-                        row -> Objects.equals(row.getValue(), currentRows.get(row.getKey()))
-                                && !(setting.writesUnchanged() && update.rows().containsKey(row.getKey())));
+                        row -> !update.rows().containsKey(row.getKey())
+                                && Objects.equals(row.getValue(), currentRows.get(row.getKey())));
         return changed;
     }
 
