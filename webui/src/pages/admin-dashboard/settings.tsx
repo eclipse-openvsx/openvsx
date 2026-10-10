@@ -22,15 +22,16 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Paper,
     Stack,
     TextField,
     Typography
 } from '@mui/material';
-import type { Settings } from '../../extension-registry-types';
+import type { Settings, SiteSettings } from '../../extension-registry-types';
 import { handleError } from '../../utils';
 import { useSavedFlash } from '../../hooks/use-saved-flash';
+import { SettingsBannerItem } from './settings-banner-item';
 import { SettingsItem } from './settings-item';
+import { SettingsSection } from './settings-section';
 import { useSettings, useUpdateSettings } from './use-settings';
 
 interface NotificationState {
@@ -54,38 +55,33 @@ const formatCeiling = (bytes: number): string => {
     return `${bytes} bytes (~${approxMB} MB)`;
 };
 
-/**
- * The settings rendered as toggles. Keyed by the boolean members of `Settings` only: a numeric
- * setting such as `maxExtensionSize` has its own control and must not be routed through the toggle
- * handler, which would write a boolean into it.
- */
-type BooleanSettingKey = {
-    [K in keyof Settings]: Settings[K] extends boolean ? K : never;
-}[keyof Settings];
+/** Settings rendered as a plain on/off toggle. */
+type FlagKey = 'readOnly';
 
-const SETTINGS: Record<BooleanSettingKey, { title: string; description: string }> = {
+const FLAGS: Record<FlagKey, { title: string; description: string }> = {
     readOnly: {
         title: 'Read-only mode',
         description: 'Blocks write operations while keeping browsing, search, and downloads available.'
     }
 };
 
-/** The settings whose value differs from what the server last reported. */
-const changedSettings = (draft: Settings, current: Settings): Partial<Settings> =>
-    (Object.keys(draft) as (keyof Settings)[]).reduce<Partial<Settings>>((changed, key) => {
-        if (draft[key] !== current[key]) {
-            // the key and its value come from the same object, so the pair is sound; the cast is only
-            // needed because TypeScript widens the value to a union across all keys
-            (changed as Record<string, unknown>)[key] = draft[key];
-        }
-        return changed;
-    }, {});
+const BANNER_KEYS = ['bannerEnabled', 'bannerMessage', 'bannerSeverity'] as const satisfies readonly (keyof Settings)[];
+
+// `bannerDismissId` is not edited: it is stamped into the patch at save time, when the admin
+// asks for the banner to be shown again to everyone who dismissed it.
+const SETTING_KEYS = ['readOnly', 'maxExtensionSize', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
+
+const hasMessage = (settings: SiteSettings) => (settings.bannerMessage ?? '').trim().length > 0;
+
+/** Whether visitors would actually see a banner for these settings. */
+const bannerVisible = (settings: SiteSettings) => Boolean(settings.bannerEnabled) && hasMessage(settings);
 
 export const RuntimeSettingsPage: FC = () => {
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
     const { mutate: saveSettings, isPending: saving } = useUpdateSettings();
 
     const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
+    const [showAgain, setShowAgain] = useState(true);
     // The field holds what was typed, not the draft's number rendered back. Deriving it meant an
     // emptied field parsed as 0 and was immediately rewritten as "0", so it could not be cleared.
     const [sizeInput, setSizeInput] = useState('');
@@ -98,7 +94,7 @@ export const RuntimeSettingsPage: FC = () => {
     useEffect(() => {
         if (settings) {
             setDraftSettings(settings);
-            setSizeInput(String(settings.maxExtensionSize / BYTES_PER_MB));
+            setSizeInput(String((settings.maxExtensionSize ?? 0) / BYTES_PER_MB));
         }
     }, [settings]);
 
@@ -133,8 +129,16 @@ export const RuntimeSettingsPage: FC = () => {
     };
 
     const handleFlagChange = useCallback(
-        (key: BooleanSettingKey) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
+        (key: FlagKey) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
             setDraftSettings(current => (current ? { ...current, [key]: checked } : current));
+            clearSaved();
+        },
+        [clearSaved]
+    );
+
+    const handleBannerChange = useCallback(
+        (patch: SiteSettings) => {
+            setDraftSettings(current => (current ? { ...current, ...patch } : current));
             clearSaved();
         },
         [clearSaved]
@@ -155,20 +159,24 @@ export const RuntimeSettingsPage: FC = () => {
         [clearSaved]
     );
 
-    const maxExtensionSizeChanged =
-        draftSettings !== null && settings != null && draftSettings.maxExtensionSize !== settings.maxExtensionSize;
+    const edited = draftSettings !== null && settings != null;
+    const flagsChanged = edited && (Object.keys(FLAGS) as FlagKey[]).some(k => draftSettings[k] !== settings[k]);
+    const hasChanges = edited && SETTING_KEYS.some(key => draftSettings[key] !== settings[key]);
+    const bannerChanged = edited && BANNER_KEYS.some(key => draftSettings[key] !== settings[key]);
+    // The server rotates the token itself for a banner that was not there before, and nobody
+    // dismisses a banner they cannot see. In between, showing it again is the admin's call.
+    const canShowAgain = bannerChanged && bannerVisible(draftSettings ?? {}) && hasMessage(settings ?? {});
 
-    const hasChanges =
-        draftSettings !== null &&
-        settings != null &&
-        ((Object.keys(SETTINGS) as BooleanSettingKey[]).some(k => draftSettings[k] !== settings[k]) ||
-            maxExtensionSizeChanged);
+    // The offer going away takes the answer with it, so the box is checked again next time it appears.
+    useEffect(() => {
+        if (!canShowAgain) setShowAgain(true);
+    }, [canShowAgain]);
 
+    const maxExtensionSizeChanged = edited && draftSettings.maxExtensionSize !== settings.maxExtensionSize;
     // Only validated once the admin has actually edited it, because only then is it sent. The server
     // stores the limit as a long, and one beyond JavaScript's safe-integer range would otherwise fail
     // this check on arrival and block every unrelated setting from being saved.
     const maxExtensionSizeValid =
-        draftSettings === null ||
         !maxExtensionSizeChanged ||
         (Number.isSafeInteger(draftSettings.maxExtensionSize) &&
             draftSettings.maxExtensionSize > 0 &&
@@ -181,10 +189,18 @@ export const RuntimeSettingsPage: FC = () => {
     const handleConfirmSave = useCallback(() => {
         if (!draftSettings || !settings) return;
         setConfirmOpen(false);
-        // Only what this admin actually changed. Sending the whole object would carry every other
-        // setting as this page last read it, silently reverting anything someone else changed in the
-        // meantime. It does not help when two people edit the same setting - the last save still wins.
-        saveSettings(changedSettings(draftSettings, settings), {
+        // Only the settings this admin changed, so a save doesn't revert what another admin
+        // changed while this page was open.
+        const patch = SETTING_KEYS.filter(key => draftSettings[key] !== settings[key]).reduce<Partial<Settings>>(
+            (changed, key) => Object.assign(changed, { [key]: draftSettings[key] }),
+            {}
+        );
+        // A fresh token is what makes a dismissed banner come back; leaving the key out keeps the
+        // stored one, so the banner stays hidden for whoever dismissed it.
+        if (canShowAgain && showAgain) {
+            patch.bannerDismissId = crypto.randomUUID();
+        }
+        saveSettings(patch, {
             onSuccess: flashSaved,
             onError: err => {
                 addNotification({
@@ -192,7 +208,7 @@ export const RuntimeSettingsPage: FC = () => {
                 });
             }
         });
-    }, [draftSettings, settings, saveSettings, addNotification, flashSaved]);
+    }, [draftSettings, settings, canShowAgain, showAgain, saveSettings, addNotification, flashSaved]);
 
     return (
         <>
@@ -212,11 +228,11 @@ export const RuntimeSettingsPage: FC = () => {
                     </Alert>
                 )}
 
-                <Paper
-                    variant='outlined'
-                    elevation={0}
-                    sx={{ overflow: 'hidden', borderColor: hasChanges ? 'red' : 'grey' }}>
-                    {(Object.entries(SETTINGS) as [BooleanSettingKey, { title: string; description: string }][]).map(
+                <SettingsSection
+                    title='Registry'
+                    description='How the registry service behaves for every caller.'
+                    changed={flagsChanged}>
+                    {(Object.entries(FLAGS) as [FlagKey, { title: string; description: string }][]).map(
                         ([key, flag]) => (
                             <SettingsItem
                                 key={key}
@@ -229,34 +245,50 @@ export const RuntimeSettingsPage: FC = () => {
                             />
                         )
                     )}
-                </Paper>
+                </SettingsSection>
 
-                <Paper variant='outlined' elevation={0} sx={{ p: 3 }}>
-                    <Typography variant='subtitle1' gutterBottom>
-                        Default max extension size
-                    </Typography>
-                    <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                        The largest extension package accepted for publishing when no namespace or extension override
-                        applies.
-                    </Typography>
-                    <TextField
-                        label='Max extension size (MB)'
-                        type='number'
-                        value={sizeInput}
-                        onChange={handleMaxExtensionSizeChange}
+                {/* No change outline here: unlike read-only mode, a banner edit is not worth a warning. */}
+                <SettingsSection title='Site settings' description='What visitors see on the web UI.'>
+                    <SettingsBannerItem
+                        settings={draftSettings ?? {}}
+                        changed={bannerChanged}
+                        canShowAgain={canShowAgain}
+                        showAgain={showAgain}
+                        loading={loading || !draftSettings}
                         disabled={loading || saving || !draftSettings}
-                        error={!maxExtensionSizeValid}
-                        helperText={
-                            maxExtensionSizeValid
-                                ? undefined
-                                : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
-                                      draftSettings?.maxOverrideSize ?? 0
-                                  )}`
-                        }
-                        inputProps={{ min: '1' }}
-                        sx={{ maxWidth: 240 }}
+                        onChange={handleBannerChange}
+                        onShowAgainChange={setShowAgain}
                     />
-                </Paper>
+                </SettingsSection>
+
+                <SettingsSection title='Publishing' description='Limits applied when extensions are published.'>
+                    <Box sx={{ p: 3 }}>
+                        <Typography variant='subtitle1' gutterBottom>
+                            Default max extension size
+                        </Typography>
+                        <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                            The largest extension package accepted for publishing when no namespace or extension
+                            override applies.
+                        </Typography>
+                        <TextField
+                            label='Max extension size (MB)'
+                            type='number'
+                            value={sizeInput}
+                            onChange={handleMaxExtensionSizeChange}
+                            disabled={loading || saving || !draftSettings}
+                            error={!maxExtensionSizeValid}
+                            helperText={
+                                maxExtensionSizeValid
+                                    ? undefined
+                                    : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
+                                          draftSettings?.maxOverrideSize ?? 0
+                                      )}`
+                            }
+                            inputProps={{ min: '1' }}
+                            sx={{ maxWidth: 240 }}
+                        />
+                    </Box>
+                </SettingsSection>
 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <SaveButton

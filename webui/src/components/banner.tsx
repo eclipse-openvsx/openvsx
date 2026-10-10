@@ -82,7 +82,7 @@ export const Banner: FunctionComponent<PropsWithChildren<BannerProps>> = props =
     );
 };
 
-interface BannerProps {
+export interface BannerProps {
     open: boolean;
     showDismissButton?: boolean;
     dismissButtonLabel?: string;

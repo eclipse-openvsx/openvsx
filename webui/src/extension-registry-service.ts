@@ -55,6 +55,7 @@ import {
     CustomerMembershipList,
     RateLimitToken,
     Settings,
+    SiteSettings,
     UserSearchResult,
     TrustedPublisher,
     TrustedPublisherList,
@@ -700,6 +701,11 @@ export class ExtensionRegistryService {
         const endpoint = createAbsoluteURL([this.serverUrl, 'api', 'version']);
         const headers = options.revalidate ? { 'Cache-Control': 'no-cache' } : undefined;
         return sendRequest({ abortController, endpoint, headers }, !options.revalidate);
+    }
+
+    async getSiteSettings(abortController: AbortController): Promise<Readonly<SiteSettings>> {
+        const endpoint = createAbsoluteURL([this.serverUrl, 'api', '-', 'settings']);
+        return sendStrictRequest({ abortController, endpoint });
     }
 }
 

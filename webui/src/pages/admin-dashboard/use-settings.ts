@@ -14,8 +14,9 @@
 import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import type { Settings } from '../../extension-registry-types';
+import type { Settings, SiteSettings } from '../../extension-registry-types';
 import { controllerFromSignal } from '../../query-client';
+import { siteSettingsQueryKey } from '../../components/use-site-settings';
 
 export const settingsQueryKey = ['admin', 'settings'] as const;
 
@@ -30,6 +31,17 @@ export const useSettings = () => {
     });
 };
 
+/** What the public endpoint serves for these settings: nothing at all while the banner is off. */
+const toSiteSettings = (settings: Settings): SiteSettings =>
+    settings.bannerEnabled
+        ? {
+              bannerEnabled: settings.bannerEnabled,
+              bannerMessage: settings.bannerMessage,
+              bannerSeverity: settings.bannerSeverity,
+              bannerDismissId: settings.bannerDismissId
+          }
+        : {};
+
 /**
  * Persists runtime settings. On success the authoritative response from the
  * server is written straight into the cache, so the settings query updates
@@ -42,6 +54,9 @@ export const useUpdateSettings = () => {
         mutationFn: (settings: Partial<Settings>) => service.admin.updateSettings(settings),
         onSuccess: updated => {
             queryClient.setQueryData(settingsQueryKey, updated);
+            // The banner above the admin's own navbar reads the public settings, and a refetch could
+            // be answered from a browser or CDN cache holding the pre-save copy, so seed it instead.
+            queryClient.setQueryData(siteSettingsQueryKey, toSiteSettings(updated));
         }
     });
 };

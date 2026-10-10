@@ -13,160 +13,154 @@
 package org.eclipse.openvsx.settings;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import org.apache.logging.log4j.util.Strings;
-import org.jspecify.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import redis.clients.jedis.RedisClusterClient;
 
-import org.eclipse.openvsx.cache.jedis.JedisClusterChannelListener;
 import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.json.SiteSettingsJson;
 import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.util.AfterCommitExecutor;
-import org.eclipse.openvsx.util.ErrorResultException;
 
+/**
+ * Serves the registry's settings to the two endpoints that read them and applies an admin's update
+ * across every registered {@link WritableSetting}. It knows what a setting is, never what any
+ * particular setting means: names, row keys, legal values, and defaults all belong to
+ * the bean.
+ */
 @Service
 public class SettingsService {
 
-    public static final String SETTING_REGISTRY_READ_ONLY = "read-only";
-    public static final String SETTING_MAX_EXTENSION_SIZE = "max-extension-size";
-    private static final String SETTINGS_UPDATE_CHANNEL = "settings.update";
-
-    private final Logger logger = LoggerFactory.getLogger(SettingsService.class);
-
-    private final @Nullable RedisClusterClient redisClusterClient;
-    private final SettingsUpdateListener settingsUpdateListener;
-    private final SettingsCache cache;
+    private final List<WritableSetting<?>> settings;
+    private final ReadOnlySetting readOnly;
+    private final MaxExtensionSizeSetting maxExtensionSize;
     private final PublishingConfig publishingConfig;
+    private final SettingsCache cache;
+    private final SettingsUpdateChannel channel;
     private final AfterCommitExecutor afterCommit;
 
+    /**
+     * {@code readOnly} is injected only to serve the deprecated {@link #isReadOnly()}, and leaves
+     * with it. Settings are ordered by name so the audit line and the public settings object do not
+     * reshuffle with bean discovery order.
+     */
     public SettingsService(
-            @Nullable RedisClusterClient redisClusterClient,
-            SettingsCache cache,
+            List<WritableSetting<?>> settings,
+            ReadOnlySetting readOnly,
+            MaxExtensionSizeSetting maxExtensionSize,
             PublishingConfig publishingConfig,
+            SettingsCache cache,
+            SettingsUpdateChannel channel,
             AfterCommitExecutor afterCommit
     ) {
-        this.redisClusterClient = redisClusterClient;
-        this.cache = cache;
+        this.settings = settings.stream().sorted(Comparator.comparing(WritableSetting::getName)).toList();
+        this.readOnly = readOnly;
+        this.maxExtensionSize = maxExtensionSize;
         this.publishingConfig = publishingConfig;
+        this.cache = cache;
+        this.channel = channel;
         this.afterCommit = afterCommit;
-
-        if (redisClusterClient != null) {
-            settingsUpdateListener = new SettingsUpdateListener(redisClusterClient);
-            logger.info("SettingsService initialized with Redis update listener");
-        } else {
-            settingsUpdateListener = null;
-        }
     }
 
-    @PostConstruct
-    public void initialize() {
-        if (settingsUpdateListener != null) {
-            settingsUpdateListener.startSubscriber();
-        }
-    }
-
-    @PreDestroy
-    public void shutdown() {
-        if (settingsUpdateListener != null) {
-            settingsUpdateListener.shutdown();
-        }
-    }
-
+    /** @deprecated inject {@link ReadOnlySetting} and call {@link ReadOnlySetting#isEnabled()}. */
+    @Deprecated
     public boolean isReadOnly() {
-        return cache.getBoolean(SETTING_REGISTRY_READ_ONLY, false);
+        return readOnly.isEnabled();
     }
 
     public long getMaxExtensionSize() {
-        return cache.getLong(SETTING_MAX_EXTENSION_SIZE, publishingConfig.getMaxContentSize());
+        return maxExtensionSize.getValue();
     }
 
+    /** Every setting's rows with its defaults applied, drafts included. The admin view. */
     public SettingsJson getCurrentSettings() {
-        var json = new SettingsJson();
-        json.setReadOnly(isReadOnly());
-        json.setMaxExtensionSize(getMaxExtensionSize());
+        var stored = cache.snapshot();
+        var rows = new LinkedHashMap<String, Object>();
+        settings.forEach(setting -> rows.putAll(currentRows(setting, stored)));
+        var json = SettingsJson.of(rows);
         json.setMaxOverrideSize(publishingConfig.getMaxOverrideSize());
         return json;
     }
 
-    /**
-     * Applies the settings the request carries and leaves out every other one alone. A client that
-     * does not know about a setting - a stale admin tab, an older integration - must not reset it by
-     * omitting it.
-     */
-    public String updateFromJson(SettingsJson newSettings) {
-        var readOnly = newSettings.getReadOnly();
-        var maxExtensionSize = newSettings.getMaxExtensionSize();
-        if (maxExtensionSize != null) {
-            if (maxExtensionSize <= 0) {
-                throw new ErrorResultException("Max extension size must be greater than zero.");
-            }
-            var ceiling = publishingConfig.getMaxOverrideSize();
-            if (maxExtensionSize > ceiling) {
-                throw new ErrorResultException("Max extension size exceeds the maximum of " + ceiling + " bytes.");
+    /** Only what the settings implementing {@link PublicSetting} choose to publish. */
+    public SiteSettingsJson getSiteSettings() {
+        var stored = cache.snapshot();
+        var rows = new LinkedHashMap<String, Object>();
+        for (var setting : settings) {
+            if (setting instanceof PublicSetting published) {
+                rows.putAll(published.publicView(stored));
             }
         }
-
-        // Every setting the request carries is written, even one that matches what is read back now.
-        // The comparison would be against a node-local cache entry that can be a minute stale, or
-        // against the configuration fallback on a registry where nothing has been stored yet - so
-        // skipping the write dropped real changes: restoring a value another node had just moved
-        // away from, and storing the setting that is meant to shadow the configuration file. The
-        // upsert is idempotent, so writing unconditionally costs only the statement.
-        var changes = new ArrayList<>();
-        if (readOnly != null) {
-            changes.add("readOnly -> " + readOnly);
-            cache.setBoolean(SETTING_REGISTRY_READ_ONLY, readOnly);
-        }
-        if (maxExtensionSize != null) {
-            changes.add("maxExtensionSize -> " + maxExtensionSize);
-            cache.setLong(SETTING_MAX_EXTENSION_SIZE, maxExtensionSize);
-            // The derived size ceiling is cached under its own key, so evict the whole settings
-            // cache rather than just this one entry.
-            cache.clear();
-        }
-        publishSettingsUpdate();
-        return Strings.join(changes, ',');
+        return SiteSettingsJson.of(rows);
     }
 
     /**
-     * Drop every cached setting on this node and tell the other nodes to do the same. Callers that
-     * change data the settings cache derives from — notably the size ceiling, which is cached under its
-     * own key — must call this; evicting a single key is not enough.
-     * <p>
-     * Deferred to after the commit: these callers change rows the ceiling is derived from, and a clear
-     * issued before their commit lets any node refill the ceiling from the rows as they still are.
+     * Drops every cached setting on this node and tells the others to. For callers that change data
+     * a setting derives from, such as the size overrides behind the ceiling: evicting one key is not
+     * enough. Deferred to after the commit, or a node could refill the cache from the rows as they
+     * still are.
      */
     public void invalidateCache() {
         afterCommit.execute(() -> {
             cache.clear();
-            publishSettingsUpdate();
+            channel.publish();
         });
     }
 
-    private void publishSettingsUpdate() {
-        if (redisClusterClient != null) {
-            logger.debug("Publish settings update");
-            String version = String.valueOf(System.currentTimeMillis());
-            redisClusterClient.publish(SETTINGS_UPDATE_CHANNEL, version);
+    /**
+     * Applies an admin's update and returns the audit line. Every setting is merged and validated
+     * before anything is written, so a refusal leaves the store untouched; the rows then go in as one
+     * transaction.
+     */
+    public String updateFromJson(SettingsJson newSettings) {
+        var update = new SettingRows(newSettings.toRows());
+        var stored = cache.load();
+
+        var pending = new LinkedHashMap<String, Object>();
+        var described = new ArrayList<String>();
+        for (var setting : settings) {
+            changedRows(setting, stored, update).forEach((rowKey, value) -> {
+                pending.put(rowKey, value);
+                described.add(setting.describe(rowKey, value));
+            });
         }
+        if (pending.isEmpty()) {
+            return "";
+        }
+
+        cache.setAll(pending);
+        cache.clear();
+        channel.publish();
+        return String.join(", ", described);
     }
 
-    private class SettingsUpdateListener extends JedisClusterChannelListener {
-        SettingsUpdateListener(RedisClusterClient redisClusterClient) {
-            super(redisClusterClient, SETTINGS_UPDATE_CHANNEL, "SettingsUpdate");
-        }
+    /** Merges, validates and returns the rows this setting wants written. */
+    private static <T> Map<String, Object> changedRows(
+            WritableSetting<T> setting,
+            SettingRows stored,
+            SettingRows update
+    ) {
+        var current = setting.read(stored);
+        var merged = setting.merge(current, update);
+        setting.validate(merged, current);
 
-        @Override
-        public void onMessage(String channel, String message) {
-            if (SETTINGS_UPDATE_CHANNEL.equals(channel)) {
-                logger.debug("received settings update");
-                cache.clear();
-            }
-        }
+        var currentRows = setting.toRows(current);
+        var changed = new LinkedHashMap<String, Object>(setting.toRows(merged));
+        // A row the update carries is written even when it equals the current value: that value
+        // comes from a node-local snapshot that can be a minute stale, so skipping the write could
+        // drop the very change the admin asked for.
+        changed.entrySet()
+                .removeIf(
+                        row -> !update.rows().containsKey(row.getKey())
+                                && Objects.equals(row.getValue(), currentRows.get(row.getKey())));
+        return changed;
+    }
+
+    private static <T> Map<String, Object> currentRows(WritableSetting<T> setting, SettingRows stored) {
+        return setting.toRows(setting.read(stored));
     }
 }

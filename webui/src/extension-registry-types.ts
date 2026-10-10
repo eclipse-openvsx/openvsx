@@ -674,7 +674,21 @@ export interface LogPageableList {
     };
 }
 
-export interface Settings {
+export type BannerSeverity = 'info' | 'warning';
+
+/**
+ * The settings the registry serves to every visitor. While the banner is switched on all four
+ * properties are present; while it is off, none are.
+ */
+export interface SiteSettings {
+    bannerEnabled?: boolean;
+    bannerMessage?: string;
+    bannerSeverity?: BannerSeverity;
+    bannerDismissId?: string;
+}
+
+/** Runtime settings as an admin reads them. A save sends a `Partial` of this, only what changed. */
+export interface Settings extends SiteSettings {
     readOnly: boolean;
     /** Default max extension package size in bytes, applied when no namespace/extension override exists. */
     maxExtensionSize: number;

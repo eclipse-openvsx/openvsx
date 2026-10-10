@@ -290,7 +290,7 @@ class AdminAPITest {
     @Test
     void testUpdateSettingsAppliesMaxExtensionSizeAndLogsIt() throws Exception {
         var admin = mockAdminUser();
-        Mockito.when(settings.updateFromJson(Mockito.any())).thenReturn("maxExtensionSize -> 1073741824");
+        Mockito.when(settings.updateFromJson(Mockito.any())).thenReturn("max-extension-size -> 1073741824");
         var updatedSettings = new SettingsJson();
         updatedSettings.setReadOnly(false);
         updatedSettings.setMaxExtensionSize(1_073_741_824L);

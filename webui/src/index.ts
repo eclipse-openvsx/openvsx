@@ -95,3 +95,12 @@ export { ExtensionDetailRoutes } from './pages/extension-detail/extension-detail
 
 // Shape of the pages contributed through `PageSettings.elements.adminPages`.
 export type { AdminPage, AdminPageCategory } from './pages/admin-dashboard/nav-types';
+
+// The banner admins configure at runtime. `RegistryBanner` is what the built-in layout falls back
+// to when `PageSettings.elements.banner` is unset; the pieces under it are exported too, so a
+// deployment can render the settings its own way — `useSiteSettings` to read them, `Banner` for
+// the collapsing bar and its tones, and `SanitizedMarkdown` to render a message as safely as we do.
+export { RegistryBanner } from './components/registry-banner';
+export { useSiteSettings, siteSettingsQueryKey } from './components/use-site-settings';
+export { Banner, type BannerProps } from './components/banner';
+export { SanitizedMarkdown, type SanitizedMarkdownProps } from './components/sanitized-markdown';
