@@ -102,7 +102,7 @@ class SettingsServiceTest {
     void siteSettingsHoldBackReadOnlyMode() {
         stored(ReadOnlySetting.KEY, true, BannerSetting.KEY_ENABLED, true, BannerSetting.KEY_MESSAGE, "Hi");
 
-        assertThat(settings.getSiteSettings().getReadOnly()).isNull();
+        // SiteSettingsJson has no read-only property at all; the banner still comes through
         assertThat(settings.getSiteSettings().getBannerMessage()).isEqualTo("Hi");
     }
 

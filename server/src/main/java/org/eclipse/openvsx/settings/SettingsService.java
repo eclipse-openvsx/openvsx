@@ -22,6 +22,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.json.SiteSettingsJson;
 import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.util.AfterCommitExecutor;
 
@@ -86,7 +87,7 @@ public class SettingsService {
     }
 
     /** Only what the settings implementing {@link PublicSetting} choose to publish. */
-    public SettingsJson getSiteSettings() {
+    public SiteSettingsJson getSiteSettings() {
         var stored = cache.snapshot();
         var rows = new LinkedHashMap<String, Object>();
         for (var setting : settings) {
@@ -94,7 +95,7 @@ public class SettingsService {
                 rows.putAll(published.publicView(stored));
             }
         }
-        return SettingsJson.of(rows);
+        return SiteSettingsJson.of(rows);
     }
 
     /**

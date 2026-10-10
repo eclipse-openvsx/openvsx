@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.json.SiteSettingsJson;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,7 +30,7 @@ class SettingsAPITest {
     // is anonymous comes from SecurityConfig's /api/** permitAll.
     @Test
     void returnsTheSiteSettingsAsJson() throws Exception {
-        var site = new SettingsJson();
+        var site = new SiteSettingsJson();
         site.setBannerEnabled(true);
         site.setBannerMessage("Maintenance tonight");
         site.setBannerSeverity("warning");
@@ -43,6 +43,8 @@ class SettingsAPITest {
                 .andExpect(jsonPath("$.bannerEnabled").value(true))
                 .andExpect(jsonPath("$.bannerMessage").value("Maintenance tonight"))
                 .andExpect(jsonPath("$.bannerSeverity").value("warning"))
-                .andExpect(jsonPath("$.readOnly").doesNotExist());
+                .andExpect(jsonPath("$.bannerDismissId").doesNotExist())
+                // only banner properties are public, whatever else the admin payload carries
+                .andExpect(jsonPath("$.length()").value(3));
     }
 }

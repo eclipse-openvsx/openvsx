@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.json.SiteSettingsJson;
 
 /**
  * Public read access to the settings the web UI needs before login. Writing them stays in
@@ -47,7 +47,7 @@ public class SettingsAPI {
         description = "The site settings are returned in JSON format. `bannerMessage` is Markdown an admin wrote; "
                 + "sanitize it before rendering it as HTML."
     )
-    public ResponseEntity<SettingsJson> getSiteSettings() {
+    public ResponseEntity<SiteSettingsJson> getSiteSettings() {
         // Short-lived: an admin changing a setting should reach visitors within the minute.
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(1, TimeUnit.MINUTES).cachePublic().mustRevalidate())

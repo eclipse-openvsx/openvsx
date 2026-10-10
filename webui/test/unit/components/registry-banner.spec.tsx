@@ -16,14 +16,14 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RegistryBanner } from '../../../src/components/registry-banner';
 import { ExtensionRegistryService } from '../../../src/extension-registry-service';
-import { Settings } from '../../../src/extension-registry-types';
+import { SiteSettings } from '../../../src/extension-registry-types';
 import { renderWithProviders } from '../support/test-providers';
 
 const DISMISSED_KEY = 'openvsx-banner-dismissed';
 
 // not named render*, so the testing-library naming rule does not treat the service stub it returns
 // as a render result
-const mountBanner = (settings: Settings) => {
+const mountBanner = (settings: SiteSettings) => {
     const getSiteSettings = vi.fn().mockResolvedValue(settings);
     renderWithProviders(<RegistryBanner />, {
         mainContext: { service: { getSiteSettings } as unknown as ExtensionRegistryService }
