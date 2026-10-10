@@ -26,6 +26,7 @@ import org.eclipse.openvsx.util.ErrorResultException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 import static org.eclipse.openvsx.settings.BannerSetting.KEY_DISMISS_ID;
 import static org.eclipse.openvsx.settings.BannerSetting.KEY_ENABLED;
 import static org.eclipse.openvsx.settings.BannerSetting.KEY_MESSAGE;
@@ -199,15 +200,13 @@ class BannerSettingTest {
     // -- writing ----------------------------------------------------------------------------
 
     @Test
-    void switchingOnWritesTheSwitchLast() {
-        assertThat(banner.toRows(new Banner(true, "Published", "info", "token-1")).keySet())
-                .containsExactly(KEY_MESSAGE, KEY_SEVERITY, KEY_DISMISS_ID, KEY_ENABLED);
-    }
-
-    @Test
-    void switchingOffWritesTheSwitchFirst() {
-        assertThat(banner.toRows(new Banner(false, "Drafted", "info", "token-1")).keySet())
-                .containsExactly(KEY_ENABLED, KEY_MESSAGE, KEY_SEVERITY, KEY_DISMISS_ID);
+    void theRowsCarryEveryKeyOfTheBanner() {
+        assertThat(banner.toRows(new Banner(true, "Published", "info", "token-1")))
+                .containsOnly(
+                        entry(KEY_ENABLED, true),
+                        entry(KEY_MESSAGE, "Published"),
+                        entry(KEY_SEVERITY, "info"),
+                        entry(KEY_DISMISS_ID, "token-1"));
     }
 
     /** The message body would blow the 512-character admin log column on its own. */

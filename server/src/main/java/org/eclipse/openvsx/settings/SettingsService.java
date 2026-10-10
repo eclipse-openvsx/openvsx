@@ -29,7 +29,7 @@ import org.eclipse.openvsx.util.AfterCommitExecutor;
 /**
  * Serves the registry's settings to the two endpoints that read them and applies an admin's update
  * across every registered {@link WritableSetting}. It knows what a setting is, never what any
- * particular setting means: names, row keys, legal values, defaults and write order all belong to
+ * particular setting means: names, row keys, legal values, and defaults all belong to
  * the bean.
  */
 @Service
@@ -113,8 +113,8 @@ public class SettingsService {
 
     /**
      * Applies an admin's update and returns the audit line. Every setting is merged and validated
-     * before the first row is written: each row is its own transaction, so a refusal found halfway
-     * through would leave a save half applied.
+     * before anything is written, so a refusal leaves the store untouched; the rows then go in as one
+     * transaction.
      */
     public String updateFromJson(SettingsJson newSettings) {
         var update = new SettingRows(newSettings.toRows());
@@ -132,12 +132,13 @@ public class SettingsService {
             return "";
         }
 
-        pending.forEach(cache::set);
+        cache.setAll(pending);
+        cache.clear();
         channel.publish();
         return String.join(", ", described);
     }
 
-    /** Merges, validates and returns the rows this setting wants written, in its own write order. */
+    /** Merges, validates and returns the rows this setting wants written. */
     private static <T> Map<String, Object> changedRows(
             WritableSetting<T> setting,
             SettingRows stored,

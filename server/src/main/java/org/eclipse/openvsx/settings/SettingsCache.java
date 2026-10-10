@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.settings;
 
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
@@ -53,11 +54,16 @@ public class SettingsCache {
         return new SettingRows(settings);
     }
 
-    /** Jackson does the encoding, since the value column is jsonb rather than text. */
+    /**
+     * Writes every row in one transaction, so a save is never visible in pieces nor left half applied.
+     * Evicts nothing: the caller clears the cache once this has returned, after the commit, or
+     * another reader could reload the old rows in between. Jackson does the encoding, since the
+     * value column is jsonb rather than text.
+     */
     @Transactional
-    @CacheEvict(value = CACHE_SETTING, allEntries = true)
-    public void set(String key, Object value) {
-        repository.upsert(key, JsonMapper.shared().writeValueAsString(value), TimeUtil.getCurrentUTC());
+    public void setAll(Map<String, Object> rows) {
+        var now = TimeUtil.getCurrentUTC();
+        rows.forEach((key, value) -> repository.upsert(key, JsonMapper.shared().writeValueAsString(value), now));
     }
 
     @CacheEvict(value = CACHE_SETTING, allEntries = true)

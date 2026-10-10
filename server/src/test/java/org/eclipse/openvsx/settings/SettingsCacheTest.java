@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.settings;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,10 +77,19 @@ class SettingsCacheTest {
 
     @Test
     void writingEncodesTheValueAsJson() {
-        cache.set("banner-message", "Maintenance tonight");
+        cache.setAll(Map.of("banner-message", "Maintenance tonight"));
 
         var value = ArgumentCaptor.forClass(String.class);
         verify(repository).upsert(eq("banner-message"), value.capture(), any());
         assertThat(value.getValue()).isEqualTo("\"Maintenance tonight\"");
+    }
+
+    @Test
+    void writingStoresEveryRowWithOneTimestamp() {
+        cache.setAll(Map.of("read-only", true, "banner-message", "Hi"));
+
+        var now = ArgumentCaptor.forClass(java.time.LocalDateTime.class);
+        verify(repository, times(2)).upsert(any(), any(), now.capture());
+        assertThat(now.getAllValues()).containsOnly(now.getValue());
     }
 }

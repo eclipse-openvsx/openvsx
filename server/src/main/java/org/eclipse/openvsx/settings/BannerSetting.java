@@ -123,22 +123,13 @@ public class BannerSetting implements WritableSetting<BannerSetting.Banner>, Pub
         }
     }
 
-    /**
-     * Writes {@code banner-enabled} last when switching on and first when switching off: each key is
-     * its own transaction, and a reader must never see the new switch state beside the old message.
-     */
     @Override
     public Map<String, Object> toRows(Banner value) {
         var rows = new LinkedHashMap<String, Object>();
-        if (!value.enabled()) {
-            rows.put(KEY_ENABLED, false);
-        }
+        rows.put(KEY_ENABLED, value.enabled());
         rows.put(KEY_MESSAGE, value.message());
         rows.put(KEY_SEVERITY, value.severity());
         rows.put(KEY_DISMISS_ID, value.dismissId());
-        if (value.enabled()) {
-            rows.put(KEY_ENABLED, true);
-        }
         return rows;
     }
 

@@ -39,8 +39,8 @@ public interface WritableSetting<T> {
     T merge(T current, SettingRows update);
 
     /**
-     * This value as the rows it is stored under, <strong>in write order</strong>. Each row is its own
-     * transaction, so a setting whose rows must never be observed disagreeing orders them here.
+     * This value as the rows it is stored under. A save writes all of them in one transaction; the
+     * order only shapes the admin log line.
      */
     Map<String, Object> toRows(T value);
 

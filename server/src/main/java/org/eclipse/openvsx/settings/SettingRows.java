@@ -24,7 +24,7 @@ import java.util.Map;
  */
 public record SettingRows(Map<String, Object> rows) {
 
-    /** Not {@code Map.copyOf}: that rejects a null value and drops the order {@link #only} relies on. */
+    /** Not {@code Map.copyOf}: that rejects a null value. */
     public SettingRows {
         rows = Collections.unmodifiableMap(new LinkedHashMap<>(rows));
     }
