@@ -141,7 +141,8 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
     const severityLabelId = useId();
     const enabled = settings['banner-enabled'] ?? false;
     const text = settings['banner-message'] ?? '';
-    const severity = settings['banner-severity'] ?? 'info';
+    // The server keeps a legacy severity it no longer accepts, and `Banner` has no variant for it.
+    const severity = settings['banner-severity'] === 'warning' ? 'warning' : 'info';
     const message = text.trim();
 
     if (loading) {

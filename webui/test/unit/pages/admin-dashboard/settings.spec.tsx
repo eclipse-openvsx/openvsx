@@ -103,6 +103,12 @@ describe('RuntimeSettingsPage', () => {
         expect(emphasised.tagName).toBe('STRONG');
     });
 
+    it('renders a stored severity the server no longer accepts as info', async () => {
+        mountPage({ ...configured, 'banner-severity': 'critical' as Settings['banner-severity'] });
+
+        expect(await screen.findByText('Heads up', { selector: 'p' })).toBeVisible();
+    });
+
     it('rotates the dismiss token by default once the banner is edited', async () => {
         const admin = mountPage(configured);
 

@@ -49,6 +49,20 @@ describe('RegistryBanner', () => {
         expect(emphasised).toBeVisible();
     });
 
+    it('polls at the endpoint cache cadence so a changed banner reaches an open tab', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            const getSiteSettings = mountBanner({});
+            await waitFor(() => expect(getSiteSettings).toHaveBeenCalledTimes(1));
+
+            await vi.advanceTimersByTimeAsync(60_000);
+
+            await waitFor(() => expect(getSiteSettings).toHaveBeenCalledTimes(2));
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('stays collapsed when the registry serves no banner keys', async () => {
         const getSiteSettings = mountBanner({});
 
