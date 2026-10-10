@@ -37,6 +37,7 @@ import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.TimeUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -82,6 +83,39 @@ class PublishExtensionVersionServiceTest {
 
         assertThat(extVersion.isActive()).isTrue();
         verify(extensions).updateExtension(extVersion.getExtension());
+    }
+
+    // The column answers "why is this version not active", so it has no business outliving the version
+    // being active: an attempt that got there supersedes whatever an earlier one failed on.
+    @Test
+    void activateExtension_clearsAnEarlierPublishFailure() {
+        var extVersion = version(1L, false);
+        extVersion.setPublishError("java.lang.OutOfMemoryError: Java heap space");
+        when(entityManager.find(ExtensionVersion.class, 1L)).thenReturn(extVersion);
+
+        svc.activateExtension(extVersion, extensions);
+
+        assertThat(extVersion.getPublishError()).isNull();
+    }
+
+    @Test
+    void recordPublishError_writesTheReasonOntoTheVersion() {
+        var extVersion = version(1L, false);
+        when(entityManager.find(ExtensionVersion.class, 1L)).thenReturn(extVersion);
+
+        svc.recordPublishError(extVersion, "java.lang.OutOfMemoryError: Java heap space");
+
+        assertThat(extVersion.getPublishError()).isEqualTo("java.lang.OutOfMemoryError: Java heap space");
+    }
+
+    // The row can be purged while the attempt that failed is still unwinding; there is then nothing left
+    // to annotate, and trying to would turn a failed publish into a second, unrelated failure.
+    @Test
+    void recordPublishError_ignoresAVersionThatIsGone() {
+        var extVersion = version(1L, false);
+        when(entityManager.find(ExtensionVersion.class, 1L)).thenReturn(null);
+
+        assertThatCode(() -> svc.recordPublishError(extVersion, "boom")).doesNotThrowAnyException();
     }
 
     @Test
