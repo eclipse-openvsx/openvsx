@@ -163,7 +163,8 @@ export const SettingsBannerItem: FC<SettingsBannerItemProps> = ({
                     <Box>
                         <Typography variant='subtitle1'>Banner</Typography>
                         <Typography variant='body2' color='text.secondary'>
-                            A notice above the navbar on every page - maintenance windows, incidents, announcements.
+                            A notice above the navbar on every page except the admin dashboard - maintenance windows,
+                            incidents, announcements.
                         </Typography>
                     </Box>
                     <SettingsSwitch

@@ -61,6 +61,11 @@ public class MaxExtensionSizeSetting implements WritableSetting<Long> {
 
     @Override
     public void validate(Long value, Long current) {
+        // A stored value above a ceiling lowered since stays in force until edited, and must not
+        // block saving an unrelated setting.
+        if (value.equals(current)) {
+            return;
+        }
         if (value <= 0) {
             throw WritableSetting.reject("Max extension size must be greater than zero.");
         }

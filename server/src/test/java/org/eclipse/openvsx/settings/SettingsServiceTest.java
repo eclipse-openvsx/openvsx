@@ -459,6 +459,27 @@ class SettingsServiceTest {
         verify(cache, never()).setAll(any());
     }
 
+    // The ceiling can be lowered below a default stored earlier; that default stays in force until
+    // edited, and must not stop an admin saving something else.
+    @Test
+    void aStoredSizeAboveALoweredCeilingDoesNotBlockAnUnrelatedSave() {
+        stored(MaxExtensionSizeSetting.KEY, 1024L * MB);
+        when(publishingConfig.getMaxOverrideSize()).thenReturn(100L * MB);
+
+        settings.updateFromJson(update(ReadOnlySetting.KEY, true));
+
+        assertThat(written()).containsEntry(ReadOnlySetting.KEY, true);
+    }
+
+    @Test
+    void aChangedSizeIsStillHeldToTheLoweredCeiling() {
+        stored(MaxExtensionSizeSetting.KEY, 1024L * MB);
+        when(publishingConfig.getMaxOverrideSize()).thenReturn(100L * MB);
+
+        assertThatThrownBy(() -> settings.updateFromJson(update(MaxExtensionSizeSetting.KEY, 200L * MB)))
+                .isInstanceOf(ErrorResultException.class);
+    }
+
     @Test
     void theAdminViewReportsTheMaxExtensionSizeAndTheOverrideCeiling() {
         stored();
