@@ -34,6 +34,9 @@ export type { UseScansTabReturn } from './use-scans-tab';
 export { useQuarantinedTab } from './use-quarantined-tab';
 export type { UseQuarantinedTabReturn } from './use-quarantined-tab';
 
+export { useErrorsTab } from './use-errors-tab';
+export type { UseErrorsTabReturn } from './use-errors-tab';
+
 export { useAutoRejectedTab } from './use-auto-rejected-tab';
 export type { UseAutoRejectedTabReturn } from './use-auto-rejected-tab';
 

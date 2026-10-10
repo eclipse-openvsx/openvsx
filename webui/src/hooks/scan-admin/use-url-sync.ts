@@ -41,16 +41,18 @@ const TAB_NAME_TO_INDEX: Record<string, number> = {
     scans: 0,
     quarantined: 1,
     'auto-rejected': 2,
-    'allowed-files': 3,
-    'blocked-files': 4
+    errors: 3,
+    'allowed-files': 4,
+    'blocked-files': 5
 };
 
 const TAB_INDEX_TO_NAME: Record<number, string> = {
     0: 'scans',
     1: 'quarantined',
     2: 'auto-rejected',
-    3: 'allowed-files',
-    4: 'blocked-files'
+    3: 'errors',
+    4: 'allowed-files',
+    5: 'blocked-files'
 };
 
 /**

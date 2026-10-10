@@ -25,6 +25,7 @@ export {
     ScansTabContent,
     QuarantinedTabContent,
     AutoRejectedTabContent,
+    ErrorsTabContent,
     AllowListTabContent,
     BlockListTabContent
 } from './tab-contents';

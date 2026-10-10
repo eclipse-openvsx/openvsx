@@ -153,7 +153,7 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
                   AND (:applyAdminDecisionFilter = false OR (
                        (:filterAllowed = true AND EXISTS (SELECT 1 FROM admin_scan_decision d WHERE d.scan_id = s.id AND d.decision = 'ALLOWED'))
                        OR (:filterBlocked = true AND EXISTS (SELECT 1 FROM admin_scan_decision d WHERE d.scan_id = s.id AND d.decision = 'BLOCKED'))
-                       OR (:filterNeedsReview = true AND s.status = 'QUARANTINED' AND NOT EXISTS (SELECT 1 FROM admin_scan_decision d WHERE d.scan_id = s.id))))
+                       OR (:filterNeedsReview = true AND s.status IN ('QUARANTINED', 'ERRORED') AND NOT EXISTS (SELECT 1 FROM admin_scan_decision d WHERE d.scan_id = s.id))))
                 """,
         nativeQuery = true
     )
