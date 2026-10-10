@@ -6,6 +6,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
+- Add an "Errors" tab to the scan admin page, where an admin can activate extension versions whose scan ended in an error that retrying cannot resolve. The Allowed Files and Blocked Files tabs move to positions 5 and 6, and their `tab` URL parameter values are unchanged
 - Add fine-grained admin permissions: a user can hold individual admin capabilities instead of the all-or-nothing admin role, and reaches the dashboard with only the pages those capabilities cover (#2269)
 - Add an "Access Control" admin dashboard page, where a user's role and permissions are assigned together and applied on Save; both move here from Publisher admin (#2269)
 - Export `hasPermission` and `hasAnyAdminAccess`, so a deployment with its own menu content can gate an admin entry the way the built-in menu does (#2269)

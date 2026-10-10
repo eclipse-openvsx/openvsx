@@ -725,12 +725,12 @@ public class ExtensionScanCompletionService implements JobRequestHandler<Handler
     }
 
     /**
-     * Allow a quarantined scan (admin decision) and activate the extension.
+     * Allow a quarantined or errored scan (admin decision) and activate the extension.
      */
     @Transactional
     public boolean adminAllowScan(ExtensionScan scan) {
         try {
-            // Use findExtensionVersionIncludingInactive because quarantined extensions are inactive
+            // Use findExtensionVersionIncludingInactive because quarantined and errored extensions are inactive
             var detachedVersion = repositories.findExtensionVersionIncludingInactive(
                     scan.getNamespaceName(),
                     scan.getExtensionName(),

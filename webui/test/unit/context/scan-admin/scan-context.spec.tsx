@@ -106,3 +106,35 @@ describe('ScanProvider — scans loading flag', () => {
         expect(result.current.state.isLoadingScans).toBe(false);
     });
 });
+
+describe('ScanProvider — tab routing', () => {
+    it('lists only errored scans on the Errors tab', async () => {
+        const { service, scansCalls, getAllScans } = createMockService();
+        const { result } = setup(service);
+
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(1));
+        act(() => scansCalls[0].resolve({ scans: [], totalSize: 0 }));
+
+        act(() => result.current.actions.setTab(3));
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(2));
+
+        const params = (getAllScans.mock.calls[1] as unknown[])[1] as Record<string, unknown>;
+        expect(params.status).toEqual(['ERROR']);
+        expect(params.enforcement).toBe('all');
+    });
+
+    it('serves file decisions from tab 4 (allowed) and 5 (blocked), not the scan list', async () => {
+        const { service, getAllScans } = createMockService();
+        const { result } = setup(service);
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(1));
+
+        act(() => result.current.actions.setTab(4));
+        await waitFor(() => expect(service.admin.getFiles).toHaveBeenCalledTimes(1));
+        expect((service.admin.getFiles.mock.calls[0] as unknown[])[1]).toMatchObject({ decision: 'allowed' });
+
+        act(() => result.current.actions.setTab(5));
+        await waitFor(() => expect(service.admin.getFiles).toHaveBeenCalledTimes(2));
+        expect((service.admin.getFiles.mock.calls[1] as unknown[])[1]).toMatchObject({ decision: 'blocked' });
+        expect(getAllScans).toHaveBeenCalledTimes(1);
+    });
+});

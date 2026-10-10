@@ -91,6 +91,50 @@ export const QuarantineDialog: FunctionComponent = () => {
         );
     }, [confirmDialog.selectedExtensions]);
 
+    // Errored scans have no threats to allow-list: allowing one only activates the version.
+    const allErrored =
+        confirmDialog.selectedExtensions.length > 0 &&
+        confirmDialog.selectedExtensions.every((scan: ScanResult) => scan.status === 'ERROR');
+
+    if (allErrored) {
+        const count = confirmDialog.selectedExtensions.length;
+        return (
+            <Dialog open={confirmDialog.isOpen} onClose={confirmDialog.close} maxWidth='md' fullWidth>
+                <DialogTitle>Confirm Allow</DialogTitle>
+                <DialogContent>
+                    <Typography variant='body1' sx={{ mb: 2 }}>
+                        Activate {count} extension version{count !== 1 ? 's' : ''} although the scan ended in an error?
+                        {count !== 1 ? ' They become' : ' It becomes'} publicly available without a completed scan.
+                    </Typography>
+                    <List
+                        sx={{
+                            maxHeight: '400px',
+                            overflow: 'auto',
+                            border: `1px solid ${theme.palette.scanBackground.default}`,
+                            borderRadius: 1
+                        }}>
+                        {confirmDialog.selectedExtensions.map((scan: ScanResult) => (
+                            <ListItem key={scan.id}>
+                                <ListItemText
+                                    primary={`${scan.namespace}.${scan.extensionName} ${scan.version}`}
+                                    secondary={scan.errorMessage}
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={confirmDialog.close} color='inherit'>
+                        Cancel
+                    </Button>
+                    <Button onClick={confirmDialog.execute} variant='contained' color='success'>
+                        Confirm Allow
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        );
+    }
+
     return (
         <Dialog open={confirmDialog.isOpen} onClose={confirmDialog.close} maxWidth='md' fullWidth>
             <DialogTitle>{confirmDialog.action === 'allow' ? 'Confirm Allow' : 'Confirm Block'}</DialogTitle>

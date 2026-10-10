@@ -1318,8 +1318,9 @@ public class RepositoryService {
         return adminScanDecisionRepo.findByScanId(scanId);
     }
 
+    /** Counts the quarantine decisions; decisions on errored scans are not part of the quarantine review. */
     public long countAdminScanDecisions(String decision) {
-        return adminScanDecisionRepo.countByDecision(decision);
+        return adminScanDecisionRepo.countByDecisionAndScanStatus(decision, ScanStatus.QUARANTINED);
     }
 
     public long countAdminScanDecisions(UserData decidedBy) {

@@ -59,7 +59,7 @@ export const scanReducer = (state: ScanState, action: ScanAction): ScanState => 
                 isLoadingScans: true,
                 // Clear files and show loading state to prevent stale data flash
                 files: [],
-                isLoadingFiles: tab >= 3, // Set loading state for file tabs (3, 4)
+                isLoadingFiles: tab >= 4, // Set loading state for file tabs (4, 5)
                 // Clear counts to prevent stale counts from showing
                 scanCounts: null,
                 fileCounts: null,

@@ -22,6 +22,7 @@ import {
     ScansTabContent,
     QuarantinedTabContent,
     AutoRejectedTabContent,
+    ErrorsTabContent,
     AllowListTabContent,
     BlockListTabContent,
     QuarantineDialog,
@@ -59,7 +60,7 @@ const ScanAdminContent: FunctionComponent = () => {
                 <TabToolbar
                     selectedTab={selectedTab}
                     onTabChange={handleTabChange}
-                    tabs={['Scans', 'Quarantined', 'Auto Rejected', 'Allowed Files', 'Blocked Files']}
+                    tabs={['Scans', 'Quarantined', 'Auto Rejected', 'Errors', 'Allowed Files', 'Blocked Files']}
                 />
 
                 {/* Tab panels - each tab content component consumes context via hooks */}
@@ -76,10 +77,14 @@ const ScanAdminContent: FunctionComponent = () => {
                 </TabPanel>
 
                 <TabPanel value={selectedTab} index={3}>
-                    <AllowListTabContent />
+                    <ErrorsTabContent />
                 </TabPanel>
 
                 <TabPanel value={selectedTab} index={4}>
+                    <AllowListTabContent />
+                </TabPanel>
+
+                <TabPanel value={selectedTab} index={5}>
                     <BlockListTabContent />
                 </TabPanel>
             </Box>

@@ -619,6 +619,65 @@ class ScanAPITest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void makeScanDecisions_allows_errored_scan_and_activates_it() throws Exception {
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
+        var scan = TestData
+                .scan(7, "ns", "ext", "1.0.0", "pub", ScanStatus.ERRORED, LocalDateTime.of(2024, 12, 1, 10, 0));
+        when(repositories.findExtensionScan(7L)).thenReturn(scan);
+        when(repositories.findExtensionThreats(scan)).thenReturn(Streamable.empty());
+        when(completionService.adminAllowScan(scan)).thenReturn(true);
+
+        mockMvc.perform(
+                post("/admin/scans/decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scanIds\":[\"7\"],\"decision\":\"allowed\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.successful").value(1))
+                .andExpect(jsonPath("$.failed").value(0));
+
+        verify(repositories).saveAdminScanDecision(any(AdminScanDecision.class));
+        verify(completionService).adminAllowScan(scan);
+    }
+
+    @Test
+    void makeScanDecisions_rejects_blocking_an_errored_scan() throws Exception {
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
+        var scan = TestData
+                .scan(7, "ns", "ext", "1.0.0", "pub", ScanStatus.ERRORED, LocalDateTime.of(2024, 12, 1, 10, 0));
+        when(repositories.findExtensionScan(7L)).thenReturn(scan);
+
+        mockMvc.perform(
+                post("/admin/scans/decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scanIds\":[\"7\"],\"decision\":\"blocked\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.failed").value(1));
+
+        verify(repositories, never()).saveAdminScanDecision(any());
+        verify(completionService, never()).adminAllowScan(any());
+    }
+
+    @Test
+    void makeScanDecisions_rejects_scan_that_is_neither_quarantined_nor_errored() throws Exception {
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
+        var scan = TestData
+                .scan(8, "ns", "ext", "1.0.0", "pub", ScanStatus.PASSED, LocalDateTime.of(2024, 12, 1, 10, 0));
+        when(repositories.findExtensionScan(8L)).thenReturn(scan);
+
+        mockMvc.perform(
+                post("/admin/scans/decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scanIds\":[\"8\"],\"decision\":\"allowed\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.failed").value(1));
+
+        verify(completionService, never()).adminAllowScan(any());
+    }
+
     private static class TestData {
 
         static ExtensionScan scan(

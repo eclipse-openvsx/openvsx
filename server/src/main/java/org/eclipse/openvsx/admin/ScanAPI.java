@@ -704,8 +704,9 @@ public class ScanAPI {
     }
 
     /**
-     * Make security decisions for one or more quarantined scans.
-     * Only valid for scans with QUARANTINED status.
+     * Make security decisions for one or more scans.
+     * Valid for scans with QUARANTINED status, and for ALLOWED decisions on scans with ERRORED
+     * status (e.g. a scanner bug that no retry can resolve).
      * Pass a single scanId for individual decisions, or multiple scanIds for bulk operations.
      * <p>
      * When a scan is allowed:
@@ -723,7 +724,7 @@ public class ScanAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     @CrossOrigin
-    @Operation(summary = "Make security decisions for quarantined scans")
+    @Operation(summary = "Make security decisions for quarantined or errored scans")
     @MutatingOperation
     @ApiResponse(
         responseCode = "200",
@@ -735,7 +736,7 @@ public class ScanAPI {
     )
     @ApiResponse(
         responseCode = "400",
-        description = "Invalid request or scan not in quarantined status",
+        description = "Invalid request or scan status does not accept the decision",
         content = @Content()
     )
     public ResponseEntity<ScanDecisionResponseJson> makeScanDecisions(
@@ -768,11 +769,15 @@ public class ScanAPI {
                         continue;
                     }
 
-                    if (scan.getStatus() != ScanStatus.QUARANTINED) {
+                    var decidable = scan.getStatus() == ScanStatus.QUARANTINED
+                            || (scan.getStatus() == ScanStatus.ERRORED
+                                    && AdminScanDecision.ALLOWED.equals(decisionValue));
+                    if (!decidable) {
                         results.add(
                                 ScanDecisionResultJson.failure(
                                         scanIdStr,
-                                        "Scan not in quarantined status: " + formatScanStatus(scan.getStatus())));
+                                        "Scan not in a status that accepts this decision: "
+                                                + formatScanStatus(scan.getStatus())));
                         failed++;
                         continue;
                     }
