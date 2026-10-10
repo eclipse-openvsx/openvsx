@@ -22,6 +22,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 import org.eclipse.openvsx.json.SettingsJson;
+import org.eclipse.openvsx.publish.PublishingConfig;
 import org.eclipse.openvsx.util.AfterCommitExecutor;
 
 /**
@@ -36,6 +37,7 @@ public class SettingsService {
     private final List<WritableSetting<?>> settings;
     private final ReadOnlySetting readOnly;
     private final MaxExtensionSizeSetting maxExtensionSize;
+    private final PublishingConfig publishingConfig;
     private final SettingsCache cache;
     private final SettingsUpdateChannel channel;
     private final AfterCommitExecutor afterCommit;
@@ -49,6 +51,7 @@ public class SettingsService {
             List<WritableSetting<?>> settings,
             ReadOnlySetting readOnly,
             MaxExtensionSizeSetting maxExtensionSize,
+            PublishingConfig publishingConfig,
             SettingsCache cache,
             SettingsUpdateChannel channel,
             AfterCommitExecutor afterCommit
@@ -56,6 +59,7 @@ public class SettingsService {
         this.settings = settings.stream().sorted(Comparator.comparing(WritableSetting::getName)).toList();
         this.readOnly = readOnly;
         this.maxExtensionSize = maxExtensionSize;
+        this.publishingConfig = publishingConfig;
         this.cache = cache;
         this.channel = channel;
         this.afterCommit = afterCommit;
@@ -77,7 +81,7 @@ public class SettingsService {
         var rows = new LinkedHashMap<String, Object>();
         settings.forEach(setting -> rows.putAll(currentRows(setting, stored)));
         var json = SettingsJson.of(rows);
-        json.setMaxOverrideSize(maxExtensionSize.getCeiling());
+        json.setMaxOverrideSize(publishingConfig.getMaxOverrideSize());
         return json;
     }
 

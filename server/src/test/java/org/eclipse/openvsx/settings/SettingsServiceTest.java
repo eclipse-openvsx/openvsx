@@ -53,6 +53,7 @@ class SettingsServiceTest {
             List.of(readOnly, maxExtensionSize, new BannerSetting()),
             readOnly,
             maxExtensionSize,
+            publishingConfig,
             cache,
             channel,
             new AfterCommitExecutor());
@@ -253,6 +254,7 @@ class SettingsServiceTest {
                 List.of(readOnly, refusing),
                 readOnly,
                 maxExtensionSize,
+                publishingConfig,
                 cache,
                 channel,
                 new AfterCommitExecutor());

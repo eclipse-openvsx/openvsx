@@ -39,11 +39,6 @@ public class MaxExtensionSizeSetting implements WritableSetting<Long> {
         return read(cache.snapshot());
     }
 
-    /** The hard ceiling neither this default nor an override can be raised past. */
-    public long getCeiling() {
-        return publishingConfig.getMaxOverrideSize();
-    }
-
     @Override
     public String getName() {
         return KEY;
@@ -69,8 +64,9 @@ public class MaxExtensionSizeSetting implements WritableSetting<Long> {
         if (value <= 0) {
             throw WritableSetting.reject("Max extension size must be greater than zero.");
         }
-        if (value > getCeiling()) {
-            throw WritableSetting.reject("Max extension size exceeds the maximum of " + getCeiling() + " bytes.");
+        var ceiling = publishingConfig.getMaxOverrideSize();
+        if (value > ceiling) {
+            throw WritableSetting.reject("Max extension size exceeds the maximum of " + ceiling + " bytes.");
         }
     }
 
