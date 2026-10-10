@@ -19,7 +19,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Time-series download analytics ([#2134](https://github.com/eclipse-openvsx/openvsx/pull/2134))
 - Give download analytics its own time-series database ([#2133](https://github.com/eclipse-openvsx/openvsx/pull/2133))
 - Scope personal access tokens to a namespace or an extension, and add publishing-only tokens ([#2296](https://github.com/eclipse-openvsx/openvsx/pull/2296))
-- Publish a `SettingsChangedEvent` after the site settings change, so a deployment can purge a CDN ([#2316](https://github.com/eclipse-openvsx/openvsx/pull/2316))
+- Publish a `SettingsChangedEvent` after the site settings change ([#2316](https://github.com/eclipse-openvsx/openvsx/pull/2316))
 
 #### Changed
 
