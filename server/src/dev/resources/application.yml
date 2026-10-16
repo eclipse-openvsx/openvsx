@@ -46,21 +46,6 @@ spring:
 #    host: "localhost"
 #    port: 25
 
-  security:
-      oauth2:
-        client:
-          registration:
-            eclipse:
-              authorization-grant-type: authorization_code
-              redirect-uri: http://localhost/login/oauth2/code/eclipse
-              scope: openvsx_publisher_agreement, profile
-          provider:
-            eclipse:
-              authorization-uri: https://accounts.eclipse.org/oauth2/authorize
-              token-uri: https://accounts.eclipse.org/oauth2/token
-              user-info-uri: https://accounts.eclipse.org/oauth2/UserInfo
-              user-name-attribute: name
-              user-info-authentication-method: header
 
 management:
   health:
@@ -137,8 +122,6 @@ ovsx:
     clear-on-start: true
   redis:
     enabled: false
-  eclipse:
-    base-url: https://api.eclipse.org
   extension-control:
     enabled: false
     update-on-start: false

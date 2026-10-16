@@ -646,48 +646,6 @@ Whether to update public ids on startup from the upstream registry instance.
 
 How many of an extension's pre-release versions an `extensionquery` response lists. Regular releases are never capped. A negative value, the default, caps nothing.
 
-## Eclipse
-
-| Property      | `ovsx.eclipse.base-url`
-|---------------|-------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.1.0
-
-Base URL of the Eclipse API.
-
-| Property      | `ovsx.eclipse.publisher-agreement.version`
-|---------------|--------------------------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.1.0
-
-Current version of the Eclipse Publisher Agreement. Since 0.28.0 only used to sign Eclipse Publisher Agreement.
-
-| Property      | `ovsx.eclipse.publisher-agreement.allowed-versions`
-|---------------|--------------------------------------------
-| Type          | string[]
-| Default       |
-| Compatibility | Since 0.28.0
-
-Allowed versions of the Eclipse Publisher Agreement. Used to check Eclipse Publisher Agreement.
-
-| Property      | `ovsx.eclipse.publisher-agreement.timezone`
-|---------------|---------------------------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.1.0, **removed** in 0.15.2
-
-`java.time.ZoneId` for timestamps returned by the Eclipse API.
-
-| Property      | `ovsx.eclipse.check-compliance-on-start`
-|---------------|-------------------------
-| Type          | boolean
-| Default       | `false`
-| Compatibility | Since 0.1.0
-
-Whether to check for publisher compliance on startup. A publisher is compliant when they have signed the Eclipse Publisher Agreement. The `ovsx.eclipse.publisher-agreement.version` property must also be configured for this check to run.
-
 ## Migrations
 
 | Property      | `ovsx.migrations.delay.seconds`

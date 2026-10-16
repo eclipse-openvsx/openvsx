@@ -31,7 +31,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.UserService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.TrustedPublisher;
@@ -39,6 +38,7 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.AccessTokenJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TrustedPublisherInputJson;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingService.TrustedPublishers;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NotFoundException;
@@ -82,7 +82,7 @@ class TrustedPublishingAPITest {
     UserService users;
 
     @MockitoBean
-    EclipseService eclipseService;
+    PublisherAgreementService eclipseService;
 
     @MockitoBean
     TrustedPublishingService trustedPublishing;

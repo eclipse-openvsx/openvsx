@@ -27,6 +27,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Changed
 
+- The publisher agreement panel and the admin revoke dialog take the login they require from the new `publisherAgreement.loginProvider` and `loginProviderName` (display label) fields of `UserData` instead of assuming Eclipse; without it no extra login is asked for
 - **Breaking:** `AdminService.updateUserRole` is replaced by `updateUserAccess(provider, login, { role, permissions })`, which writes a user's role and permissions as one state in one request against the new `PUT /admin/user/{provider}/{login}/access` endpoint (#2269)
 - Removing an extension review follows the `manage_extensions` permission rather than the admin role, which admins hold either way (#2269)
 - Return to the page a login started from, instead of always landing on the front page (#2148)

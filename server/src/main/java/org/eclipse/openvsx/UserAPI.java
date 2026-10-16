@@ -38,7 +38,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
@@ -61,6 +60,7 @@ import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
 import org.eclipse.openvsx.json.UsageStatsListJson;
 import org.eclipse.openvsx.json.UserJson;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.NamespaceOwnershipCheckScanner;
 import org.eclipse.openvsx.security.CodedAuthException;
@@ -91,7 +91,7 @@ public class UserAPI {
     private final RepositoryService repositories;
     private final UserService users;
     private final AccessTokenService tokens;
-    private final EclipseService eclipse;
+    private final PublisherAgreementService publisherAgreements;
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
     private final ExtensionService extensions;
@@ -100,7 +100,7 @@ public class UserAPI {
             RepositoryService repositories,
             UserService users,
             AccessTokenService tokens,
-            EclipseService eclipse,
+            PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             LocalRegistryService local,
             ExtensionService extensions
@@ -108,7 +108,7 @@ public class UserAPI {
         this.repositories = repositories;
         this.users = users;
         this.tokens = tokens;
-        this.eclipse = eclipse;
+        this.publisherAgreements = publisherAgreements;
         this.storageUtil = storageUtil;
         this.local = local;
         this.extensions = extensions;
@@ -168,7 +168,7 @@ public class UserAPI {
         json.setPermissions(user.getPermissionsAsStrings());
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
-        eclipse.enrichUserJsonWithPublisherAgreement(json, user);
+        publisherAgreements.enrichUserJson(json, user);
         return json;
     }
 
@@ -738,14 +738,15 @@ public class UserAPI {
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
         try {
-            var agreement = eclipse.signPublisherAgreement(user);
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
             json.setPermissions(user.getPermissionsAsStrings());
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
-            eclipse.enrichUserJson(json, user, agreement);
+            publisherAgreements.signPublisherAgreement(user, json);
+            // Versions hidden while the agreement was missing or revoked become visible again.
+            extensions.reactivateExtensions(user);
 
             return ResponseEntity.ok(json);
         } catch (ErrorResultException exc) {

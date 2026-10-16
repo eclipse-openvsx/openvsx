@@ -38,7 +38,6 @@ import org.springframework.http.HttpStatus;
 import org.eclipse.openvsx.accesstoken.AccessTokenAction;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
@@ -49,6 +48,7 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishingConfig;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
@@ -103,7 +103,7 @@ class LocalRegistryServiceTest {
     StorageUtilService storageUtilService;
 
     @Mock
-    EclipseService eclipse;
+    PublisherAgreementService publisherAgreements;
 
     @Mock
     CacheService cacheService;
@@ -133,7 +133,7 @@ class LocalRegistryServiceTest {
                 searchUtilService,
                 validator,
                 storageUtilService,
-                eclipse,
+                publisherAgreements,
                 cacheService,
                 integrityService,
                 similarityCheckService,
@@ -144,7 +144,7 @@ class LocalRegistryServiceTest {
 
         // A permissive default for a void method rather than a per-test expectation: the tests of
         // visibleUntil exercise a pure function and touch no mock at all.
-        lenient().doNothing().when(eclipse).checkPublisherAgreement(any());
+        lenient().doNothing().when(publisherAgreements).checkPublisherAgreement(any());
 
         // Publish tests supply a token that is meant to be live; the ones about an unusable token
         // say so for their own value.

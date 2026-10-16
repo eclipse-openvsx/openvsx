@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.UserService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.TrustedPublisher;
 import org.eclipse.openvsx.json.AccessTokenJson;
 import org.eclipse.openvsx.json.ResultJson;
@@ -35,6 +34,7 @@ import org.eclipse.openvsx.json.TrustedPublisherListJson;
 import org.eclipse.openvsx.json.TrustedPublisherProviderJson;
 import org.eclipse.openvsx.json.TrustedPublisherStatusJson;
 import org.eclipse.openvsx.json.TrustedPublisherTokenRequestJson;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.settings.MutatingOperation;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NotFoundException;
@@ -43,16 +43,16 @@ import org.eclipse.openvsx.util.NotFoundException;
 public class TrustedPublishingAPI {
 
     private final UserService users;
-    private final EclipseService eclipseService;
+    private final PublisherAgreementService publisherAgreements;
     private final TrustedPublishingService trustedPublishing;
 
     public TrustedPublishingAPI(
             UserService users,
-            EclipseService eclipseService,
+            PublisherAgreementService publisherAgreements,
             TrustedPublishingService trustedPublishing
     ) {
         this.users = users;
-        this.eclipseService = eclipseService;
+        this.publisherAgreements = publisherAgreements;
         this.trustedPublishing = trustedPublishing;
     }
 
@@ -71,7 +71,7 @@ public class TrustedPublishingAPI {
         }
         try {
             // throws when the user has no signed publisher agreement, and so has to be caught below
-            eclipseService.checkPublisherAgreement(user);
+            publisherAgreements.checkPublisherAgreement(user);
             if (!StringUtils.hasText(request.getProvider())
                     || !StringUtils.hasText(request.getNamespace()) || !StringUtils.hasText(request.getExtension())
                     || request.getRegistration() == null || request.getRegistration().isEmpty()) {
@@ -189,7 +189,7 @@ public class TrustedPublishingAPI {
             var json = new TrustedPublisherStatusJson();
             if (trustedPublishing.isEnabled()) {
                 json.setEnabled(true);
-                json.setAllowed(eclipseService.hasPublisherAgreement(user));
+                json.setAllowed(publisherAgreements.hasPublisherAgreement(user));
                 if (json.isAllowed()) {
                     json.setTrustedPublisherProviders(
                             trustedPublishing.getTrustedPublisherProviders().values().stream()

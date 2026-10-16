@@ -69,8 +69,6 @@ import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
-import org.eclipse.openvsx.eclipse.EclipseService;
-import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.CustomerMembership;
 import org.eclipse.openvsx.entities.Extension;
@@ -97,6 +95,7 @@ import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -170,7 +169,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SearchUtilService.class,
         SearchExplainService.class,
         CacheInfoService.class,
-        EclipseService.class,
+        PublisherAgreementService.class,
         RestTemplate.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,
@@ -3287,22 +3286,9 @@ class AdminAPITest {
         @Bean
         OAuth2UserServices oauth2UserServices(
                 UserService users,
-                EclipseTokenService eclipseTokenService,
-                EntityManager entityManager,
-                EclipseService eclipse,
                 OAuth2AttributesConfig attributesConfig
         ) {
-            return new OAuth2UserServices(users, eclipseTokenService, entityManager, eclipse, attributesConfig);
-        }
-
-        @Bean
-        EclipseTokenService eclipseTokenService(
-                TransactionTemplate transactions,
-                EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository,
-                RestTemplate restTemplate
-        ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
+            return new OAuth2UserServices(users, List.of(), attributesConfig);
         }
 
         @Bean
@@ -3314,7 +3300,7 @@ class AdminAPITest {
                 AccessTokenService tokenService,
                 ExtensionValidator validator,
                 SearchUtilService search,
-                EclipseService eclipse,
+                PublisherAgreementService eclipse,
                 StorageUtilService storageUtil,
                 CacheService cache,
                 JobRequestScheduler scheduler,
@@ -3352,7 +3338,7 @@ class AdminAPITest {
                 SearchUtilService search,
                 ExtensionValidator validator,
                 StorageUtilService storageUtil,
-                EclipseService eclipse,
+                PublisherAgreementService eclipse,
                 CacheService cache,
                 ExtensionVersionIntegrityService integrityService,
                 SimilarityCheckService similarityCheckService

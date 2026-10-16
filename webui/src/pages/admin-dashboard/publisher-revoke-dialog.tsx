@@ -34,17 +34,18 @@ export const PublisherRevokeContributionsButton: FunctionComponent<PublisherRevo
     const [dialogOpen, setDialogOpen] = useState(false);
 
     // A missing publisherAgreement means the backend could not reliably determine the status
-    // (see EclipseService#determinePublisherAgreementStatus) - treat that the same as 'none':
-    // only a confirmed 'signed' or 'outdated' agreement needs an Eclipse login to revoke.
+    // (see PublisherAgreementService#adminEnrichUserJson) - treat that the same as 'none':
+    // only a confirmed 'signed' or 'outdated' agreement needs the additional login to revoke.
     const agreementStatus = props.publisherInfo.user.publisherAgreement?.status;
     const hasAgreement = agreementStatus === 'signed' || agreementStatus === 'outdated';
 
-    if (hasAgreement && !user?.additionalLogins?.find(login => login.provider === 'eclipse')) {
-        // If a publisher agreement is required, the admin must be logged in with Eclipse to revoke it
+    const loginProvider = user?.publisherAgreement?.loginProvider;
+    if (hasAgreement && loginProvider && !user?.additionalLogins?.find(login => login.provider === loginProvider)) {
+        // The admin must hold the agreement's additional login to revoke it
         return (
-            <Link href={createAbsoluteURL([service.serverUrl, 'oauth2', 'authorization', 'eclipse'])}>
+            <Link href={createAbsoluteURL([service.serverUrl, 'oauth2', 'authorization', loginProvider])}>
                 <Button variant='contained' color='secondary'>
-                    Log in with Eclipse
+                    Log in with {user?.publisherAgreement?.loginProviderName || loginProvider}
                 </Button>
             </Link>
         );

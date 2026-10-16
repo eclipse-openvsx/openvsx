@@ -109,10 +109,6 @@ ovsx:
   elasticsearch:
     clear-on-start: true
     host: elasticsearch:9200
-  eclipse:
-    base-url: https://api.eclipse.org
-    publisher-agreement:
-      timezone: US/Eastern
   integrity:
     key-pair: create # create, renew, delete, 'undefined'
   registry:

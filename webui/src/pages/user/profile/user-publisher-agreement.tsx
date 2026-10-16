@@ -97,6 +97,8 @@ export const UserPublisherAgreement: FunctionComponent<UserPublisherAgreementPro
 
     const publisherAgreementName = pageSettings?.publisherAgreement?.name ?? '';
     const publisherAgreementSigned = user.publisherAgreement.status == 'signed';
+    const loginProvider = user.publisherAgreement.loginProvider;
+    const loginProviderName = user.publisherAgreement.loginProviderName || loginProvider;
 
     let title: string;
     let description: ReactNode;
@@ -116,7 +118,7 @@ export const UserPublisherAgreement: FunctionComponent<UserPublisherAgreementPro
                 View
             </Button>
         );
-    } else if (user.additionalLogins?.find(login => login.provider === 'eclipse')) {
+    } else if (!loginProvider || user.additionalLogins?.find(login => login.provider === loginProvider)) {
         title = 'Publisher Agreement required';
         description = (
             <>
@@ -134,13 +136,13 @@ export const UserPublisherAgreement: FunctionComponent<UserPublisherAgreementPro
         description = (
             <>
                 You need to sign the {publisherAgreementName} Publisher Agreement before you can publish any extension
-                to this registry. To start the signing process, please log in with an Eclipse Foundation account.
+                to this registry. To start the signing process, please log in with {loginProviderName}.
             </>
         );
         action = (
-            <Link href={createAbsoluteURL([service.serverUrl, 'oauth2', 'authorization', 'eclipse'])}>
+            <Link href={createAbsoluteURL([service.serverUrl, 'oauth2', 'authorization', loginProvider])}>
                 <Button variant='outlined' color='secondary'>
-                    Log in with Eclipse
+                    Log in with {loginProviderName}
                 </Button>
             </Link>
         );

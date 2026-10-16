@@ -125,10 +125,6 @@ data:
       # from headers the client sends. See doc/configuration.md, Server URL.
       #  server:
       #    url: https://openvsx.example
-      eclipse:
-        base-url: https://api.eclipse.org
-        publisher-agreement:
-          timezone: US/Eastern
       integrity:
         key-pair: create
       storage:

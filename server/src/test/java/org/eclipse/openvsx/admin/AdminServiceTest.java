@@ -28,7 +28,6 @@ import org.springframework.data.util.Streamable;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.UserService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.ExtensionVersionChange;
@@ -38,6 +37,7 @@ import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.UserAccessJson;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
@@ -72,7 +72,7 @@ class AdminServiceTest {
     ExtensionService extensions;
 
     @Mock
-    EclipseService eclipse;
+    PublisherAgreementService publisherAgreements;
 
     @Mock
     LogService logs;
@@ -170,22 +170,20 @@ class AdminServiceTest {
     }
 
     // Regression: revokePublisherAgreement used to be called unguarded, so any exception it threw
-    // (Eclipse API down, unexpected runtime error, ...) rolled back the whole revoke, including the
-    // token/extension/membership cleanup that has nothing to do with Eclipse.
+    // (agreement service down, unexpected runtime error, ...) rolled back the whole revoke, including the
+    // token/extension/membership cleanup that has nothing to do with it.
     @Test
-    void revokingPublisherContributionsStillDeactivatesEverythingElseWhenTheEclipseRevokeFails() {
+    void revokingPublisherContributionsStillDeactivatesEverythingElseWhenTheAgreementRevokeFails() {
         var user = new UserData();
         user.setLoginName("amy");
-        user.setEclipsePersonId("12345");
         var extVersion = version(extension("ext"));
         extVersion.setActive(true);
 
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.of(extVersion));
-        when(eclipse.isActive()).thenReturn(true);
-        when(eclipse.determinePublisherAgreementStatus(user)).thenReturn("signed");
-        doThrow(new RuntimeException("Eclipse API is down")).when(eclipse).revokePublisherAgreement(user, admin);
+        doThrow(new RuntimeException("Agreement service is down")).when(publisherAgreements)
+                .revokePublisherAgreement(user, admin);
 
         var result = adminService.revokePublisherContributions("github", "amy", admin);
 
@@ -196,29 +194,7 @@ class AdminServiceTest {
                 any());
         // The failure is reported back rather than silently dropped or failing the whole call.
         assertThat(result.getError()).isNull();
-        assertThat(result.getWarning()).contains("Eclipse API is down");
-    }
-
-    // Regression: the revoke used to be attempted whenever an Eclipse person ID was present,
-    // even if the agreement status was 'none' or could not be determined at all - calling the
-    // Eclipse API on a guess rather than a confirmed agreement.
-    @Test
-    void revokingPublisherContributionsDoesNotCallEclipseWhenTheAgreementStatusIsNotConfirmed() {
-        var user = new UserData();
-        user.setLoginName("amy");
-        user.setEclipsePersonId("12345");
-
-        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
-        when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
-        when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
-        when(eclipse.isActive()).thenReturn(true);
-        when(eclipse.determinePublisherAgreementStatus(user)).thenReturn(null);
-
-        var result = adminService.revokePublisherContributions("github", "amy", admin);
-
-        verify(eclipse, never()).revokePublisherAgreement(any(), any());
-        assertThat(result.getError()).isNull();
-        assertThat(result.getWarning()).isNull();
+        assertThat(result.getWarning()).contains("Agreement service is down");
     }
 
     @Test
