@@ -114,6 +114,24 @@ describe('main', () => {
         }));
     });
 
+    it('warns about packaging options ignored for a prepackaged extension', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        // Flags are given out of order: warnings follow the declared list, not argv.
+        run('publish', 'ext.vsix', '--allow-missing-repository', '--packageVersion', '1.0.0',
+            '--follow-symlinks', '--yarn', '--baseImagesUrl', 'https://images.test',
+            '--baseContentUrl', 'https://content.test', '-t', 'linux-x64');
+        expect(warn.mock.calls).toEqual([
+            '--target',
+            '--baseContentUrl',
+            '--baseImagesUrl',
+            '--yarn',
+            '--follow-symlinks',
+            '--packageVersion',
+            '--allow-missing-repository'
+        ].map(flag => [`Ignoring option '${flag}' for prepackaged extension.`]));
+        expect(publish).toHaveBeenCalledWith(expect.objectContaining({ extensionFile: 'ext.vsix', targets: undefined }));
+    });
+
     it('passes options parsed by a custom parser', () => {
         run('search', 'java', '-s', '5', '--sort-by', 'downloadCount');
         expect(search).toHaveBeenCalledWith(expect.objectContaining({ text: 'java', size: 5, sortBy: 'downloadCount' }));
