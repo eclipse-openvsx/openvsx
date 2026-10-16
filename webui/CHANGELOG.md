@@ -4,6 +4,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ## [next] (unreleased)
 
+### Changed
+
+- `MainContext` keeps its value, `handleError` and `updateUser` stable across renders, so consumers can depend on them in effects and skip needless re-renders
+
 ## [1.3.0] - 2026-10-16
 
 ### Added

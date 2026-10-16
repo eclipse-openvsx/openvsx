@@ -12,7 +12,7 @@
  ********************************************************************************/
 
 import { FunctionComponent, useContext } from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderInEntryShell } from './support/test-providers';
 import { Main } from '../../src/main';
@@ -21,9 +21,14 @@ import { PageSettings } from '../../src/page-settings';
 import { ErrorResult, UserData } from '../../src/extension-registry-types';
 import { ExtensionRegistryService } from '../../src/extension-registry-service';
 
+// Every context value the probe rendered with, so tests can compare identities across renders.
+let seenContexts: MainContext[] = [];
+
 // Stands in for a consumer page: the only way to observe what the context carries.
 const ContextProbe: FunctionComponent = () => {
-    const { userLoading, user } = useContext(MainContext);
+    const context = useContext(MainContext);
+    seenContexts.push(context);
+    const { userLoading, user } = context;
     return <div data-testid='probe'>{`loading=${userLoading} user=${user?.loginName ?? 'none'}`}</div>;
 };
 
@@ -41,11 +46,20 @@ function renderMain() {
         getRegistryVersion: vi.fn().mockResolvedValue({ version: '1.0.0' })
     } as unknown as ExtensionRegistryService;
     // `loginProviders` supplied so Main skips its own login-providers fetch.
-    renderInEntryShell(<Main service={service} pageSettings={pageSettings} loginProviders={{}} />);
-    return { resolveUser: (result: UserData | ErrorResult) => resolveUser(result) };
+    const loginProviders = {};
+    const main = () => <Main service={service} pageSettings={pageSettings} loginProviders={loginProviders} />;
+    const { rerender } = renderInEntryShell(main());
+    return {
+        resolveUser: (result: UserData | ErrorResult) => resolveUser(result),
+        rerender: () => rerender(main())
+    };
 }
 
 describe('Main', () => {
+    beforeEach(() => {
+        seenContexts = [];
+    });
+
     it('exposes userLoading on MainContext while the initial user fetch is in flight', async () => {
         const { resolveUser } = renderMain();
 
@@ -63,5 +77,31 @@ describe('Main', () => {
         resolveUser({ error: 'Not logged in' });
 
         await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('loading=false user=none'));
+    });
+
+    it('keeps handleError and updateUser stable while the context state changes', async () => {
+        const { resolveUser } = renderMain();
+        const initial = seenContexts[0];
+
+        resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+        await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('loading=false user=testuser'));
+
+        const latest = seenContexts[seenContexts.length - 1];
+        expect(latest).not.toBe(initial);
+        expect(latest.handleError).toBe(initial.handleError);
+        expect(latest.updateUser).toBe(initial.updateUser);
+    });
+
+    it('keeps the context value when Main re-renders with unchanged props and state', async () => {
+        const { resolveUser, rerender } = renderMain();
+        resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+        await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('loading=false user=testuser'));
+        const before = seenContexts[seenContexts.length - 1];
+        const rendersBefore = seenContexts.length;
+
+        rerender();
+
+        expect(seenContexts.length).toBeGreaterThan(rendersBefore);
+        expect(seenContexts[seenContexts.length - 1]).toBe(before);
     });
 });
