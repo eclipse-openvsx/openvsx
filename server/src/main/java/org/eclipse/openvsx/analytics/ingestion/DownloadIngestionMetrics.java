@@ -14,9 +14,9 @@ package org.eclipse.openvsx.analytics.ingestion;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
-import com.google.common.base.Suppliers;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -73,15 +73,17 @@ public class DownloadIngestionMetrics {
                 .register(registry);
 
         // scraped frequently, so the underlying count query is memoized for a minute
-        Supplier<Long> deadLetterDepth = Suppliers
-                .memoizeWithExpiration(() -> countFailedItems(repositories), 1, TimeUnit.MINUTES)::get;
-        Gauge.builder(DEAD_LETTER_METRIC, deadLetterDepth::get)
+        LoadingCache<Boolean, Long> deadLetterDepth = Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.MINUTES)
+                .build(_ -> countFailedItems(repositories));
+        Gauge.builder(DEAD_LETTER_METRIC, () -> deadLetterDepth.get(Boolean.TRUE))
                 .description("Number of log files that failed processing and await manual attention")
                 .register(registry);
 
-        Supplier<Long> pendingFiles = Suppliers
-                .memoizeWithExpiration(() -> countPendingFiles(repositories), 1, TimeUnit.MINUTES)::get;
-        Gauge.builder(PENDING_FILES_METRIC, pendingFiles::get)
+        LoadingCache<Boolean, Long> pendingFiles = Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.MINUTES)
+                .build(_ -> countPendingFiles(repositories));
+        Gauge.builder(PENDING_FILES_METRIC, () -> pendingFiles.get(Boolean.TRUE))
                 .description(
                         "Number of ingested log files kept until their events can be stored in the analytics store")
                 .register(registry);

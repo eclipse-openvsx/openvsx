@@ -17,7 +17,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.google.common.collect.Lists;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
@@ -138,7 +137,8 @@ public class DownloadAnalyticsRepository {
 
     private void saveEvents(List<DownloadEvent> events) {
         dsl.transaction(configuration -> {
-            for (var batch : Lists.partition(events, BATCH_SIZE)) {
+            for (int from = 0; from < events.size(); from += BATCH_SIZE) {
+                var batch = events.subList(from, Math.min(from + BATCH_SIZE, events.size()));
                 var insert = DSL.using(configuration)
                         .insertInto(
                                 EVENT,

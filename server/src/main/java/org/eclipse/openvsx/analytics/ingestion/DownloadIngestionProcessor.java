@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.google.common.collect.Lists;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import jakarta.persistence.EntityManager;
@@ -461,7 +460,10 @@ public class DownloadIngestionProcessor {
                     .collect(Collectors.toList());
 
             logger.info("[DownloadIngestionProcessor] total active extensions: {}", activeExtensions.size());
-            var parts = Lists.partition(activeExtensions, 100);
+            var parts = new ArrayList<List<Extension>>();
+            for (int from = 0; from < activeExtensions.size(); from += 100) {
+                parts.add(activeExtensions.subList(from, Math.min(from + 100, activeExtensions.size())));
+            }
             logger.info("[DownloadIngestionProcessor] partitions: {} | partition size: 100", parts.size());
 
             parts.forEach(search::updateSearchEntriesAsync);

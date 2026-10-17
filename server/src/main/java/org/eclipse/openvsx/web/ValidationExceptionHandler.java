@@ -15,8 +15,9 @@ package org.eclipse.openvsx.web;
 import java.lang.reflect.Method;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -38,7 +39,7 @@ public class ValidationExceptionHandler {
             Class<?> typeArg = resolvableType.getGeneric(0).resolve();
             if (typeArg != null && ResultJson.class.isAssignableFrom(typeArg)) {
                 var errors = ex.getConstraintViolations().stream()
-                        .map(cv -> Iterables.getLast(cv.getPropertyPath()) + ": " + cv.getMessage())
+                        .map(ValidationExceptionHandler::describe)
                         .collect(Collectors.joining(", "));
 
                 Method staticMethod = typeArg.getMethod("error", String.class);
@@ -53,8 +54,16 @@ public class ValidationExceptionHandler {
         problem.setProperty(
                 "errors",
                 ex.getConstraintViolations().stream()
-                        .map(cv -> Iterables.getLast(cv.getPropertyPath()) + ": " + cv.getMessage())
+                        .map(ValidationExceptionHandler::describe)
                         .toList());
         return new ResponseEntity<>(problem, HttpStatus.BAD_REQUEST);
+    }
+
+    private static String describe(ConstraintViolation<?> violation) {
+        Path.Node leaf = null;
+        for (var node : violation.getPropertyPath()) {
+            leaf = node;
+        }
+        return leaf + ": " + violation.getMessage();
     }
 }

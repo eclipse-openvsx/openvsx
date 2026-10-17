@@ -12,13 +12,11 @@
  *****************************************************************************/
 package org.eclipse.openvsx.util;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,24 +80,21 @@ class DrainOnCloseInputStreamTest {
         assertThat(underlying.available()).isEqualTo(8);
     }
 
-    // Mirrors the exact chain ExtensionService#createExtensionFile builds around the InputStream
-    // it's handed: BufferedInputStream wrapped in a size-capped Guava view that gives up once the
-    // package exceeds the configured limit, leaving everything past the cap unread on the wire.
+    // Mirrors ExtensionService#createExtensionFile, which reads the InputStream it's handed only up
+    // to the configured limit and closes it once the package exceeds it, leaving everything past
+    // the cap unread on the wire.
     // Wrapping once here at the entry point and closing through try-with-resources drains that
     // remainder for free via the close() cascade, without ExtensionService needing to know about it -
     // as long as our own bound is generous enough to cover it, which callers get by using the same
     // max upload size for both.
     @Test
-    void drainsWhateverASizeCappedViewDeeperInTheChainNeverReached() throws IOException {
+    void drainsWhateverASizeCappedReaderNeverReached() throws IOException {
         var body = "x".repeat(20).getBytes(StandardCharsets.UTF_8);
         var underlying = new ByteArrayInputStream(body);
         var draining = new DrainOnCloseInputStream(underlying, 100);
 
-        try (
-                var buffered = new BufferedInputStream(draining);
-                var capped = ByteStreams.limit(buffered, 5)
-        ) {
-            capped.readAllBytes();
+        try (var input = draining) {
+            assertThat(input.readNBytes(5)).hasSize(5);
         }
 
         assertThat(underlying.available()).isZero();

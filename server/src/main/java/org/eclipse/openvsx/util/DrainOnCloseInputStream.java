@@ -15,9 +15,6 @@ package org.eclipse.openvsx.util;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-
-import com.google.common.io.ByteStreams;
 
 /**
  * InputStream wrapper whose close() drains whatever's left of a {@code maxBytes} budget that
@@ -74,8 +71,10 @@ public class DrainOnCloseInputStream extends FilterInputStream {
     public void close() throws IOException {
         try {
             long remaining = maxBytes - bytesRead;
-            if (remaining > 0) {
-                ByteStreams.limit(this, remaining).transferTo(OutputStream.nullOutputStream());
+            var buffer = new byte[8192];
+            int n;
+            while (remaining > 0 && (n = read(buffer, 0, (int) Math.min(buffer.length, remaining))) != -1) {
+                remaining -= n;
             }
         } catch (IOException ignored) {
             // best-effort drain; connection state doesn't matter once we're closing this stream

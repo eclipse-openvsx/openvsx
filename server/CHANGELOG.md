@@ -54,6 +54,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Update other dependencies to newer patch versions ([#2255](https://github.com/eclipse-openvsx/openvsx/pull/2255))
 - Bump tika to 3.3.2 ([#2240](https://github.com/eclipse-openvsx/openvsx/pull/2240))
 - Remove unused `jaxb-api` and `jaxb-impl` dependencies ([#2317](https://github.com/eclipse-openvsx/openvsx/pull/2317))
+- Remove the direct `guava` dependency; the mirror rate limit now uses Bucket4j
 
 ## [v1.2.0] - 2026-09-10
 

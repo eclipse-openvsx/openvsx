@@ -78,4 +78,15 @@ class DownloadIngestionMetricsTest {
         var gauge = registry.get(DownloadIngestionMetrics.PENDING_FILES_METRIC).gauge();
         assertEquals(3, gauge.value());
     }
+
+    @Test
+    void testDeadLetterDepthGaugeIsMemoized() {
+        Mockito.when(repositories.countFailedDownloadIngestions()).thenReturn(7L);
+
+        var gauge = registry.get(DownloadIngestionMetrics.DEAD_LETTER_METRIC).gauge();
+        assertEquals(7, gauge.value());
+        assertEquals(7, gauge.value());
+
+        Mockito.verify(repositories, Mockito.times(1)).countFailedDownloadIngestions();
+    }
 }
