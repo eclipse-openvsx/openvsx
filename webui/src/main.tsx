@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { FunctionComponent, ReactNode, useCallback, useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { CssBaseline } from '@mui/material';
 import { Route, Routes } from 'react-router';
 import { AppProviders } from './app-providers';
@@ -65,7 +65,21 @@ export const Main: FunctionComponent<MainProps> = props => {
         return () => abortController.current.abort();
     }, []);
 
-    const updateUser = async () => {
+    const onError = useCallback((err: unknown, options?: { onClose?: () => void }) => {
+        if (err instanceof DOMException && err.message.trim() === 'The operation was aborted.') {
+            // ignore error caused by AbortController.abort()
+            return;
+        }
+
+        const message = handleError(err);
+        const code = (err as ReportedError).code;
+        errorDialogOnClose.current = options?.onClose;
+        setError({ message, code });
+        setIsErrorDialogOpen(true);
+    }, []);
+
+    // Memoized because it is part of mainContext; a fresh function would defeat that memo.
+    const updateUser = useCallback(async () => {
         try {
             setUserLoading(true);
             const user = await props.service.getUser(abortController.current);
@@ -80,7 +94,7 @@ export const Main: FunctionComponent<MainProps> = props => {
         }
 
         setUserLoading(false);
-    };
+    }, [props.service, onError]);
 
     const getLoginProviders = async () => {
         if (props.loginProviders != null) {
@@ -93,19 +107,6 @@ export const Main: FunctionComponent<MainProps> = props => {
         } else {
             setLoginProviders((data as LoginProviders).loginProviders);
         }
-    };
-
-    const onError = (err: unknown, options?: { onClose?: () => void }) => {
-        if (err instanceof DOMException && err.message.trim() === 'The operation was aborted.') {
-            // ignore error caused by AbortController.abort()
-            return;
-        }
-
-        const message = handleError(err);
-        const code = (err as ReportedError).code;
-        errorDialogOnClose.current = options?.onClose;
-        setError({ message, code });
-        setIsErrorDialogOpen(true);
     };
 
     const onErrorDialogClose = () => {
@@ -143,16 +144,19 @@ export const Main: FunctionComponent<MainProps> = props => {
         );
     };
 
-    const mainContext: MainContext = {
-        service: props.service,
-        pageSettings: props.pageSettings,
-        user,
-        userLoading,
-        updateUser,
-        loginProviders,
-        handleError: onError,
-        version
-    };
+    const mainContext = useMemo<MainContext>(
+        () => ({
+            service: props.service,
+            pageSettings: props.pageSettings,
+            user,
+            userLoading,
+            updateUser,
+            loginProviders,
+            handleError: onError,
+            version
+        }),
+        [props.service, props.pageSettings, user, userLoading, updateUser, loginProviders, onError, version]
+    );
     return (
         <>
             <CssBaseline />
