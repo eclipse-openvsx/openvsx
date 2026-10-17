@@ -84,7 +84,7 @@ public class ExtensionScanService {
                 processor.getExtensionName(),
                 processor.getVersion(),
                 processor.getTargetPlatform(),
-                processor.getDisplayName(),
+                processor.getDisplayNameOrExtensionName(),
                 user);
     }
 

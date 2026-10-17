@@ -32,6 +32,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.resilience.annotation.Retryable;
@@ -54,6 +55,7 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.extension_control.ExtensionControlService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
+import org.eclipse.openvsx.util.DisplayNameUtil;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.NamingUtil;
@@ -75,6 +77,7 @@ public class PublishExtensionVersionHandler {
     private final ExtensionValidator validator;
     private final ExtensionControlService extensionControl;
     private final ExtensionScanService scanService;
+    private final boolean mirrorEnabled;
 
     private final Predicate<String> unsupportedIconExtensions;
 
@@ -88,7 +91,8 @@ public class PublishExtensionVersionHandler {
             UserService users,
             ExtensionValidator validator,
             ExtensionControlService extensionControl,
-            ExtensionScanService scanService
+            ExtensionScanService scanService,
+            @Value("${ovsx.data.mirror.enabled:false}") boolean mirrorEnabled
     ) {
         this.config = config;
         this.service = service;
@@ -100,6 +104,7 @@ public class PublishExtensionVersionHandler {
         this.validator = validator;
         this.extensionControl = extensionControl;
         this.scanService = scanService;
+        this.mirrorEnabled = mirrorEnabled;
 
         this.unsupportedIconExtensions = path -> {
             if (path == null) {
@@ -186,6 +191,15 @@ public class PublishExtensionVersionHandler {
             throw new ErrorResultException(
                     alreadyPublishedMessage(namespace.getName(), extensionName, existingVersion));
         }
+        var latestVersion = repositories
+                .findLatestVersion(namespace.getName(), extensionName, null, false, true);
+        // The declared name, not the labelling fallback: gating on a name the package does not carry
+        // would make this copy stricter than the one in createExtensionVersion that enforces it.
+        checkDisplayNameAdoption(
+                namespace.getName(),
+                processor.getDeclaredDisplayName(),
+                latestVersion,
+                userData);
     }
 
     private Namespace checkPublishPermission(ExtensionProcessor processor, UserData user) {
@@ -281,6 +295,20 @@ public class PublishExtensionVersionHandler {
         }
 
         if (extension == null) {
+            // Nothing carries the name of this extension yet, so this publication is what introduces it
+            // to the registry and is the one that has to hold up its display name against the rest of
+            // it. Repeated here rather than left to checkPublishPreconditions because that one only
+            // runs on the paths that scan, and this is the only call site every publication reaches.
+            //
+            // The namespace lock held at this point does not make the check atomic, and is not meant
+            // to: a conflict is by definition in another namespace, so two publications racing for one
+            // display name lock different rows and do not serialise against each other. The check is a
+            // speed bump against the cheapest impersonation rather than an enforced invariant -- there
+            // is no constraint that could enforce it, the rule being over the latest active version and
+            // scoped to the publisher's own namespaces -- so the remaining race is acceptable, and
+            // leaves behind a duplicate an admin can resolve.
+            checkDisplayNameAdoption(namespaceName, displayName, null, au.userData());
+
             extension = new Extension();
             extension.setActive(false);
             extension.setName(extensionName);
@@ -297,6 +325,15 @@ public class PublishExtensionVersionHandler {
                 throw new ErrorResultException(
                         alreadyPublishedMessage(namespaceName, extensionName, existingVersion));
             }
+
+            // A version that renames the extension is the publication that adopts the new name, and so
+            // is the one that has to hold it up against the rest of the registry. Without this, the
+            // check on a new extension would only be a speed bump one publication wide: an extension
+            // could be introduced under a name of its own, pass, and then take the display name of a
+            // popular extension in its next version -- the manifest being the source of truth for the
+            // name the registry shows.
+            var latestVersion = repositories.findLatestVersion(extension, null, false, true);
+            checkDisplayNameAdoption(namespaceName, displayName, latestVersion, au.userData());
         }
 
         extension.setLastUpdatedDate(extVersion.getTimestamp());
@@ -330,6 +367,94 @@ public class PublishExtensionVersionHandler {
         if (isMalicious(namespaceName, extensionName)) {
             throw new ErrorResultException(
                     NamingUtil.toExtensionId(namespaceName, extensionName) + " is a known malicious extension");
+        }
+    }
+
+    /**
+     * The display name gate: rejects a publication that adopts a display name another extension
+     * already shows.
+     * <p>
+     * The one place the rule is applied. {@link #checkPublishPreconditions} runs it early to fail
+     * before scanning a package that can not be published anyway, and {@link #createExtensionVersion}
+     * runs it again under the extension lock; the early copy only stays a subset of the authoritative
+     * one while both are handed the same display name.
+     *
+     * @param displayName   the name the publication carries, {@code null} when it declares none,
+     *                      which adopts nothing
+     * @param latestVersion the version the registry currently shows, {@code null} when it shows none
+     */
+    private void checkDisplayNameAdoption(
+            String namespaceName,
+            String displayName,
+            ExtensionVersion latestVersion,
+            UserData user
+    ) {
+        if (adoptsDisplayName(latestVersion, displayName)) {
+            checkDisplayNameConflict(namespaceName, displayName, user);
+        }
+    }
+
+    /**
+     * Whether this publication is the one that adopts the display name it carries, and so has to hold
+     * it up against the rest of the registry.
+     * <p>
+     * It is, when the name is not the one the extension already shows: either there is no visible
+     * version to compare against, which is the case for an extension being introduced, or this version
+     * renames an existing one. A version carrying the name its extension already shows is not adopting
+     * anything, and is skipped -- which keeps the check off the routine version bumps of extensions
+     * that already share a display name with another. The registry holds many such pairs, predating
+     * this check, and they would otherwise be left unable to publish at all.
+     * <p>
+     * Compared with casing and surrounding whitespace normalised away, matching how
+     * {@link org.eclipse.openvsx.repositories.RepositoryService#findActiveExtensionByDisplayName}
+     * compares the names it searches: a name differing only there reads the same, and is one the
+     * extension already holds rather than one it is taking.
+     *
+     * @param latestVersion the version the registry currently shows for the extension, or {@code null}
+     *                      when it shows none
+     */
+    private boolean adoptsDisplayName(ExtensionVersion latestVersion, String displayName) {
+        var currentDisplayName = latestVersion != null ? latestVersion.getDisplayName() : null;
+        return !DisplayNameUtil.normalize(currentDisplayName).equals(DisplayNameUtil.normalize(displayName));
+    }
+
+    /**
+     * Rejects an extension that would be published under the display name of an existing one.
+     * <p>
+     * The display name is what a user reads when picking an extension out of a list, and unlike the
+     * extension id it is not unique by construction, so a package can be published under the exact
+     * name of a popular extension and be taken for it. Only exact matches are rejected here, which
+     * costs an honest publisher nothing (any distinguishing suffix passes) while removing the cheapest
+     * way of impersonating another extension. The near misses that remain -- a transposed character, a
+     * homoglyph -- are the business of the NAME_SQUATTING check, which reports them for review because
+     * it is far too imprecise to reject a publication on its own.
+     * <p>
+     * Extensions in namespaces the publisher belongs to are not conflicts: a publisher shipping two
+     * extensions under one name is not impersonating anyone, and the name is already theirs.
+     * <p>
+     * Skipped entirely when this instance mirrors another registry. A mirror has to end up with what
+     * its upstream has, duplicate display names included; rejecting them would not protect anyone from
+     * an extension that is already published upstream, and would leave the mirror permanently
+     * incomplete, as every run would fail on the same extension again.
+     */
+    private void checkDisplayNameConflict(String namespaceName, String displayName, UserData user) {
+        if (mirrorEnabled || DisplayNameUtil.isBlank(displayName)) {
+            return;
+        }
+
+        var excludedNamespaces = new ArrayList<String>();
+        // The target namespace need not be one the publisher is a member of: a privileged user may
+        // publish into any of them, and would otherwise collide with the namespace's own extensions.
+        excludedNamespaces.add(namespaceName);
+        repositories.findMemberships(user)
+                .forEach(membership -> excludedNamespaces.add(membership.getNamespace().getName()));
+
+        var conflict = repositories.findActiveExtensionByDisplayName(displayName, excludedNamespaces);
+        if (conflict != null) {
+            var conflictId = NamingUtil.toExtensionId(conflict.getNamespace().getName(), conflict.getName());
+            throw new ErrorResultException(
+                    "Display name '" + displayName + "' is already used by the extension '" + conflictId
+                            + "'. Please choose a different display name.");
         }
     }
 
