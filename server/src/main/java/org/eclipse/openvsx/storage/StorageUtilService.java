@@ -370,7 +370,9 @@ public class StorageUtilService implements IStorageService {
 
         var managedResource = entityManager.find(FileResource.class, resource.getId());
         var extension = managedResource.getExtension().getExtension();
-        extension.setDownloadCount(extension.getDownloadCount() + 1);
+        repositories.increaseDownloadCount(extension, 1);
+        // picks up the new count for the search index, and keeps the stale one from being flushed
+        entityManager.refresh(extension);
         ingestionProcessor.captureDownload(managedResource);
 
         cache.evictNamespaceDetails(extension);

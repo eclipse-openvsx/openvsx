@@ -15,6 +15,9 @@ package org.eclipse.openvsx.repositories;
 import java.util.Collection;
 import java.util.List;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -70,12 +73,23 @@ public interface ExtensionRepository extends Repository<Extension, Long> {
 
     Streamable<Extension> findByIdIn(Collection<Long> extensionIds);
 
+    // FOR NO KEY UPDATE on PostgreSQL, which is enough to serialize download count updates. Taken
+    // in id order so that two transactions updating overlapping sets of extensions cannot deadlock.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<Extension> findByIdInOrderByIdAsc(Collection<Long> extensionIds);
+
     Streamable<Extension> findDistinctByVersionsPublishedBy(UserData user);
 
     long count();
 
     @Query("select coalesce(max(e.downloadCount), 0) from Extension e")
     int getMaxDownloadCount();
+
+    // Incremented in the database, not read-modify-written on the entity, so that concurrent
+    // downloads cannot overwrite each other's count.
+    @Modifying
+    @Query("update Extension e set e.downloadCount = e.downloadCount + :downloads where e.id = :id")
+    int increaseDownloadCount(@Param("id") long id, @Param("downloads") int downloads);
 
     @Query("select e from Extension e where concat(e.namespace.name, '.', e.name) not in(?1)")
     Streamable<Extension> findAllNotMatchingByExtensionId(List<String> extensionIds);

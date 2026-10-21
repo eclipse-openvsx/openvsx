@@ -15,7 +15,10 @@ package org.eclipse.openvsx.analytics.ingestion;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -326,6 +329,62 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         // unlike the scheduled ingestion there is no ingestion entry at stake: the caller must see the failure
         assertThrows(IllegalStateException.class, () -> processor.backfill(FileResource.STORAGE_AWS, records));
         assertEquals(0, freshDownloadCount(extension.getId()));
+    }
+
+    @Test
+    void testConcurrentCounterIncreasesAreNotLost() throws InterruptedException {
+        var extension = seedExtension("proc8", "proc8.ext-1.0.0.vsix");
+
+        var staleLoaded = new CountDownLatch(1);
+        var otherCommitted = new CountDownLatch(1);
+        var staleResult = new AtomicReference<List<Extension>>();
+        var staleFailure = new AtomicReference<Throwable>();
+        var stale = new Thread(() -> {
+            try {
+                staleResult.set(inTransaction(() -> {
+                    // loads the counter before the concurrent ingestion below commits its increase
+                    entityManager.find(Extension.class, extension.getId());
+                    staleLoaded.countDown();
+                    await(otherCommitted);
+                    return processor.increaseDownloadCounts(Map.of(extension.getId(), 3));
+                }));
+            } catch (Throwable t) {
+                staleFailure.set(t);
+            }
+        });
+        stale.start();
+        staleLoaded.await();
+
+        processor.increaseDownloadCounts(Map.of(extension.getId(), 5));
+        otherCommitted.countDown();
+        stale.join();
+
+        assertNull(staleFailure.get());
+        assertEquals(8, freshDownloadCount(extension.getId()));
+        // the returned entities feed the search index, so they must carry the committed count too
+        assertEquals(8, staleResult.get().get(0).getDownloadCount());
+    }
+
+    @Test
+    void testIncreasesEveryExtensionOfTheBatch() {
+        var first = seedExtension("proc9", "proc9.ext-1.0.0.vsix");
+        var second = seedExtension("proc10", "proc10.ext-1.0.0.vsix");
+
+        var extensions = inTransaction(
+                () -> processor.increaseDownloadCounts(Map.of(first.getId(), 2, second.getId(), 7)));
+
+        assertEquals(2, freshDownloadCount(first.getId()));
+        assertEquals(7, freshDownloadCount(second.getId()));
+        assertEquals(List.of(first.getId(), second.getId()), extensions.stream().map(Extension::getId).toList());
+        assertEquals(List.of(2, 7), extensions.stream().map(Extension::getDownloadCount).toList());
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private long countIngestions() {
