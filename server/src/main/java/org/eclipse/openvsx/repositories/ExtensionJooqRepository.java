@@ -190,6 +190,30 @@ public class ExtensionJooqRepository {
                 .execute();
     }
 
+    /**
+     * Adds the given downloads to each extension's counter in one statement, and returns the new
+     * counters by extension id.
+     */
+    public Map<Long, Integer> increaseDownloadCounts(Map<Long, Integer> downloads) {
+        if (downloads.isEmpty()) {
+            return Map.of();
+        }
+
+        var rows = downloads.entrySet().stream()
+                .map(e -> DSL.row(e.getKey(), e.getValue()))
+                .toList();
+
+        var increments = DSL.values(rows.toArray(Row2[]::new)).as("d", "id", "downloads");
+        return dsl.update(EXTENSION)
+                .set(
+                        EXTENSION.DOWNLOAD_COUNT,
+                        EXTENSION.DOWNLOAD_COUNT.plus(increments.field("downloads", Integer.class)))
+                .from(increments)
+                .where(increments.field("id", Long.class).eq(EXTENSION.ID))
+                .returning(EXTENSION.ID, EXTENSION.DOWNLOAD_COUNT)
+                .fetchMap(EXTENSION.ID, EXTENSION.DOWNLOAD_COUNT);
+    }
+
     public boolean publicIdExists(String publicId) {
         return dsl.selectOne()
                 .from(EXTENSION)
