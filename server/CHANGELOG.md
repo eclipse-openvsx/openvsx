@@ -33,6 +33,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 - Moving extensions into an existing namespace no longer reverts edits made to that namespace while its files were being copied ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
 - Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
+- Concurrent downloads and download-log ingestions of the same extension no longer lose increments of its download count
 
 ### Dependencies
 

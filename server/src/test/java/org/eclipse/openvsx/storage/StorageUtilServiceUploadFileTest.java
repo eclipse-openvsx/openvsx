@@ -35,6 +35,7 @@ import org.eclipse.openvsx.util.TempFile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -117,6 +118,7 @@ class StorageUtilServiceUploadFileTest {
 
         // Ingestion will count this download from the access logs, so the request path must not.
         verify(entityManager, never()).find(any(), any());
+        verify(repositories, never()).increaseDownloadCount(any(), anyInt());
         verify(ingestionProcessor, never()).captureDownload(any());
     }
 
@@ -130,7 +132,7 @@ class StorageUtilServiceUploadFileTest {
 
         newService(disabledSource(FileResource.STORAGE_AWS)).increaseDownloadCount(resource);
 
-        assertThat(extension.getDownloadCount()).isEqualTo(1);
+        verify(repositories).increaseDownloadCount(extension, 1);
         verify(ingestionProcessor).captureDownload(resource);
     }
 
@@ -142,7 +144,7 @@ class StorageUtilServiceUploadFileTest {
 
         newService(enabledSource(FileResource.STORAGE_AWS)).increaseDownloadCount(resource);
 
-        assertThat(extension.getDownloadCount()).isEqualTo(1);
+        verify(repositories).increaseDownloadCount(extension, 1);
     }
 
     @Test
