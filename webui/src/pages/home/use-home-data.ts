@@ -51,6 +51,9 @@ export const DEFAULT_CURATED_SECTIONS: HomeCuratedSection[] = [
 export interface CuratedRow extends HomeCuratedSection {
     extensions: SearchEntry[];
     loading: boolean;
+    error: Error | null;
+    /** Loads the row again, e.g. from a retry button after it failed. */
+    refetch: () => void;
 }
 
 /** The browsable home category list: the registry's categories minus a few noisy ones. */
@@ -61,8 +64,8 @@ export function useHomeCategories(): ExtensionCategory[] {
 
 /**
  * Loads the curated extension rows, each fetched with its configured ordering.
- * Rows start in a loading state and fill in as requests resolve; failed rows end
- * up empty and are hidden by the consumer.
+ * Rows start in a loading state and fill in as requests resolve; a failed row
+ * carries its `error` and loads again on `refetch`.
  */
 export function useCuratedRows(curatedSections: HomeCuratedSection[]): CuratedRow[] {
     const { service } = useContext(MainContext);
@@ -84,9 +87,15 @@ export function useCuratedRows(curatedSections: HomeCuratedSection[]): CuratedRo
         }))
     });
 
-    return curatedSections.map((section, idx) => ({
-        ...section,
-        extensions: results[idx].data ?? [],
-        loading: results[idx].isLoading
-    }));
+    return curatedSections.map((section, idx) => {
+        const { data, error, isFetching, refetch } = results[idx];
+        return {
+            ...section,
+            extensions: data ?? [],
+            // A retry after a failure isn't `isLoading` (the query stays in error), hence `!data`.
+            loading: isFetching && !data,
+            error,
+            refetch: () => void refetch()
+        };
+    });
 }
