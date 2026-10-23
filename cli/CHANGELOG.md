@@ -11,6 +11,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 ### Dependencies
 
 - Bump vite from 8.3.2 to 8.3.5 (#2357)
+- Replace `is-ci` with `ci-info` 4.4.0, which recognises more CI providers when deciding whether to skip the license prompt or the `unpublish` confirmation
 
 ## [1.3.0] - 2026-10-16
 

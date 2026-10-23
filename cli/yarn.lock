@@ -1191,13 +1191,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/ci-info@npm:*":
-  version: 2.0.0
-  resolution: "@types/ci-info@npm:2.0.0"
-  checksum: 10/d3de962aea7d19e138fb0fbe1d22bc784b04e04e8a530148ea0e4e9694d5d1bcc83e8fcc0864a937e669c71a217294289cc11c2b6f8e6cfb2baf0fbce530013b
-  languageName: node
-  linkType: hard
-
 "@types/deep-eql@npm:*":
   version: 4.0.2
   resolution: "@types/deep-eql@npm:4.0.2"
@@ -1216,15 +1209,6 @@ __metadata:
   version: 1.0.6
   resolution: "@types/estree@npm:1.0.6"
   checksum: 10/9d35d475095199c23e05b431bcdd1f6fec7380612aed068b14b2a08aa70494de8a9026765a5a91b1073f636fb0368f6d8973f518a31391d519e20c59388ed88d
-  languageName: node
-  linkType: hard
-
-"@types/is-ci@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "@types/is-ci@npm:2.0.0"
-  dependencies:
-    "@types/ci-info": "npm:*"
-  checksum: 10/bfb71fd8c0416c0106199fa9ae84f1d9586f95a8379bbc7f461a14a05d8f45cea18d7261fc78db8a041643c451a6e772dcf5c718186939a748db0abc86c36d43
   languageName: node
   linkType: hard
 
@@ -1827,10 +1811,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ci-info@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "ci-info@npm:2.0.0"
-  checksum: 10/3b374666a85ea3ca43fa49aa3a048d21c9b475c96eb13c133505d2324e7ae5efd6a454f41efe46a152269e9b6a00c9edbe63ec7fa1921957165aae16625acd67
+"ci-info@npm:^4.4.0":
+  version: 4.4.0
+  resolution: "ci-info@npm:4.4.0"
+  checksum: 10/dfded0c630267d89660c8abb988ac8395a382bdfefedcc03e3e2858523312c5207db777c239c34774e3fcff11f015477c19d2ac8a58ea58aa476614a2e64f434
   languageName: node
   linkType: hard
 
@@ -2599,17 +2583,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"is-ci@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "is-ci@npm:2.0.0"
-  dependencies:
-    ci-info: "npm:^2.0.0"
-  bin:
-    is-ci: bin.js
-  checksum: 10/77b869057510f3efa439bbb36e9be429d53b3f51abd4776eeea79ab3b221337fe1753d1e50058a9e2c650d38246108beffb15ccfd443929d77748d8c0cc90144
-  languageName: node
-  linkType: hard
-
 "is-docker@npm:^3.0.0":
   version: 3.0.0
   resolution: "is-docker@npm:3.0.0"
@@ -3265,7 +3238,6 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@inquirer/prompts": "npm:^7.10.1"
     "@stylistic/eslint-plugin": "npm:^2.11.0"
-    "@types/is-ci": "npm:^2.0.0"
     "@types/node": "npm:^22.0.0"
     "@types/semver": "npm:^7.5.8"
     "@types/yauzl-promise": "npm:^4"
@@ -3273,10 +3245,10 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8.15.0"
     "@typescript-eslint/parser": "npm:^8.15.0"
     "@vscode/vsce": "npm:^4.0.0"
+    ci-info: "npm:^4.4.0"
     commander: "npm:^14.0.3"
     cross-keychain: "npm:^1.1.0"
     eslint: "npm:^9.15.0"
-    is-ci: "npm:^2.0.0"
     limiter: "npm:^2.1.0"
     rimraf: "npm:^6.0.1"
     semver: "npm:^7.6.0"

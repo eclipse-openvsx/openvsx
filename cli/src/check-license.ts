@@ -10,7 +10,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as isCI from 'is-ci';
+import { isCI } from 'ci-info';
 import { input, select } from '@inquirer/prompts';
 import {
     readManifest, writeManifest, Manifest, validateManifest
