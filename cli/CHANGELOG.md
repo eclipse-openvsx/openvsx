@@ -12,6 +12,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 - Bump vite from 8.3.2 to 8.3.5 (#2357)
 - Replace `is-ci` with `ci-info` 4.4.0 (#2377)
+- Bump undici from 8.11.2 to 8.12.3 (#2387)
 
 ## [1.3.0] - 2026-10-16
 
