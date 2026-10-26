@@ -181,6 +181,24 @@ class GitLabTrustedPublishingProviderTest {
     }
 
     @Test
+    void trustRequestNormalizesLeadingZerosInIds() throws Exception {
+        Map<String, String> data = failingResolveProvider(config).extractRequest(
+                Map.of(
+                        "namespace",
+                        "acme",
+                        "project",
+                        "private",
+                        "workflow",
+                        ".gitlab-ci.yml",
+                        "project_id",
+                        "042",
+                        "namespace_id",
+                        "007"));
+        assertEquals("42", data.get("project_id"));
+        assertEquals("7", data.get("namespace_id"));
+    }
+
+    @Test
     void trustRequestWithIncompleteOrMalformedIdsIsRejected() {
         var gl = failingResolveProvider(config);
         var base = Map.of("namespace", "acme", "project", "private", "workflow", ".gitlab-ci.yml");

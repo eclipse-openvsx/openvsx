@@ -165,6 +165,24 @@ class GitHubTrustedPublishingProviderTest {
     }
 
     @Test
+    void trustRequestNormalizesLeadingZerosInIds() throws Exception {
+        Map<String, String> data = failingResolveProvider(config).extractRequest(
+                Map.of(
+                        "owner",
+                        "acme",
+                        "repo",
+                        "private",
+                        "workflow",
+                        "release.yml",
+                        "repository_id",
+                        "042",
+                        "owner_id",
+                        "007"));
+        assertEquals("42", data.get("repository_id"));
+        assertEquals("7", data.get("repository_owner_id"));
+    }
+
+    @Test
     void trustRequestWithIncompleteOrMalformedIdsIsRejected() {
         var gh = failingResolveProvider(config);
         var base = Map.of("owner", "acme", "repo", "private", "workflow", "release.yml");

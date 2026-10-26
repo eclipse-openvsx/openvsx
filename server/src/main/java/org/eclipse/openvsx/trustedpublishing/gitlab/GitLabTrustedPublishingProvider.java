@@ -145,11 +145,11 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
         if (givenProjectId != null || givenNamespaceId != null) {
             // Explicit IDs skip the unauthenticated lookup, which cannot see private projects.
             // A wrong ID never matches an OIDC token, so it fails closed.
-            if (!isId(givenProjectId) || !isId(givenNamespaceId)) {
+            projectId = normalizeId(givenProjectId);
+            namespaceId = normalizeId(givenNamespaceId);
+            if (projectId == null || namespaceId == null) {
                 throw new ErrorResultException("Malformed registration request");
             }
-            projectId = givenProjectId;
-            namespaceId = givenNamespaceId;
         } else {
             Map<String, Object> response = resolve(projectPath);
             if (response == null || !(response.get("id") instanceof Number resolvedProjectId)

@@ -112,11 +112,11 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
         if (givenRepositoryId != null || givenOwnerId != null) {
             // Explicit IDs skip the unauthenticated lookup, which cannot see private repositories.
             // A wrong ID never matches an OIDC token, so it fails closed.
-            if (!isId(givenRepositoryId) || !isId(givenOwnerId)) {
+            repositoryId = normalizeId(givenRepositoryId);
+            ownerId = normalizeId(givenOwnerId);
+            if (repositoryId == null || ownerId == null) {
                 throw new ErrorResultException("Malformed registration request");
             }
-            repositoryId = givenRepositoryId;
-            ownerId = givenOwnerId;
         } else {
             Map<String, Object> response = resolve(owner, repo);
             if (response == null || !(response.get("id") instanceof Number resolvedRepositoryId)

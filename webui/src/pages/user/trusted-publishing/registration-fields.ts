@@ -18,7 +18,18 @@ export const providerKind = (providerId: string): ProviderKind =>
     providerId === 'github' ? 'github' : providerId.includes('gitlab') ? 'gitlab' : 'generic';
 
 // The server serves registration inputs unordered; impose a stable order.
-const REGISTRATION_KEY_ORDER = ['owner', 'repo', 'namespace', 'project', 'workflow', 'environment'];
+const REGISTRATION_KEY_ORDER = [
+    'owner',
+    'repo',
+    'repository_id',
+    'owner_id',
+    'namespace',
+    'project',
+    'project_id',
+    'namespace_id',
+    'workflow',
+    'environment'
+];
 
 export const orderRegistrationKeys = (keys: string[]): string[] => {
     const rank = (key: string): number => {

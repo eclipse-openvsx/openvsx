@@ -40,13 +40,24 @@ const PublisherRow = styled(Box)(({ theme }) => ({
     padding: theme.spacing(2)
 }));
 
-// e.g. "octocat/my-repo · workflow: release.yml · environment: prod"
+// Explicit provider IDs (private repositories), shown next to the path so a mistyped one is visible.
+const ID_KEYS: Record<string, readonly [idKey: string, ownerIdKey: string]> = {
+    repo: ['repository_id', 'owner_id'],
+    project: ['project_id', 'namespace_id']
+};
+
+// e.g. "octocat/my-repo (id 42, owner id 7) · workflow: release.yml · environment: prod"
 const registrationSummary = (registration: { [key: string]: string }): string => {
     const reg = registration ?? {};
     const keys = orderRegistrationKeys(Object.keys(reg)).filter(key => reg[key]?.trim());
     const pair = findRegistrationPathPair(keys);
-    const path = pair?.map(key => reg[key]).join('/');
-    const fields = keys.filter(key => !pair?.includes(key)).map(key => `${key}: ${reg[key]}`);
+    const idKeys = pair ? ID_KEYS[pair[1]] : undefined;
+    const ids = idKeys?.filter(key => keys.includes(key)) ?? [];
+    let path = pair?.map(key => reg[key]).join('/');
+    if (path && ids.length) {
+        path += ` (${ids.map(key => `${key === idKeys?.[0] ? 'id' : 'owner id'} ${reg[key]}`).join(', ')})`;
+    }
+    const fields = keys.filter(key => !pair?.includes(key) && !ids.includes(key)).map(key => `${key}: ${reg[key]}`);
     return [path, ...fields].filter(Boolean).join(' · ');
 };
 
