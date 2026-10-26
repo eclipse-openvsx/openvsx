@@ -73,13 +73,39 @@ describe('queryClient with a failing request', () => {
         unsubscribe();
     });
 
-    it('calls a rate-limited mutation once', async () => {
+    it('retries a rate-limited mutation once the registry asked wait is over', async () => {
+        const mutationFn = vi.fn().mockRejectedValueOnce({ status: 429, retryAfter: 5 }).mockResolvedValue('done');
+        const settled = new MutationObserver(newClient(), { mutationFn }).mutate();
+
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(mutationFn).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(1200);
+        expect(mutationFn).toHaveBeenCalledTimes(2);
+        expect(await settled).toBe('done');
+    });
+
+    it('stops retrying a rate-limited mutation after 10 waits', async () => {
         const mutationFn = vi.fn().mockRejectedValue({ status: 429, retryAfter: 1 });
         const settled = new MutationObserver(newClient(), { mutationFn }).mutate().catch(error => error);
 
         await vi.runAllTimersAsync();
 
         expect(await settled).toMatchObject({ status: 429 });
+        expect(mutationFn).toHaveBeenCalledTimes(11);
+    });
+
+    it.each([
+        ['a network error', new TypeError('Failed to fetch')],
+        ['a 5xx', { status: 502 }],
+        ['a 4xx', { error: 'Forbidden', status: 403 }]
+    ])('calls a mutation once when it fails with %s', async (_name, failure) => {
+        const mutationFn = vi.fn().mockRejectedValue(failure);
+        const settled = new MutationObserver(newClient(), { mutationFn }).mutate().catch(error => error);
+
+        await vi.runAllTimersAsync();
+
+        expect(await settled).toBe(failure);
         expect(mutationFn).toHaveBeenCalledTimes(1);
     });
 });

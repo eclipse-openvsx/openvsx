@@ -24,8 +24,7 @@ const rateLimitDelay = (error: unknown) =>
     ((error as Partial<ErrorResponse>).retryAfter ?? 0) * 1000 + 1000 + Math.floor(Math.random() * 100);
 
 // Shared singleton query client for the whole app, created once at module scope so the
-// cache survives re-renders. It owns every retry: `sendRequest` never retries itself, and
-// mutations keep TanStack's default of none, a 429 included.
+// cache survives re-renders. It owns every retry: `sendRequest` never retries itself.
 export const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
@@ -50,6 +49,12 @@ export const queryClient = new QueryClient({
                 const backoff = Math.min(1000 * 2 ** attempt, 30000);
                 return Math.round(backoff / 2 + Math.random() * (backoff / 2));
             }
+        },
+        mutations: {
+            // Only a 429 is retried: the registry rejected the write unprocessed, while a network
+            // error or 5xx may come after it committed, and writes are not idempotent.
+            retry: (failureCount, error) => statusOf(error) === 429 && failureCount < MAX_RATE_LIMIT_RETRIES,
+            retryDelay: (_attempt, error) => rateLimitDelay(error)
         }
     }
 });
