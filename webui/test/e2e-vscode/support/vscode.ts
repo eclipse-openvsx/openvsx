@@ -15,9 +15,8 @@ import { Browser, expect, FrameLocator, Locator, Page, Response } from '@playwri
 import { RegistryExtension } from './registry';
 
 /**
- * code-server, driven through its Extensions view. Every step starts from a freshly loaded
- * window: VS Code only shows a changed extension version after a restart, and reloading the same
- * page restores the open view, which a click would then close.
+ * code-server, driven through its Extensions view. Every search reuses the open window, but VS
+ * Code only shows a changed extension version after a restart, so reading it opens a new one.
  */
 export class VSCode {
     private current?: Page;
@@ -31,10 +30,15 @@ export class VSCode {
 
     /** Searches the marketplace, returning the gallery's answer to the browser's own query. */
     async search(query: string): Promise<Response> {
-        const page = await this.openExtensionsView();
+        const page = this.current ?? (await this.restart());
         const answer = page.waitForResponse(response => isSearchQuery(response.request().postData()));
+        // selects the previous query whichever platform's shortcuts VS Code expects
+        await page.locator('.extensions-viewlet .monaco-editor').click({ clickCount: 3 });
         await page.keyboard.type(query);
-        return answer;
+        const response = await answer;
+        // the previous search's results stay listed until VS Code has rendered these
+        await expect(page.locator('#workbench\\.parts\\.sidebar .monaco-progress-container.active')).toHaveCount(0);
+        return response;
     }
 
     /** The search result for an extension, labelled with its name, version and publisher. */
@@ -46,11 +50,17 @@ export class VSCode {
     async openExtension(extension: RegistryExtension): Promise<ExtensionEditor> {
         await this.search(extension.displayName);
         await this.result(extension).click();
-        return new ExtensionEditor(this.page);
+        const editor = new ExtensionEditor(this.page);
+        // an editor open on another extension shows it until this one's manifest has loaded, and one
+        // already open on this extension stays on the tab it was left on
+        await editor.show('Details');
+        await expect(editor.root.locator('.additional-details-element').getByText(extension.id)).toBeVisible();
+        return editor;
     }
 
     /** The installed version of an extension, or undefined when it is not installed. */
     async installedVersion(extension: RegistryExtension): Promise<string | undefined> {
+        await this.restart();
         const editor = await this.openExtension(extension);
         const installation = editor.sidebarSection('Installation');
         await expect(editor.installButton.or(installation).first()).toBeVisible();
@@ -107,8 +117,11 @@ export class VSCode {
         return this.current;
     }
 
-    /** Opens VS Code in a new browser context, which also restarts code-server's extension host. */
-    private async openExtensionsView(): Promise<Page> {
+    /**
+     * Opens VS Code in a new browser context, which also restarts code-server's extension host. A
+     * reloaded page would restore the open view, which the click on its tab would then close.
+     */
+    private async restart(): Promise<Page> {
         if (this.current) {
             this.retired.push({ window: this.current, at: Date.now() });
         }

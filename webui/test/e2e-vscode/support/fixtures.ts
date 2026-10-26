@@ -17,7 +17,7 @@ import { VSCode } from './vscode';
 
 export { expect } from '@playwright/test';
 
-export const test = base.extend<{ registryURL: string; registry: Registry; vscode: VSCode }>({
+export const test = base.extend<{ registryURL: string; registry: Registry }, { vscode: VSCode }>({
     // read from code-server itself, so the expectations always come from the registry it uses
     registryURL: async ({ playwright, baseURL }, use) => {
         const request = await playwright.request.newContext({ baseURL });
@@ -38,9 +38,14 @@ export const test = base.extend<{ registryURL: string; registry: Registry; vscod
         await use(new Registry(request));
         await request.dispose();
     },
-    vscode: async ({ browser, baseURL }, use) => {
-        const vscode = new VSCode(browser, baseURL!);
-        await use(vscode);
-        await vscode.close();
-    }
+    // one window across tests, since loading VS Code takes most of a test: Playwright starts a new
+    // worker, and with it a new window, after a failure
+    vscode: [
+        async ({ browser }, use, workerInfo) => {
+            const vscode = new VSCode(browser, workerInfo.project.use.baseURL!);
+            await use(vscode);
+            await vscode.close();
+        },
+        { scope: 'worker' }
+    ]
 });

@@ -54,8 +54,6 @@ for (const id of curatedExtensions) {
 
         test('shows its icon from the registry', async ({ registry, vscode }) => {
             const extension = await registry.extension(id);
-            // once installed, VS Code shows the icon from the installed files instead
-            await vscode.uninstallIfInstalled(extension);
 
             const editor = await vscode.openExtension(extension);
             await expect(editor.icon).toBeVisible();
