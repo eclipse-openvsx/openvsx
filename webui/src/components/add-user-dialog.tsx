@@ -84,7 +84,7 @@ export const AddUserDialog: FC<AddUserDialogProps> = ({
     const handleSelect = (_: unknown, user: UserData | null) => {
         if (!user) return;
         if (isUserExcluded(user)) {
-            handleError({ message: `User ${user.loginName} is already added.` });
+            handleError({ message: `User ${user.loginName} is already added.` }, { title: 'Couldn’t add the user' });
             return;
         }
         onAddUser(user);

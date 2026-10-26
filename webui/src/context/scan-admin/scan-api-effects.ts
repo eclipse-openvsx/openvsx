@@ -114,7 +114,8 @@ export const useFilterOptionsEffect = (service: any, state: ScanState, dispatch:
             queryKey: ['admin', 'scan', 'filter-options', state.refreshTrigger],
             queryFn: ({ signal }) => service.admin.getScanFilterOptions(signal),
             staleTime: 0
-        })
+        }),
+        { action: 'load the scan filters' }
     );
 
     useEffect(() => {
@@ -234,7 +235,8 @@ export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatc
 
                 return convertScans(response);
             }
-        })
+        }),
+        { action: 'load the scans' }
     );
 
     useEffect(() => {
@@ -323,7 +325,8 @@ export const useScanCountsEffect = (service: any, state: ScanState, dispatch: Di
                     validationType: validationTypeParam
                 });
             }
-        })
+        }),
+        { action: 'load the scan counts' }
     );
 
     useEffect(() => {
@@ -378,7 +381,8 @@ export const useFilesEffect = (service: any, state: ScanState, dispatch: Dispatc
 
                 return { files: response.files, totalFiles: response.totalSize };
             }
-        })
+        }),
+        { action: 'load the files' }
     );
 
     useEffect(() => {
@@ -426,7 +430,8 @@ export const useFileCountsEffect = (service: any, state: ScanState, dispatch: Di
                     dateDecidedFrom: dateParams.dateDecidedFrom,
                     dateDecidedTo: dateParams.dateDecidedTo
                 })
-        })
+        }),
+        { action: 'load the file counts' }
     );
 
     useEffect(() => {

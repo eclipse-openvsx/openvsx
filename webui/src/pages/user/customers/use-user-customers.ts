@@ -30,6 +30,7 @@ export const useUserCustomers = () => {
             queryFn: ({ signal }) => service.getCustomers(signal),
             enabled: user != null,
             ...NO_CACHE
-        })
+        }),
+        { action: 'load your rate limiting customers' }
     );
 };

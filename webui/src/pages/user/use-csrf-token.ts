@@ -25,6 +25,7 @@ export const useCsrfToken = () => {
             queryKey: ['user', 'csrf'],
             queryFn: ({ signal }) => service.getCsrfToken(signal),
             ...NO_CACHE
-        })
+        }),
+        { action: 'prepare the logout' }
     );
 };

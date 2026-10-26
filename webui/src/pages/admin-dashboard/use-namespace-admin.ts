@@ -48,6 +48,7 @@ export const namespaceAdminQuery = (service: ExtensionRegistryService, name: str
 export const useAdminNamespace = (name: string) => {
     const { service } = useContext(MainContext);
     return useReportedQuery(useQuery({ ...namespaceAdminQuery(service, name), enabled: !!name }), {
+        action: 'load the namespace',
         ignore: isNotFound
     });
 };
@@ -64,7 +65,8 @@ export const useCreateNamespace = () => {
             onSuccess: (_result, name) => {
                 queryClient.invalidateQueries({ queryKey: namespaceAdminKeys.detail(name) });
             }
-        })
+        }),
+        { action: 'create the namespace' }
     );
 };
 
@@ -76,7 +78,8 @@ export const useChangeNamespace = () => {
     return useReportedQuery(
         useMutation({
             mutationFn: (req: ChangeNamespaceRequest) => service.admin.changeNamespace(req)
-        })
+        }),
+        { action: 'change the namespace' }
     );
 };
 
@@ -88,7 +91,8 @@ export const useDeleteNamespace = () => {
     return useReportedQuery(
         useMutation({
             mutationFn: (name: string) => service.admin.deleteNamespace({ name })
-        })
+        }),
+        { action: 'delete the namespace' }
     );
 };
 

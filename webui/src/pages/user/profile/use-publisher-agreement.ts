@@ -28,7 +28,8 @@ export const usePublisherAgreementText = (
             queryKey: ['publisher-agreement', url],
             queryFn: ({ signal }) => service.getStaticContent(signal, url),
             ...options
-        })
+        }),
+        { action: 'load the publisher agreement' }
     );
 };
 
@@ -49,6 +50,7 @@ export const useSignPublisherAgreement = () => {
                 }
             },
             onSuccess: () => updateUser()
-        })
+        }),
+        { action: 'sign the publisher agreement' }
     );
 };

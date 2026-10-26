@@ -49,7 +49,9 @@ const trustedPublishersQuery = (service: ExtensionRegistryService, trustedPublis
 
 export const useTrustedPublishers = (trustedPublishingUrl?: UrlString) => {
     const { service } = useContext(MainContext);
-    return useReportedQuery(useQuery(trustedPublishersQuery(service, trustedPublishingUrl)));
+    return useReportedQuery(useQuery(trustedPublishersQuery(service, trustedPublishingUrl)), {
+        action: 'load the trusted publishers'
+    });
 };
 
 /**
@@ -108,6 +110,7 @@ export const useDeleteTrustedPublisher = () => {
             onSuccess: (_result, { trustedPublishingUrl }) => {
                 queryClient.invalidateQueries({ queryKey: trustedPublisherKeys.publishers(trustedPublishingUrl) });
             }
-        })
+        }),
+        { action: 'remove the trusted publisher' }
     );
 };

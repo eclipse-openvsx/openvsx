@@ -75,7 +75,9 @@ describe('publish queue', () => {
 
         expect(publishExtension).not.toHaveBeenCalled();
         expect(result.current.items).toHaveLength(0);
-        expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('.vsix') }));
+        expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('.vsix') }), {
+            title: 'Couldn’t publish the extension'
+        });
     });
 
     it('says nothing when the file picker comes back empty', async () => {
@@ -148,7 +150,9 @@ describe('publish queue', () => {
         expect(result.current.items[0].error).toBe('Extension too large');
         expect(createNamespace).not.toHaveBeenCalled();
         // Loud as well as recorded: the app's error dialog reports it like any other failed request.
-        expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ error: 'Extension too large' }));
+        expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ error: 'Extension too large' }), {
+            title: 'Couldn’t publish the extension'
+        });
     });
 
     it('words a failed card the way the error dialog words it', async () => {

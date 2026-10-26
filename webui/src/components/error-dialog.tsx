@@ -62,7 +62,7 @@ export const ErrorDialog: FunctionComponent<ErrorDialogProps> = props => {
     const codeContent = getContentForCode();
     return (
         <Dialog open={props.isErrorDialogOpen} onClose={props.handleCloseDialog}>
-            <DialogTitle>Error</DialogTitle>
+            <DialogTitle>{props.title ?? 'Error'}</DialogTitle>
             <DialogContent>
                 <DialogContentText sx={{ color: theme => theme.palette.error.main }}>
                     {props.errorMessage}
@@ -78,6 +78,8 @@ export const ErrorDialog: FunctionComponent<ErrorDialogProps> = props => {
 };
 
 export interface ErrorDialogProps {
+    /** What failed; defaults to "Error". */
+    title?: string;
     errorMessage: string;
     errorCode?: number | string;
     isErrorDialogOpen: boolean;

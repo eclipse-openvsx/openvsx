@@ -118,6 +118,7 @@ describe('Main', () => {
         rejectUser({ error: 'Forbidden', message: 'no access', status: 403 });
 
         const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Couldn’t load your account');
         expect(dialog).toHaveTextContent('no access');
         expect(screen.getByTestId('probe')).toHaveTextContent('loading=false user=none');
     });

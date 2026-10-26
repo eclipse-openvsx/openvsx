@@ -19,22 +19,24 @@ import { MainContext } from '../context';
  * error to the global error dialog. Wrap a hook's definition in it, so its
  * callers never report errors themselves:
  *
- *     return useReportedQuery(useQuery({ queryKey, queryFn }));
+ *     return useReportedQuery(useQuery({ queryKey, queryFn }), { action: 'load the namespace members' });
  *
+ * `action` says what failed, titling the dialog "Couldn’t load the namespace members".
  * `ignore` leaves out the errors a page renders itself, such as a 404 shown as
  * a not-found state; pass a stable function, since a new one reports again.
  */
 export const useReportedQuery = <Q extends { error: Error | null }>(
     query: Q,
-    options?: { ignore?: (error: Error) => boolean }
+    options?: { action?: string; ignore?: (error: Error) => boolean }
 ): Q => {
     const { handleError } = useContext(MainContext);
     const { error } = query;
+    const action = options?.action;
     const ignore = options?.ignore;
     useEffect(() => {
         if (error && !ignore?.(error)) {
-            handleError(error);
+            handleError(error, action ? { title: `Couldn’t ${action}` } : undefined);
         }
-    }, [error, ignore, handleError]);
+    }, [error, action, ignore, handleError]);
     return query;
 };
