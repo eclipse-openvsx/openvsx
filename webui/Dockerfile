@@ -11,9 +11,11 @@ COPY --chown=node:node static ./static/
 COPY --chown=node:node test ./test/
 
 # Build and test the library and default app
-RUN yarn install --immutable
-RUN yarn test
-RUN yarn build:default
+# Run the committed Yarn release directly; the base image's Yarn is not relied on.
+RUN yarn() { node .yarn/releases/yarn-4.9.1.cjs "$@"; } \
+  && yarn install --immutable \
+  && yarn test \
+  && yarn build:default
 
 
 FROM node:24-alpine3.22
