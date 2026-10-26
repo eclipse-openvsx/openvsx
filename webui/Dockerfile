@@ -11,8 +11,6 @@ COPY --chown=node:node static ./static/
 COPY --chown=node:node test ./test/
 
 # Build and test the library and default app
-RUN corepack enable
-RUN corepack prepare yarn@stable --activate
 RUN yarn install --immutable
 RUN yarn test
 RUN yarn build:default

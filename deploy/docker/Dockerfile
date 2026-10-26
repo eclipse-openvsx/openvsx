@@ -17,8 +17,7 @@ RUN apt-get update \
   && curl -sSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get install -y nodejs \
   && apt-get clean \
-  && corepack enable \
-  && corepack prepare yarn@4.9.1 --activate
+  && npm install -g yarn@1.22.22
 
 ARG OPENVSX_VERSION
 ENV VERSION=$OPENVSX_VERSION

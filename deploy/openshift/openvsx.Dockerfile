@@ -16,9 +16,7 @@ RUN curl -fsSL https://rpm.nodesource.com/setup_20.x -o nodesource_setup.sh \
   && node -v \
   && rm -rf nodesource_setup.sh
 
-RUN npm install -g corepack \
-    && corepack enable \
-    && corepack prepare yarn@stable --activate
+RUN npm install -g yarn@1.22.22
 
 ARG OPENVSX_VERSION
 ENV VERSION=$OPENVSX_VERSION
