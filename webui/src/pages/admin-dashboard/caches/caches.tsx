@@ -45,7 +45,7 @@ const formatHitRate = (value?: number): string => (value === undefined ? NOT_MEA
  * Admin dashboard view of the caches: what each holds, how well it is working, and a way to drop it.
  *
  * The reason to have this at all is that a stale cache is invisible from the outside - it answers
- * perfectly well, just with data that is no longer true - and until now clearing one meant restarting
+ * perfectly well, just with data that is no longer true - and clearing one otherwise means restarting
  * the server. The hit rate is what says whether a cache is earning its memory; the entry count is what
  * confirms a clear actually did something.
  */

@@ -291,6 +291,9 @@ export class Registry {
             send(url, this.getRequestOptions(), undefined, response => {
                 if (response.statusCode !== undefined && (response.statusCode < 200 || response.statusCode > 299)) {
                     response.resume();
+                    // Claimed here so a timeout or reset while the error body drains does not run fail().
+                    // Nothing was written yet, so there is nothing to clean up.
+                    failed = true;
                     reject(statusError(response));
                     return;
                 }

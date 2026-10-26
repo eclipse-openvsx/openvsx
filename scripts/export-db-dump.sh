@@ -20,7 +20,7 @@ OUT_DIR="${2:-${PROJECT_ROOT}/db/dump}"
 command -v psql >/dev/null || { echo "This script needs 'psql' on PATH." >&2; exit 1; }
 
 # The dump holds raw secrets until scrub-db-dump.sh redacts them (personal_access_token.value,
-# signature_key_pair.private_key, user_data.eclipse_token) - keep every file/directory this script
+# signature_key_pair.private_key) - keep every file/directory this script
 # creates readable only by the current user, regardless of the caller's umask.
 umask 077
 
@@ -31,14 +31,17 @@ mkdir -p "${OUT_DIR}"
 # symlink itself lives on.
 OUT_DIR="$(cd "${OUT_DIR}" && pwd -P)"
 
-# The same 9 tables, and the same per-table "format text, delimiter ','" layout, import-db-dump.sh
+# The same 10 tables, and the same per-table "format text, delimiter ','" layout, import-db-dump.sh
 # reloads from db/dump - see that script for how these get loaded back (and scrub-db-dump.sh for
 # how the 3 sensitive ones among them get redacted first, keeping each original alongside as
 # <table>.csv.bak until it's been reviewed).
 #
+# trusted_publisher is among them because personal_access_token.trusted_publisher_id references it, so
+# the tokens a trusted publisher minted cannot be restored without it.
+#
 # user_data_permission is deliberately not among them: admin permission grants are access state the
 # target sets up for itself, not registry content a restore is meant to reproduce.
-TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data extension_version_change)
+TABLES=(extension extension_version file_resource namespace namespace_membership personal_access_token signature_key_pair user_data extension_version_change trusted_publisher)
 
 # Stage next to OUT_DIR (same filesystem, so promoting a file below is a fast, atomic rename) and
 # only move files into OUT_DIR once psql has committed. \copy writes its target file directly and

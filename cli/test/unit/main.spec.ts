@@ -13,13 +13,16 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { publish } from '../../src/publish';
+import { PACKAGING_OPTIONS, publish } from '../../src/publish';
 import { show } from '../../src/show';
 import { search } from '../../src/search';
 import { verifySignature } from '../../src/verify-signature';
 import { handleError } from '../../src/util';
 
-vi.mock('../../src/publish', () => ({ publish: vi.fn(async () => []) }));
+vi.mock('../../src/publish', async importOriginal => ({
+    ...await importOriginal<typeof import('../../src/publish')>(),
+    publish: vi.fn(async () => [])
+}));
 vi.mock('../../src/show', () => ({ show: vi.fn(async () => undefined) }));
 vi.mock('../../src/search', async importOriginal => ({
     ...await importOriginal<typeof import('../../src/search')>(),
@@ -40,10 +43,7 @@ class ExitError extends Error {
 let main: (argv: string[]) => void;
 
 function run(...args: string[]): void {
-    const argv = ['node', 'ovsx', ...args];
-    // main checks process.argv rather than its argument for a missing command.
-    vi.spyOn(process, 'argv', 'get').mockReturnValue(argv);
-    main(argv);
+    main(['node', 'ovsx', ...args]);
 }
 
 describe('main', () => {
@@ -102,6 +102,16 @@ describe('main', () => {
         expect(handleError).toHaveBeenCalledWith(undefined);
     });
 
+    it('reports a publish rejection through the error handler', async () => {
+        const error = new Error('boom');
+        const handler = vi.fn();
+        vi.mocked(handleError).mockReturnValue(handler);
+        vi.mocked(publish).mockRejectedValueOnce(error);
+        run('--debug', 'publish', 'ext.vsix');
+        await vi.waitFor(() => expect(handler).toHaveBeenCalledWith(error));
+        expect(handleError).toHaveBeenCalledWith(true);
+    });
+
     it('passes variadic, negatable and camel-cased publish options', () => {
         run('publish', '-t', 'linux-x64', 'win32-x64', '--pre-release', '--no-dependencies', '--skip-duplicate', '-p', 'secret');
         expect(publish).toHaveBeenCalledWith(expect.objectContaining({
@@ -114,22 +124,22 @@ describe('main', () => {
         }));
     });
 
-    it('warns about packaging options ignored for a prepackaged extension', () => {
+    // publish decides what a prepackaged extension ignores, so the options reach it as given.
+    it('passes packaging options for a prepackaged extension through to publish', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-        // Flags are given out of order: warnings follow the declared list, not argv.
-        run('publish', 'ext.vsix', '--allow-missing-repository', '--packageVersion', '1.0.0',
-            '--follow-symlinks', '--yarn', '--baseImagesUrl', 'https://images.test',
-            '--baseContentUrl', 'https://content.test', '-t', 'linux-x64');
-        expect(warn.mock.calls).toEqual([
-            '--target',
-            '--baseContentUrl',
-            '--baseImagesUrl',
-            '--yarn',
-            '--follow-symlinks',
-            '--packageVersion',
-            '--allow-missing-repository'
-        ].map(flag => [`Ignoring option '${flag}' for prepackaged extension.`]));
-        expect(publish).toHaveBeenCalledWith(expect.objectContaining({ extensionFile: 'ext.vsix', targets: undefined }));
+        run('publish', 'ext.vsix', '-t', 'linux-x64', '--yarn');
+        expect(warn).not.toHaveBeenCalled();
+        expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+            extensionFile: 'ext.vsix',
+            targets: ['linux-x64'],
+            yarn: true
+        }));
+    });
+
+    // The flag names in publish's warnings are written out there, so they must match a declared option.
+    it.each(PACKAGING_OPTIONS)('declares %s, named in the prepackaged warnings', flag => {
+        expect(() => run('publish', '--help')).toThrow(ExitError);
+        expect(stdout).toMatch(new RegExp(`(^|[ ,])${flag}( |$)`, 'm'));
     });
 
     it('passes options parsed by a custom parser', () => {
@@ -182,5 +192,16 @@ describe('main', () => {
         expect(() => run()).toThrow(new ExitError(0));
         expect(stdout).toContain('Usage: ovsx <command> [options]');
         expect(stderr).toBe('');
+    });
+
+    // process.argv is set to disagree with the argument, so only the argument can decide.
+    it('decides whether a command was given from its argument, not process.argv', () => {
+        vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'ovsx', 'show', 'redhat.java']);
+        expect(() => run()).toThrow(new ExitError(0));
+        expect(stdout).toContain('Usage: ovsx <command> [options]');
+
+        vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'ovsx']);
+        run('show', 'redhat.java');
+        expect(show).toHaveBeenCalled();
     });
 });

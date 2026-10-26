@@ -253,9 +253,8 @@ const toRouteEntry = (page: AdminPage): RouteEntry => ({
 });
 
 /**
- * A contributed page is admin-only unless it declares a permission. The dashboard itself used to
- * require the admin role, so that was every contributed page's audience; opening the dashboard to
- * permission holders must not hand them someone else's page along with it.
+ * A contributed page is admin-only unless it declares a permission, so a permission holder
+ * reaching the dashboard is not handed someone else's page along with it.
  */
 const pageAccess = (page: AdminPage): Access => ({ permission: page.permission, adminOnly: !page.permission });
 

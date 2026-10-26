@@ -51,16 +51,6 @@ then
     echo "GitHub OAuth is enabled."
 fi
 
-# Set the Eclipse OAuth client id and client secret
-echo "spring.security.oauth2.client.registration.eclipse.client-id=${ECLIPSE_CLIENT_ID:-none}" >> "${OVSX_APP_PROFILE}"
-echo "spring.security.oauth2.client.registration.eclipse.client-secret=${ECLIPSE_CLIENT_SECRET:-none}" >> "${OVSX_APP_PROFILE}"
-if [ -n "$ECLIPSE_CLIENT_ID" ] && [ -n "$ECLIPSE_CLIENT_SECRET" ]
-then
-    echo "ovsx.eclipse.publisher-agreement.version=1" >> "${OVSX_APP_PROFILE}"
-    echo "ovsx.publishing.require-license=true" >> "${OVSX_APP_PROFILE}"
-    echo "Eclipse OAuth is enabled."
-fi
-
 # Set the Google Cloud Storage project id and bucket id
 if [ -n "$GCP_PROJECT_ID" ] && [ -n "$GCS_BUCKET_ID" ]
 then

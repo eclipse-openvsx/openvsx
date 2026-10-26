@@ -74,22 +74,6 @@ module.exports = function (argv: string[]): void {
                 console.error('\u274c  Please specify either a package file or a package path, but not both.\n');
                 publishCmd.help();
             }
-            if (extensionFile !== undefined) {
-                const ignoredOptions: [string, unknown][] = [
-                    ['--target', target],
-                    ['--baseContentUrl', baseContentUrl],
-                    ['--baseImagesUrl', baseImagesUrl],
-                    ['--yarn', yarn],
-                    ['--follow-symlinks', followSymlinks],
-                    ['--packageVersion', packageVersion],
-                    ['--allow-missing-repository', allowMissingRepository]
-                ];
-                for (const [flag, value] of ignoredOptions) {
-                    if (value !== undefined)
-                        console.warn(`Ignoring option '${flag}' for prepackaged extension.`);
-                }
-                target = undefined;
-            }
             const { registryUrl, pat, debug } = program.opts();
             publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience })
                 .then(results => {
@@ -106,7 +90,8 @@ module.exports = function (argv: string[]): void {
 
                         process.exit(1);
                     }
-                });
+                })
+                .catch(handleError(debug));
         });
 
     const unpublishCmd = program.command('unpublish [namespace.extension]');
@@ -225,7 +210,7 @@ module.exports = function (argv: string[]): void {
         program.help();
     });
 
-    if (process.argv.length <= 2) {
+    if (argv.length <= 2) {
         // Commander 14 would otherwise print this to stderr and exit 1 during program.parse(argv) below.
         program.help();
     }

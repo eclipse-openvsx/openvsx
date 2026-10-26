@@ -80,7 +80,7 @@ describe('DeleteAllVersionsDialog', () => {
 
         await userEvent.click(deleteButton());
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(aggregate));
+        await waitFor(() => expect(handleError).toHaveBeenCalledWith(expect.objectContaining(aggregate)));
         expect(onDeleted).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
     });

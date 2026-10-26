@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: ovsx-cli
-          image: node:22-alpine
+          image: node:24-alpine
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args: ["npm install -g ovsx && tail -f /dev/null"]

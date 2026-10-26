@@ -15,7 +15,7 @@ import { useContext } from 'react';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { MainContext } from '../context';
 import { ExtensionRegistryService } from '../extension-registry-service';
-import { controllerFromSignal } from '../query-client';
+import { useReportedQuery } from './use-reported-query';
 
 export const USER_EXTENSIONS_QUERY_KEY = ['user', 'extensions'];
 
@@ -27,11 +27,11 @@ export const USER_EXTENSIONS_QUERY_KEY = ['user', 'extensions'];
 export const userExtensionsQuery = (service: ExtensionRegistryService) =>
     queryOptions({
         queryKey: USER_EXTENSIONS_QUERY_KEY,
-        queryFn: ({ signal }) => service.getExtensions(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.getExtensions(signal)
     });
 
 /** Lists the current user's published extensions; idle until there is a user to list them for. */
 export const useUserExtensions = () => {
     const { service, user } = useContext(MainContext);
-    return useQuery({ ...userExtensionsQuery(service), enabled: user != null });
+    return useReportedQuery(useQuery({ ...userExtensionsQuery(service), enabled: user != null }));
 };

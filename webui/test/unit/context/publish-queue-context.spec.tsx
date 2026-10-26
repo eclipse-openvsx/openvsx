@@ -262,7 +262,7 @@ describe('publish queue', () => {
         });
 
         // revalidated, or the cached copy would answer with the ceiling being bypassed
-        expect(getRegistryVersion).toHaveBeenCalledWith(expect.anything(), { revalidate: true });
+        expect(getRegistryVersion).toHaveBeenCalledWith(undefined, { revalidate: true });
         await waitFor(() => expect(publishExtension).toHaveBeenCalledOnce());
         expect(result.current.items[0].status).not.toBe('failed');
     });

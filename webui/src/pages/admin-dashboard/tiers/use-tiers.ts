@@ -15,7 +15,6 @@ import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
 import type { Tier } from '../../../extension-registry-types';
-import { controllerFromSignal } from '../../../query-client';
 
 export const tiersQueryKey = ['admin', 'tiers'] as const;
 
@@ -26,7 +25,7 @@ export const useTiers = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: tiersQueryKey,
-        queryFn: ({ signal }) => service.admin.getTiers(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getTiers(signal)
     });
 };
 

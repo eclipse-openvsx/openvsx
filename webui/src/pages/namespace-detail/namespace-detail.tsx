@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useEffect, useState, useRef } from 'react';
+import { FunctionComponent, ReactNode, useContext, useEffect, useState } from 'react';
 import { Typography, Box, Container, Link, Divider } from '@mui/material';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
@@ -18,52 +18,22 @@ import { ExtensionCard } from '../../components/extension-card';
 import { ExtensionGrid } from '../../components/page-primitives';
 import { MainContext } from '../../context';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
-import { NamespaceDetails, isError, UrlString } from '../../extension-registry-types';
+import { NamespaceDetails, UrlString } from '../../extension-registry-types';
+import { isNotFound } from '../../server-request';
+import { useNamespaceDetails } from '../../components/namespace/use-namespace-details';
 
 export const NamespaceDetail: FunctionComponent = () => {
-    const [loading, setLoading] = useState(true);
     const [truncateReadMore, setTruncateReadMore] = useState(true);
     const [showReadMore, setShowReadMore] = useState(false);
-    const [namespaceDetails, setNamespaceDetails] = useState<Readonly<NamespaceDetails>>();
-    const [notFoundError, setNotFoundError] = useState('');
 
     const { name } = useParams();
-    const { pageSettings, service, handleError } = useContext(MainContext);
-
-    const abortController = useRef<AbortController>(new AbortController());
-    useEffect(() => {
-        updateNamespaceDetails(name as string);
-        return () => {
-            abortController.current.abort();
-        };
-    }, []);
+    const { pageSettings } = useContext(MainContext);
+    const { data: namespaceDetails, error: detailsError, isLoading } = useNamespaceDetails(name as string);
+    const notFound = isNotFound(detailsError);
 
     useEffect(() => {
-        setNamespaceDetails(undefined);
-        setLoading(true);
-        updateNamespaceDetails(name as string);
+        setTruncateReadMore(true);
     }, [name]);
-
-    const updateNamespaceDetails = async (name: string): Promise<void> => {
-        try {
-            const namespaceDetails = await service.getNamespaceDetails(abortController.current, name);
-            if (isError(namespaceDetails)) {
-                throw namespaceDetails;
-            }
-
-            setNamespaceDetails(namespaceDetails);
-            setLoading(false);
-            setTruncateReadMore(true);
-        } catch (err) {
-            if (err && err.status === 404) {
-                setNotFoundError(`Namespace Not Found: ${name}`);
-            } else {
-                handleError(err);
-            }
-
-            setLoading(false);
-        }
-    };
 
     const readMore = () => {
         setTruncateReadMore(false);
@@ -91,9 +61,9 @@ export const NamespaceDetail: FunctionComponent = () => {
     const renderNotFound = (): ReactNode => {
         return (
             <>
-                {notFoundError ? (
+                {notFound ? (
                     <Box p={4}>
-                        <Typography variant='h5'>{notFoundError}</Typography>
+                        <Typography variant='h5'>{`Namespace Not Found: ${name}`}</Typography>
                     </Box>
                 ) : null}
             </>
@@ -227,7 +197,7 @@ export const NamespaceDetail: FunctionComponent = () => {
     return (
         <>
             {renderHeaderTags(name as string, namespaceDetails)}
-            <DelayedLoadIndicator loading={loading} />
+            <DelayedLoadIndicator loading={isLoading} />
             {namespaceDetails ? renderNamespaceDetails(namespaceDetails, truncateReadMore) : renderNotFound()}
         </>
     );

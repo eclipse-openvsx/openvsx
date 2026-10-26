@@ -44,7 +44,7 @@ describe('useNamespaceDetails', () => {
         const { result } = renderHookWithProviders(() => useNamespaceDetails('foo'), { mainContext: { service } });
 
         await waitFor(() => expect(result.current.data?.name).toBe('foo'));
-        expect(getNamespaceDetails).toHaveBeenCalledWith(expect.anything(), 'foo');
+        expect(getNamespaceDetails).toHaveBeenCalledWith(expect.any(AbortSignal), 'foo');
     });
 });
 
@@ -61,7 +61,7 @@ describe('namespace details mutations', () => {
             result.current.update.mutateAsync({ detailsUrl: '/details', details: namespaceDetails({ name: 'foo' }) })
         );
 
-        expect(setNamespaceDetails).toHaveBeenCalledWith(expect.anything(), '/details', expect.anything());
+        expect(setNamespaceDetails).toHaveBeenCalledWith('/details', expect.anything());
         await waitFor(() => expect(getNamespaceDetails).toHaveBeenCalledTimes(2));
     });
 
@@ -83,7 +83,7 @@ describe('namespace details mutations', () => {
             })
         );
 
-        expect(setNamespaceLogo).toHaveBeenCalledWith(expect.anything(), '/details', file, 'logo.png');
+        expect(setNamespaceLogo).toHaveBeenCalledWith('/details', file, 'logo.png');
         await waitFor(() => expect(getNamespaceDetails).toHaveBeenCalledTimes(2));
     });
 });

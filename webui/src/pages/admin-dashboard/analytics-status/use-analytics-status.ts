@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 const analyticsStatusQueryKey = ['admin', 'analytics', 'status'] as const;
 
@@ -26,7 +25,7 @@ export const useAnalyticsStatus = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: analyticsStatusQueryKey,
-        queryFn: ({ signal }) => service.admin.getAnalyticsStatus(controllerFromSignal(signal)),
+        queryFn: ({ signal }) => service.admin.getAnalyticsStatus(signal),
         refetchInterval: REFRESH_INTERVAL_MS
     });
 };

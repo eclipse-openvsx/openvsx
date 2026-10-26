@@ -39,7 +39,7 @@ const page = (offset: number, totalSize: number): SearchResult => ({
     extensions: Array.from({ length: Math.min(PAGE_SIZE, totalSize - offset) }, (_, i) => entry(offset + i))
 });
 
-function renderList(search: (abortController: AbortController, filter: ExtensionFilter) => Promise<SearchResult>) {
+function renderList(search: (signal: AbortSignal, filter: ExtensionFilter) => Promise<SearchResult>) {
     const viewport = createTestViewport();
     const spy = vi.fn(search);
     const handleError = vi.fn();
@@ -66,7 +66,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // a network: an instant one batches `isFetching` back to false within one render, hiding a retry loop.
 const failingPage = (offset: number, times: number, totalSize = 4) => {
     let failures = 0;
-    return async (_: AbortController, filter: ExtensionFilter): Promise<SearchResult> => {
+    return async (_: AbortSignal, filter: ExtensionFilter): Promise<SearchResult> => {
         if (filter.offset === offset && failures < times) {
             failures++;
             await delay(20);

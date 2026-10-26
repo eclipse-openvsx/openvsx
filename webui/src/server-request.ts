@@ -8,12 +8,10 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import fetchBuilder from 'fetch-retry';
 import { isError } from './extension-registry-types';
 
 export interface ServerAPIRequest {
-    abortController?: AbortController;
-    abortSignal?: AbortSignal;
+    signal?: AbortSignal;
     endpoint: string;
     method?: 'GET' | 'DELETE' | 'POST' | 'PUT';
     headers?: Record<string, string>;
@@ -29,7 +27,12 @@ export interface ErrorResponse {
     path?: string;
     timestamp?: string;
     trace?: string;
+    /** On a 429, the seconds the registry asks to wait before the request is sent again. */
+    retryAfter?: number;
 }
+
+/** Whether a rejection is the registry's 404, for a page that renders "not found" itself. */
+export const isNotFound = (error: unknown): boolean => (error as Partial<ErrorResponse> | null)?.status === 404;
 
 /**
  * RFC 9457 `application/problem+json`, which Spring returns for errors it handles itself rather
@@ -46,7 +49,12 @@ export interface ProblemDetail {
     errors?: string[];
 }
 
-export async function sendRequest<Res>(req: ServerAPIRequest, retry: boolean = true): Promise<Res> {
+/**
+ * Resolves with the parsed body of a 2xx response and rejects with an {@link ErrorResponse}
+ * otherwise, including a 200 whose body is an error result, so a caller never checks
+ * {@link isError} itself. It never retries: the query client owns retries, a 429 included.
+ */
+export async function sendRequest<Res>(req: ServerAPIRequest): Promise<Res> {
     req.method ??= 'GET';
     req.headers ??= {};
     if (!req.headers['Accept']) {
@@ -54,14 +62,9 @@ export async function sendRequest<Res>(req: ServerAPIRequest, retry: boolean = t
     }
 
     const param: RequestInit = {
-        method: req.method
+        method: req.method,
+        signal: req.signal
     };
-
-    if (req.abortController) {
-        param.signal = req.abortController.signal;
-    } else if (req.abortSignal) {
-        param.signal = req.abortSignal;
-    }
 
     if (req.payload) {
         param.body =
@@ -75,74 +78,45 @@ export async function sendRequest<Res>(req: ServerAPIRequest, retry: boolean = t
         param.credentials = 'include';
     }
 
-    // Non-retriable requests bypass fetch-retry entirely: handing it {} would not disable it -
-    // its defaults still retry every fetch rejection (network errors, aborts) three times.
-    const response = retry
-        ? await fetchBuilder(fetch, {
-              retries: 10,
-              retryDelay: attempt => Math.pow(2, attempt) * 1000,
-              retryOn: (attempt, error, response) => error !== null || (response?.status ?? 0) >= 500
-          })(req.endpoint, param)
-        : await fetch(req.endpoint, param);
+    const response = await fetch(req.endpoint, param);
     if (response.ok) {
-        switch (req.headers['Accept']) {
-            case 'application/json':
-                return response.json();
-            case 'text/plain':
-                return response.text() as Promise<any>;
-            case 'application/octet-stream':
-                return response.blob() as Promise<any>;
-            default:
-                throw new Error(`Unsupported type ${req.headers['Accept']}`);
+        const body = await parseBody(response, req.headers['Accept']);
+        if (isError(body)) {
+            // Carries its status like any other failure, so the query client won't retry an answer.
+            throw { ...body, status: response.status };
         }
-    } else if (response.status === 429) {
-        // if the server uses the bucket4j starter config
-        const retryAfterSeconds = response.headers.get('X-Rate-Limit-Retry-After-Seconds');
-        // if the server uses the dynamic rate limiting config
-        const retryAfter = response.headers.get('Retry-After');
-        const retrySeconds = retryAfterSeconds ?? retryAfter ?? '0';
-        const jitter = Math.floor(Math.random() * 100);
-        const timeoutMillis = (Number(retrySeconds) + 1) * 1000 + jitter;
-        return new Promise<ServerAPIRequest>(resolve => setTimeout(resolve, timeoutMillis, req)).then(request =>
-            sendRequest(request, retry)
-        );
-    } else {
-        let err: ErrorResponse;
-        try {
-            err = await response.json();
-            err.status = response.status;
-        } catch (_) {
-            err = {
-                error: `Request failed: ${req.method} ${response.url}`,
-                status: response.status,
-                message: response.statusText || `Status ${response.status}`
-            };
-        }
-        throw err;
+        return body;
     }
+
+    let err: ErrorResponse;
+    try {
+        err = await response.json();
+        err.status = response.status;
+    } catch (_) {
+        err = {
+            error: `Request failed: ${req.method} ${response.url}`,
+            status: response.status,
+            message: response.statusText || `Status ${response.status}`
+        };
+    }
+    if (response.status === 429) {
+        // The bucket4j starter config sends the first header, dynamic rate limiting the second.
+        const retryAfter =
+            response.headers.get('X-Rate-Limit-Retry-After-Seconds') ?? response.headers.get('Retry-After');
+        err.retryAfter = Number(retryAfter) || 0;
+    }
+    throw err;
 }
 
-/**
- * Sends a non-retriable HTTP request using the {@link sendRequest} function with retries disabled.
- *
- * @template Res - The expected response type.
- * @param req - The {@link ServerAPIRequest} object containing the request configuration,
- *              including the endpoint, method, headers, payload, and other options.
- * @returns A promise that resolves to the response of type `Res`.
- */
-export function sendNonRetriableRequest<Res>(req: ServerAPIRequest): Promise<Res> {
-    return sendRequest<Res>(req, false);
-}
-
-/**
- * Like {@link sendNonRetriableRequest}, but also rejects when the server responds
- * 200 with an error result body. This lets TanStack query/mutation functions treat
- * the resolved value as plain data, without checking {@link isError} themselves.
- */
-export async function sendStrictRequest<Res>(req: ServerAPIRequest): Promise<Res> {
-    const result = await sendRequest<Res>(req, false);
-    if (isError(result)) {
-        throw result;
+function parseBody(response: Response, accept: string): Promise<any> {
+    switch (accept) {
+        case 'application/json':
+            return response.json();
+        case 'text/plain':
+            return response.text();
+        case 'application/octet-stream':
+            return response.blob();
+        default:
+            throw new Error(`Unsupported type ${accept}`);
     }
-    return result;
 }

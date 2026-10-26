@@ -26,8 +26,6 @@ public class CodedAuthException extends AuthenticationException {
     public static final String INVALID_GITHUB_USER = "invalid-github-user";
     public static final String INVALID_USER = "invalid-user";
     public static final String NEED_MAIN_LOGIN = "need-main-login";
-    public static final String ECLIPSE_MISSING_GITHUB_ID = "eclipse-missing-github-id";
-    public static final String ECLIPSE_MISMATCH_GITHUB_ID = "eclipse-mismatch-github-id";
 
     @Serial
     private static final long serialVersionUID = 1L;

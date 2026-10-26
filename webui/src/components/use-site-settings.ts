@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../context';
-import { controllerFromSignal } from '../query-client';
 
 export const siteSettingsQueryKey = ['site-settings'] as const;
 
@@ -26,7 +25,7 @@ export const useSiteSettings = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: siteSettingsQueryKey,
-        queryFn: ({ signal }) => service.getSiteSettings(controllerFromSignal(signal)),
+        queryFn: ({ signal }) => service.getSiteSettings(signal),
         // The layout mounts this once and focus refetching is off app-wide, so a tab left open
         // would never see a banner an admin puts up. Matches the endpoint's five-minute max-age, so
         // a poll always gets a fresh answer, and TanStack leaves background tabs alone.

@@ -35,6 +35,7 @@ import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.NamespaceSocialLinks;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.PersonalAccessToken;
+import org.eclipse.openvsx.jooq.tables.PublisherAgreementEvent;
 import org.eclipse.openvsx.jooq.tables.RateLimitToken;
 import org.eclipse.openvsx.jooq.tables.ScanCheckResult;
 import org.eclipse.openvsx.jooq.tables.ScanJob;
@@ -211,6 +212,11 @@ public class Public extends SchemaImpl {
     public final PersonalAccessToken PERSONAL_ACCESS_TOKEN = PersonalAccessToken.PERSONAL_ACCESS_TOKEN;
 
     /**
+     * The table <code>public.publisher_agreement_event</code>.
+     */
+    public final PublisherAgreementEvent PUBLISHER_AGREEMENT_EVENT = PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT;
+
+    /**
      * The table <code>public.rate_limit_token</code>.
      */
     public final RateLimitToken RATE_LIMIT_TOKEN = RateLimitToken.RATE_LIMIT_TOKEN;
@@ -308,6 +314,7 @@ public class Public extends SchemaImpl {
             Sequences.NAMESPACE_SEQ,
             Sequences.PERSISTED_LOG_SEQ,
             Sequences.PERSONAL_ACCESS_TOKEN_SEQ,
+            Sequences.PUBLISHER_AGREEMENT_EVENT_SEQ,
             Sequences.RATE_LIMIT_TOKEN_SEQ,
             Sequences.SCAN_CHECK_RESULT_SEQ,
             Sequences.SCAN_JOB_SEQ,
@@ -351,6 +358,7 @@ public class Public extends SchemaImpl {
             NamespaceSocialLinks.NAMESPACE_SOCIAL_LINKS,
             PersistedLog.PERSISTED_LOG,
             PersonalAccessToken.PERSONAL_ACCESS_TOKEN,
+            PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT,
             RateLimitToken.RATE_LIMIT_TOKEN,
             ScanCheckResult.SCAN_CHECK_RESULT,
             ScanJob.SCAN_JOB,

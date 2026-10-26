@@ -9,19 +9,43 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Added
 
 - Trusted publishing for GitHub and GitLab accepts optional repository/owner (GitHub) or project/namespace (GitLab) IDs at registration, so private repositories can be registered ([#2350](https://github.com/eclipse-openvsx/openvsx/issues/2350))
+- Publisher agreements without an external service: set `ovsx.publisher-agreement.version` (such as `1`, `1.0` or `1.0.0`) and `ovsx.publisher-agreement.text` to make users sign before publishing; a new major version makes signatures outdated, unless `ovsx.publisher-agreement.allowed-versions` names the versions whose signatures stay valid ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- An outdated agreement stops publishing until it is signed again, while a revoked or missing one also takes extensions offline on the startup compliance check ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 
 ### Changed
 
+- The Eclipse publisher agreement and OAuth login moved behind the `PublisherAgreementProvider` and `ExternalLoginProvider` extension points, and `UserJson.publisherAgreement` gains `loginProvider` and `loginProviderName` ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- A login of any provider returns to the page that started it, when that page is passed as `redirect`, instead of the `eclipse` login always going to the profile page ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- Signing an agreement that is already signed answers 200 instead of 400, and `additionalLogins[].loginName` of a user is no longer set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- **Upgrade:** the `ovsx.eclipse.*` properties, their deployment descriptor entries and the Eclipse handling of `generate-properties.sh` (`ECLIPSE_CLIENT_*`, and the `ovsx.publishing.require-license=true` it set) are removed without a fallback, so `ovsx.eclipse.check-compliance-on-start` becomes `ovsx.publisher-agreement.check-compliance-on-start`; a deployment that needs Eclipse supplies a `@Primary` `PublisherAgreementProvider`, otherwise everyone may publish unless `ovsx.publisher-agreement.version` is set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.data.mirror.requests-per-second` now spaces upstream requests evenly instead of allowing a burst of up to one second of requests after an idle period ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - A failed namespace change is retried once, instead of ten times as JobRunr does by default ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
+
+### Removed
+
+- `CodedAuthException.ECLIPSE_MISSING_GITHUB_ID` and `ECLIPSE_MISMATCH_GITHUB_ID` are removed; a login provider that needs such codes defines them itself ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- The columns `user_data.eclipse_token` and `user_data.eclipse_person_id` are dropped, with `UserData.eclipseToken`/`eclipsePersonId`, `AuthToken` and `AuthTokenConverter` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- **Upgrade:** migration `V1_83` fails, and so does the startup, while either column still holds data; a deployment that uses them copies the rows to its own table and sets both columns to `NULL` first, in a migration that sorts before `V1_83` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- `AdminService.forgetUser` publishes a `UserForgottenEvent(userId)` in the erasure's transaction, whether the row is deleted or anonymized, for a deployment that keeps personal data of a user elsewhere to clear it ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 
 ### Fixed
 
 - Moving extensions into an existing namespace no longer reverts edits made to that namespace while its files were being copied ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
+- Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
 
 ### Dependencies
 
 - Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
+- Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
+
+## [1.3.1] - 2026-10-24
+
+### Fixed
+
+- `namespaceOwnershipConflict` on the admin and own-extension endpoints is no longer reported once the namespace has an owner, which left a stale "Namespace not verified" notice on extensions whose scan had recorded the conflict ([#2380](https://github.com/eclipse-openvsx/openvsx/pull/2380))
+- Accept OAuth token responses with long headers, which GitHub now sends and httpcore5 5.4.3+ rejected with `Maximum line length limit exceeded`, breaking login ([#2381](https://github.com/eclipse-openvsx/openvsx/pull/2381))
 
 ## [1.3.0] - 2026-10-16
 
@@ -50,6 +74,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 ### Fixed
 
+- Stop the scheduled consistency check and the admin "Fix all" holding one transaction and database connection for the whole run, which triggered connection leak warnings and kept row locks open ([#2373](https://github.com/eclipse-openvsx/openvsx/pull/2373))
 - Refuse the trusted publishing endpoints that create or delete a trusted publisher or issue a publish token while the registry is read-only ([#2339](https://github.com/eclipse-openvsx/openvsx/pull/2339))
 - Match secret detection rules case-sensitively unless the rule has an inline `(?i)`, which stops mixed-case words such as `Asiakasdokumentaatio` being flagged as AWS keys, see #2329 ([#2330](https://github.com/eclipse-openvsx/openvsx/pull/2330))
 - Keep polling async scanners through transient errors, confirm an error status on a second poll before failing a scan, and treat every non-2xx scanner response as an error ([#2307](https://github.com/eclipse-openvsx/openvsx/pull/2307))
@@ -73,6 +98,13 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Update other dependencies to newer patch versions ([#2255](https://github.com/eclipse-openvsx/openvsx/pull/2255))
 - Bump tika to 3.3.2 ([#2240](https://github.com/eclipse-openvsx/openvsx/pull/2240))
 - Remove unused `jaxb-api` and `jaxb-impl` dependencies ([#2317](https://github.com/eclipse-openvsx/openvsx/pull/2317))
+
+## [1.2.1] - 2026-10-23
+
+### Fixed
+
+- `namespaceOwnershipConflict` on the admin and own-extension endpoints is no longer reported once the namespace has an owner, which left a stale "Namespace not verified" notice on extensions whose scan had recorded the conflict ([#2380](https://github.com/eclipse-openvsx/openvsx/pull/2380))
+- Accept OAuth token responses with long headers, which GitHub now sends and httpcore5 5.4.3+ rejected with `Maximum line length limit exceeded`, breaking login ([#2381](https://github.com/eclipse-openvsx/openvsx/pull/2381))
 
 ## [v1.2.0] - 2026-09-10
 

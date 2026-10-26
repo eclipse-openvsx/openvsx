@@ -19,7 +19,8 @@ import * as path from 'path';
 import { AddressInfo } from 'net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVSIX } from '@vscode/vsce';
-import { publish } from '../../src/publish';
+import { PACKAGING_OPTIONS, publish } from '../../src/publish';
+import { PublishOptions } from '../../src/publish-options';
 import { buildZip } from './support/zip';
 
 // Only the tests below that publish from a source directory reach this; every other one passes an
@@ -202,20 +203,175 @@ describe('publish', () => {
         });
     });
 
-    describe('removes the package it created', () => {
+    // Records where vsce was asked to write, so a test can check that file is gone afterwards.
+    function givenPackaging(): string[] {
+        const written: string[] = [];
+        vi.mocked(createVSIX).mockImplementation(async (options) => {
+            written.push(options!.packagePath!);
+            tmpFiles.push(options!.packagePath!);
+            fs.writeFileSync(options!.packagePath!, await buildZip({
+                'extension/package.json': Buffer.from(JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' }))
+            }));
+        });
+        return written;
+    }
 
-        // Records where vsce was asked to write, so the test can check that file is gone afterwards.
-        function givenPackaging(): string[] {
-            const written: string[] = [];
-            vi.mocked(createVSIX).mockImplementation(async (options) => {
-                written.push(options!.packagePath!);
-                tmpFiles.push(options!.packagePath!);
-                fs.writeFileSync(options!.packagePath!, await buildZip({
-                    'extension/package.json': Buffer.from(JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' }))
-                }));
+    describe('ignores packaging options for a prepackaged extension', () => {
+
+        const allPackagingOptions = {
+            targets: ['linux-x64', 'darwin-arm64'],
+            baseContentUrl: 'https://content.test',
+            baseImagesUrl: 'https://images.test',
+            yarn: true,
+            followSymlinks: true,
+            packageVersion: '2.0.0',
+            allowMissingRepository: true,
+            preRelease: true
+        };
+
+        const ignoredWarnings = (): string[] => vi.mocked(console.warn).mock.calls
+            .map(([message]) => String(message))
+            .filter(message => message.startsWith('Ignoring option'));
+
+        const warningsFor = (file: string, ...flags: string[]): string[] =>
+            flags.map(flag => `Ignoring option '${flag}' for prepackaged extension '${file}'.`);
+
+        it('given as extensionFile, warning once per option and publishing once', async () => {
+            const registry = await givenRegistry();
+            const extensionFile = await givenExtensionFile(100);
+
+            const results = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url, ...allPackagingOptions });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled']);
+            expect(registry.publishRequests).toHaveLength(1);
+            expect(ignoredWarnings()).toEqual(warningsFor(
+                extensionFile,
+                '--target',
+                '--baseContentUrl',
+                '--baseImagesUrl',
+                '--yarn',
+                '--follow-symlinks',
+                '--packageVersion',
+                '--allow-missing-repository',
+                '--pre-release'
+            ));
+        });
+
+        // One option at a time, with the key derived from the flag the way commander does it (`--target`
+        // is the exception, main.ts passes it on as `targets`), so the table is not checked against itself.
+        const optionKey = (flag: string): keyof PublishOptions => {
+            const name = flag.slice(2).replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
+            return (name === 'target' ? 'targets' : name) as keyof PublishOptions;
+        };
+        const sampleValues: Partial<Record<keyof PublishOptions, unknown>> = {
+            targets: ['linux-x64'],
+            baseContentUrl: 'https://content.test',
+            baseImagesUrl: 'https://images.test',
+            packageVersion: '2.0.0'
+        };
+
+        it.each(PACKAGING_OPTIONS.map(([flag]) => flag))('warns about %s when it is the only one given', async flag => {
+            const registry = await givenRegistry();
+            const extensionFile = await givenExtensionFile(100);
+            const key = optionKey(flag);
+
+            await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url, [key]: sampleValues[key] ?? true });
+
+            expect(ignoredWarnings()).toEqual(warningsFor(extensionFile, flag));
+        });
+
+        it('does not warn about a flag that is explicitly off', async () => {
+            const registry = await givenRegistry();
+            const extensionFile = await givenExtensionFile(100);
+
+            await publish({
+                extensionFile,
+                pat: 'the.pat',
+                registryUrl: registry.url,
+                yarn: false,
+                followSymlinks: false,
+                allowMissingRepository: false,
+                preRelease: false
             });
-            return written;
-        }
+
+            expect(ignoredWarnings()).toEqual([]);
+        });
+
+        it('given as --packagePath', async () => {
+            const registry = await givenRegistry();
+            const packagePath = await givenExtensionFile(100);
+
+            const results = await publish({
+                packagePath: [packagePath],
+                pat: 'the.pat',
+                registryUrl: registry.url,
+                targets: ['linux-x64', 'darwin-arm64'],
+                baseContentUrl: 'https://content.test'
+            });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled']);
+            expect(registry.publishRequests).toHaveLength(1);
+            expect(ignoredWarnings()).toEqual(warningsFor(packagePath, '--target', '--baseContentUrl'));
+        });
+
+        it('naming every file in one warning per option', async () => {
+            const registry = await givenRegistry();
+            const packagePath = [await givenExtensionFile(100), await givenExtensionFile(100)];
+
+            await publish({ packagePath, pat: 'the.pat', registryUrl: registry.url, preRelease: true });
+
+            expect(registry.publishRequests).toHaveLength(2);
+            expect(ignoredWarnings()).toEqual([
+                `Ignoring option '--pre-release' for prepackaged extensions '${packagePath[0]}', '${packagePath[1]}'.`
+            ]);
+        });
+
+        // A slow or failing registry must not keep the user from seeing them.
+        it('before the registry is contacted', async () => {
+            const registry = await givenRegistry();
+            const extensionFile = await givenExtensionFile(100);
+            const versionRequestsAtWarning: number[] = [];
+            vi.mocked(console.warn).mockImplementation(() => {
+                versionRequestsAtWarning.push(registry.versionRequests);
+            });
+
+            await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url, yarn: true });
+
+            expect(versionRequestsAtWarning).toEqual([0]);
+        });
+
+        // The options still apply to the directory packaged alongside the .vsix.
+        it('next to a directory that is packaged with them', async () => {
+            const registry = await givenRegistry();
+            const vsix = await givenExtensionFile(100);
+            givenPackaging();
+
+            const results = await publish({
+                packagePath: ['.', vsix],
+                pat: 'the.pat',
+                registryUrl: registry.url,
+                targets: ['linux-x64', 'darwin-arm64'],
+                yarn: true
+            });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
+            expect(registry.publishRequests).toHaveLength(3);
+            expect(vi.mocked(createVSIX).mock.calls.map(([options]) => [options!.target, options!.useYarn]))
+                .toEqual([['linux-x64', true], ['darwin-arm64', true]]);
+            expect(ignoredWarnings()).toEqual(warningsFor(vsix, '--target', '--yarn'));
+        });
+
+        it('but says nothing when everything is packaged', async () => {
+            const registry = await givenRegistry();
+            givenPackaging();
+
+            await publish({ packagePath: ['.'], pat: 'the.pat', registryUrl: registry.url, ...allPackagingOptions });
+
+            expect(ignoredWarnings()).toEqual([]);
+        });
+    });
+
+    describe('removes the package it created', () => {
 
         it('after publishing it', async () => {
             const registry = await givenRegistry();
@@ -421,10 +577,10 @@ describe('publish', () => {
     // one Registry created up front, so this is a single request regardless of fan-out width.
     it('looks up the registry version only once across a fan-out of targets', async () => {
         const registry = await givenRegistry({ body: { version: '1.3.0' } });
-        const extensionFile = await givenExtensionFile(200);
+        givenPackaging();
 
         const results = await publish({
-            extensionFile,
+            packagePath: ['.'],
             pat: 'the.pat',
             registryUrl: registry.url,
             targets: ['linux-x64', 'darwin-arm64', 'win32-x64']

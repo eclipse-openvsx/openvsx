@@ -18,7 +18,6 @@ import { SearchEntry, SortOrder } from '../../extension-registry-types';
 import { ExtensionCategory } from '../../extension-registry-types';
 import { useCategories } from '../../components/categories';
 import { HomeCuratedSection } from '../../page-settings';
-import { controllerFromSignal } from '../../query-client';
 
 /** Number of extensions fetched for each curated row. */
 export const CURATED_SIZE = 7;
@@ -72,7 +71,7 @@ export function useCuratedRows(curatedSections: HomeCuratedSection[]): CuratedRo
         queries: curatedSections.map(section => ({
             queryKey: ['home-curated', section.sortBy],
             queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SearchEntry[]> => {
-                const result = await service.search(controllerFromSignal(signal), {
+                const result = await service.search(signal, {
                     query: '',
                     category: '',
                     offset: 0,

@@ -18,14 +18,13 @@ export const useUserExtension = (target: UserExtensionTarget) => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: ['user', 'extension', target.namespace, target.extension],
-        queryFn: ({ signal }) =>
-            service.getExtension(controllerFromSignal(signal), target.namespace, target.extension)
+        queryFn: ({ signal }) => service.getExtension(signal, target.namespace, target.extension)
     });
 };
 ```
 
 - The `queryFn` is a one-liner because the service method rejects on failure — see "Errors belong to the service" below. Never re-check `isError` in a hook.
-- `controllerFromSignal(signal)` (`query-client.ts`) bridges TanStack's `AbortSignal` to the `AbortController` the service expects — service signatures stay untouched, component-level `AbortController` refs go away.
+- Service query methods take the `queryFn`'s `signal` as their first argument, so TanStack cancels the request with the query.
 - `useQuery` forbids `undefined`; normalise a "no result" case to `null`.
 - Query keys are hierarchical arrays (`['admin', 'namespace', name]`). When a key is reused for invalidation, export a small `*Keys` helper next to the hook.
 
@@ -42,30 +41,37 @@ export const useCreateNamespace = () => {
 };
 ```
 
-- **No `AbortController` / signal in mutations** — we don't abort writes anymore.
-- Mutations don't retry (TanStack's default `retry: 0`), which is correct for non-idempotent writes.
+- **No signal in mutations** — writes are never aborted, so service write methods don't take one.
+- Mutations never retry (TanStack's default `retry: 0`), not even on a 429: writes aren't idempotent.
 - The `mutationFn` forwards the service call directly; the service rejects on failure, so `mutateAsync` callers get their `catch` / `onError` path for free.
 - Invalidate or remove affected queries in `onSuccess`.
 
 ## Errors belong to the service, not the hook
 
-The registry answers some failures with a `200` carrying an `{ error: '…' }` body instead of a non-2xx status. `sendStrictRequest` (`server-request.ts`) is the single place that normalises this: it is non-retriable *and* rejects on such a body, so a migrated service method resolves with data or rejects — never both.
+The registry answers some failures with a `200` carrying an `{ error: '…' }` body instead of a non-2xx status. `sendRequest` (`server-request.ts`) is the only request function and the single place that normalises this: it rejects on such a body, tagged with its status, so a service method resolves with data or rejects — never both.
 
 ```ts
-// extension-registry-service.ts — migrated methods
-async getNamespace(abortController: AbortController, name: string): Promise<Readonly<Namespace>> {
-    return sendStrictRequest({ abortController, credentials: true, endpoint: /* … */ });
+// extension-registry-service.ts
+async getNamespace(signal: AbortSignal, name: string): Promise<Readonly<Namespace>> {
+    return sendRequest({ signal, credentials: true, endpoint: /* … */ });
 }
 ```
 
-- A migrated method's return type **drops `| ErrorResult`** — that union is what forced the `isError` check on every caller.
-- Hooks therefore never contain `if (isError(result)) throw result`. If you find yourself writing one, the service method still needs migrating.
-- `sendRequest` / `sendNonRetriableRequest` keep resolving error bodies; legacy, un-migrated consumers check `isError` themselves. Don't change their behaviour.
+- Service return types never include `| ErrorResult`, and hooks never contain `if (isError(result)) throw result`.
+- Where a 200 error result is an expected answer, the caller handles the rejection rather than the service recovering from it: `Main` treats `getUser`'s `status: 200` rejection as "not logged in" and reports any other failure.
 - Same rule in tests: stub a failing service method with `mockRejectedValue({ error: '…' })`, not `mockResolvedValue`.
+
+## Errors are reported where the query is defined
+
+- A hook whose errors belong in the global error dialog wraps its result in `useReportedQuery` at the definition — `return useReportedQuery(useQuery({ … }))`, and the same for `useMutation`. Callers never report by hand: no `useEffect` on `error`, no `onError: handleError`, no `catch` that calls `handleError`.
+- A page that renders an error itself passes a stable `ignore` predicate, e.g. `{ ignore: isNotFound }` (`server-request.ts`) for a 404 shown as a not-found state.
+- Errors shown inline (an `Alert`, `ListLoadError`) are not reported, so nothing is shown twice. `handleError` from `utils.ts` only formats a message; reporting goes through `MainContext.handleError`.
+- Mutation callers use `mutate(vars, { onSuccess })` for follow-up work; `isPending` drives spinners.
 
 ## Retries and caching are owned by the shared client
 
-- One singleton `queryClient` (`query-client.ts`) retries network/5xx with backoff, never 4xx; 429s are waited out inside `sendRequest`. Migrated service methods use `sendStrictRequest` (fetch-retry disabled for non-429 responses), so TanStack should remain the only layer retrying network/5xx.
+- One singleton `queryClient` (`query-client.ts`) owns every retry; `sendRequest` sends once. Queries retry network/5xx with backoff, wait out a 429 for the `retryAfter` on the error (up to 10 times), and never retry another 4xx.
+- `Main` builds `MainContext` above the `QueryClientProvider`, so its startup queries (`use-main-queries.ts`) take the service as an argument and pass the singleton client to `useQuery` explicitly.
 - Defaults: `refetchOnWindowFocus: false`, `staleTime: 60s`. Override per hook only with reason — `staleTime: 0` / `gcTime: 0` when data must always be fresh (right after publish/delete), `retry: false` to let a 404 surface immediately.
 
 ## Options objects, not positional flags
@@ -95,7 +101,7 @@ The one exception: if you need to **forward** the query result to another functi
 
 ## Best practices
 
-- **`queryOptions` for shared queries** — when the same query is read from more than one place, define it once with TanStack's `queryOptions({ queryKey, queryFn })` and spread it into the hook, for type-safe reuse. (Not used yet — adopt when a query gains a second reader.)
+- **`queryOptions` for shared queries** — when the same query is read from more than one place, define it once with TanStack's `queryOptions({ queryKey, queryFn })` and spread it into the hook, for type-safe reuse, as `namespaceAdminQuery` is by the admin search view and the size-override form.
 - **`staleTime`** — the shared client sets `60s`; raise it for rarely-changing data, drop to `0` for reads that must always refetch on mount. Keep `staleTime <= gcTime` (see pitfalls).
 - **Pagination** keeps the previous page with `placeholderData: keepPreviousData` (as `use-infinite-search` does), never `initialData`.
 - **`enabled` for dependent queries** — gate a query through the options object (`{ enabled: !!id }`), never by calling the hook conditionally.

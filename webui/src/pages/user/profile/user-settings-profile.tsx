@@ -28,6 +28,8 @@ export const UserSettingsProfile: FunctionComponent<UserSettingsProfileProps> = 
             let statusText = 'has not signed';
             if (user.publisherAgreement.status === 'signed') {
                 statusText = 'has signed';
+            } else if (user.publisherAgreement.status === 'revoked') {
+                statusText = 'has a revoked signature of';
             } else if (user.publisherAgreement.status === 'outdated') {
                 statusText = 'has signed an outdated version of';
             }

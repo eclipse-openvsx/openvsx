@@ -11,11 +11,10 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext } from 'react';
+import { FunctionComponent } from 'react';
 import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { Namespace } from '../../extension-registry-types';
-import { MainContext } from '../../context';
 import { useDeleteNamespace } from './use-namespace-admin';
 
 export interface NamespaceDeleteDialogProps {
@@ -28,22 +27,17 @@ export interface NamespaceDeleteDialogProps {
 
 export const NamespaceDeleteDialog: FunctionComponent<NamespaceDeleteDialogProps> = props => {
     const { open, onClose, onDelete, namespace } = props;
-    const { handleError } = useContext(MainContext);
-    const { mutateAsync: deleteNamespace, isPending: working } = useDeleteNamespace();
+    const { mutate: deleteNamespace, isPending: working } = useDeleteNamespace();
 
-    const handleDeleteNamespace = async () => {
+    const handleDeleteNamespace = () => {
         if (!props.namespace) {
             return;
         }
         props.setLoadingState(true);
-        try {
-            await deleteNamespace(props.namespace.name);
-            props.setLoadingState(false);
-            onDelete();
-        } catch (err) {
-            props.setLoadingState(false);
-            handleError(err);
-        }
+        deleteNamespace(props.namespace.name, {
+            onSuccess: onDelete,
+            onSettled: () => props.setLoadingState(false)
+        });
     };
 
     return (

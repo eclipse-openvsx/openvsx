@@ -11,13 +11,11 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext, useState } from 'react';
+import { FunctionComponent, useState } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { Namespace, TrustedPublisher } from '../../../extension-registry-types';
 import { DelayedLoadIndicator } from '../../../components/delayed-load-indicator';
-import { MainContext } from '../../../context';
-import { useReportedQuery } from '../../../hooks/use-reported-query';
 import { useUserNamespaces } from '../namespaces/use-user-namespaces';
 import { EmptyPlaceholder } from '../settings/settings-primitives';
 import { SettingsHeader } from '../settings/settings-header';
@@ -40,8 +38,7 @@ const canManageTrustedPublishers = (ns: Namespace): ns is TrustedPublishingNames
 
 /** Settings tab showing the trusted publishers of every namespace the user belongs to as one stack. */
 export const UserSettingsTrustedPublishers: FunctionComponent = () => {
-    const { handleError } = useContext(MainContext);
-    const { data: namespaces = [], isLoading: namespacesLoading } = useReportedQuery(useUserNamespaces());
+    const { data: namespaces = [], isLoading: namespacesLoading } = useUserNamespaces();
 
     // providers are registry-global; without any (feature off or user not allowed) nothing is manageable
     const { data: trustedPublishingStatus, isLoading: statusLoading } = useTrustedPublishingStatus();
@@ -76,8 +73,8 @@ export const UserSettingsTrustedPublishers: FunctionComponent = () => {
         }
         try {
             await deleteTrustedPublisher({ trustedPublishingUrl, id: publisher.id });
-        } catch (err) {
-            handleError(err);
+        } catch {
+            // Reported by the hook; awaited so the confirmation closes once the delete settles.
         }
     };
 

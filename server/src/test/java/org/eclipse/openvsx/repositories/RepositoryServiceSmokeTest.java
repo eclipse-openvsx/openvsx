@@ -43,6 +43,7 @@ import org.eclipse.openvsx.entities.FileDecision;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
+import org.eclipse.openvsx.entities.PublisherAgreementEvent;
 import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.SignatureKeyPair;
@@ -162,6 +163,12 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
         trustedPublisher.setCreatedBy(userData);
         trustedPublisher.setCreatedTimestamp(NOW);
 
+        var publisherAgreementEvent = new PublisherAgreementEvent();
+        publisherAgreementEvent.setUserDataId(userData.getId());
+        publisherAgreementEvent.setType(PublisherAgreementEvent.Type.SIGNED);
+        publisherAgreementEvent.setVersion("1.0.0");
+        publisherAgreementEvent.setTimestamp(NOW);
+
         // Persist all entities consistently using EntityManager
         Stream.of(
                 namespace,
@@ -255,6 +262,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findMemberships(namespace, "role"),
                 () -> repositories.findNamespace("name"),
                 () -> repositories.lockNamespace(namespace),
+                () -> repositories.lockUser(userData),
                 () -> repositories.findConflictingNamespaces("displayName", namespace),
                 () -> repositories.findOrphanNamespaces(),
                 () -> repositories.findPersistedLogsAfter(NOW),
@@ -507,6 +515,11 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findTrustedPublishersByNamespaceAndCreatedBy(namespace, userData),
                 () -> repositories.findTrustedPublisher(1L),
                 () -> repositories.deleteTrustedPublisher(trustedPublisher),
+                () -> repositories.findPublisherAgreementEvents(userData.getId()),
+                () -> repositories.findLatestPublisherAgreementEvent(
+                        userData.getId(),
+                        List.of(PublisherAgreementEvent.Type.SIGNED)),
+                () -> repositories.savePublisherAgreementEvent(publisherAgreementEvent),
                 () -> repositories.deleteTier(tier),
                 () -> repositories.deleteCustomer(customer),
                 // Extension scan delete method - add last, still not clear why but otherwise the test fails

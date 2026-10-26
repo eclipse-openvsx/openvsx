@@ -16,17 +16,12 @@ import { AdminDashboardRoutes } from './pages/admin-dashboard/admin-dashboard-ro
 import { ErrorDialog } from './components/error-dialog';
 import { handleError } from './utils';
 import { ExtensionRegistryService } from './extension-registry-service';
-import {
-    UserData,
-    isError,
-    ReportedError,
-    isSuccess,
-    LoginProviders,
-    RegistryVersion
-} from './extension-registry-types';
+import { ReportedError } from './extension-registry-types';
+import { isNotFound } from './server-request';
 import { MainContext } from './context';
 import { PageSettings } from './page-settings';
 import { AppLayout } from './layout/app-layout';
+import { isNotLoggedIn, useAuthError, useCurrentUser, useLoginProviders, useRegistryVersion } from './use-main-queries';
 
 import '../src/main.css';
 
@@ -35,39 +30,30 @@ const AdminDashboard = lazy(() =>
 );
 
 export const Main: FunctionComponent<MainProps> = props => {
-    const [user, setUser] = useState<UserData>();
-    const [userLoading, setUserLoading] = useState<boolean>(true);
-    const [loginProviders, setLoginProviders] = useState<Record<string, string> | undefined>(props.loginProviders);
     const [error, setError] = useState<{ message: string; code?: number | string }>();
     const [isErrorDialogOpen, setIsErrorDialogOpen] = useState<boolean>(false);
-    const [version, setVersion] = useState<RegistryVersion | undefined>(undefined);
-    const abortController = useRef<AbortController>(new AbortController());
     // Optional callback to run when the error dialog is dismissed (e.g. re-fetch stale data).
     const errorDialogOnClose = useRef<(() => void) | undefined>(undefined);
+    const [hasAuthError] = useState(() => new URLSearchParams(window.location.search).has('auth-error'));
 
-    useEffect(() => {
-        getLoginProviders();
+    const {
+        data: user,
+        error: userError,
+        isLoading: userLoading,
+        refetch: refetchUser
+    } = useCurrentUser(props.service);
+    const { data: registryLoginProviders } = useLoginProviders(props.service, {
+        enabled: props.loginProviders == null
+    });
+    const { error: authError } = useAuthError(props.service, { enabled: hasAuthError });
+    const { data: version } = useRegistryVersion(props.service);
 
-        // If there was an authentication error, get the message from the server and show it
-        const searchParams = new URLSearchParams(window.location.search);
-        if (searchParams.has('auth-error')) {
-            props.service.getUserAuthError(abortController.current).then(onError);
-        }
-
-        // Get data of the currently logged in user
-        updateUser();
-
-        props.service
-            .getRegistryVersion(abortController.current)
-            .then(setVersion)
-            .catch(() => {});
-
-        return () => abortController.current.abort();
-    }, []);
+    const loginProviders = props.loginProviders ?? registryLoginProviders ?? undefined;
+    const loggedOut = isNotLoggedIn(userError);
 
     const onError = useCallback((err: unknown, options?: { onClose?: () => void }) => {
         if (err instanceof DOMException && err.message.trim() === 'The operation was aborted.') {
-            // ignore error caused by AbortController.abort()
+            // an aborted request is not a failure to report
             return;
         }
 
@@ -78,36 +64,23 @@ export const Main: FunctionComponent<MainProps> = props => {
         setIsErrorDialogOpen(true);
     }, []);
 
+    useEffect(() => {
+        if (userError && !loggedOut) {
+            onError(userError);
+        }
+    }, [userError, loggedOut, onError]);
+
+    // A 404 means the session holds no login error any more, e.g. a stale `?auth-error` URL.
+    useEffect(() => {
+        if (authError && !isNotFound(authError)) {
+            onError(authError);
+        }
+    }, [authError, onError]);
+
     // Memoized because it is part of mainContext; a fresh function would defeat that memo.
-    const updateUser = useCallback(async () => {
-        try {
-            setUserLoading(true);
-            const user = await props.service.getUser(abortController.current);
-            if (isError(user)) {
-                // An error result with HTTP OK status indicates that the user is not logged in.
-                setUser(undefined);
-            } else {
-                setUser(user as UserData);
-            }
-        } catch (err) {
-            onError(err);
-        }
-
-        setUserLoading(false);
-    }, [props.service, onError]);
-
-    const getLoginProviders = async () => {
-        if (props.loginProviders != null) {
-            return;
-        }
-
-        const data = await props.service.getLoginProviders(abortController.current);
-        if (isSuccess(data)) {
-            console.log(data.success);
-        } else {
-            setLoginProviders((data as LoginProviders).loginProviders);
-        }
-    };
+    const updateUser = useCallback(() => {
+        refetchUser();
+    }, [refetchUser]);
 
     const onErrorDialogClose = () => {
         setIsErrorDialogOpen(false);
@@ -148,14 +121,14 @@ export const Main: FunctionComponent<MainProps> = props => {
         () => ({
             service: props.service,
             pageSettings: props.pageSettings,
-            user,
+            user: loggedOut ? undefined : user,
             userLoading,
             updateUser,
             loginProviders,
             handleError: onError,
             version
         }),
-        [props.service, props.pageSettings, user, userLoading, updateUser, loginProviders, onError, version]
+        [props.service, props.pageSettings, loggedOut, user, userLoading, updateUser, loginProviders, onError, version]
     );
     return (
         <>

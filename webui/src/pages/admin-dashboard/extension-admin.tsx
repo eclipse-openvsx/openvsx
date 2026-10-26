@@ -8,20 +8,19 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useEffect, useState } from 'react';
+import { FunctionComponent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Button, Typography } from '@mui/material';
 
-import { MainContext } from '../../context';
 import { SearchListContainer } from './search-list-container';
 import { StyledInput } from './namespace-input';
 import { useAdminExtension, useDeleteExtension, usePurgeExtension } from './use-extension-admin';
 import { ExtensionDetailView } from '../../components/extension/extension-detail-view';
 import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { createRoute } from '../../utils';
+import { isNotFound } from '../../server-request';
 
 export const ExtensionAdmin: FunctionComponent = () => {
-    const { handleError } = useContext(MainContext);
     const navigate = useNavigate();
 
     const { namespace: nsParam, extension: extParam } = useParams<{ namespace?: string; extension?: string }>();
@@ -44,16 +43,9 @@ export const ExtensionAdmin: FunctionComponent = () => {
     const { mutateAsync: deleteExtension } = useDeleteExtension();
     const { mutateAsync: purgeExtension } = usePurgeExtension();
 
-    const is404 = !!queryError && (queryError as { status?: number }).status === 404;
     const extension = queryError ? undefined : data;
-    const fetchError = is404 ? `Extension not found: ${target?.namespace}.${target?.extension}` : '';
+    const fetchError = isNotFound(queryError) ? `Extension not found: ${target?.namespace}.${target?.extension}` : '';
     const error = validationError || fetchError;
-
-    useEffect(() => {
-        if (queryError && !is404) {
-            handleError(queryError);
-        }
-    }, [queryError, is404, handleError]);
 
     const findExtension = () => {
         if (!namespaceValue) {

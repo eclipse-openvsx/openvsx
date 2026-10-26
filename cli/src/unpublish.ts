@@ -12,12 +12,7 @@
  *****************************************************************************/
 
 import { confirm } from '@inquirer/prompts';
-// `import * as isCI from 'is-ci'` would bind to a namespace object instead of the boolean `is-ci`
-// exports whenever the importer applies ES module interop (e.g. a bundler, or vitest's own
-// transform), making the truthiness check below always true. `import = require` always binds
-// directly to the exported value, regardless of how the importing tool handles interop.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import isCI = require('is-ci');
+import { isCI } from 'ci-info';
 import * as semver from 'semver';
 import { getPAT } from './pat';
 import { Registry, TargetPlatformVersion } from './registry';
