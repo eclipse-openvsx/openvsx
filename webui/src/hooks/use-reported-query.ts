@@ -27,15 +27,14 @@ import { MainContext } from '../context';
  */
 export const useReportedQuery = <Q extends { error: Error | null }>(
     query: Q,
-    options?: { action?: string; ignore?: (error: Error) => boolean }
+    options: { action: string; ignore?: (error: Error) => boolean }
 ): Q => {
     const { handleError } = useContext(MainContext);
     const { error } = query;
-    const action = options?.action;
-    const ignore = options?.ignore;
+    const { action, ignore } = options;
     useEffect(() => {
         if (error && !ignore?.(error)) {
-            handleError(error, action ? { title: `Couldn’t ${action}` } : undefined);
+            handleError(error, { title: `Couldn’t ${action}` });
         }
     }, [error, action, ignore, handleError]);
     return query;

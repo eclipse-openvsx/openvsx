@@ -26,6 +26,6 @@ export const useCsrfToken = () => {
             queryFn: ({ signal }) => service.getCsrfToken(signal),
             ...NO_CACHE
         }),
-        { action: 'prepare the logout' }
+        { action: 'prepare to log you out' }
     );
 };

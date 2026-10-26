@@ -43,7 +43,11 @@ describe('useReportedQuery', () => {
     it('leaves out an error the page renders itself', async () => {
         const handleError = vi.fn();
         const { result } = renderHookWithProviders(
-            () => useReportedQuery(useQuery({ queryKey: ['q'], queryFn: failingWith(404) }), { ignore: isNotFound }),
+            () =>
+                useReportedQuery(useQuery({ queryKey: ['q'], queryFn: failingWith(404) }), {
+                    action: 'load the thing',
+                    ignore: isNotFound
+                }),
             { mainContext: { handleError } }
         );
 
