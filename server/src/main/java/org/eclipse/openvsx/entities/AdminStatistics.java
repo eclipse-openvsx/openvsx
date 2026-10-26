@@ -23,6 +23,9 @@ import org.eclipse.openvsx.json.AdminStatisticsJson;
 @Table(name = "admin_statistics")
 public class AdminStatistics {
 
+    /** The publish method of versions published without a token, from the web UI or unrecorded. */
+    public static final String PUBLISH_METHOD_NONE = "NONE";
+
     @Id
     @GeneratedValue(generator = "adminStatisticsSeq")
     @SequenceGenerator(name = "adminStatisticsSeq", sequenceName = "admin_statistics_seq")
@@ -74,6 +77,15 @@ public class AdminStatistics {
     @Column(name = "downloads")
     private Map<String, Long> topMostDownloadedExtensions;
 
+    /**
+     * Keyed by {@link PersonalAccessTokenType} name, or {@code NONE} for web UI uploads and unknown; web UI
+     * uploads before 1.2.0 went through a one-time token and are keyed {@code OTT}.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @MapKeyColumn(name = "publish_method")
+    @Column(name = "extension_versions")
+    private Map<String, Integer> extensionVersionsByPublishMethod;
+
     public String toCsv() {
         var ratings = 5;
         var headers = new ArrayList<>(
@@ -111,6 +123,16 @@ public class AdminStatistics {
         }
         for (var amount : extensionsPublishedAmounts) {
             values.add(publishersByExtensionsPublished.get(amount));
+        }
+        // A fixed set of columns, so CSVs of different months line up.
+        var publishMethods = new ArrayList<String>();
+        for (var type : PersonalAccessTokenType.values()) {
+            publishMethods.add(type.name());
+        }
+        publishMethods.add(PUBLISH_METHOD_NONE);
+        for (var method : publishMethods) {
+            headers.add("extension_versions_published_with_" + method.toLowerCase());
+            values.add(extensionVersionsByPublishMethod.getOrDefault(method, 0));
         }
 
         topMapToCsv(headers, values, topMostActivePublishingUsers, "most_active_publishing_users_");
@@ -154,8 +176,23 @@ public class AdminStatistics {
         json.setTopNamespaceExtensions(mapTopNamespaceExtensions());
         json.setTopNamespaceExtensionVersions(mapTopNamespaceExtensionVersions());
         json.setTopMostDownloadedExtensions(mapTopMostDownloadedExtensions());
+        json.setExtensionVersionsByPublishMethod(mapExtensionVersionsByPublishMethod());
 
         return json;
+    }
+
+    private List<AdminStatisticsJson.ExtensionVersionsByPublishMethod> mapExtensionVersionsByPublishMethod() {
+        return extensionVersionsByPublishMethod.entrySet().stream()
+                .map(entry -> {
+                    var mapping = new AdminStatisticsJson.ExtensionVersionsByPublishMethod();
+                    mapping.setPublishMethod(entry.getKey());
+                    mapping.setExtensionVersions(entry.getValue());
+                    return mapping;
+                })
+                .sorted(
+                        Comparator.<AdminStatisticsJson.ExtensionVersionsByPublishMethod>comparingInt(
+                                pe -> pe.getExtensionVersions()).reversed())
+                .collect(Collectors.toList());
     }
 
     private List<AdminStatisticsJson.ExtensionsByRating> mapExtensionsByRating() {
@@ -362,6 +399,14 @@ public class AdminStatistics {
         this.topMostDownloadedExtensions = topMostDownloadedExtensions;
     }
 
+    public Map<String, Integer> getExtensionVersionsByPublishMethod() {
+        return extensionVersionsByPublishMethod;
+    }
+
+    public void setExtensionVersionsByPublishMethod(Map<String, Integer> extensionVersionsByPublishMethod) {
+        this.extensionVersionsByPublishMethod = extensionVersionsByPublishMethod;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -380,7 +425,8 @@ public class AdminStatistics {
                 && Objects.equals(topMostActivePublishingUsers, that.topMostActivePublishingUsers)
                 && Objects.equals(topNamespaceExtensions, that.topNamespaceExtensions)
                 && Objects.equals(topNamespaceExtensionVersions, that.topNamespaceExtensionVersions)
-                && Objects.equals(topMostDownloadedExtensions, that.topMostDownloadedExtensions);
+                && Objects.equals(topMostDownloadedExtensions, that.topMostDownloadedExtensions)
+                && Objects.equals(extensionVersionsByPublishMethod, that.extensionVersionsByPublishMethod);
     }
 
     @Override
@@ -400,6 +446,7 @@ public class AdminStatistics {
                 topMostActivePublishingUsers,
                 topNamespaceExtensions,
                 topNamespaceExtensionVersions,
-                topMostDownloadedExtensions);
+                topMostDownloadedExtensions,
+                extensionVersionsByPublishMethod);
     }
 }

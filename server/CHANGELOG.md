@@ -12,9 +12,11 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - An outdated agreement stops publishing until it is signed again, while a revoked or missing one also takes extensions offline on the startup compliance check ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- The admin statistics report the distinct versions published in the month by publish method (`extensionVersionsByPublishMethod`, keyed by token type, with web UI uploads under `NONE`, or `OTT` before 1.2.0), also as CSV columns, one per method in every month ([#2375](https://github.com/eclipse-openvsx/openvsx/pull/2375))
 
 ### Changed
 
+- **Upgrade:** migration `V1_84` adds a BRIN index on `extension_version.timestamp` and backfills the versions published per method into every archived month of the admin statistics, so it runs longer on a registry with a long statistics history ([#2375](https://github.com/eclipse-openvsx/openvsx/pull/2375))
 - The Eclipse publisher agreement and OAuth login moved behind the `PublisherAgreementProvider` and `ExternalLoginProvider` extension points, and `UserJson.publisherAgreement` gains `loginProvider` and `loginProviderName` ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - A login of any provider returns to the page that started it, when that page is passed as `redirect`, instead of the `eclipse` login always going to the profile page ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - Signing an agreement that is already signed answers 200 instead of 400, and `additionalLogins[].loginName` of a user is no longer set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))

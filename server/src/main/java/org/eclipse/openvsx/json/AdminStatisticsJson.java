@@ -53,6 +53,8 @@ public class AdminStatisticsJson extends ResultJson {
 
     private List<TopMostDownloadedExtensions> topMostDownloadedExtensions;
 
+    private List<ExtensionVersionsByPublishMethod> extensionVersionsByPublishMethod;
+
     public int getYear() {
         return year;
     }
@@ -165,6 +167,38 @@ public class AdminStatisticsJson extends ResultJson {
 
     public void setTopMostDownloadedExtensions(List<TopMostDownloadedExtensions> topMostDownloadedExtensions) {
         this.topMostDownloadedExtensions = topMostDownloadedExtensions;
+    }
+
+    public List<ExtensionVersionsByPublishMethod> getExtensionVersionsByPublishMethod() {
+        return extensionVersionsByPublishMethod;
+    }
+
+    public void setExtensionVersionsByPublishMethod(
+            List<ExtensionVersionsByPublishMethod> extensionVersionsByPublishMethod
+    ) {
+        this.extensionVersionsByPublishMethod = extensionVersionsByPublishMethod;
+    }
+
+    public static class ExtensionVersionsByPublishMethod {
+        private String publishMethod;
+
+        private int extensionVersions;
+
+        public String getPublishMethod() {
+            return publishMethod;
+        }
+
+        public void setPublishMethod(String publishMethod) {
+            this.publishMethod = publishMethod;
+        }
+
+        public int getExtensionVersions() {
+            return extensionVersions;
+        }
+
+        public void setExtensionVersions(int extensionVersions) {
+            this.extensionVersions = extensionVersions;
+        }
     }
 
     public static class ExtensionsByRating {

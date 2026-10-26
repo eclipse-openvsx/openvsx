@@ -16,6 +16,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DateTime } from 'luxon';
 import { StatisticsAdmin } from '../../../../src/pages/admin-dashboard/statistics/statistics';
+import { countByPublishMethod } from '../../../../src/pages/admin-dashboard/statistics/publish-methods';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 import { AdminStatistics } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
@@ -38,6 +39,12 @@ const statistics = (overrides: Partial<AdminStatistics> = {}): AdminStatistics =
     topNamespaceExtensions: [{ namespace: 'redhat', extensions: 45 }],
     topNamespaceExtensionVersions: [{ namespace: 'redhat', extensionVersions: 654 }],
     topMostDownloadedExtensions: [{ extensionIdentifier: 'redhat.java', downloads: 40086502 }],
+    extensionVersionsByPublishMethod: [
+        { publishMethod: 'TPT', extensionVersions: 30 },
+        { publishMethod: 'LLT', extensionVersions: 50 },
+        { publishMethod: 'LLP', extensionVersions: 10 },
+        { publishMethod: 'NONE', extensionVersions: 10 }
+    ],
     ...overrides
 });
 
@@ -147,5 +154,36 @@ describe('StatisticsAdmin', () => {
         // accessible name comes from its cells, so this finds it without walking up from the text.
         const row = await screen.findByRole('row', { name: /busy-bot/ });
         expect(within(row).getByText('400')).toBeInTheDocument();
+    });
+
+    // 30 of 100 versions: every other token type and web UI uploads make up the rest.
+    it('shows the share of versions published with trusted publishing', async () => {
+        mountPage();
+
+        expect(await screen.findByText('30.0%')).toBeInTheDocument();
+    });
+
+    it('does not show a share for a month without published versions', async () => {
+        mountPage(vi.fn().mockResolvedValue(statistics({ extensionVersionsByPublishMethod: [] })));
+
+        expect(await screen.findByText('Trusted publishing')).toBeInTheDocument();
+        expect(screen.queryByText('Versions published by method')).not.toBeInTheDocument();
+    });
+
+    // Before 1.2.0 the web UI published through a one-time token, so OTT is a web UI upload too.
+    it('groups token types into trusted publishing, access token and web UI', () => {
+        const counts = countByPublishMethod(
+            statistics({
+                extensionVersionsByPublishMethod: [
+                    { publishMethod: 'TPT', extensionVersions: 1 },
+                    { publishMethod: 'LLT', extensionVersions: 2 },
+                    { publishMethod: 'LLP', extensionVersions: 4 },
+                    { publishMethod: 'OTT', extensionVersions: 8 },
+                    { publishMethod: 'NONE', extensionVersions: 16 }
+                ]
+            })
+        );
+
+        expect(counts).toEqual([1, 6, 24]);
     });
 });

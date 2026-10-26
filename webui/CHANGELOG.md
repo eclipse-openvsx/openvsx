@@ -8,6 +8,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `useReportedQuery` takes an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state
+- The admin Statistics page shows how many versions were published in the month, the share published through trusted publishing, and a breakdown by trusted publishing, access token and web UI (`NONE` and the pre-1.2.0 `OTT`), from the new `extensionVersionsByPublishMethod` field of `AdminStatistics` (#2375)
 
 ### Changed
 

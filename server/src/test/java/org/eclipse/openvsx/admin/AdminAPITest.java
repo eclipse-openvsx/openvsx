@@ -2189,6 +2189,7 @@ class AdminAPITest {
         stats.setTopNamespaceExtensions(Map.of("n_foo", 9, "n_bar", 48, "n_baz", 1239));
         stats.setTopNamespaceExtensionVersions(Map.of("nv_foo", 234, "nv_bar", 67, "nv_baz", 932));
         stats.setTopMostDownloadedExtensions(Map.of("foo.bar", 3847L, "bar.foo", 1237L, "foo.baz", 4378L));
+        stats.setExtensionVersionsByPublishMethod(Map.of("TPT", 12, "LLP", 30));
 
         var values = List.<Object>of(
                 year,
@@ -2208,6 +2209,11 @@ class AdminAPITest {
                 99,
                 70,
                 52,
+                0,
+                30,
+                0,
+                12,
+                0,
                 543,
                 93,
                 82,
@@ -2233,6 +2239,9 @@ class AdminAPITest {
                                         "extensions_by_rating_3,extensions_by_rating_4,extensions_by_rating_5," +
                                         "publishers_published_extensions_1,publishers_published_extensions_2," +
                                         "publishers_published_extensions_3,publishers_published_extensions_4," +
+                                        "extension_versions_published_with_llt,extension_versions_published_with_llp," +
+                                        "extension_versions_published_with_ott,extension_versions_published_with_tpt," +
+                                        "extension_versions_published_with_none," +
                                         "most_active_publishing_users_u_bar,most_active_publishing_users_u_foo,most_active_publishing_users_u_baz,"
                                         +
                                         "namespace_extensions_n_baz,namespace_extensions_n_bar,namespace_extensions_n_foo,"
@@ -2272,6 +2281,7 @@ class AdminAPITest {
         stats.setTopNamespaceExtensions(Map.of("n_foo", 9, "n_bar", 48, "n_baz", 1239));
         stats.setTopNamespaceExtensionVersions(Map.of("nv_foo", 234, "nv_bar", 67, "nv_baz", 932));
         stats.setTopMostDownloadedExtensions(Map.of("foo.bar", 3847L, "bar.foo", 1237L, "foo.baz", 4378L));
+        stats.setExtensionVersionsByPublishMethod(Map.of("TPT", 12, "LLP", 30));
 
         when(repositories.findAdminStatisticsByYearAndMonth(year, month)).thenReturn(stats);
         mockMvc.perform(
@@ -2368,6 +2378,14 @@ class AdminAPITest {
                     mostDownloadedExtensions3.setDownloads(1237L);
                     s.setTopMostDownloadedExtensions(
                             List.of(mostDownloadedExtensions1, mostDownloadedExtensions2, mostDownloadedExtensions3));
+
+                    var tokenVersions = new AdminStatisticsJson.ExtensionVersionsByPublishMethod();
+                    tokenVersions.setPublishMethod("LLP");
+                    tokenVersions.setExtensionVersions(30);
+                    var trustedVersions = new AdminStatisticsJson.ExtensionVersionsByPublishMethod();
+                    trustedVersions.setPublishMethod("TPT");
+                    trustedVersions.setExtensionVersions(12);
+                    s.setExtensionVersionsByPublishMethod(List.of(tokenVersions, trustedVersions));
                 })));
     }
 
@@ -2529,6 +2547,7 @@ class AdminAPITest {
         stats.setTopNamespaceExtensions(Map.of("n_foo", 9));
         stats.setTopNamespaceExtensionVersions(Map.of("nv_foo", 234));
         stats.setTopMostDownloadedExtensions(Map.of("foo.bar", 3847L));
+        stats.setExtensionVersionsByPublishMethod(Map.of("TPT", 12));
         return stats;
     }
 

@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.eclipse.openvsx.jooq.tables.AdminScanDecision;
 import org.eclipse.openvsx.jooq.tables.AdminStatistics;
+import org.eclipse.openvsx.jooq.tables.AdminStatisticsExtensionVersionsByPublishMethod;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsExtensionsByRating;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsPublishersByExtensionsPublished;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostActivePublishingUsers;
@@ -76,6 +77,12 @@ public class Public extends SchemaImpl {
      * The table <code>public.admin_statistics</code>.
      */
     public final AdminStatistics ADMIN_STATISTICS = AdminStatistics.ADMIN_STATISTICS;
+
+    /**
+     * The table
+     * <code>public.admin_statistics_extension_versions_by_publish_method</code>.
+     */
+    public final AdminStatisticsExtensionVersionsByPublishMethod ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD = AdminStatisticsExtensionVersionsByPublishMethod.ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD;
 
     /**
      * The table <code>public.admin_statistics_extensions_by_rating</code>.
@@ -332,6 +339,7 @@ public class Public extends SchemaImpl {
         return Arrays.asList(
             AdminScanDecision.ADMIN_SCAN_DECISION,
             AdminStatistics.ADMIN_STATISTICS,
+            AdminStatisticsExtensionVersionsByPublishMethod.ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD,
             AdminStatisticsExtensionsByRating.ADMIN_STATISTICS_EXTENSIONS_BY_RATING,
             AdminStatisticsPublishersByExtensionsPublished.ADMIN_STATISTICS_PUBLISHERS_BY_EXTENSIONS_PUBLISHED,
             AdminStatisticsTopMostActivePublishingUsers.ADMIN_STATISTICS_TOP_MOST_ACTIVE_PUBLISHING_USERS,

@@ -47,6 +47,9 @@ public class AdminStatisticsService {
      * month on a registry that has none yet) it reports every download ever rather than the
      * month's. That is pre-existing behaviour of the archival job, kept here so the on-the-fly and
      * archived paths cannot disagree.
+     * <p>
+     * {@code extensionVersionsByPublishMethod} is also an aggregate over the month, taken from the
+     * versions' publish timestamps.
      */
     public AdminStatistics computeAdminStatistics(int year, int month) {
         var extensions = repositories.countActiveExtensions();
@@ -73,6 +76,11 @@ public class AdminStatisticsService {
         statistics.setTopNamespaceExtensions(repositories.topNamespaceExtensions(TOP_LIMIT));
         statistics.setTopNamespaceExtensionVersions(repositories.topNamespaceExtensionVersions(TOP_LIMIT));
         statistics.setTopMostDownloadedExtensions(repositories.topMostDownloadedExtensions(TOP_LIMIT));
+        var monthStart = LocalDateTime.of(year, month, 1, 0, 0);
+        statistics.setExtensionVersionsByPublishMethod(
+                repositories.countExtensionVersionsPublishedGroupedByPublishMethod(
+                        monthStart,
+                        monthStart.plusMonths(1)));
         return statistics;
     }
 

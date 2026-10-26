@@ -898,6 +898,13 @@ public class RepositoryService {
         return adminStatisticCalculationsRepo.topNamespaceExtensionVersions(limit);
     }
 
+    public Map<String, Integer> countExtensionVersionsPublishedGroupedByPublishMethod(
+            LocalDateTime from,
+            LocalDateTime to
+    ) {
+        return adminStatisticCalculationsRepo.countExtensionVersionsPublishedGroupedByPublishMethod(from, to);
+    }
+
     public Map<String, Long> topMostDownloadedExtensions(int limit) {
         return adminStatisticCalculationsRepo.topMostDownloadedExtensions(limit);
     }

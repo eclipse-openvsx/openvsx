@@ -6,6 +6,7 @@ package org.eclipse.openvsx.jooq;
 
 import org.eclipse.openvsx.jooq.tables.AdminScanDecision;
 import org.eclipse.openvsx.jooq.tables.AdminStatistics;
+import org.eclipse.openvsx.jooq.tables.AdminStatisticsExtensionVersionsByPublishMethod;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsExtensionsByRating;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsPublishersByExtensionsPublished;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostActivePublishingUsers;
@@ -62,6 +63,12 @@ public class Tables {
      * The table <code>public.admin_statistics</code>.
      */
     public static final AdminStatistics ADMIN_STATISTICS = AdminStatistics.ADMIN_STATISTICS;
+
+    /**
+     * The table
+     * <code>public.admin_statistics_extension_versions_by_publish_method</code>.
+     */
+    public static final AdminStatisticsExtensionVersionsByPublishMethod ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD = AdminStatisticsExtensionVersionsByPublishMethod.ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD;
 
     /**
      * The table <code>public.admin_statistics_extensions_by_rating</code>.

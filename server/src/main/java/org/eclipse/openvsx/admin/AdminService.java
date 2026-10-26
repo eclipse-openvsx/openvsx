@@ -931,8 +931,8 @@ public class AdminService {
         }
 
         // A past month with no row was never archived - the job did not run then, and it cannot be
-        // reconstructed after the fact, because every figure but downloads is a snapshot of the
-        // registry as it was.
+        // reconstructed after the fact, because most figures are a snapshot of the registry as it
+        // was; only downloads and the versions published per method derive from history.
         throw new NotFoundException();
     }
 

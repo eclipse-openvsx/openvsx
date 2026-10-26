@@ -6,6 +6,7 @@ package org.eclipse.openvsx.jooq;
 
 import org.eclipse.openvsx.jooq.tables.AdminScanDecision;
 import org.eclipse.openvsx.jooq.tables.AdminStatistics;
+import org.eclipse.openvsx.jooq.tables.AdminStatisticsExtensionVersionsByPublishMethod;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsExtensionsByRating;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsPublishersByExtensionsPublished;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostActivePublishingUsers;
@@ -46,6 +47,7 @@ import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
 import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 import org.eclipse.openvsx.jooq.tables.records.AdminScanDecisionRecord;
+import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsExtensionVersionsByPublishMethodRecord;
 import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsExtensionsByRatingRecord;
 import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsPublishersByExtensionsPublishedRecord;
 import org.eclipse.openvsx.jooq.tables.records.AdminStatisticsRecord;
@@ -160,6 +162,7 @@ public class Keys {
 
     public static final ForeignKey<AdminScanDecisionRecord, UserDataRecord> ADMIN_SCAN_DECISION__FK_ADMIN_SCAN_DECISION_USER = Internal.createForeignKey(AdminScanDecision.ADMIN_SCAN_DECISION, DSL.name("fk_admin_scan_decision_user"), new TableField[] { AdminScanDecision.ADMIN_SCAN_DECISION.DECIDED_BY_ID }, Keys.USER_DATA_PKEY, new TableField[] { UserData.USER_DATA.ID }, true);
     public static final ForeignKey<AdminScanDecisionRecord, ExtensionScanRecord> ADMIN_SCAN_DECISION__FK_DECISION_SCAN = Internal.createForeignKey(AdminScanDecision.ADMIN_SCAN_DECISION, DSL.name("fk_decision_scan"), new TableField[] { AdminScanDecision.ADMIN_SCAN_DECISION.SCAN_ID }, Keys.EXTENSION_SCAN_PKEY, new TableField[] { ExtensionScan.EXTENSION_SCAN.ID }, true);
+    public static final ForeignKey<AdminStatisticsExtensionVersionsByPublishMethodRecord, AdminStatisticsRecord> ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD__ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD_FKEY = Internal.createForeignKey(AdminStatisticsExtensionVersionsByPublishMethod.ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD, DSL.name("admin_statistics_extension_versions_by_publish_method_fkey"), new TableField[] { AdminStatisticsExtensionVersionsByPublishMethod.ADMIN_STATISTICS_EXTENSION_VERSIONS_BY_PUBLISH_METHOD.ADMIN_STATISTICS_ID }, Keys.ADMIN_STATISTICS_PKEY, new TableField[] { AdminStatistics.ADMIN_STATISTICS.ID }, true);
     public static final ForeignKey<AdminStatisticsExtensionsByRatingRecord, AdminStatisticsRecord> ADMIN_STATISTICS_EXTENSIONS_BY_RATING__ADMIN_STATISTICS_EXTENSIONS_BY_RATING_FKEY = Internal.createForeignKey(AdminStatisticsExtensionsByRating.ADMIN_STATISTICS_EXTENSIONS_BY_RATING, DSL.name("admin_statistics_extensions_by_rating_fkey"), new TableField[] { AdminStatisticsExtensionsByRating.ADMIN_STATISTICS_EXTENSIONS_BY_RATING.ADMIN_STATISTICS_ID }, Keys.ADMIN_STATISTICS_PKEY, new TableField[] { AdminStatistics.ADMIN_STATISTICS.ID }, true);
     public static final ForeignKey<AdminStatisticsPublishersByExtensionsPublishedRecord, AdminStatisticsRecord> ADMIN_STATISTICS_PUBLISHERS_BY_EXTENSIONS_PUBLISHED__ADMIN_STATISTICS_PUBLISHERS_BY_EXTENSIONS_PUBLISHED_FKEY = Internal.createForeignKey(AdminStatisticsPublishersByExtensionsPublished.ADMIN_STATISTICS_PUBLISHERS_BY_EXTENSIONS_PUBLISHED, DSL.name("admin_statistics_publishers_by_extensions_published_fkey"), new TableField[] { AdminStatisticsPublishersByExtensionsPublished.ADMIN_STATISTICS_PUBLISHERS_BY_EXTENSIONS_PUBLISHED.ADMIN_STATISTICS_ID }, Keys.ADMIN_STATISTICS_PKEY, new TableField[] { AdminStatistics.ADMIN_STATISTICS.ID }, true);
     public static final ForeignKey<AdminStatisticsTopMostActivePublishingUsersRecord, AdminStatisticsRecord> ADMIN_STATISTICS_TOP_MOST_ACTIVE_PUBLISHING_USERS__ADMIN_STATISTICS_TOP_MOST_ACTIVE_PUBLISHING_USERS_FKEY = Internal.createForeignKey(AdminStatisticsTopMostActivePublishingUsers.ADMIN_STATISTICS_TOP_MOST_ACTIVE_PUBLISHING_USERS, DSL.name("admin_statistics_top_most_active_publishing_users_fkey"), new TableField[] { AdminStatisticsTopMostActivePublishingUsers.ADMIN_STATISTICS_TOP_MOST_ACTIVE_PUBLISHING_USERS.ADMIN_STATISTICS_ID }, Keys.ADMIN_STATISTICS_PKEY, new TableField[] { AdminStatistics.ADMIN_STATISTICS.ID }, true);

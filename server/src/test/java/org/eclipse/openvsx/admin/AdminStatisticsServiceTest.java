@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.admin;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import jakarta.persistence.EntityManager;
@@ -152,6 +153,13 @@ class AdminStatisticsServiceTest {
                 450L,
                 "dolar.omega",
                 300L);
+        var extensionVersionsByPublishMethod = Map.of(
+                "TPT",
+                12,
+                "LLP",
+                30,
+                "NONE",
+                8);
 
         var expectedStatistics = new AdminStatistics();
         expectedStatistics.setYear(year);
@@ -168,6 +176,7 @@ class AdminStatisticsServiceTest {
         expectedStatistics.setTopNamespaceExtensions(topNamespaceExtensions);
         expectedStatistics.setTopNamespaceExtensionVersions(topNamespaceExtensionVersions);
         expectedStatistics.setTopMostDownloadedExtensions(topMostDownloadedExtensions);
+        expectedStatistics.setExtensionVersionsByPublishMethod(extensionVersionsByPublishMethod);
 
         Mockito.when(repositories.countActiveExtensions()).thenReturn(extensions);
         Mockito.when(repositories.downloadsTotal()).thenReturn(downloadsTotal);
@@ -183,6 +192,11 @@ class AdminStatisticsServiceTest {
         Mockito.when(repositories.topNamespaceExtensions(limit)).thenReturn(topNamespaceExtensions);
         Mockito.when(repositories.topNamespaceExtensionVersions(limit)).thenReturn(topNamespaceExtensionVersions);
         Mockito.when(repositories.topMostDownloadedExtensions(limit)).thenReturn(topMostDownloadedExtensions);
+        Mockito.when(
+                repositories.countExtensionVersionsPublishedGroupedByPublishMethod(
+                        LocalDateTime.of(2023, 11, 1, 0, 0),
+                        LocalDateTime.of(2023, 12, 1, 0, 0)))
+                .thenReturn(extensionVersionsByPublishMethod);
 
         return expectedStatistics;
     }
