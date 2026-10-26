@@ -88,12 +88,11 @@ export function useCuratedRows(curatedSections: HomeCuratedSection[]): CuratedRo
     });
 
     return curatedSections.map((section, idx) => {
-        const { data, error, isFetching, refetch } = results[idx];
+        const { data, error, isLoading, refetch } = results[idx];
         return {
             ...section,
             extensions: data ?? [],
-            // A retry after a failure isn't `isLoading` (the query stays in error), hence `!data`.
-            loading: isFetching && !data,
+            loading: isLoading,
             error,
             refetch: () => void refetch()
         };
