@@ -115,6 +115,7 @@
         "tsc": "tsc -p ./configs/app.tsconfig.json",
         "test": "vitest run",
         "smoke-tests": "playwright install && playwright test --config=./configs/playwright.config.ts",
+        "vscode-tests": "playwright test --config=./configs/playwright-vscode.config.ts",
         "lint": "eslint -c eslint.config.mjs src configs test '*'",
         "watch": "tsc -w -p ./tsconfig.json --preserveWatchOutput",
         "build:server": "tsc -p ./configs/server.tsconfig.json",

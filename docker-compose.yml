@@ -331,5 +331,51 @@ services:
     profiles:
       - silo
 
+  # code-server's browser side only reaches its own origin or https: ones, so this serves the local
+  # registry's VS Code endpoints under code-server's origin, http://localhost:8085.
+  code-server-proxy:
+    image: caddy:2.10.2
+    network_mode: host
+    configs:
+      - source: code-server-proxy
+        target: /etc/caddy/Caddyfile
+    profiles:
+      - vscode
+
+  # VS Code in the browser, for `make code-server` and webui/test/e2e-vscode, against
+  # CODE_SERVER_GALLERY_URL (the local registry by default). Host networking lets the browser and
+  # the backend, which downloads the VSIX, reach the registry at the same URL. Loopback only: it has
+  # a terminal and no login.
+  code-server:
+    image: codercom/code-server:4.143.1
+    network_mode: host
+    command: --auth none --bind-addr 127.0.0.1:8086 --disable-workspace-trust --disable-telemetry /home/coder
+    environment:
+      EXTENSIONS_GALLERY: >-
+        {"serviceUrl": "${CODE_SERVER_GALLERY_URL:-http://localhost:8085}/vscode/gallery",
+        "itemUrl": "${CODE_SERVER_GALLERY_URL:-http://localhost:8085}/vscode/item",
+        "extensionUrlTemplate": "${CODE_SERVER_GALLERY_URL:-http://localhost:8085}/vscode/gallery/{publisher}/{name}/latest",
+        "resourceUrlTemplate": "${CODE_SERVER_GALLERY_URL:-http://localhost:8085}/vscode/unpkg/{publisher}/{name}/{version}/{path}"}
+    profiles:
+      - vscode
+
+configs:
+  code-server-proxy:
+    content: |
+      {
+        admin off
+        auto_https off
+      }
+      http://:8085 {
+        bind 127.0.0.1
+        @registry path /vscode/gallery/* /vscode/item /vscode/asset/* /vscode/unpkg/* /api/*
+        handle @registry {
+          reverse_proxy localhost:8080
+        }
+        handle {
+          reverse_proxy localhost:8086
+        }
+      }
+
 volumes:
   postgres-timeseries-data:

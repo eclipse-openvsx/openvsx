@@ -9,12 +9,12 @@
 DEV_PROFILES := db valkey valkey-admin silo
 
 .DEFAULT_GOAL := help
-.PHONY: help dev-env dev-env-down server webui
+.PHONY: help dev-env dev-env-down server webui code-server code-server-staging code-server-production
 
 help: ## Show the available targets
 	@grep -hE '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) \
 		| sort \
-		| awk -F ':.*## ' '{ printf "  %-14s %s\n", $$1, $$2 }'
+		| awk -F ':.*## ' '{ printf "  %-24s %s\n", $$1, $$2 }'
 
 dev-env: ## Start the containers the server and web UI need (Ctrl-C stops them)
 	docker compose $(addprefix --profile ,$(DEV_PROFILES)) up
@@ -27,3 +27,16 @@ server: ## Run the registry server on http://localhost:8080
 
 webui: ## Run the web UI on http://localhost:3000
 	cd webui && yarn install --immutable && yarn dev
+
+# VS Code in the browser on http://localhost:8085. Switching registry recreates the container, so
+# extensions installed in it go. CODE_SERVER_GALLERY_URL points `make code-server` anywhere else.
+CODE_SERVER := docker compose --profile vscode up --attach code-server
+
+code-server: ## Run VS Code in the browser on http://localhost:8085, using the local registry
+	$(CODE_SERVER)
+
+code-server-staging: ## Run VS Code in the browser on http://localhost:8085, using staging.open-vsx.org
+	CODE_SERVER_GALLERY_URL=https://staging.open-vsx.org $(CODE_SERVER)
+
+code-server-production: ## Run VS Code in the browser on http://localhost:8085, using open-vsx.org
+	CODE_SERVER_GALLERY_URL=https://open-vsx.org $(CODE_SERVER)
