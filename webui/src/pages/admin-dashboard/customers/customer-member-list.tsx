@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useEffect, useState, useContext } from 'react';
+import { FunctionComponent, useState, useContext } from 'react';
 import {
     Box,
     Typography,
@@ -30,7 +30,7 @@ import { Link as RouterLink } from 'react-router';
 import { AdminDashboardRoutes } from '../admin-dashboard-routes';
 import { MainContext } from '../../../context';
 import { hasPermission } from '../../../permissions';
-import { Customer, UserData } from '../../../extension-registry-types';
+import { Customer } from '../../../extension-registry-types';
 import { AddUserDialog } from '../../../components/add-user-dialog';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -40,23 +40,16 @@ import { useAddCustomerMember, useCustomerMembers, useRemoveCustomerMember } fro
 const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
 export const CustomerMemberList: FunctionComponent<CustomerMemberListProps> = props => {
-    const { handleError, user: currentUser } = useContext(MainContext);
+    const { user: currentUser } = useContext(MainContext);
     const canOpenPublisher = hasPermission(currentUser, 'manage_publishers');
     const [addDialogIsOpen, setAddDialogIsOpen] = useState(false);
 
-    const { data, error } = useCustomerMembers(props.customer.name);
-    const { mutateAsync: addMember } = useAddCustomerMember(props.customer.name);
-    const { mutateAsync: removeMember } = useRemoveCustomerMember(props.customer.name);
+    const { data } = useCustomerMembers(props.customer.name);
+    const { mutate: addMember } = useAddCustomerMember(props.customer.name);
+    const { mutate: removeMember } = useRemoveCustomerMember(props.customer.name);
 
     const members = data?.customerMemberships ?? [];
     const users = members.map(member => member.user);
-
-    // Preserve the previous behaviour of surfacing fetch failures via the global error dialog.
-    useEffect(() => {
-        if (error) {
-            handleError(error);
-        }
-    }, [error, handleError]);
 
     const handleCloseAddDialog = () => {
         setAddDialogIsOpen(false);
@@ -64,22 +57,6 @@ export const CustomerMemberList: FunctionComponent<CustomerMemberListProps> = pr
 
     const handleOpenAddDialog = async () => {
         setAddDialogIsOpen(true);
-    };
-
-    const handleAddUser = async (user: UserData) => {
-        try {
-            await addMember(user);
-        } catch (err) {
-            handleError(err);
-        }
-    };
-
-    const handleRemoveUser = async (user: UserData) => {
-        try {
-            await removeMember(user);
-        } catch (err) {
-            handleError(err);
-        }
     };
 
     return (
@@ -112,7 +89,7 @@ export const CustomerMemberList: FunctionComponent<CustomerMemberListProps> = pr
                                     edge='end'
                                     size='small'
                                     color='error'
-                                    onClick={() => handleRemoveUser(user)}
+                                    onClick={() => removeMember(user)}
                                     title='Remove member'>
                                     <DeleteIcon fontSize='small' />
                                 </IconButton>
@@ -160,7 +137,7 @@ export const CustomerMemberList: FunctionComponent<CustomerMemberListProps> = pr
                 description='Search for a user by login name to add them to this customer.'
                 existingUsers={members.map(member => member.user)}
                 onClose={handleCloseAddDialog}
-                onAddUser={handleAddUser}
+                onAddUser={addMember}
             />
         </Paper>
     );

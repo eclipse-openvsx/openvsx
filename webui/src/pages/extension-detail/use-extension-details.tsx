@@ -11,78 +11,64 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useContext } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import { Extension, isError } from '../../extension-registry-types';
-import { ErrorResponse } from '../../server-request';
+import { Extension } from '../../extension-registry-types';
+import { useReportedQuery } from '../../hooks/use-reported-query';
+import { isNotFound } from '../../server-request';
 
-interface UseExtensionDetailResult {
-    loading: boolean;
-    extension: Extension | undefined;
-    error: Error | undefined;
-    reload: () => void;
-}
+export const extensionDetailKeys = {
+    /** Every target and version of an extension, as a review changes the rating they all show. */
+    all: (namespace: string, name: string) => ['extension-detail', namespace, name],
+    detail: (namespace: string, name: string, target?: string, version?: string) => [
+        'extension-detail',
+        namespace,
+        name,
+        target ?? null,
+        version ?? null
+    ]
+};
 
-export const useExtensionDetail = (
-    namespace: string,
-    name: string,
-    target: string,
-    version: string
-): UseExtensionDetailResult => {
-    const abortController = useRef<AbortController>(new AbortController());
+/**
+ * Loads an extension of the given target and version, or of the latest when none is given.
+ * A 404 is left to the page, which renders it as a not-found state.
+ */
+export const useExtensionDetail = (namespace: string, name: string, target?: string, version?: string) => {
+    const { service } = useContext(MainContext);
+    return useReportedQuery(
+        useQuery({
+            queryKey: extensionDetailKeys.detail(namespace, name, target, version),
+            queryFn: ({ signal }) =>
+                service.getExtensionDetail(signal, service.getExtensionApiUrl({ namespace, name, target, version })),
+            enabled: !!namespace && !!name,
+            // Publishing or deleting a version changes it from other pages, so each visit revalidates.
+            staleTime: 0
+        }),
+        { ignore: isNotFound }
+    );
+};
 
-    const { handleError, service } = useContext(MainContext);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<Error>();
-    const [extension, setExtension] = useState<Extension>();
-    const [reloadKey, setReloadKey] = useState(0);
+/** Loads an extension version's README; disabled when the version has none. */
+export const useExtensionReadme = (extension: Extension) => {
+    const { service } = useContext(MainContext);
+    return useReportedQuery(
+        useQuery({
+            queryKey: ['extension-readme', extension.files.readme ?? null],
+            queryFn: ({ signal }) => service.getExtensionReadme(signal, extension),
+            enabled: !!extension.files.readme
+        })
+    );
+};
 
-    useEffect(() => {
-        return () => {
-            abortController.current.abort();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (!namespace || !name) return;
-
-        const fetchExtension = async () => {
-            setExtension(undefined);
-            setError(undefined);
-
-            const extensionUrl = service.getExtensionApiUrl({ namespace, name, target, version });
-            const response = await service.getExtensionDetail(abortController.current, extensionUrl);
-            if (isError(response)) throw response;
-
-            if (!abortController.current.signal.aborted) {
-                setExtension(response as Extension);
-            }
-        };
-
-        setLoading(true);
-        fetchExtension()
-            .then(() => {
-                setLoading(false);
-            })
-            .catch(err => {
-                if (abortController.current.signal.aborted) {
-                    setLoading(false);
-                    return;
-                }
-
-                const errorResponse = err as Partial<ErrorResponse>;
-                if (errorResponse?.status === 404) {
-                    setError(new Error(`Extension Not Found: ${namespace}.${name}`));
-                } else {
-                    setError(err instanceof Error ? err : new Error('Failed to load extension details'));
-                    handleError(err as Error | Partial<ErrorResponse>);
-                }
-                setLoading(false);
-            });
-    }, [namespace, name, target, version, reloadKey]);
-
-    // This function updates the reloadKey state to trigger a refetch of the extension details.
-    const reload = useCallback(() => setReloadKey(k => k + 1), []);
-
-    return { loading, extension, error, reload };
+/** Loads an extension version's changelog; disabled when the version has none. */
+export const useExtensionChangelog = (extension: Extension) => {
+    const { service } = useContext(MainContext);
+    return useReportedQuery(
+        useQuery({
+            queryKey: ['extension-changelog', extension.files.changelog ?? null],
+            queryFn: ({ signal }) => service.getExtensionChangelog(signal, extension),
+            enabled: !!extension.files.changelog
+        })
+    );
 };

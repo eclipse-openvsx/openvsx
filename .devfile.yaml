@@ -123,7 +123,7 @@ commands:
       component: tool
       workingDir: ${PROJECTS_ROOT}/openvsx
       commandLine: |
-        nvm use v${NODEJS_20_VERSION}
+        nvm use v${NODEJS_24_VERSION}
         export OVSX_REGISTRY_URL=http://localhost:8080
         export OVSX_PAT=super_token
         export PUBLISHERS="DotJoshJohnson eamodio felixfbecker formulahendry HookyQR ms-azuretools ms-mssql ms-python ms-vscode octref redhat ritwickdey sburg vscode vscodevim Wscats"

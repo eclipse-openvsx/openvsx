@@ -476,7 +476,6 @@ class ExtensionServiceTest {
         var user = new UserData();
         user.setLoginName("test");
         user.setProvider("github");
-        user.setEclipseToken(new AuthToken("12345", null, null, null, null, null));
         return user;
     }
 

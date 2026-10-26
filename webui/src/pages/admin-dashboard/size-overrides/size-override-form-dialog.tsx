@@ -26,11 +26,13 @@ import {
     Stack,
     TextField
 } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { MainContext } from '../../../context';
 import type { SizeOverride } from '../../../extension-registry-types';
 import { handleError } from '../../../utils';
+import { namespaceAdminQuery } from '../use-namespace-admin';
 
 const UNIT_MULTIPLIERS: Record<string, number> = {
     bytes: 1,
@@ -86,6 +88,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({
     onSubmit
 }) => {
     const { service } = useContext(MainContext);
+    const queryClient = useQueryClient();
     const isEditMode = sizeOverride !== undefined;
 
     const [namespace, setNamespace] = useState('');
@@ -140,7 +143,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({
         let superseded = false;
         const timer = setTimeout(async () => {
             try {
-                const found = await service.admin.getNamespace(new AbortController(), name);
+                const found = await queryClient.fetchQuery(namespaceAdminQuery(service, name));
                 if (superseded) {
                     return;
                 }
@@ -160,7 +163,7 @@ export const SizeOverrideFormDialog: FC<SizeOverrideFormDialogProps> = ({
             superseded = true;
             clearTimeout(timer);
         };
-    }, [open, isEditMode, namespace, service]);
+    }, [open, isEditMode, namespace, service, queryClient]);
 
     const extensionNames = check.state === 'verified' ? check.extensions : [];
 

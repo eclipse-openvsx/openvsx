@@ -35,23 +35,67 @@ export async function publish(options: PublishOptions = {}): Promise<PromiseSett
     addEnvOptions(options);
     addTrustedPublishingEnvOptions(options);
 
+    const internalPublishOptions: InternalPublishOptions[] = [];
+    const prepackagedFiles: string[] = [];
+    const packagePaths = options.packagePath || [undefined];
+    const targets = options.targets || [undefined];
+    for (const packagePath of packagePaths) {
+        const extensionFile = options.extensionFile ?? (packagePath?.endsWith('.vsix') ? packagePath : undefined);
+        if (extensionFile !== undefined) {
+            prepackagedFiles.push(extensionFile);
+            // A package is already built for its target, so it is published once, not once per target.
+            internalPublishOptions.push({ ...options, extensionFile, packagePath: undefined, target: undefined });
+        } else {
+            for (const target of targets) {
+                internalPublishOptions.push({ ...options, packagePath, target });
+            }
+        }
+    }
+    // Before the registry is contacted, so a slow or failing lookup cannot keep these from being seen.
+    warnIgnoredPackagingOptions(options, prepackagedFiles);
+
     // Shared by every target/package below, rather than one per artifact: besides saving the extra
     // `/api/version` round trips, it's also where the registry's reported version is cached (see
     // Registry.tokenQuery), so a wide fan-out doesn't repeat that lookup once per target either.
     const registry = new Registry(options);
     const maxExtensionSize = await getMaxExtensionSize(registry);
 
-    const internalPublishOptions: InternalPublishOptions[] = [];
-    const packagePaths = options.packagePath || [undefined];
-    const targets = options.targets || [undefined];
-    for (const packagePath of packagePaths) {
-        for (const target of targets) {
-            internalPublishOptions.push({ ...options, packagePath: packagePath, target: target, maxExtensionSize });
+    return Promise.allSettled(internalPublishOptions.map(publishOptions =>
+        doPublish(registry, { ...publishOptions, maxExtensionSize })));
+}
+
+/**
+ * Names the files in the warning: next to a directory being packaged, the options still apply to that.
+ */
+function warnIgnoredPackagingOptions(options: PublishOptions, prepackagedFiles: string[]): void {
+    const files = [...new Set(prepackagedFiles)];
+    if (files.length === 0) {
+        return;
+    }
+    const subject = `${files.length === 1 ? 'extension' : 'extensions'} ${files.map(file => `'${file}'`).join(', ')}`;
+    for (const [flag, key] of PACKAGING_OPTIONS) {
+        // An explicit `false` is not a flag that was given.
+        if (options[key] !== undefined && options[key] !== false) {
+            console.warn(`Ignoring option '${flag}' for prepackaged ${subject}.`);
         }
     }
-
-    return Promise.allSettled(internalPublishOptions.map(publishOptions => doPublish(registry, publishOptions)));
 }
+
+/**
+ * Options that only affect packaging, with the CLI flag that sets each, in the order they are reported
+ * as ignored for a prepackaged extension. `--no-dependencies` is left out: the CLI always sets
+ * `dependencies`, so whether it was given cannot be told apart.
+ */
+export const PACKAGING_OPTIONS: ReadonlyArray<readonly [string, keyof PublishOptions]> = [
+    ['--target', 'targets'],
+    ['--baseContentUrl', 'baseContentUrl'],
+    ['--baseImagesUrl', 'baseImagesUrl'],
+    ['--yarn', 'yarn'],
+    ['--follow-symlinks', 'followSymlinks'],
+    ['--packageVersion', 'packageVersion'],
+    ['--allow-missing-repository', 'allowMissingRepository'],
+    ['--pre-release', 'preRelease']
+];
 
 /**
  * Looks up the registry's default extension size limit, so an oversized package can be flagged
@@ -69,20 +113,12 @@ async function getMaxExtensionSize(registry: Registry): Promise<number | undefin
 }
 
 async function doPublish(registry: Registry, options: InternalPublishOptions = {}): Promise<void> {
-    // if the packagePath is a link to a vsix, don't need to package it
-    if (options.packagePath?.endsWith('.vsix')) {
-        options.extensionFile = options.packagePath;
-        delete options.packagePath;
-        delete options.target;
-    }
     // Only a package created here is a temp file; one the user supplied must never be deleted.
     const packaged = !options.extensionFile;
     try {
         if (packaged) {
             await packageExtension(options, registry);
             console.log(); // new line
-        } else if (options.preRelease) {
-            console.warn("Ignoring option '--pre-release' for prepackaged extension.");
         }
         await publishExtensionFile(registry, options);
     } finally {

@@ -101,10 +101,10 @@ const ScanAdminContent: FunctionComponent = () => {
  * This is the entry point for the scan administration feature.
  */
 export const ScanAdmin: FunctionComponent = () => {
-    const { service, handleError } = useContext(MainContext);
+    const { service } = useContext(MainContext);
 
     return (
-        <ScanProvider service={service} handleError={handleError}>
+        <ScanProvider service={service}>
             <ScanAdminContent />
         </ScanProvider>
     );

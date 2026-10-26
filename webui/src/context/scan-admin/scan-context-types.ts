@@ -101,5 +101,4 @@ export interface DerivedData {
 export interface ScanProviderProps {
     children: ReactNode;
     service: any;
-    handleError: (error: any) => void;
 }

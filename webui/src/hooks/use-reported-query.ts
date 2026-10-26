@@ -15,21 +15,26 @@ import { useContext, useEffect } from 'react';
 import { MainContext } from '../context';
 
 /**
- * Passes a TanStack Query result through untouched, reporting any query error
- * to the global error dialog:
+ * Passes a TanStack Query or mutation result through untouched, reporting any
+ * error to the global error dialog. Wrap a hook's definition in it, so its
+ * callers never report errors themselves:
  *
- *     const namespacesQuery = useReportedQuery(useUserNamespaces());
+ *     return useReportedQuery(useQuery({ queryKey, queryFn }));
  *
- * Opt-in on purpose: mutations and queries with bespoke error handling
- * (e.g. 404 → redirect) keep calling `handleError` themselves.
+ * `ignore` leaves out the errors a page renders itself, such as a 404 shown as
+ * a not-found state; pass a stable function, since a new one reports again.
  */
-export const useReportedQuery = <Q extends { error: Error | null }>(query: Q): Q => {
+export const useReportedQuery = <Q extends { error: Error | null }>(
+    query: Q,
+    options?: { ignore?: (error: Error) => boolean }
+): Q => {
     const { handleError } = useContext(MainContext);
     const { error } = query;
+    const ignore = options?.ignore;
     useEffect(() => {
-        if (error) {
+        if (error && !ignore?.(error)) {
             handleError(error);
         }
-    }, [error, handleError]);
+    }, [error, ignore, handleError]);
     return query;
 };

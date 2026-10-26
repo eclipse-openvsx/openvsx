@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext, useEffect, useState } from 'react';
+import { FunctionComponent, useState } from 'react';
 import {
     Box,
     Typography,
@@ -26,7 +26,6 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import { MainContext } from '../../../context';
 import { Customer } from '../../../extension-registry-types';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
 import { Timestamp } from '../../../components/timestamp';
@@ -35,29 +34,15 @@ import { useCreateCustomerToken, useCustomerTokens, useDeleteCustomerToken } fro
 const sectionPaperProps: PaperProps = { elevation: 1, sx: { p: 3, mb: 3 } };
 
 export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = props => {
-    const { handleError } = useContext(MainContext);
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    const { data: tokens = [], error } = useCustomerTokens(props.customer.name);
+    const { data: tokens = [] } = useCustomerTokens(props.customer.name);
     const { mutateAsync: createToken } = useCreateCustomerToken(props.customer.name);
     const { mutate: deleteToken } = useDeleteCustomerToken(props.customer.name);
-
-    // Preserve the previous behaviour of surfacing fetch failures via the global error dialog.
-    useEffect(() => {
-        if (error) {
-            handleError(error);
-        }
-    }, [error, handleError]);
 
     const handleGenerate = async (description: string): Promise<string> => {
         const token = await createToken(description);
         return token.value ?? '';
-    };
-
-    const handleDelete = (tokenId: number) => {
-        deleteToken(tokenId, {
-            onError: err => handleError(err)
-        });
     };
 
     return (
@@ -90,7 +75,7 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
                                     edge='end'
                                     size='small'
                                     color='error'
-                                    onClick={() => handleDelete(token.id)}
+                                    onClick={() => deleteToken(token.id)}
                                     title='Delete token'>
                                     <DeleteIcon fontSize='small' />
                                 </IconButton>
@@ -117,7 +102,6 @@ export const CustomerTokenList: FunctionComponent<CustomerTokenListProps> = prop
                 open={dialogOpen}
                 onClose={() => setDialogOpen(false)}
                 onGenerate={handleGenerate}
-                onError={handleError}
                 title='Generate token'
             />
         </Paper>

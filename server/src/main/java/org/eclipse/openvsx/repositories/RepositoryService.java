@@ -50,6 +50,7 @@ import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersistedLog;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
+import org.eclipse.openvsx.entities.PublisherAgreementEvent;
 import org.eclipse.openvsx.entities.RateLimitToken;
 import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.ScanStatus;
@@ -117,6 +118,7 @@ public class RepositoryService {
     private final DailyUsageStatsRepository dailyUsageStatsRepository;
     private final UserDataJooqRepository userDataJooqRepo;
     private final TrustedPublisherRepository trustedPublisherRepo;
+    private final PublisherAgreementEventRepository publisherAgreementEventRepo;
 
     public RepositoryService(
             NamespaceRepository namespaceRepo,
@@ -154,7 +156,8 @@ public class RepositoryService {
             RateLimitTokenRepository rateLimitTokenRepository,
             DailyUsageStatsRepository dailyUsageStatsRepository,
             UserDataJooqRepository userDataJooqRepo,
-            TrustedPublisherRepository trustedPublisherRepo
+            TrustedPublisherRepository trustedPublisherRepo,
+            PublisherAgreementEventRepository publisherAgreementEventRepo
     ) {
         this.namespaceRepo = namespaceRepo;
         this.namespaceJooqRepo = namespaceJooqRepo;
@@ -192,6 +195,25 @@ public class RepositoryService {
         this.dailyUsageStatsRepository = dailyUsageStatsRepository;
         this.userDataJooqRepo = userDataJooqRepo;
         this.trustedPublisherRepo = trustedPublisherRepo;
+        this.publisherAgreementEventRepo = publisherAgreementEventRepo;
+    }
+
+    /** The publisher agreement events of the user, the latest first. */
+    public List<PublisherAgreementEvent> findPublisherAgreementEvents(long userDataId) {
+        return publisherAgreementEventRepo.findByUserDataIdOrderByIdDesc(userDataId).toList();
+    }
+
+    /** The latest publisher agreement event of the user of one of the given types, or {@code null} if none. */
+    public @Nullable PublisherAgreementEvent findLatestPublisherAgreementEvent(
+            long userDataId,
+            Collection<PublisherAgreementEvent.Type> types
+    ) {
+        return publisherAgreementEventRepo.findFirstByUserDataIdAndTypeInOrderByIdDesc(userDataId, types)
+                .orElse(null);
+    }
+
+    public PublisherAgreementEvent savePublisherAgreementEvent(PublisherAgreementEvent event) {
+        return publisherAgreementEventRepo.save(event);
     }
 
     public Streamable<TrustedPublisher> findTrustedPublishersByExtension(Extension extension) {
@@ -231,6 +253,14 @@ public class RepositoryService {
      */
     public void lockNamespace(Namespace namespace) {
         namespaceRepo.findByIdForUpdate(namespace.getId());
+    }
+
+    /**
+     * Locks the user row, held until the surrounding transaction ends, so that the steps of one user's publisher
+     * agreement serialize against each other, see {@link UserDataRepository#lockById(long)}.
+     */
+    public void lockUser(UserData user) {
+        userDataRepo.lockById(user.getId());
     }
 
     public Streamable<Namespace> findOrphanNamespaces() {

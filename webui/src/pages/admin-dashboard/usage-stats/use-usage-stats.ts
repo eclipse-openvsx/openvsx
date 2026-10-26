@@ -17,7 +17,6 @@ import { MainContext } from '../../../context';
 import type { UsageStats } from '../../../extension-registry-types';
 import { handleError } from '../../../utils';
 import { getDefaultStartDate } from '../../../components/rate-limiting/usage-stats/usage-stats-utils';
-import { controllerFromSignal } from '../../../query-client';
 import { DateTime } from 'luxon';
 
 // Stable empty reference so consumers don't see a new array identity on every render.
@@ -29,8 +28,7 @@ export const useAdminUsageStats = (customerName: string | undefined) => {
 
     const { data, isFetching, error } = useQuery({
         queryKey: ['admin', 'usage-stats', customerName ?? null, startDate.toMillis()],
-        queryFn: ({ signal }) =>
-            service.admin.getUsageStats(controllerFromSignal(signal), customerName!, startDate.toJSDate()),
+        queryFn: ({ signal }) => service.admin.getUsageStats(signal, customerName!, startDate.toJSDate()),
         enabled: !!customerName
     });
 

@@ -30,7 +30,6 @@ import {
 import { CreateNamespaceDialog } from './create-namespace-dialog';
 import { UserSettingsRoutes } from '../user-settings-routes';
 import { BackButton } from '../settings/settings-primitives';
-import { useReportedQuery } from '../../../hooks/use-reported-query';
 import { useHandleNamespaceCreated, useUserNamespaces } from './use-user-namespaces';
 
 // Mobile-only list entry; on desktop namespaces are picked from the sidebar.
@@ -55,7 +54,7 @@ export const UserSettingsNamespaces: FunctionComponent<UserSettingsNamespacesPro
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const navigate = useNavigate();
-    const namespacesQuery = useReportedQuery(useUserNamespaces());
+    const namespacesQuery = useUserNamespaces();
     const handleNamespaceCreated = useHandleNamespaceCreated();
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -87,9 +86,10 @@ export const UserSettingsNamespaces: FunctionComponent<UserSettingsNamespacesPro
                 showClaimAction
                 // The public endpoint hides what a namespace member still needs to manage: an
                 // inactive extension, or one whose only versions are soft-deleted.
-                fetchExtension={(abortController, extension) =>
-                    service.getExtension(abortController, namespace.name, extension.name)
-                }
+                extensionQuery={extension => ({
+                    queryKey: ['user', 'extension', namespace.name, extension.name],
+                    queryFn: ({ signal }) => service.getExtension(signal, namespace.name, extension.name)
+                })}
             />
         </NamespaceDetailConfigContext.Provider>
     );

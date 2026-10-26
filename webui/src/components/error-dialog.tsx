@@ -8,9 +8,10 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useEffect } from 'react';
+import { FunctionComponent, ReactNode, useContext, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, Button, DialogContentText, DialogActions, Box, Link } from '@mui/material';
 import { styled, Theme } from '@mui/material/styles';
+import { MainContext } from '../context';
 
 const ErrorLink = styled(Link)(({ theme }: { theme: Theme }) => ({
     textDecoration: 'underline',
@@ -18,6 +19,9 @@ const ErrorLink = styled(Link)(({ theme }: { theme: Theme }) => ({
 }));
 
 export const ErrorDialog: FunctionComponent<ErrorDialogProps> = props => {
+    const { pageSettings } = useContext(MainContext);
+    const ErrorHelp = pageSettings?.elements.errorHelp;
+
     useEffect(() => {
         document.addEventListener('keydown', handleEnter);
         return () => document.removeEventListener('keydown', handleEnter);
@@ -35,36 +39,21 @@ export const ErrorDialog: FunctionComponent<ErrorDialogProps> = props => {
         }
 
         switch (props.errorCode) {
-            case 'eclipse-missing-github-id':
-                return (
-                    <>
-                        Please fill in the &ldquo;GitHub Username&rdquo; field in{' '}
-                        <ErrorLink href='https://accounts.eclipse.org/user/edit' target='_blank'>
-                            your Eclipse account
-                        </ErrorLink>{' '}
-                        and try again.
-                    </>
-                );
-            case 'eclipse-mismatch-github-id':
-                return (
-                    <>
-                        Please edit the &ldquo;GitHub Username&rdquo; field in{' '}
-                        <ErrorLink href='https://accounts.eclipse.org/user/edit' target='_blank'>
-                            your Eclipse account
-                        </ErrorLink>{' '}
-                        or log in with a different GitHub account.
-                    </>
-                );
-            case 'publisher-agreement-problem':
-                return (
+            case 'publisher-agreement-problem': {
+                const email = pageSettings?.publisherAgreement?.email;
+                return email ? (
                     <>
                         Please contact{' '}
-                        <ErrorLink href='mailto:webmaster@eclipse.org?subject=Problem%20With%20open-vsx.org%20Publisher%20Agreement'>
-                            webmaster@eclipse.org
+                        <ErrorLink
+                            href={`mailto:${email}?subject=${encodeURIComponent('Publisher agreement problem')}`}>
+                            {email}
                         </ErrorLink>{' '}
                         if this problem persists.
                     </>
+                ) : (
+                    <>Please contact the administrators of this registry if this problem persists.</>
                 );
+            }
             default:
                 return null;
         }
@@ -78,6 +67,7 @@ export const ErrorDialog: FunctionComponent<ErrorDialogProps> = props => {
                 <DialogContentText sx={{ color: theme => theme.palette.error.main }}>
                     {props.errorMessage}
                     {codeContent ? <Box mt={2}>{codeContent}</Box> : null}
+                    {ErrorHelp ? <ErrorHelp errorCode={props.errorCode} errorMessage={props.errorMessage} /> : null}
                 </DialogContentText>
             </DialogContent>
             <DialogActions>

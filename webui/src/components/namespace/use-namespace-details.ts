@@ -16,23 +16,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../context';
 import { NamespaceDetails } from '../../extension-registry-types';
 import { useReportedQuery } from '../../hooks/use-reported-query';
-import { controllerFromSignal, NO_CACHE } from '../../query-client';
+import { NO_CACHE } from '../../query-client';
+import { isNotFound } from '../../server-request';
 
 const detailsKey = (name: string) => ['namespace-details', name];
 
 /**
- * Loads a namespace's public details. Shared by the details form and the logo
- * sidebar, which subscribe to the same cache entry; errors surface through the
- * global error dialog.
+ * Loads a namespace's public details. The details form and the logo sidebar subscribe
+ * to the same cache entry, so a mutation below refreshes both. A 404 is left to the
+ * namespace page, which renders it as not found.
  */
 export const useNamespaceDetails = (name: string) => {
     const { service } = useContext(MainContext);
     return useReportedQuery(
         useQuery({
             queryKey: detailsKey(name),
-            queryFn: ({ signal }) => service.getNamespaceDetails(controllerFromSignal(signal), name),
+            queryFn: ({ signal }) => service.getNamespaceDetails(signal, name),
             ...NO_CACHE
-        })
+        }),
+        { ignore: isNotFound }
     );
 };
 
@@ -40,32 +42,36 @@ export const useNamespaceDetails = (name: string) => {
 export const useUpdateNamespaceDetails = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: ({ detailsUrl, details }: { detailsUrl: string; details: NamespaceDetails }) =>
-            service.setNamespaceDetails(new AbortController(), detailsUrl, details),
-        onSuccess: (_result, { details }) => {
-            queryClient.invalidateQueries({ queryKey: detailsKey(details.name) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: ({ detailsUrl, details }: { detailsUrl: string; details: NamespaceDetails }) =>
+                service.setNamespaceDetails(detailsUrl, details),
+            onSuccess: (_result, { details }) => {
+                queryClient.invalidateQueries({ queryKey: detailsKey(details.name) });
+            }
+        })
+    );
 };
 
 /** Uploads a namespace logo; on success every details consumer refreshes. */
 export const useUpdateNamespaceLogo = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: ({
-            detailsUrl,
-            file,
-            fileName
-        }: {
-            namespaceName: string;
-            detailsUrl: string;
-            file: Blob;
-            fileName: string;
-        }) => service.setNamespaceLogo(new AbortController(), detailsUrl, file, fileName),
-        onSuccess: (_result, { namespaceName }) => {
-            queryClient.invalidateQueries({ queryKey: detailsKey(namespaceName) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: ({
+                detailsUrl,
+                file,
+                fileName
+            }: {
+                namespaceName: string;
+                detailsUrl: string;
+                file: Blob;
+                fileName: string;
+            }) => service.setNamespaceLogo(detailsUrl, file, fileName),
+            onSuccess: (_result, { namespaceName }) => {
+                queryClient.invalidateQueries({ queryKey: detailsKey(namespaceName) });
+            }
+        })
+    );
 };

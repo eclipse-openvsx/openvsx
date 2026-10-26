@@ -17,7 +17,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.google.common.collect.Lists;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
@@ -33,6 +32,7 @@ import org.eclipse.openvsx.analytics.DownloadSeriesGroupBy;
 import org.eclipse.openvsx.analytics.DownloadSeriesInterval;
 import org.eclipse.openvsx.analytics.DownloadSeriesRequest;
 import org.eclipse.openvsx.analytics.DownloadSeriesRow;
+import org.eclipse.openvsx.util.CollectionUtil;
 
 /**
  * Storage for download analytics, backed by TimescaleDB: writes to the download_event hypertable
@@ -138,7 +138,7 @@ public class DownloadAnalyticsRepository {
 
     private void saveEvents(List<DownloadEvent> events) {
         dsl.transaction(configuration -> {
-            for (var batch : Lists.partition(events, BATCH_SIZE)) {
+            for (var batch : CollectionUtil.partition(events, BATCH_SIZE)) {
                 var insert = DSL.using(configuration)
                         .insertInto(
                                 EVENT,

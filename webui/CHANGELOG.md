@@ -4,6 +4,38 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ## [next] (unreleased)
 
+### Added
+
+- `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- `useReportedQuery` takes an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state
+
+### Changed
+
+- The error dialog no longer has help for the `eclipse-missing-github-id` and `eclipse-mismatch-github-id` login errors, and a failed publisher agreement points to `pageSettings.publisherAgreement.email`, or to the registry's administrators without one, instead of `webmaster@eclipse.org`; the error message itself is still shown ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- The publisher agreement panel and the admin revoke dialog take the login they require from the new `publisherAgreement.loginProvider` and `loginProviderName` (display label) fields of `UserData` instead of assuming Eclipse; without it no extra login is asked for; their login links return to the page they were on
+- The publisher agreement panel shows a `revoked` status without a sign action, a different message for an `outdated` one, and admins can reinstate a revoked agreement
+- `MainContext` keeps its value, `handleError` and `updateUser` stable across renders, so consumers can depend on them in effects and skip needless re-renders
+- The default publisher agreement text URL is now the server's `/api/publisher-agreement`, instead of `/documents/publisher-agreement.md`
+- `sendRequest` rejects a 200 carrying an error result and no longer retries; retries belong to the query client, which waits out a 429 for queries and never retries a mutation.
+- `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
+
+### Fixed
+
+- A query reported through `useReportedQuery` (or a page's own error effect) no longer reopens the error dialog in a loop that cannot be closed while the query stays failed (#2348)
+- A failed review post or removal, token revocation or user search no longer leaves its spinner running
+
+### Removed
+
+- `sendNonRetriableRequest`, `controllerFromSignal` and the `abortController` field of `ServerAPIRequest`: use `sendRequest` with `signal`, and pass a `queryFn`'s `signal` straight to the service
+
+### Dependencies
+
+- Bump vite from 8.3.2 to 8.3.5 (#2357)
+- Bump markdown-it from 14.3.2 to 14.3.3 (#2358)
+- Bump undici from 8.11.2 to 8.12.3 (#2362)
+- Remove `fetch-retry`; the query client owns retries
+- Bump dompurify from 3.4.16 to 3.4.17 (#2379)
+
 ## [1.3.0] - 2026-10-16
 
 ### Added

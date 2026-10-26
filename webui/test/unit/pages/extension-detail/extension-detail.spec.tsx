@@ -11,9 +11,12 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
-import { ExtensionHeaderInfo } from '../../../../src/pages/extension-detail/extension-detail';
+import { describe, it, expect, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import { Route, Routes } from 'react-router';
+import { ExtensionDetail, ExtensionHeaderInfo } from '../../../../src/pages/extension-detail/extension-detail';
+import { ExtensionDetailRoutes } from '../../../../src/pages/extension-detail/extension-detail-routes';
+import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 import { Extension } from '../../../../src/extension-registry-types';
 import { PageSettings } from '../../../../src/page-settings';
 import { renderWithProviders } from '../../support/test-providers';
@@ -66,5 +69,44 @@ describe('ExtensionHeaderInfo', () => {
         renderHeaderInfo();
 
         expect(screen.queryByLabelText(TRUSTED_PUBLISHING_TITLE)).not.toBeInTheDocument();
+    });
+});
+
+describe('ExtensionDetail', () => {
+    const renderFailingDetail = (failure: object) => {
+        const getExtensionDetail = vi.fn().mockRejectedValue(failure);
+        const handleError = vi.fn();
+        renderWithProviders(
+            <Routes>
+                <Route path={ExtensionDetailRoutes.MAIN} element={<ExtensionDetail />} />
+            </Routes>,
+            {
+                route: '/extension/foo/bar',
+                mainContext: {
+                    service: {
+                        getExtensionDetail,
+                        getExtensionApiUrl: () => 'https://open-vsx.org/api/foo/bar'
+                    } as unknown as ExtensionRegistryService,
+                    handleError
+                }
+            }
+        );
+        return { getExtensionDetail, handleError };
+    };
+
+    it('shows a missing extension as not found without reporting an error', async () => {
+        const { getExtensionDetail, handleError } = renderFailingDetail({ error: 'Not found', status: 404 });
+
+        expect(await screen.findByText('Extension Not Found: foo.bar')).toBeInTheDocument();
+        expect(getExtensionDetail).toHaveBeenCalledWith(expect.any(AbortSignal), 'https://open-vsx.org/api/foo/bar');
+        expect(handleError).not.toHaveBeenCalled();
+    });
+
+    it('reports any other failure to load the extension', async () => {
+        const failure = { error: 'Internal Server Error', message: 'boom', status: 500 };
+        const { handleError } = renderFailingDetail(failure);
+
+        expect(await screen.findByText('Failed to load extension details')).toBeInTheDocument();
+        await waitFor(() => expect(handleError).toHaveBeenCalledWith(failure));
     });
 });

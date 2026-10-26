@@ -17,6 +17,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CollectionUtilTest {
 
@@ -25,5 +26,19 @@ class CollectionUtilTest {
         var source = List.of(1, 2, 3, 4, 5);
         var result = CollectionUtil.limit(source, 3);
         assertThat(result).isEqualTo(List.of(1, 2, 3));
+    }
+
+    @Test
+    void testPartition() {
+        assertThat(CollectionUtil.partition(List.of(1, 2, 3, 4, 5), 2))
+                .containsExactly(List.of(1, 2), List.of(3, 4), List.of(5));
+        assertThat(CollectionUtil.partition(List.of(1, 2, 3, 4), 2)).containsExactly(List.of(1, 2), List.of(3, 4));
+        assertThat(CollectionUtil.partition(List.of(1, 2), 5)).containsExactly(List.of(1, 2));
+        assertThat(CollectionUtil.partition(List.<Integer>of(), 3)).isEmpty();
+    }
+
+    @Test
+    void testPartitionRejectsNonPositiveSize() {
+        assertThatThrownBy(() -> CollectionUtil.partition(List.of(1), 0)).isInstanceOf(IllegalArgumentException.class);
     }
 }

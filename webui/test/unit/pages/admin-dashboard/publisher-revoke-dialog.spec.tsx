@@ -28,6 +28,14 @@ function publisherInfo(publisherAgreement?: UserData['publisherAgreement']): Pub
     };
 }
 
+const admin = (overrides: Partial<UserData> = {}): UserData => ({
+    loginName: 'admin',
+    tokensUrl: '',
+    createTokenUrl: '',
+    publisherAgreement: { status: 'none', loginProvider: 'eclipse' },
+    ...overrides
+});
+
 const eclipseLoginButton = () => screen.queryByRole('link', { name: /log in with eclipse/i });
 const revokeButton = () => screen.getByRole('button', { name: /revoke publisher contributions/i });
 
@@ -35,10 +43,69 @@ describe('PublisherRevokeContributionsButton', () => {
     it('prompts the admin to log in with Eclipse when the publisher has an agreement to revoke', () => {
         renderWithProviders(
             <PublisherRevokeContributionsButton publisherInfo={publisherInfo({ status: 'signed' })} />,
-            { mainContext: { service } }
+            { mainContext: { service, user: admin() } }
         );
 
         expect(eclipseLoginButton()).toBeInTheDocument();
+        expect(screen.getByRole('link')).toHaveAttribute(
+            'href',
+            'https://open-vsx.org/oauth2/authorization/eclipse?redirect=%2F'
+        );
+    });
+
+    it('asks the server to return to the admin page the login was started from', () => {
+        renderWithProviders(
+            <PublisherRevokeContributionsButton publisherInfo={publisherInfo({ status: 'signed' })} />,
+            { mainContext: { service, user: admin() }, route: '/admin-dashboard/publisher-admin' }
+        );
+
+        expect(screen.getByRole('link')).toHaveAttribute(
+            'href',
+            'https://open-vsx.org/oauth2/authorization/eclipse?redirect=%2Fadmin-dashboard%2Fpublisher-admin'
+        );
+    });
+
+    it('uses the login provider the server names, not a fixed one', () => {
+        renderWithProviders(
+            <PublisherRevokeContributionsButton publisherInfo={publisherInfo({ status: 'signed' })} />,
+            {
+                mainContext: {
+                    service,
+                    user: admin({ publisherAgreement: { status: 'none', loginProvider: 'acme' } })
+                }
+            }
+        );
+
+        expect(screen.getByRole('link', { name: /log in with acme/i })).toHaveAttribute(
+            'href',
+            'https://open-vsx.org/oauth2/authorization/acme?redirect=%2F'
+        );
+    });
+
+    it('labels the login with the display name when the server provides one', () => {
+        renderWithProviders(
+            <PublisherRevokeContributionsButton publisherInfo={publisherInfo({ status: 'signed' })} />,
+            {
+                mainContext: {
+                    service,
+                    user: admin({
+                        publisherAgreement: { status: 'none', loginProvider: 'acme', loginProviderName: 'Acme Inc' }
+                    })
+                }
+            }
+        );
+
+        expect(screen.getByRole('link', { name: 'Log in with Acme Inc' })).toBeInTheDocument();
+    });
+
+    it('revokes directly when the server names no additional login', () => {
+        renderWithProviders(
+            <PublisherRevokeContributionsButton publisherInfo={publisherInfo({ status: 'signed' })} />,
+            { mainContext: { service, user: admin({ publisherAgreement: { status: 'none' } }) } }
+        );
+
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+        expect(revokeButton()).toBeInTheDocument();
     });
 
     // Regression test: the gate used to check for the mere presence of a
@@ -72,14 +139,11 @@ describe('PublisherRevokeContributionsButton', () => {
             {
                 mainContext: {
                     service,
-                    user: {
-                        loginName: 'admin',
-                        tokensUrl: '',
-                        createTokenUrl: '',
+                    user: admin({
                         additionalLogins: [
                             { loginName: 'admin', tokensUrl: '', createTokenUrl: '', provider: 'eclipse' }
                         ]
-                    }
+                    })
                 }
             }
         );

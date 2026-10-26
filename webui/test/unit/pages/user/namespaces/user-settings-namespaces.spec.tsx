@@ -63,7 +63,7 @@ describe('UserSettingsNamespaces', () => {
         });
         const { getExtension, getExtensionDetail } = renderNamespaces([namespace], 'redhat');
 
-        await waitFor(() => expect(getExtension).toHaveBeenCalledWith(expect.anything(), 'redhat', 'bar'));
+        await waitFor(() => expect(getExtension).toHaveBeenCalledWith(expect.any(AbortSignal), 'redhat', 'bar'));
         // The public endpoint would hide a soft-deleted or deactivated extension.
         expect(getExtensionDetail).not.toHaveBeenCalled();
     });

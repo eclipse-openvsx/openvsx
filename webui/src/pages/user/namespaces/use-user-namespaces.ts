@@ -15,7 +15,8 @@ import { useContext } from 'react';
 import { useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal, NO_CACHE } from '../../../query-client';
+import { useReportedQuery } from '../../../hooks/use-reported-query';
+import { NO_CACHE } from '../../../query-client';
 import { createRoute } from '../../../utils';
 import { UserSettingsRoutes } from '../user-settings-routes';
 
@@ -27,17 +28,20 @@ const NAMESPACES_QUERY_KEY = ['user', 'namespaces'];
  */
 export const useUserNamespaces = () => {
     const { service, user } = useContext(MainContext);
-    return useQuery({
-        queryKey: NAMESPACES_QUERY_KEY,
-        queryFn: ({ signal }) => service.getNamespaces(controllerFromSignal(signal)),
-        enabled: user != null,
-        ...NO_CACHE
-    });
+    return useReportedQuery(
+        useQuery({
+            queryKey: NAMESPACES_QUERY_KEY,
+            queryFn: ({ signal }) => service.getNamespaces(signal),
+            enabled: user != null,
+            ...NO_CACHE
+        })
+    );
 };
 
 /**
  * Claims a namespace for the current user. Also reached from publishing, where a first-time
  * publisher's namespace does not exist yet, so the list is refreshed here rather than by each caller.
+ * Not reported here: publishing reports its own failures and would show this one twice.
  */
 export const useCreateNamespace = () => {
     const { service } = useContext(MainContext);

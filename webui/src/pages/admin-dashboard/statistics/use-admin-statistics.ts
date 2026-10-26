@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 export const adminStatisticsQueryKey = (year: number, month: number) => ['admin', 'statistics', year, month] as const;
 
@@ -29,7 +28,7 @@ export const useAdminStatistics = (year: number, month: number) => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: adminStatisticsQueryKey(year, month),
-        queryFn: ({ signal }) => service.admin.getAdminStatistics(controllerFromSignal(signal), year, month),
+        queryFn: ({ signal }) => service.admin.getAdminStatistics(signal, year, month),
         // Computing the current month runs a handful of aggregate queries, so don't re-run it on
         // every remount while an admin clicks around.
         staleTime: 60_000,

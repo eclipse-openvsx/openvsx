@@ -34,7 +34,7 @@ export const ExtensionIcon: FunctionComponent<ExtensionIconProps> = ({ extension
     const load = inView || !hasIcon;
     // Enabled only where there is something to fetch: a disabled query is not "loading", so an
     // extension without an icon renders the default on its first frame rather than a skeleton.
-    const { data: icon, isLoading } = useExtensionIcon(extension, hasIcon && inView);
+    const { data: icon, isLoading } = useExtensionIcon(extension, { enabled: hasIcon && inView });
 
     if (!load || isLoading || pending) {
         // Reset the Skeleton's default height so `aspectRatio` squares it from

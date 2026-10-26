@@ -4,6 +4,18 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 ## [next] (unreleased)
 
+### Fixed
+
+- `publish -i ext.vsix` now warns about the packaging options it ignores, as `publish ext.vsix` does, naming the file, and publishes the package once instead of once per `--target` (#2351)
+- `get` and `verify` ignore a timeout or connection reset while draining the error body of a rejected download, instead of cleaning up a partial file that was never written (#2386)
+
+### Dependencies
+
+- Bump vite from 8.3.2 to 8.3.5 (#2357)
+- Replace `is-ci` with `ci-info` 4.4.0 (#2377)
+- Bump undici from 8.11.2 to 8.12.3 (#2387)
+- Resolve `@azure/msal-node` to 7.1.1 (#2388)
+
 ## [1.3.0] - 2026-10-16
 
 ### Changed

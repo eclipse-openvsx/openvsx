@@ -12,13 +12,11 @@
  *****************************************************************************/
 package org.eclipse.openvsx.util;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,27 +80,46 @@ class DrainOnCloseInputStreamTest {
         assertThat(underlying.available()).isEqualTo(8);
     }
 
-    // Mirrors the exact chain ExtensionService#createExtensionFile builds around the InputStream
-    // it's handed: BufferedInputStream wrapped in a size-capped Guava view that gives up once the
-    // package exceeds the configured limit, leaving everything past the cap unread on the wire.
-    // Wrapping once here at the entry point and closing through try-with-resources drains that
-    // remainder for free via the close() cascade, without ExtensionService needing to know about it -
-    // as long as our own bound is generous enough to cover it, which callers get by using the same
-    // max upload size for both.
+    // A reader that stops at a size cap (as ExtensionService#createExtensionFile does) leaves the
+    // rest unread on the wire. Closing through try-with-resources drains that remainder, as long
+    // as the bound covers it, which callers get by using the same max upload size for both.
     @Test
-    void drainsWhateverASizeCappedViewDeeperInTheChainNeverReached() throws IOException {
+    void drainsWhateverASizeCappedReaderNeverReached() throws IOException {
         var body = "x".repeat(20).getBytes(StandardCharsets.UTF_8);
         var underlying = new ByteArrayInputStream(body);
         var draining = new DrainOnCloseInputStream(underlying, 100);
 
-        try (
-                var buffered = new BufferedInputStream(draining);
-                var capped = ByteStreams.limit(buffered, 5)
-        ) {
-            capped.readAllBytes();
+        try (var input = draining) {
+            assertThat(input.readNBytes(5)).hasSize(5);
         }
 
         assertThat(underlying.available()).isZero();
+    }
+
+    @Test
+    void secondCloseDoesNotTouchTheUnderlyingStream() throws IOException {
+        var closes = new int[1];
+        InputStream underlying = new ByteArrayInputStream("body".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public synchronized long skip(long n) {
+                if (closes[0] > 0) {
+                    throw new IllegalStateException("skipped after close");
+                }
+                return super.skip(n);
+            }
+
+            @Override
+            public void close() throws IOException {
+                closes[0]++;
+                super.close();
+            }
+        };
+        var stream = new DrainOnCloseInputStream(underlying, 1024);
+
+        stream.close();
+
+        assertThatCode(stream::close).doesNotThrowAnyException();
+        assertThat(closes[0]).isEqualTo(1);
     }
 
     @Test

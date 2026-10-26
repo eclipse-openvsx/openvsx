@@ -51,7 +51,7 @@ async function openAllowDialog(scans: ReturnType<typeof scanFixture>[]) {
     };
 
     renderWithProviders(
-        <ScanProvider service={service} handleError={() => {}}>
+        <ScanProvider service={service}>
             <Probe />
             <QuarantineDialog />
         </ScanProvider>,

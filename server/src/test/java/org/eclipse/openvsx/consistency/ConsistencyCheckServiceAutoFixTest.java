@@ -18,6 +18,8 @@ import java.util.List;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ResultJson;
@@ -25,6 +27,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.LogService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -54,6 +57,44 @@ class ConsistencyCheckServiceAutoFixTest {
         assertThat(check.fixedIds)
                 .as("a check that does not opt out must be auto-fixed by the scheduled run")
                 .containsExactly(1L);
+    }
+
+    @Test
+    void runAllChecks_computesFindingsOnlyOnceBeforeFixingAndOnceToConfirm() {
+        var check = new FakeCheck(true);
+        check.findings.add(new ConsistencyFinding(1L, "thing-1", "broken"));
+        newService(check).runAllChecks();
+
+        assertThat(check.checkCalls)
+                .as("the initial findings are reused for the fix; one more run confirms nothing is left")
+                .isEqualTo(2);
+    }
+
+    @Test
+    void runAllChecks_stopsWhenAFixDoesNotResolveItsFinding() {
+        var check = new FakeCheck(true);
+        check.fixResolves = false;
+        check.findings.add(new ConsistencyFinding(1L, "thing-1", "broken"));
+        newService(check).runAllChecks();
+
+        assertThat(check.fixedIds)
+                .as("a finding that survives its fix must not be retried forever")
+                .containsExactly(1L);
+    }
+
+    @Test
+    void runAllChecks_logsTheFixesMadeBeforeOneFails() {
+        var check = new FakeCheck(true);
+        check.failOnId = 2L;
+        check.findings.add(new ConsistencyFinding(1L, "thing-1", "broken"));
+        check.findings.add(new ConsistencyFinding(2L, "thing-2", "broken"));
+        when(repositories.findUserByLoginName("system", "ConsistencyCheckUser")).thenReturn(systemUser);
+
+        assertThatThrownBy(() -> newService(check).runAllChecks()).isInstanceOf(IllegalStateException.class);
+
+        var resultCaptor = ArgumentCaptor.forClass(ResultJson.class);
+        verify(logs).logAction(eq(systemUser), resultCaptor.capture());
+        assertThat(resultCaptor.getValue().getSuccess()).contains("Auto-fixed 1 ");
     }
 
     @Test
@@ -115,7 +156,12 @@ class ConsistencyCheckServiceAutoFixTest {
     }
 
     private ConsistencyCheckService newService(FakeCheck check) {
-        return new ConsistencyCheckService(List.of(check), entityManager, repositories, logs);
+        return new ConsistencyCheckService(
+                List.of(check),
+                entityManager,
+                repositories,
+                logs,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)));
     }
 
     private static class FakeCheck implements ConsistencyCheck {
@@ -123,6 +169,9 @@ class ConsistencyCheckServiceAutoFixTest {
         private final boolean autoFix;
         private final List<ConsistencyFinding> findings = new ArrayList<>();
         private final List<Long> fixedIds = new ArrayList<>();
+        private int checkCalls;
+        private boolean fixResolves = true;
+        private long failOnId = -1;
 
         FakeCheck(boolean autoFix) {
             this.autoFix = autoFix;
@@ -145,13 +194,19 @@ class ConsistencyCheckServiceAutoFixTest {
 
         @Override
         public List<ConsistencyFinding> check() {
+            checkCalls++;
             return List.copyOf(findings);
         }
 
         @Override
         public void fix(long entityId) {
+            if (entityId == failOnId) {
+                throw new IllegalStateException("fix failed");
+            }
             fixedIds.add(entityId);
-            findings.removeIf(f -> f.entityId() == entityId);
+            if (fixResolves) {
+                findings.removeIf(f -> f.entityId() == entityId);
+            }
         }
 
         @Override

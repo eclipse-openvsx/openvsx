@@ -33,9 +33,7 @@ const entry = (files: Record<string, string>): SearchEntry =>
 function renderIcon(files: Record<string, string>) {
     const viewport = createTestViewport();
     // as the real service does: no icon file, no request to make
-    const getExtensionIcon = vi.fn(async (_abortController, extension) =>
-        extension.files?.icon ? 'blob:icon' : undefined
-    );
+    const getExtensionIcon = vi.fn(async (_signal, extension) => (extension.files?.icon ? 'blob:icon' : undefined));
     renderWithProviders(<ExtensionIcon extension={entry(files)} />, {
         mainContext: {
             service: { getExtensionIcon } as unknown as ExtensionRegistryService,

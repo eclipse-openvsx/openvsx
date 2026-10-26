@@ -14,7 +14,7 @@
 import { useContext } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import { controllerFromSignal } from '../../query-client';
+import { useReportedQuery } from '../../hooks/use-reported-query';
 
 export const publisherAdminKeys = {
     detail: (provider: string, login: string) => ['admin', 'publisher', provider, login] as const
@@ -28,10 +28,24 @@ export const usePublisherInfo = (login: string, provider = 'github', enabled = t
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: publisherAdminKeys.detail(provider, login),
-        queryFn: ({ signal }) => service.admin.getPublisherInfo(controllerFromSignal(signal), provider, login),
+        queryFn: ({ signal }) => service.admin.getPublisherInfo(signal, provider, login),
         enabled: enabled && !!login,
         staleTime: 0
     });
+};
+
+/**
+ * Lifts the block of a revoked publisher agreement so the user may sign again.
+ */
+export const useReinstatePublisherAgreement = () => {
+    const { service } = useContext(MainContext);
+    return useReportedQuery(
+        useMutation({
+            mutationKey: [...publisherMutationKey, 'reinstate-agreement'],
+            mutationFn: ({ provider, login }: { provider: string; login: string }) =>
+                service.admin.reinstatePublisherAgreement(provider, login)
+        })
+    );
 };
 
 /**
@@ -39,11 +53,13 @@ export const usePublisherInfo = (login: string, provider = 'github', enabled = t
  */
 export const useRevokePublisherContributions = () => {
     const { service } = useContext(MainContext);
-    return useMutation({
-        mutationKey: [...publisherMutationKey, 'revoke-contributions'],
-        mutationFn: ({ provider, login }: { provider: string; login: string }) =>
-            service.admin.revokePublisherContributions(provider, login)
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationKey: [...publisherMutationKey, 'revoke-contributions'],
+            mutationFn: ({ provider, login }: { provider: string; login: string }) =>
+                service.admin.revokePublisherContributions(provider, login)
+        })
+    );
 };
 
 /**
@@ -51,11 +67,13 @@ export const useRevokePublisherContributions = () => {
  */
 export const useRevokeAccessTokens = () => {
     const { service } = useContext(MainContext);
-    return useMutation({
-        mutationKey: [...publisherMutationKey, 'revoke-tokens'],
-        mutationFn: ({ provider, login }: { provider: string; login: string }) =>
-            service.admin.revokeAccessTokens(provider, login)
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationKey: [...publisherMutationKey, 'revoke-tokens'],
+            mutationFn: ({ provider, login }: { provider: string; login: string }) =>
+                service.admin.revokeAccessTokens(provider, login)
+        })
+    );
 };
 
 /**
@@ -63,9 +81,11 @@ export const useRevokeAccessTokens = () => {
  */
 export const useForgetUser = () => {
     const { service } = useContext(MainContext);
-    return useMutation({
-        mutationKey: [...publisherMutationKey, 'forget-user'],
-        mutationFn: ({ provider, login }: { provider: string; login: string }) =>
-            service.admin.forgetUser(provider, login)
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationKey: [...publisherMutationKey, 'forget-user'],
+            mutationFn: ({ provider, login }: { provider: string; login: string }) =>
+                service.admin.forgetUser(provider, login)
+        })
+    );
 };

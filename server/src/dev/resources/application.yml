@@ -46,21 +46,6 @@ spring:
 #    host: "localhost"
 #    port: 25
 
-  security:
-      oauth2:
-        client:
-          registration:
-            eclipse:
-              authorization-grant-type: authorization_code
-              redirect-uri: http://localhost/login/oauth2/code/eclipse
-              scope: openvsx_publisher_agreement, profile
-          provider:
-            eclipse:
-              authorization-uri: https://accounts.eclipse.org/oauth2/authorize
-              token-uri: https://accounts.eclipse.org/oauth2/token
-              user-info-uri: https://accounts.eclipse.org/oauth2/UserInfo
-              user-name-attribute: name
-              user-info-authentication-method: header
 
 management:
   health:
@@ -125,6 +110,12 @@ bucket4j:
   enabled: false
 
 ovsx:
+  publisher-agreement:
+    # empty disables the agreement; a version such as 1, 1.0 or 1.0.0 requires signing it (a new major version requires re-signing unless allowed-versions says otherwise)
+    version: ''
+    # versions besides the current one whose signatures stay valid, such as '1.1,1.2' (quote a single one such as '1.10', which YAML reads as 1.1); empty accepts the same or a higher major version
+    allowed-versions: ''
+    text: classpath:static/documents/publisher-agreement.md
   caching:
     statistics:
       # On for development, off everywhere else: the counting costs something on every cache lookup,
@@ -137,8 +128,6 @@ ovsx:
     clear-on-start: true
   redis:
     enabled: false
-  eclipse:
-    base-url: https://api.eclipse.org
   extension-control:
     enabled: false
     update-on-start: false

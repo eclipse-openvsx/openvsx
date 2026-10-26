@@ -22,13 +22,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.UserService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.ExtensionVersionChange;
@@ -38,6 +38,7 @@ import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.UserAccessJson;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
@@ -72,7 +73,7 @@ class AdminServiceTest {
     ExtensionService extensions;
 
     @Mock
-    EclipseService eclipse;
+    PublisherAgreementService publisherAgreements;
 
     @Mock
     LogService logs;
@@ -82,6 +83,9 @@ class AdminServiceTest {
 
     @Mock
     EntityManager entityManager;
+
+    @Mock
+    ApplicationEventPublisher events;
 
     @InjectMocks
     AdminService adminService;
@@ -170,22 +174,20 @@ class AdminServiceTest {
     }
 
     // Regression: revokePublisherAgreement used to be called unguarded, so any exception it threw
-    // (Eclipse API down, unexpected runtime error, ...) rolled back the whole revoke, including the
-    // token/extension/membership cleanup that has nothing to do with Eclipse.
+    // (agreement service down, unexpected runtime error, ...) rolled back the whole revoke, including the
+    // token/extension/membership cleanup that has nothing to do with it.
     @Test
-    void revokingPublisherContributionsStillDeactivatesEverythingElseWhenTheEclipseRevokeFails() {
+    void revokingPublisherContributionsStillDeactivatesEverythingElseWhenTheAgreementRevokeFails() {
         var user = new UserData();
         user.setLoginName("amy");
-        user.setEclipsePersonId("12345");
         var extVersion = version(extension("ext"));
         extVersion.setActive(true);
 
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.of(extVersion));
-        when(eclipse.isActive()).thenReturn(true);
-        when(eclipse.determinePublisherAgreementStatus(user)).thenReturn("signed");
-        doThrow(new RuntimeException("Eclipse API is down")).when(eclipse).revokePublisherAgreement(user, admin);
+        doThrow(new RuntimeException("Agreement service is down")).when(publisherAgreements)
+                .revoke(user, admin);
 
         var result = adminService.revokePublisherContributions("github", "amy", admin);
 
@@ -196,34 +198,13 @@ class AdminServiceTest {
                 any());
         // The failure is reported back rather than silently dropped or failing the whole call.
         assertThat(result.getError()).isNull();
-        assertThat(result.getWarning()).contains("Eclipse API is down");
-    }
-
-    // Regression: the revoke used to be attempted whenever an Eclipse person ID was present,
-    // even if the agreement status was 'none' or could not be determined at all - calling the
-    // Eclipse API on a guess rather than a confirmed agreement.
-    @Test
-    void revokingPublisherContributionsDoesNotCallEclipseWhenTheAgreementStatusIsNotConfirmed() {
-        var user = new UserData();
-        user.setLoginName("amy");
-        user.setEclipsePersonId("12345");
-
-        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
-        when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
-        when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
-        when(eclipse.isActive()).thenReturn(true);
-        when(eclipse.determinePublisherAgreementStatus(user)).thenReturn(null);
-
-        var result = adminService.revokePublisherContributions("github", "amy", admin);
-
-        verify(eclipse, never()).revokePublisherAgreement(any(), any());
-        assertThat(result.getError()).isNull();
-        assertThat(result.getWarning()).isNull();
+        assertThat(result.getWarning()).contains("Agreement service is down");
     }
 
     @Test
     void forgetUserDeletesTheUserRowWhenNothingElseReferencesThem() {
         var user = new UserData();
+        user.setId(42L);
         user.setLoginName("amy");
 
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
@@ -236,6 +217,7 @@ class AdminServiceTest {
         adminService.forgetUser("github", "amy", admin);
 
         verify(entityManager).remove(user);
+        verify(events).publishEvent(new UserForgottenEvent(user.getId()));
     }
 
     // Regression: extension_version.published_by_id is documented as permanent - it is never
@@ -247,6 +229,7 @@ class AdminServiceTest {
     @Test
     void forgetUserAnonymizesInsteadOfDeletingWhenAVersionWasAlreadyRemovedBySomeoneElse() {
         var user = new UserData();
+        user.setId(43L);
         user.setLoginName("amy");
         var admin2 = new UserData();
         admin2.setLoginName("staff");
@@ -269,6 +252,7 @@ class AdminServiceTest {
         verify(entityManager, never()).remove(user);
         assertThat(user.getLoginName()).isEqualTo("deleted-user-" + user.getId());
         assertThat(user.getFullName()).isNull();
+        verify(events).publishEvent(new UserForgottenEvent(user.getId()));
     }
 
     // A tombstone that keeps its permissions would still be an account holding admin access, and one
@@ -597,6 +581,66 @@ class AdminServiceTest {
                 .isInstanceOf(ErrorResultException.class);
 
         verify(repositories, never()).deactivatePersonalAccessTokens(any());
+    }
+
+    @Test
+    void reinstateRefusesAnAdminTargetForANonAdminCaller() {
+        var caller = new UserData();
+        caller.setId(1);
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setId(2);
+        target.setLoginName("root");
+        target.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "root")).thenReturn(target);
+
+        assertThatThrownBy(() -> adminService.reinstatePublisherAgreement("github", "root", caller))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(publisherAgreements, never()).reinstate(any(), any());
+    }
+
+    /** A delegate who was revoked must not be able to lift their own block. */
+    @Test
+    void reinstateRefusesTheCallerReinstatingThemselves() {
+        var caller = new UserData();
+        caller.setId(1);
+        caller.setLoginName("sam");
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        when(repositories.findUserByLoginName("github", "sam")).thenReturn(caller);
+
+        assertThatThrownBy(() -> adminService.reinstatePublisherAgreement("github", "sam", caller))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(publisherAgreements, never()).reinstate(any(), any());
+    }
+
+    @Test
+    void reinstateLetsAnAdminReinstateThemselves() {
+        var caller = new UserData();
+        caller.setId(1);
+        caller.setLoginName("root");
+        caller.setRole(UserData.Role.ADMIN);
+        when(repositories.findUserByLoginName("github", "root")).thenReturn(caller);
+
+        adminService.reinstatePublisherAgreement("github", "root", caller);
+
+        verify(publisherAgreements).reinstate(caller, caller);
+    }
+
+    @Test
+    void reinstateLetsAnAdminReinstateAnotherUser() {
+        var caller = new UserData();
+        caller.setId(1);
+        caller.setRole(UserData.Role.ADMIN);
+        var target = new UserData();
+        target.setId(2);
+        target.setLoginName("sam");
+        when(repositories.findUserByLoginName("github", "sam")).thenReturn(target);
+
+        adminService.reinstatePublisherAgreement("github", "sam", caller);
+
+        verify(publisherAgreements).reinstate(target, caller);
     }
 
     @Test

@@ -38,7 +38,6 @@ import org.springframework.http.HttpStatus;
 import org.eclipse.openvsx.accesstoken.AccessTokenAction;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
@@ -49,6 +48,7 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishingConfig;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.search.SimilarityCheckService;
@@ -66,6 +66,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -103,7 +104,7 @@ class LocalRegistryServiceTest {
     StorageUtilService storageUtilService;
 
     @Mock
-    EclipseService eclipse;
+    PublisherAgreementService publisherAgreements;
 
     @Mock
     CacheService cacheService;
@@ -133,7 +134,7 @@ class LocalRegistryServiceTest {
                 searchUtilService,
                 validator,
                 storageUtilService,
-                eclipse,
+                publisherAgreements,
                 cacheService,
                 integrityService,
                 similarityCheckService,
@@ -144,7 +145,7 @@ class LocalRegistryServiceTest {
 
         // A permissive default for a void method rather than a per-test expectation: the tests of
         // visibleUntil exercise a pure function and touch no mock at all.
-        lenient().doNothing().when(eclipse).checkPublisherAgreement(any());
+        lenient().doNothing().when(publisherAgreements).requireAgreement(any());
 
         // Publish tests supply a token that is meant to be live; the ones about an unusable token
         // say so for their own value.
@@ -263,6 +264,21 @@ class LocalRegistryServiceTest {
         // No persistence and no similarity checks should occur when we bail out early.
         verify(entityManager, never()).persist(any(Namespace.class));
         verify(similarityCheckService, never()).findSimilarNamespacesForCreation(any(), any());
+    }
+
+    @Test
+    void shouldRefuseANamespaceToAUserWithoutAValidAgreement() {
+        var json = new NamespaceJson();
+        json.setName("clean-ns");
+        var user = new UserData();
+        when(validator.validateNamespace("clean-ns")).thenReturn(Optional.empty());
+        doThrow(new ErrorResultException("outdated", HttpStatus.FORBIDDEN))
+                .when(publisherAgreements).requireAgreement(user);
+
+        assertThatThrownBy(() -> registryService.createNamespace(json, user))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(entityManager, never()).persist(any(Namespace.class));
     }
 
     @Test
@@ -415,6 +431,24 @@ class LocalRegistryServiceTest {
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
 
         verifyNoInteractions(extensions);
+    }
+
+    /** The agreement is checked for the user the token belongs to, before anything is published. */
+    @Test
+    void shouldRefusePublishingToAUserWhoseAgreementIsRefused() throws IOException {
+        tempFile = new TempFile("extension_", ".vsix");
+        Files.write(tempFile.getPath(), createExtensionPackage("bar", "1.0.0"));
+        var user = new UserData();
+        when(extensions.createExtensionFile(any())).thenReturn(tempFile);
+        when(tokens.useAccessToken(eq("tok"), any()))
+                .thenReturn(new AccessTokenAuthentication(user, PersonalAccessTokenType.LLT, 0, null));
+        doThrow(new ErrorResultException("stop", HttpStatus.FORBIDDEN))
+                .when(publisherAgreements).requireAgreement(user);
+
+        assertThatThrownBy(() -> registryService.publish(new ByteArrayInputStream(new byte[0]), "tok"))
+                .hasMessage("stop");
+
+        verify(extensions, never()).publishVersion(any(ExtensionProcessor.class), any());
     }
 
     /**
