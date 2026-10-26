@@ -126,5 +126,5 @@
         "link2server": "sh -c 'ln -sf $(realpath dist) ../server/build/resources/main/static'",
         "prepack": "yarn clean && yarn build"
     },
-    "packageManager": "yarn@4.9.1"
+    "packageManager": "yarn@4.18.1"
 }

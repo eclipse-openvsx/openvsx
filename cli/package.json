@@ -82,5 +82,5 @@
     "resolutions": {
         "@azure/msal-node": "^7.1.1"
     },
-    "packageManager": "yarn@4.9.1"
+    "packageManager": "yarn@4.18.1"
 }
