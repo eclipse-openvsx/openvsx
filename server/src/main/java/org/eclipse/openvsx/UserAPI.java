@@ -336,10 +336,12 @@ public class UserAPI {
     /**
      * Whether {@code scanResult} recorded a threat from the {@link NamespaceOwnershipCheckScanner}:
      * the version's namespace already exists in a referenced external gallery and needs to be verified
-     * (claimed) before the version can be activated here.
+     * (claimed) before the version can be activated here. The threat stays recorded once the namespace
+     * gains an owner, so it only counts while the namespace is still unverified.
      */
-    private boolean hasNamespaceOwnershipConflict(ExtensionScan scanResult) {
+    private boolean hasNamespaceOwnershipConflict(ExtensionVersion extVersion, ExtensionScan scanResult) {
         return scanResult != null
+                && !repositories.isVerified(extVersion.getExtension().getNamespace())
                 && repositories.findExtensionThreats(scanResult, NamespaceOwnershipCheckScanner.TYPE)
                         .stream()
                         .findAny()
@@ -358,7 +360,7 @@ public class UserAPI {
      */
     private void enrichWithReviewStatus(ExtensionJson json, ExtensionVersion extVersion) {
         var scanResult = findLatestScan(extVersion);
-        json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(scanResult));
+        json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(extVersion, scanResult));
 
         if (Boolean.TRUE.equals(json.getActive())) {
             // Only mark published if scan result indicates PASSED or no scan result exists (scanning disabled / manual
@@ -496,7 +498,7 @@ public class UserAPI {
                 json.setAllTargetPlatformVersions(users.getVersionsWithDeletePermission(user, extension, isOwner));
                 json.setActive(extension.isActive());
                 json.setRemoved(latest.isExtensionRemoved());
-                json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(findLatestScan(latest)));
+                json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(latest, findLatestScan(latest)));
             } else {
                 var error = "Extension not found: " + NamingUtil.toExtensionId(namespaceName, extensionName);
                 throw new ErrorResultException(error, HttpStatus.NOT_FOUND);

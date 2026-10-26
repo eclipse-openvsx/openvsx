@@ -685,6 +685,45 @@ class UserAPITest {
                 .andExpect(jsonPath("$.namespaceOwnershipConflict").value(true));
     }
 
+    // The scan's threat stays recorded after the namespace gains an owner, which resolves the conflict.
+    @Test
+    void testGetOwnExtensionNamespaceOwnershipConflictResolvedByOwner() throws Exception {
+        var userData = mockUserData();
+        var versions = mockExtension(userData, 2, 0, 0);
+        var latest = versions.getLast();
+        latest.setId(42L);
+        var extension = latest.getExtension();
+        Mockito.when(repositories.isNamespaceOwner(any(UserData.class), any(Namespace.class))).thenReturn(true);
+        Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(false)))
+                .thenReturn(latest);
+        Mockito.when(repositories.findTargetPlatformsGroupedByVersion(extension)).thenReturn(List.of());
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(42L, java.util.List.of()));
+
+        var scan = new ExtensionScan();
+        scan.setStatus(ScanStatus.QUARANTINED);
+        Mockito.when(repositories.findLatestExtensionScan(latest)).thenReturn(scan);
+        Mockito.when(repositories.findExtensionThreats(scan, NamespaceOwnershipCheckScanner.TYPE))
+                .thenReturn(
+                        Streamable.of(
+                                ExtensionThreat.create(
+                                        null,
+                                        null,
+                                        null,
+                                        NamespaceOwnershipCheckScanner.TYPE,
+                                        NamespaceOwnershipCheckScanner.TYPE + "-conflict",
+                                        "Namespace 'foobar' exists in the referenced gallery, but is not verified.",
+                                        "high")));
+
+        Mockito.when(repositories.isVerified(extension.getNamespace())).thenReturn(true);
+
+        mockMvc.perform(
+                get("/user/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("test_user")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.namespaceOwnershipConflict").value(false));
+    }
+
     @Test
     void testGetOwnExtensionNotMember() throws Exception {
         var userData = mockUserData();

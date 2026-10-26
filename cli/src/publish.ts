@@ -246,7 +246,8 @@ async function ensureWithinSizeLimit(
         const fallback = options.maxExtensionSize;
         if (fallback && size > fallback) {
             console.warn(
-                `The extension package (${formatBytes(size)}) exceeds the default size limit of ${formatBytes(fallback)} `
+                `The extension package (${formatBytes(size)}, ${size} bytes) exceeds the default size limit of `
+                + `${formatBytes(fallback)} (${fallback} bytes) `
                 + `reported by the registry at ${registry.url}, which is too old to report the limit for a `
                 + `single namespace. Publishing anyway: the namespace may have a different limit configured, `
                 + `and the registry decides.`
@@ -263,7 +264,8 @@ async function ensureWithinSizeLimit(
 
     if (size > limit.limit) {
         throw new Error(
-            `The extension package (${formatBytes(size)}) exceeds the size limit of ${formatBytes(limit.limit)} `
+            `The extension package (${formatBytes(size)}, ${size} bytes) exceeds the size limit of `
+            + `${formatBytes(limit.limit)} (${limit.limit} bytes) `
             + `for ${manifest.publisher}.${manifest.name} at ${registry.url}.`
         );
     }

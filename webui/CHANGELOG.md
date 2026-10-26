@@ -34,6 +34,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump markdown-it from 14.3.2 to 14.3.3 (#2358)
 - Bump undici from 8.11.2 to 8.12.3 (#2362)
 - Remove `fetch-retry`; the query client owns retries
+- Bump dompurify from 3.4.16 to 3.4.17 (#2379)
 
 ## [1.3.0] - 2026-10-16
 

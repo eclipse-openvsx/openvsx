@@ -641,6 +641,22 @@ class AdminAPITest {
                 .andExpect(jsonPath("$.namespaceOwnershipConflict").value(true));
     }
 
+    // The scan's threat stays recorded after the namespace gains an owner, which resolves the conflict.
+    @Test
+    void testGetExtensionNamespaceOwnershipConflictResolvedByOwner() throws Exception {
+        mockAdminUser();
+        var latest = mockExtension(2, 0, 0).getLast();
+        when(repositories.hasThreatOfType(latest, NamespaceOwnershipCheckScanner.TYPE)).thenReturn(true);
+        when(repositories.isVerified(latest.getExtension().getNamespace())).thenReturn(true);
+
+        mockMvc.perform(
+                get("/admin/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.namespaceOwnershipConflict").value(false));
+    }
+
     @Test
     void testAddNamespaceMemberNotLoggedIn() throws Exception {
         mockMvc.perform(

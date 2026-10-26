@@ -64,9 +64,11 @@ jobs:
 Options:
  * `--trusted-publishing` requires trusted publishing and fails if no ID token can be obtained. Without it, trusted publishing is used whenever an ID token is available and no access token was given; a `--pat` (or `OVSX_PAT`) always takes precedence.
  * `--idToken <token>` passes the ID token explicitly. Use this on CI systems that expose the token as a variable, for example with GitLab CI's [`id_tokens`](https://docs.gitlab.com/ci/yaml/#id_tokens) keyword. The environment variable `OVSX_ID_TOKEN` does the same.
- * `--oidcAudience <audience>` sets the audience requested for the ID token, by default the registry URL. Use it if the registry expects a different audience, and make sure it matches the `aud` claim the registry validates. The environment variable `OVSX_OIDC_AUDIENCE` does the same.
+ * `--oidcAudience <audience>` sets the audience requested for the ID token. By default the CLI asks the registry, which expects the audience of `ovsx.trusted-publishing.audience` - the web UI URL by default, not necessarily the API URL the CLI talks to - and falls back to the registry URL when the registry reports nothing. The environment variable `OVSX_OIDC_AUDIENCE` does the same.
 
 The issued token is valid for a few minutes only and is never written to the token store, but it does carry publishing rights, so treat CI logs accordingly.
+
+The ID token is only sent to a registry reached over https, so a plain `http://` registry URL is refused (a loopback address such as `localhost` is exempt). Publish with an access token there instead.
 
 ### Delete Extensions
 
