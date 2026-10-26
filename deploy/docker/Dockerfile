@@ -16,8 +16,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && curl -sSL https://deb.nodesource.com/setup_24.x | bash - \
   && apt-get install -y nodejs \
-  && apt-get clean \
-  && npm install -g yarn@1.22.22
+  && apt-get clean
 
 ARG OPENVSX_VERSION
 ENV VERSION=$OPENVSX_VERSION
@@ -25,7 +24,9 @@ ENV VERSION=$OPENVSX_VERSION
 RUN git clone --branch ${VERSION} --depth 1 https://github.com/eclipse-openvsx/openvsx.git /workdir
 COPY ./configuration /workdir/configuration
 
+# Run the committed Yarn release directly; no global Yarn is installed.
 RUN cd webui \
+  && yarn() { node .yarn/releases/yarn-4.9.1.cjs "$@"; } \
   && yarn install --immutable \
   && yarn build \
   && yarn build:default
