@@ -18,23 +18,26 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
     testDir: '../test/e2e-vscode',
-    // every step reloads VS Code, see test/e2e-vscode/support/vscode.ts
+    // every installed version is read after restarting VS Code, see test/e2e-vscode/support/vscode.ts
     timeout: 180000,
     expect: { timeout: 15000 },
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
-    // a single code-server, whose installed extensions the tests change
-    workers: 1,
+    fullyParallel: true,
     reporter: 'html',
     use: {
+        ...devices['Desktop Chrome'],
         baseURL: 'http://localhost:8085',
         actionTimeout: 30000,
         trace: 'on-first-retry'
     },
+    // every test shares one code-server, so whatever changes its installed extensions waits for the
+    // tests that would see them change
     projects: [
-        {
-            name: 'chromium',
-            use: { ...devices['Desktop Chrome'] }
-        }
+        { name: 'uninstall', testMatch: 'uninstall.setup.ts' },
+        { name: 'browse', testIgnore: 'versions.spec.ts', dependencies: ['uninstall'] },
+        // one at a time: every window reacts to the installs of the others, and GitLens opens its own
+        // pages in all of them
+        { name: 'install', testMatch: 'versions.spec.ts', dependencies: ['browse'], workers: 1 }
     ]
 });

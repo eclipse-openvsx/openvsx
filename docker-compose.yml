@@ -345,11 +345,14 @@ services:
   # VS Code in the browser, for `make code-server` and webui/test/e2e-vscode, against
   # CODE_SERVER_GALLERY_URL (the local registry by default). Host networking lets the browser and
   # the backend, which downloads the VSIX, reach the registry at the same URL. Loopback only: it has
-  # a terminal and no login.
+  # a terminal and no login. A closed window's extension host keeps running until the reconnection
+  # grace time ends, three hours by default, and the tests close a window on every restart.
   code-server:
     image: codercom/code-server:4.143.1
     network_mode: host
-    command: --auth none --bind-addr 127.0.0.1:8086 --disable-workspace-trust --disable-telemetry /home/coder
+    command: >-
+      --auth none --bind-addr 127.0.0.1:8086 --disable-workspace-trust --disable-telemetry
+      --reconnection-grace-time 10 /home/coder
     environment:
       EXTENSIONS_GALLERY: >-
         {"serviceUrl": "${CODE_SERVER_GALLERY_URL:-http://localhost:8085}/vscode/gallery",
