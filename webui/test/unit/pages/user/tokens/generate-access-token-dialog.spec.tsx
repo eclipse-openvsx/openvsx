@@ -22,14 +22,13 @@ import { ExtensionRegistryService } from '../../../../../src/extension-registry-
 
 function renderDialog() {
     const createAccessToken = vi.fn().mockResolvedValue({ id: 1, value: 'the-token' });
-    const handleTokenGenerated = vi.fn();
     const getNamespaces = vi.fn().mockResolvedValue([testNamespace({ name: 'foo' }), testNamespace({ name: 'baz' })]);
     const getPublicNamespace = vi.fn().mockResolvedValue({ name: 'foo', extensions: { bar: 'u1', qux: 'u2' } });
     const service = { createAccessToken, getNamespaces, getPublicNamespace } as unknown as ExtensionRegistryService;
-    renderWithProviders(<GenerateAccessTokenDialog handleTokenGenerated={handleTokenGenerated} />, {
+    renderWithProviders(<GenerateAccessTokenDialog />, {
         mainContext: { service, user: testUser }
     });
-    return { createAccessToken, getPublicNamespace, handleTokenGenerated };
+    return { createAccessToken, getPublicNamespace };
 }
 
 async function openDialog() {
@@ -54,7 +53,7 @@ describe('GenerateAccessTokenDialog', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
 
         await waitFor(() => expect(createAccessToken).toHaveBeenCalledOnce());
-        expect(createAccessToken.mock.calls[0][3]).toEqual({
+        expect(createAccessToken.mock.calls[0][2]).toEqual({
             namespace: undefined,
             extension: undefined,
             publishingOnly: false
@@ -71,7 +70,7 @@ describe('GenerateAccessTokenDialog', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
 
         await waitFor(() => expect(createAccessToken).toHaveBeenCalledOnce());
-        expect(createAccessToken.mock.calls[0][3]).toEqual({
+        expect(createAccessToken.mock.calls[0][2]).toEqual({
             namespace: 'foo',
             extension: 'bar',
             publishingOnly: true
@@ -121,7 +120,7 @@ describe('GenerateAccessTokenDialog', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
 
         await waitFor(() => expect(createAccessToken).toHaveBeenCalledOnce());
-        expect(createAccessToken.mock.calls[0][3]).toEqual({
+        expect(createAccessToken.mock.calls[0][2]).toEqual({
             namespace: undefined,
             extension: undefined,
             publishingOnly: false

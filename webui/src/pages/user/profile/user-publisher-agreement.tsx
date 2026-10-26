@@ -8,11 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { FunctionComponent, useContext, useState, ReactNode } from 'react';
 import { Box, Typography, Button, Dialog, DialogContent, DialogContentText, Link } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
-import { UserData, isError, ReportedError } from '../../../extension-registry-types';
+import { UserData } from '../../../extension-registry-types';
 import { SanitizedMarkdown } from '../../../components/sanitized-markdown';
 import { Timestamp } from '../../../components/timestamp';
 import { ButtonWithProgress } from '../../../components/button-with-progress';
@@ -22,69 +22,31 @@ import { cardSurface } from '../../../components/page-primitives';
 import { IconTile } from '../settings/settings-primitives';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useLocation } from 'react-router';
+import { usePublisherAgreementText, useSignPublisherAgreement } from './use-publisher-agreement';
 
 export const UserPublisherAgreement: FunctionComponent<UserPublisherAgreementProps> = props => {
-    const { service, pageSettings, updateUser, handleError } = useContext(MainContext);
+    const { service, pageSettings, handleError } = useContext(MainContext);
     const location = useLocation();
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [working, setWorking] = useState(false);
-    const [agreementText, setAgreementText] = useState('');
-    const abortController = useRef<AbortController>(new AbortController());
-
-    useEffect(() => {
-        return () => {
-            abortController.current.abort();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (dialogOpen) {
-            onDialogOpened();
-        }
-    }, [dialogOpen]);
+    const agreementUrl = pageSettings.urls.publisherAgreement;
+    const { data: agreementText } = usePublisherAgreementText(agreementUrl ?? '', {
+        enabled: dialogOpen && !!agreementUrl
+    });
+    const { mutate: signAgreement, isPending: signing } = useSignPublisherAgreement();
 
     const closePublisherAgreement = () => {
         setDialogOpen(false);
     };
 
-    const signPublisherAgreement = async (): Promise<void> => {
-        try {
-            setWorking(true);
-            const result = await service.signPublisherAgreement(abortController.current);
-            if (isError(result)) {
-                throw result;
-            }
-            updateUser();
-            setDialogOpen(false);
-        } catch (err) {
-            if (!(err as ReportedError).code) {
-                Object.assign(err, { code: 'publisher-agreement-problem' });
-            }
-            handleError(err);
-        } finally {
-            setWorking(false);
-        }
+    const signPublisherAgreement = () => {
+        signAgreement(undefined, { onSuccess: () => setDialogOpen(false) });
     };
 
     const openPublisherAgreement = () => {
-        if (!pageSettings.urls.publisherAgreement) {
+        if (!agreementUrl) {
             handleError({ error: 'Publisher agreement text is not available.' });
         } else {
             setDialogOpen(true);
-        }
-    };
-
-    const onDialogOpened = async () => {
-        const agreementURL = pageSettings.urls.publisherAgreement;
-        if (agreementURL) {
-            try {
-                const agreementMd = await service.getStaticContent(abortController.current, agreementURL);
-                setAgreementText(agreementMd);
-            } catch (err) {
-                handleError(err);
-            }
-        } else {
-            setAgreementText('Publisher agreement text is not available.');
         }
     };
 
@@ -210,7 +172,7 @@ export const UserPublisherAgreement: FunctionComponent<UserPublisherAgreementPro
                             <Box display='flex' justifyContent='flex-end'>
                                 <Button onClick={closePublisherAgreement}>Close</Button>
                                 {!publisherAgreementSigned && (
-                                    <ButtonWithProgress working={working} onClick={signPublisherAgreement}>
+                                    <ButtonWithProgress working={signing} onClick={signPublisherAgreement}>
                                         Agree
                                     </ButtonWithProgress>
                                 )}

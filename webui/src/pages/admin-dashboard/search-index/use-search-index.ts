@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 const searchIndexQueryKey = ['admin', 'search-index'] as const;
 
@@ -26,7 +25,7 @@ export const useSearchIndex = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: searchIndexQueryKey,
-        queryFn: ({ signal }) => service.admin.getSearchIndex(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getSearchIndex(signal)
     });
 };
 

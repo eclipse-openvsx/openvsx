@@ -24,7 +24,7 @@ describe('createAccessToken request', () => {
         const fetchMock = stubFetch(csrfToken(), jsonResponse({ id: 1 }));
         const service = new ExtensionRegistryService('https://registry.test');
 
-        await service.createAccessToken(new AbortController(), user, 'ci', { namespace: 'foo', extension: 'bar' });
+        await service.createAccessToken(user, 'ci', { namespace: 'foo', extension: 'bar' });
 
         expect(String(fetchMock.mock.calls.at(-1)?.[0])).toBe(
             'https://registry.test/user/token/create?description=ci&namespace=foo&extension=bar'
@@ -35,12 +35,12 @@ describe('createAccessToken request', () => {
         const fetchMock = stubFetch(csrfToken(), jsonResponse({ id: 1 }), csrfToken(), jsonResponse({ id: 2 }));
         const service = new ExtensionRegistryService('https://registry.test');
 
-        await service.createAccessToken(new AbortController(), user, 'ci', { publishingOnly: true });
+        await service.createAccessToken(user, 'ci', { publishingOnly: true });
         expect(String(fetchMock.mock.calls.at(-1)?.[0])).toBe(
             'https://registry.test/user/token/create?description=ci&publishingOnly=true'
         );
 
-        await service.createAccessToken(new AbortController(), user, 'ci', { publishingOnly: false });
+        await service.createAccessToken(user, 'ci', { publishingOnly: false });
         expect(String(fetchMock.mock.calls.at(-1)?.[0])).toBe('https://registry.test/user/token/create?description=ci');
     });
 
@@ -48,7 +48,7 @@ describe('createAccessToken request', () => {
         const fetchMock = stubFetch(csrfToken(), jsonResponse({ id: 1 }));
         const service = new ExtensionRegistryService('https://registry.test');
 
-        await service.createAccessToken(new AbortController(), user, 'ci');
+        await service.createAccessToken(user, 'ci');
 
         expect(String(fetchMock.mock.calls.at(-1)?.[0])).toBe('https://registry.test/user/token/create?description=ci');
     });

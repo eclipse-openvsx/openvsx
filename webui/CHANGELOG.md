@@ -7,6 +7,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Added
 
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- `useReportedQuery` takes an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state
 - The admin Statistics page shows how many versions were published in the month, the share published through trusted publishing, and a breakdown by trusted publishing, access token and web UI (`NONE` and the pre-1.2.0 `OTT`), from the new `extensionVersionsByPublishMethod` field of `AdminStatistics` (#2375)
 
 ### Changed
@@ -16,17 +17,25 @@ This change log covers only the frontend library (webui) of Open VSX.
 - The publisher agreement panel shows a `revoked` status without a sign action, a different message for an `outdated` one, and admins can reinstate a revoked agreement
 - `MainContext` keeps its value, `handleError` and `updateUser` stable across renders, so consumers can depend on them in effects and skip needless re-renders
 - The default publisher agreement text URL is now the server's `/api/publisher-agreement`, instead of `/documents/publisher-agreement.md`
+- `sendRequest` rejects a 200 carrying an error result and no longer retries; retries belong to the query client, which waits out a 429 for queries and never retries a mutation.
+- `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
 
 ### Fixed
 
 - A query reported through `useReportedQuery` (or a page's own error effect) no longer reopens the error dialog in a loop that cannot be closed while the query stays failed (#2348)
-- `sendRequest` stops after 10 retries of a network error or 5xx and after 10 waits on a 429, instead of retrying forever, and an aborted request now settles right away instead of being retried or waiting out a rate limit
+- A failed review post or removal, token revocation or user search no longer leaves its spinner running
+
+### Removed
+
+- `sendNonRetriableRequest`, `controllerFromSignal` and the `abortController` field of `ServerAPIRequest`: use `sendRequest` with `signal`, and pass a `queryFn`'s `signal` straight to the service
 
 ### Dependencies
 
 - Bump vite from 8.3.2 to 8.3.5 (#2357)
 - Bump markdown-it from 14.3.2 to 14.3.3 (#2358)
 - Bump undici from 8.11.2 to 8.12.3 (#2362)
+- Remove `fetch-retry`; the query client owns retries
+- Bump dompurify from 3.4.16 to 3.4.17 (#2379)
 
 ## [1.3.0] - 2026-10-16
 

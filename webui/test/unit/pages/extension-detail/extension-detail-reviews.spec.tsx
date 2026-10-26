@@ -12,11 +12,12 @@
  ********************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '../../support/test-providers';
+import { createTestQueryClient, renderWithProviders } from '../../support/test-providers';
 import { testUser } from '../../support/trusted-publishing';
 import { ExtensionDetailReviews } from '../../../../src/pages/extension-detail/extension-detail-reviews';
+import { extensionDetailKeys } from '../../../../src/pages/extension-detail/use-extension-details';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 import { Extension, ExtensionReviewList, UserData } from '../../../../src/extension-registry-types';
 
@@ -29,6 +30,11 @@ const oneReview: ExtensionReviewList = {
     reviews: [{ user: { loginName: 'reviewer' } as UserData, rating: 4, comment: 'fine', timestamp: '' }]
 };
 
+const ownReview: ExtensionReviewList = {
+    ...emptyReviews,
+    reviews: [{ user: testUser, rating: 5, comment: 'mine', timestamp: '' }]
+};
+
 // where the IDE's star-rating link drops a visitor, and where a login from here must return them
 const reviewsRoute = '/extension/foo/bar/reviews';
 
@@ -37,18 +43,37 @@ function renderReviews(options?: {
     loginProviders?: Record<string, string>;
     userLoading?: boolean;
     reviews?: ExtensionReviewList;
+    // what the list holds once a review was posted or removed
+    reviewsAfterChange?: ExtensionReviewList;
 }) {
-    const getExtensionReviews = vi.fn().mockResolvedValue(options?.reviews ?? emptyReviews);
-    renderWithProviders(<ExtensionDetailReviews extension={extension} reviewsDidUpdate={() => {}} />, {
+    const getExtensionReviews = vi.fn().mockResolvedValueOnce(options?.reviews ?? emptyReviews);
+    getExtensionReviews.mockResolvedValue(options?.reviewsAfterChange ?? options?.reviews ?? emptyReviews);
+    const postReview = vi.fn().mockResolvedValue({ success: 'Added review' });
+    const deleteReview = vi.fn().mockResolvedValue({ success: 'Deleted review' });
+    const deleteUserReview = vi.fn().mockResolvedValue({ success: 'Deleted review' });
+    const handleError = vi.fn();
+    // A cached header for the extension, to see whether a review change marks it for refetching.
+    const queryClient = createTestQueryClient();
+    const detailKey = extensionDetailKeys.detail('foo', 'bar');
+    queryClient.setQueryData(detailKey, extension);
+    renderWithProviders(<ExtensionDetailReviews extension={extension} />, {
         route: reviewsRoute,
+        queryClient,
         mainContext: {
-            service: { getExtensionReviews } as unknown as ExtensionRegistryService,
+            service: {
+                getExtensionReviews,
+                postReview,
+                deleteReview,
+                deleteUserReview
+            } as unknown as ExtensionRegistryService,
+            handleError,
             user: options?.user,
             loginProviders: options?.loginProviders,
             userLoading: options?.userLoading ?? false
         }
     });
-    return { getExtensionReviews };
+    const headerInvalidated = () => queryClient.getQueryState(detailKey)?.isInvalidated;
+    return { getExtensionReviews, postReview, deleteReview, deleteUserReview, handleError, headerInvalidated };
 }
 
 describe('ExtensionDetailReviews', () => {
@@ -124,5 +149,64 @@ describe('ExtensionDetailReviews', () => {
         renderReviews({ user: { ...testUser, permissions: ['manage_extensions'] }, reviews: oneReview });
 
         expect(await screen.findByRole('button', { name: 'Remove review' })).toBeInTheDocument();
+    });
+
+    it('posts a review and shows it in the refreshed list, refreshing the rating in the header', async () => {
+        const user = userEvent.setup();
+        const { postReview, headerInvalidated } = renderReviews({ user: testUser, reviewsAfterChange: ownReview });
+
+        await user.click(await screen.findByRole('button', { name: 'Write a Review' }));
+        await user.type(screen.getByLabelText('Your Review...'), 'great');
+        await user.click(screen.getByRole('button', { name: 'Post Review' }));
+
+        expect(await screen.findByRole('button', { name: 'Revoke my Review' })).toBeInTheDocument();
+        expect(screen.getByText('mine')).toBeInTheDocument();
+        expect(postReview).toHaveBeenCalledWith({ rating: 1, comment: 'great' }, '/review');
+        expect(headerInvalidated()).toBe(true);
+    });
+
+    it('keeps the review dialog open and reports the error when posting fails', async () => {
+        const user = userEvent.setup();
+        const failure = { error: 'You must not submit more than one review for an extension.' };
+        const { postReview, handleError } = renderReviews({ user: testUser });
+        postReview.mockRejectedValue(failure);
+
+        await user.click(await screen.findByRole('button', { name: 'Write a Review' }));
+        await user.click(screen.getByRole('button', { name: 'Post Review' }));
+
+        await waitFor(() => expect(handleError).toHaveBeenCalledWith(failure));
+        expect(screen.getByRole('dialog')).toHaveTextContent('Bar Review');
+    });
+
+    it('revokes the own review and offers to write one again once the list is refreshed', async () => {
+        const user = userEvent.setup();
+        const { deleteReview, headerInvalidated } = renderReviews({
+            user: testUser,
+            reviews: ownReview,
+            reviewsAfterChange: emptyReviews
+        });
+
+        await user.click(await screen.findByRole('button', { name: 'Revoke my Review' }));
+
+        expect(await screen.findByRole('button', { name: 'Write a Review' })).toBeInTheDocument();
+        expect(deleteReview).toHaveBeenCalledWith('/review/delete');
+        expect(headerInvalidated()).toBe(true);
+    });
+
+    it("removes another user's review as a moderator and closes the confirmation", async () => {
+        const user = userEvent.setup();
+        const { deleteUserReview } = renderReviews({
+            user: { ...testUser, permissions: ['manage_extensions'] },
+            reviews: oneReview,
+            reviewsAfterChange: emptyReviews
+        });
+
+        await user.click(await screen.findByRole('button', { name: 'Remove review' }));
+        const dialog = await screen.findByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: 'Remove review' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(screen.getByText('Be the first to review this extension')).toBeInTheDocument();
+        expect(deleteUserReview).toHaveBeenCalledWith(extension, oneReview.reviews[0].user);
     });
 });

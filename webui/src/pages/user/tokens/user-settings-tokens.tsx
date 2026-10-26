@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, ReactNode, useContext, useEffect, useState, useRef } from 'react';
+import { FunctionComponent, ReactNode, useContext, useState } from 'react';
 import {
     Alert,
     AlertTitle,
@@ -33,6 +33,7 @@ import { MainContext } from '../../../context';
 import { DeleteIconButton } from '../../../components/delete-icon-button';
 import { DetailsCard } from '../../../components/details-card';
 import { GenerateAccessTokenDialog } from './generate-access-token-dialog';
+import { useAccessTokens, useDeleteAccessToken, useDeleteAllAccessTokens } from './use-access-tokens';
 import { TrustedPublishingPromo } from '../trusted-publishing/trusted-publishing-promo';
 import { EmptyPlaceholder, IconTile } from '../settings/settings-primitives';
 import { SettingsHeader } from '../settings/settings-header';
@@ -63,52 +64,21 @@ const TokenRow = styled(Box)({
 });
 
 export const UserSettingsTokens: FunctionComponent = () => {
-    const { service, user, handleError, pageSettings } = useContext(MainContext);
+    const { user, pageSettings } = useContext(MainContext);
 
-    const [tokens, setTokens] = useState(new Array<PersonalAccessToken>());
-    const [loading, setLoading] = useState(true);
+    const { data: tokens = [], isFetching: tokensFetching } = useAccessTokens();
+    const { mutate: deleteAccessToken, isPending: deletingToken } = useDeleteAccessToken();
+    const { mutate: deleteAllAccessTokens, isPending: deletingAllTokens } = useDeleteAllAccessTokens();
+    const loading = tokensFetching || deletingToken || deletingAllTokens;
     const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>();
 
-    const abortController = useRef<AbortController>(new AbortController());
-    useEffect(() => {
-        updateTokens();
-        return () => {
-            abortController.current.abort();
-        };
-    }, []);
-
-    const updateTokens = async () => {
-        if (!user) {
-            return;
-        }
-        try {
-            const tokens = await service.getAccessTokens(abortController.current, user);
-            setTokens(tokens);
-            setLoading(false);
-        } catch (err) {
-            handleError(err);
-            setLoading(false);
-        }
-    };
-
-    const confirmDelete = async (target: DeleteTarget) => {
+    const confirmDelete = (target: DeleteTarget) => {
         setDeleteTarget(undefined);
-        setLoading(true);
-        try {
-            if (target === 'all') {
-                await service.deleteAllAccessTokens(abortController.current, tokens);
-            } else {
-                await service.deleteAccessToken(abortController.current, target);
-            }
-            updateTokens();
-        } catch (err) {
-            handleError(err);
+        if (target === 'all') {
+            deleteAllAccessTokens(tokens);
+        } else {
+            deleteAccessToken(target);
         }
-    };
-
-    const handleTokenGenerated = () => {
-        setLoading(true);
-        updateTokens();
     };
 
     const renderToken = (token: PersonalAccessToken): ReactNode => {
@@ -218,7 +188,7 @@ export const UserSettingsTokens: FunctionComponent = () => {
                             disabled={loading || tokens.length === 0}>
                             Delete all
                         </Button>
-                        <GenerateAccessTokenDialog handleTokenGenerated={handleTokenGenerated} />
+                        <GenerateAccessTokenDialog />
                     </>
                 }
             />

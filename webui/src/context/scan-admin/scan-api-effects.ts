@@ -11,18 +11,18 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import type { Dispatch, MutableRefObject } from 'react';
+import type { Dispatch } from 'react';
 import { useEffect } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useReportedQuery } from '../../hooks/use-reported-query';
 import { ScanState, ScanAction, ScanResult } from './scan-types';
 import { getDateRangeParams, getFileDateRange } from './scan-helpers';
-import { controllerFromSignal } from '../../query-client';
 
 // These views show live moderation data and rely on an explicit refresh trigger,
 // so every query is keyed on `state.refreshTrigger` and kept fresh (`staleTime: 0`).
 // `keepPreviousData` preserves the current rows during background refreshes and
-// tab/filter changes, matching the previous "only show loading without data"
-// behaviour, which we mirror by dispatching the query's `isLoading` flag.
+// tab/filter changes, and the query's `isLoading` flag is dispatched so loading
+// shows only while there is no data.
 
 /**
  * Converts a raw /scans API response into the ScanResult[] shape used by the reducer.
@@ -108,17 +108,14 @@ const convertScans = (response: any): { scans: ScanResult[]; totalScans: number 
 /**
  * Hook to fetch filter options (validation types, threat scanners) on mount and refresh
  */
-export const useFilterOptionsEffect = (
-    service: any,
-    state: ScanState,
-    dispatch: Dispatch<ScanAction>,
-    handleErrorRef: MutableRefObject<(error: any) => void>
-) => {
-    const { data, error } = useQuery({
-        queryKey: ['admin', 'scan', 'filter-options', state.refreshTrigger],
-        queryFn: ({ signal }) => service.admin.getScanFilterOptions(controllerFromSignal(signal)),
-        staleTime: 0
-    });
+export const useFilterOptionsEffect = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
+    const { data, error } = useReportedQuery(
+        useQuery({
+            queryKey: ['admin', 'scan', 'filter-options', state.refreshTrigger],
+            queryFn: ({ signal }) => service.admin.getScanFilterOptions(signal),
+            staleTime: 0
+        })
+    );
 
     useEffect(() => {
         if (data) {
@@ -132,9 +129,8 @@ export const useFilterOptionsEffect = (
         if (error) {
             // Even on error, mark as loaded so we don't block forever
             dispatch({ type: 'SET_FILTER_OPTIONS_LOADED', payload: true });
-            handleErrorRef.current(error);
         }
-    }, [error, dispatch, handleErrorRef]);
+    }, [error, dispatch]);
 };
 
 // ============================================================================
@@ -144,12 +140,7 @@ export const useFilterOptionsEffect = (
 /**
  * Hook to fetch scans from API (tabs 0-3: Scans, Quarantined, Auto Rejected, Errors)
  */
-export const useScansEffect = (
-    service: any,
-    state: ScanState,
-    dispatch: Dispatch<ScanAction>,
-    handleErrorRef: MutableRefObject<(error: any) => void>
-) => {
+export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
     // For the Quarantined/Auto Rejected tabs there is nothing to show when no
     // threat scanners / validation types exist, so we skip the request entirely.
     const noQuarantineData = state.selectedTab === 1 && state.availableThreatScanners.length === 0;
@@ -158,91 +149,93 @@ export const useScansEffect = (
 
     const dateParams = getDateRangeParams(state.dateRange);
 
-    const { data, error, isLoading } = useQuery({
-        queryKey: [
-            'admin',
-            'scan',
-            'scans',
-            state.selectedTab,
-            state.currentPage,
-            state.pageSize,
-            state.publisherQuery,
-            state.namespaceQuery,
-            state.nameQuery,
-            Array.from(state.statusFilters),
-            Array.from(state.quarantineFilters),
-            Array.from(state.validationTypeFilters),
-            Array.from(state.threatScannerFilters),
-            state.availableThreatScanners,
-            state.availableValidationTypes,
-            state.dateRange,
-            state.enforcement,
-            state.refreshTrigger
-        ],
-        enabled,
-        staleTime: 0,
-        placeholderData: keepPreviousData,
-        queryFn: async ({ signal }) => {
-            // Determine status filter based on selected tab and status filters
-            let statusParam: string[] | string | undefined;
-            let validationTypeParam: string[] | undefined;
-            let threatScannerParam: string[] | undefined;
-            let adminDecisionParam: string[] | undefined;
-            let exactStatusParam: boolean | undefined;
+    const { data, error, isLoading } = useReportedQuery(
+        useQuery({
+            queryKey: [
+                'admin',
+                'scan',
+                'scans',
+                state.selectedTab,
+                state.currentPage,
+                state.pageSize,
+                state.publisherQuery,
+                state.namespaceQuery,
+                state.nameQuery,
+                Array.from(state.statusFilters),
+                Array.from(state.quarantineFilters),
+                Array.from(state.validationTypeFilters),
+                Array.from(state.threatScannerFilters),
+                state.availableThreatScanners,
+                state.availableValidationTypes,
+                state.dateRange,
+                state.enforcement,
+                state.refreshTrigger
+            ],
+            enabled,
+            staleTime: 0,
+            placeholderData: keepPreviousData,
+            queryFn: async ({ signal }) => {
+                // Determine status filter based on selected tab and status filters
+                let statusParam: string[] | string | undefined;
+                let validationTypeParam: string[] | undefined;
+                let threatScannerParam: string[] | undefined;
+                let adminDecisionParam: string[] | undefined;
+                let exactStatusParam: boolean | undefined;
 
-            if (state.selectedTab === 0) {
-                // Scans tab - use statusFilters, expanding 'running' to explicit statuses
-                statusParam = Array.from(state.statusFilters).reduce((result, status) => {
-                    if (status === 'running') {
-                        return [...result, 'STARTED', 'VALIDATING', 'SCANNING'];
+                if (state.selectedTab === 0) {
+                    // Scans tab - use statusFilters, expanding 'running' to explicit statuses
+                    statusParam = Array.from(state.statusFilters).reduce((result, status) => {
+                        if (status === 'running') {
+                            return [...result, 'STARTED', 'VALIDATING', 'SCANNING'];
+                        }
+                        return [...result, status];
+                    }, [] as string[]);
+                } else if (state.selectedTab === 1) {
+                    // Quarantined tab - show scans with threats
+                    if (state.threatScannerFilters.size > 0) {
+                        threatScannerParam = Array.from(state.threatScannerFilters);
+                    } else {
+                        threatScannerParam = state.availableThreatScanners;
                     }
-                    return [...result, status];
-                }, [] as string[]);
-            } else if (state.selectedTab === 1) {
-                // Quarantined tab - show scans with threats
-                if (state.threatScannerFilters.size > 0) {
-                    threatScannerParam = Array.from(state.threatScannerFilters);
-                } else {
-                    threatScannerParam = state.availableThreatScanners;
+                    if (state.quarantineFilters.size > 0) {
+                        adminDecisionParam = Array.from(state.quarantineFilters);
+                    }
+                } else if (state.selectedTab === 2) {
+                    // Auto Rejected tab - show scans with validation failures
+                    if (state.validationTypeFilters.size > 0) {
+                        validationTypeParam = Array.from(state.validationTypeFilters);
+                    } else {
+                        validationTypeParam = state.availableValidationTypes;
+                    }
+                } else if (state.selectedTab === 3) {
+                    // Errors tab - scans that errored and may need an admin decision
+                    statusParam = ['ERROR'];
+                    exactStatusParam = true;
+                    if (state.quarantineFilters.size > 0) {
+                        adminDecisionParam = Array.from(state.quarantineFilters);
+                    }
                 }
-                if (state.quarantineFilters.size > 0) {
-                    adminDecisionParam = Array.from(state.quarantineFilters);
-                }
-            } else if (state.selectedTab === 2) {
-                // Auto Rejected tab - show scans with validation failures
-                if (state.validationTypeFilters.size > 0) {
-                    validationTypeParam = Array.from(state.validationTypeFilters);
-                } else {
-                    validationTypeParam = state.availableValidationTypes;
-                }
-            } else if (state.selectedTab === 3) {
-                // Errors tab - scans that errored and may need an admin decision
-                statusParam = ['ERROR'];
-                exactStatusParam = true;
-                if (state.quarantineFilters.size > 0) {
-                    adminDecisionParam = Array.from(state.quarantineFilters);
-                }
+
+                const response = await service.admin.getAllScans(signal, {
+                    size: state.pageSize,
+                    offset: state.currentPage * state.pageSize,
+                    publisher: state.publisherQuery || undefined,
+                    namespace: state.namespaceQuery || undefined,
+                    name: state.nameQuery || undefined,
+                    status: statusParam,
+                    validationType: validationTypeParam,
+                    threatScannerName: threatScannerParam,
+                    adminDecision: adminDecisionParam,
+                    exactStatus: exactStatusParam,
+                    dateStartedFrom: dateParams.dateStartedFrom,
+                    dateStartedTo: dateParams.dateStartedTo,
+                    enforcement: state.enforcement
+                });
+
+                return convertScans(response);
             }
-
-            const response = await service.admin.getAllScans(controllerFromSignal(signal), {
-                size: state.pageSize,
-                offset: state.currentPage * state.pageSize,
-                publisher: state.publisherQuery || undefined,
-                namespace: state.namespaceQuery || undefined,
-                name: state.nameQuery || undefined,
-                status: statusParam,
-                validationType: validationTypeParam,
-                threatScannerName: threatScannerParam,
-                adminDecision: adminDecisionParam,
-                exactStatus: exactStatusParam,
-                dateStartedFrom: dateParams.dateStartedFrom,
-                dateStartedTo: dateParams.dateStartedTo,
-                enforcement: state.enforcement
-            });
-
-            return convertScans(response);
-        }
-    });
+        })
+    );
 
     useEffect(() => {
         // When there is nothing to fetch for the current tab, reflect an empty list.
@@ -273,9 +266,8 @@ export const useScansEffect = (
     useEffect(() => {
         if (error) {
             dispatch({ type: 'SET_LOADING_SCANS', payload: false });
-            handleErrorRef.current(error);
         }
-    }, [error, dispatch, handleErrorRef]);
+    }, [error, dispatch]);
 };
 
 // ============================================================================
@@ -286,68 +278,59 @@ export const useScansEffect = (
  * Hook to fetch scan counts from API
  * Uses the same tab-aware filtering logic as the scans list
  */
-export const useScanCountsEffect = (
-    service: any,
-    state: ScanState,
-    dispatch: Dispatch<ScanAction>,
-    handleErrorRef: MutableRefObject<(error: any) => void>
-) => {
+export const useScanCountsEffect = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
     const dateParams = getDateRangeParams(state.dateRange);
 
-    const { data, error } = useQuery({
-        queryKey: [
-            'admin',
-            'scan',
-            'scan-counts',
-            state.selectedTab,
-            Array.from(state.threatScannerFilters),
-            Array.from(state.validationTypeFilters),
-            state.availableThreatScanners,
-            state.availableValidationTypes,
-            state.dateRange,
-            state.enforcement,
-            state.refreshTrigger
-        ],
-        staleTime: 0,
-        queryFn: async ({ signal }) => {
-            // Determine filters based on selected tab (same logic as scans fetch)
-            let validationTypeParam: string[] | undefined;
-            let threatScannerParam: string[] | undefined;
+    const { data } = useReportedQuery(
+        useQuery({
+            queryKey: [
+                'admin',
+                'scan',
+                'scan-counts',
+                state.selectedTab,
+                Array.from(state.threatScannerFilters),
+                Array.from(state.validationTypeFilters),
+                state.availableThreatScanners,
+                state.availableValidationTypes,
+                state.dateRange,
+                state.enforcement,
+                state.refreshTrigger
+            ],
+            staleTime: 0,
+            queryFn: async ({ signal }) => {
+                // Determine filters based on selected tab (same logic as scans fetch)
+                let validationTypeParam: string[] | undefined;
+                let threatScannerParam: string[] | undefined;
 
-            if (state.selectedTab === 1) {
-                if (state.threatScannerFilters.size > 0) {
-                    threatScannerParam = Array.from(state.threatScannerFilters);
-                } else {
-                    threatScannerParam = state.availableThreatScanners;
+                if (state.selectedTab === 1) {
+                    if (state.threatScannerFilters.size > 0) {
+                        threatScannerParam = Array.from(state.threatScannerFilters);
+                    } else {
+                        threatScannerParam = state.availableThreatScanners;
+                    }
+                } else if (state.selectedTab === 2) {
+                    if (state.validationTypeFilters.size > 0) {
+                        validationTypeParam = Array.from(state.validationTypeFilters);
+                    } else {
+                        validationTypeParam = state.availableValidationTypes;
+                    }
                 }
-            } else if (state.selectedTab === 2) {
-                if (state.validationTypeFilters.size > 0) {
-                    validationTypeParam = Array.from(state.validationTypeFilters);
-                } else {
-                    validationTypeParam = state.availableValidationTypes;
-                }
+
+                return service.admin.getScanCounts(signal, {
+                    ...dateParams,
+                    enforcement: state.enforcement,
+                    threatScannerName: threatScannerParam,
+                    validationType: validationTypeParam
+                });
             }
-
-            return service.admin.getScanCounts(controllerFromSignal(signal), {
-                ...dateParams,
-                enforcement: state.enforcement,
-                threatScannerName: threatScannerParam,
-                validationType: validationTypeParam
-            });
-        }
-    });
+        })
+    );
 
     useEffect(() => {
         if (data) {
             dispatch({ type: 'SET_SCAN_COUNTS', payload: data });
         }
     }, [data, dispatch]);
-
-    useEffect(() => {
-        if (error) {
-            handleErrorRef.current(error);
-        }
-    }, [error, handleErrorRef]);
 };
 
 // ============================================================================
@@ -357,49 +340,46 @@ export const useScanCountsEffect = (
 /**
  * Hook to fetch files from API (tabs 3, 4: Allowed Files, Blocked Files)
  */
-export const useFilesEffect = (
-    service: any,
-    state: ScanState,
-    dispatch: Dispatch<ScanAction>,
-    handleErrorRef: MutableRefObject<(error: any) => void>
-) => {
+export const useFilesEffect = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
     const enabled = state.selectedTab >= 4;
     const dateParams = getFileDateRange(state.fileDateRange);
 
-    const { data, error, isLoading } = useQuery({
-        queryKey: [
-            'admin',
-            'scan',
-            'files',
-            state.selectedTab,
-            state.currentPage,
-            state.pageSize,
-            state.publisherQuery,
-            state.namespaceQuery,
-            state.nameQuery,
-            state.fileDateRange,
-            state.refreshTrigger
-        ],
-        enabled,
-        staleTime: 0,
-        placeholderData: keepPreviousData,
-        queryFn: async ({ signal }) => {
-            const decisionParam = state.selectedTab === 4 ? 'allowed' : 'blocked';
+    const { data, error, isLoading } = useReportedQuery(
+        useQuery({
+            queryKey: [
+                'admin',
+                'scan',
+                'files',
+                state.selectedTab,
+                state.currentPage,
+                state.pageSize,
+                state.publisherQuery,
+                state.namespaceQuery,
+                state.nameQuery,
+                state.fileDateRange,
+                state.refreshTrigger
+            ],
+            enabled,
+            staleTime: 0,
+            placeholderData: keepPreviousData,
+            queryFn: async ({ signal }) => {
+                const decisionParam = state.selectedTab === 4 ? 'allowed' : 'blocked';
 
-            const response = await service.admin.getFiles(controllerFromSignal(signal), {
-                size: state.pageSize,
-                offset: state.currentPage * state.pageSize,
-                publisher: state.publisherQuery || undefined,
-                namespace: state.namespaceQuery || undefined,
-                name: state.nameQuery || undefined,
-                decision: decisionParam,
-                dateDecidedFrom: dateParams.dateDecidedFrom,
-                dateDecidedTo: dateParams.dateDecidedTo
-            });
+                const response = await service.admin.getFiles(signal, {
+                    size: state.pageSize,
+                    offset: state.currentPage * state.pageSize,
+                    publisher: state.publisherQuery || undefined,
+                    namespace: state.namespaceQuery || undefined,
+                    name: state.nameQuery || undefined,
+                    decision: decisionParam,
+                    dateDecidedFrom: dateParams.dateDecidedFrom,
+                    dateDecidedTo: dateParams.dateDecidedTo
+                });
 
-            return { files: response.files, totalFiles: response.totalSize };
-        }
-    });
+                return { files: response.files, totalFiles: response.totalSize };
+            }
+        })
+    );
 
     useEffect(() => {
         if (enabled) {
@@ -421,9 +401,8 @@ export const useFilesEffect = (
     useEffect(() => {
         if (error) {
             dispatch({ type: 'SET_LOADING_FILES', payload: false });
-            handleErrorRef.current(error);
         }
-    }, [error, dispatch, handleErrorRef]);
+    }, [error, dispatch]);
 };
 
 // ============================================================================
@@ -433,37 +412,28 @@ export const useFilesEffect = (
 /**
  * Hook to fetch file counts from API
  */
-export const useFileCountsEffect = (
-    service: any,
-    state: ScanState,
-    dispatch: Dispatch<ScanAction>,
-    handleErrorRef: MutableRefObject<(error: any) => void>
-) => {
+export const useFileCountsEffect = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
     const enabled = state.selectedTab >= 4;
     const dateParams = getFileDateRange(state.fileDateRange);
 
-    const { data, error } = useQuery({
-        queryKey: ['admin', 'scan', 'file-counts', state.fileDateRange, state.refreshTrigger],
-        enabled,
-        staleTime: 0,
-        queryFn: ({ signal }) =>
-            service.admin.getFileCounts(controllerFromSignal(signal), {
-                dateDecidedFrom: dateParams.dateDecidedFrom,
-                dateDecidedTo: dateParams.dateDecidedTo
-            })
-    });
+    const { data } = useReportedQuery(
+        useQuery({
+            queryKey: ['admin', 'scan', 'file-counts', state.fileDateRange, state.refreshTrigger],
+            enabled,
+            staleTime: 0,
+            queryFn: ({ signal }) =>
+                service.admin.getFileCounts(signal, {
+                    dateDecidedFrom: dateParams.dateDecidedFrom,
+                    dateDecidedTo: dateParams.dateDecidedTo
+                })
+        })
+    );
 
     useEffect(() => {
         if (data) {
             dispatch({ type: 'SET_FILE_COUNTS', payload: data });
         }
     }, [data, dispatch]);
-
-    useEffect(() => {
-        if (error) {
-            handleErrorRef.current(error);
-        }
-    }, [error, handleErrorRef]);
 };
 
 // ============================================================================

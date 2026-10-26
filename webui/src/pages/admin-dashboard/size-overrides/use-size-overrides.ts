@@ -15,7 +15,6 @@ import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
 import type { SizeOverride } from '../../../extension-registry-types';
-import { controllerFromSignal } from '../../../query-client';
 
 export const sizeOverridesQueryKey = ['admin', 'sizeOverrides'] as const;
 
@@ -23,7 +22,7 @@ export const useSizeOverrides = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: sizeOverridesQueryKey,
-        queryFn: ({ signal }) => service.admin.getSizeOverrides(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getSizeOverrides(signal)
     });
 };
 

@@ -517,6 +517,44 @@ describe('publish', () => {
         expect(registry.publishRequests).toHaveLength(0);
     });
 
+    // The friendly sizes round down, so a package one byte over its limit read as "1 MB exceeds the
+    // size limit of 1 MB". The registry's own refusal prints the exact counts next to them, and the
+    // CLI now says the same thing.
+    it('names the byte counts when a package and its limit round to the same size', async () => {
+        const extensionFile = await givenExtensionFile(1_048_577);
+        const size = sizeOf(extensionFile);
+        const registry = await givenRegistry({
+            body: { version: '1.3.0', maxExtensionSize: 10_000_000 },
+            sizeLimit: size - 1
+        });
+
+        const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
+
+        expect(result.status).toBe('rejected');
+        expect((result as PromiseRejectedResult).reason.message).toBe(
+            `The extension package (1 MB, ${size} bytes) exceeds the size limit of 1 MB (${size - 1} bytes) `
+            + `for foo.bar at ${registry.url}.`
+        );
+        expect(registry.publishRequests).toHaveLength(0);
+    });
+
+    // The advisory warning for a registry that cannot report its own limit was just as ambiguous.
+    it('names the byte counts when warning about the default size limit', async () => {
+        const extensionFile = await givenExtensionFile(1_048_577);
+        const size = sizeOf(extensionFile);
+        const registry = await givenRegistry({ body: { version: '1.2.0', maxExtensionSize: 1_048_576 } });
+
+        const [result] = await publish({ extensionFile, pat: 'the.pat', registryUrl: registry.url });
+
+        expect(result.status).toBe('fulfilled');
+        expect(console.warn).toHaveBeenCalledWith(
+            expect.stringContaining(
+                `The extension package (1 MB, ${size} bytes) exceeds the default size limit of `
+                + '1 MB (1048576 bytes) reported by the registry'
+            )
+        );
+    });
+
     // ovsx publishes to registries of every age. A release that refused to publish anywhere without
     // the new endpoint would be worse than the false negative it is fixing.
     it('falls back to warning when the registry predates the size-limit endpoint', async () => {

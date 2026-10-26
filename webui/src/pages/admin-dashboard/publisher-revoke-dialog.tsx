@@ -28,10 +28,10 @@ import { UpdateContext } from './publisher-admin';
 import { useRevokePublisherContributions } from './use-publisher-admin';
 
 export const PublisherRevokeContributionsButton: FunctionComponent<PublisherRevokeContributionsButtonProps> = props => {
-    const { user, service, handleError } = useContext(MainContext);
+    const { user, service } = useContext(MainContext);
     const location = useLocation();
     const updateContext = useContext(UpdateContext);
-    const { mutateAsync: revokeContributions, isPending: working } = useRevokePublisherContributions();
+    const { mutate: revokeContributions, isPending: working } = useRevokePublisherContributions();
 
     const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -58,15 +58,17 @@ export const PublisherRevokeContributionsButton: FunctionComponent<PublisherRevo
         );
     }
 
-    const doRevoke = async () => {
-        try {
-            const user = props.publisherInfo.user;
-            await revokeContributions({ provider: user.provider as string, login: user.loginName });
-            updateContext.handleUpdate();
-            setDialogOpen(false);
-        } catch (err) {
-            handleError(err);
-        }
+    const doRevoke = () => {
+        const user = props.publisherInfo.user;
+        revokeContributions(
+            { provider: user.provider as string, login: user.loginName },
+            {
+                onSuccess: () => {
+                    updateContext.handleUpdate();
+                    setDialogOpen(false);
+                }
+            }
+        );
     };
 
     const tokenCount = props.publisherInfo.activeAccessTokenNum;

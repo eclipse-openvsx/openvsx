@@ -12,28 +12,28 @@ import { FunctionComponent, useContext, useState } from 'react';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { PublisherInfo } from '../../extension-registry-types';
-import { MainContext } from '../../context';
 import { UpdateContext } from './publisher-admin';
 import { useRevokeAccessTokens } from './use-publisher-admin';
 
 export const PublisherRevokeTokensButton: FunctionComponent<PublisherRevokeTokensButtonProps> = props => {
-    const { handleError } = useContext(MainContext);
     const updateContext = useContext(UpdateContext);
-    const { mutateAsync: revokeTokens, isPending: working } = useRevokeAccessTokens();
+    const { mutate: revokeTokens, isPending: working } = useRevokeAccessTokens();
 
     const [dialogOpen, setDialogOpen] = useState(false);
 
     const { user } = props.publisherInfo;
     const tokenCount = props.publisherInfo.activeAccessTokenNum;
 
-    const doRevoke = async () => {
-        try {
-            await revokeTokens({ provider: user.provider as string, login: user.loginName });
-            updateContext.handleUpdate();
-            setDialogOpen(false);
-        } catch (err) {
-            handleError(err);
-        }
+    const doRevoke = () => {
+        revokeTokens(
+            { provider: user.provider as string, login: user.loginName },
+            {
+                onSuccess: () => {
+                    updateContext.handleUpdate();
+                    setDialogOpen(false);
+                }
+            }
+        );
     };
 
     return (

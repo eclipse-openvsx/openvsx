@@ -14,29 +14,39 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { ErrorResponse } from './server-request';
 
-// Shared singleton query client for the whole app. Created once at module scope
-// so the cache survives re-renders. Defaults are intentionally conservative to
-// match the previous fetch-on-mount behaviour as closely as possible:
-//  - refetchOnWindowFocus is disabled (the UI never refetched on focus before),
-//  - staleTime gives a short window where cached data is reused without refetching.
+/** Caps the waits for a 429 to clear, so a registry that keeps rate limiting eventually surfaces it. */
+const MAX_RATE_LIMIT_RETRIES = 10;
+
+const statusOf = (error: unknown) => (error as Partial<ErrorResponse> | null)?.status;
+
+// Waits as long as the registry asked, with a jitter so throttled clients don't come back in lockstep.
+const rateLimitDelay = (error: unknown) =>
+    ((error as Partial<ErrorResponse>).retryAfter ?? 0) * 1000 + 1000 + Math.floor(Math.random() * 100);
+
+// Shared singleton query client for the whole app, created once at module scope so the
+// cache survives re-renders. It owns every retry: `sendRequest` never retries itself, and
+// mutations keep TanStack's default of none, a 429 included.
 export const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
             refetchOnWindowFocus: false,
             staleTime: 60 * 1000,
-            // Retries are now owned here: migrated requests go through `sendNonRetriableRequest`,
-            // so the fetch-retry loop no longer runs for them. This mirrors the old
-            // fetch-retry policy — retry transient failures (network errors and 5xx) with
-            // exponential backoff, but never retry client errors (4xx), which won't recover.
-            // (`sendRequest` waits out a 429 internally; one that outlasts its cap lands here as a 4xx.)
+            // Network errors and 5xx are retried with exponential backoff and a 429 is waited out,
+            // but no other 4xx is retried: it won't recover.
             retry: (failureCount, error) => {
-                const status = (error as Partial<ErrorResponse> | null)?.status;
+                const status = statusOf(error);
+                if (status === 429) {
+                    return failureCount < MAX_RATE_LIMIT_RETRIES;
+                }
                 if (status !== undefined && status < 500) {
                     return false;
                 }
                 return failureCount < 3;
             },
-            retryDelay: attempt => {
+            retryDelay: (attempt, error) => {
+                if (statusOf(error) === 429) {
+                    return rateLimitDelay(error);
+                }
                 const backoff = Math.min(1000 * 2 ** attempt, 30000);
                 return Math.round(backoff / 2 + Math.random() * (backoff / 2));
             }
@@ -60,22 +70,3 @@ queryClient.getQueryCache().subscribe(event => {
  * the latest server state (e.g. right after publishing or deleting).
  */
 export const NO_CACHE = { staleTime: 0, gcTime: 0 } as const;
-
-/**
- * Bridge between TanStack Query's `AbortSignal` and the `AbortController` that
- * `ExtensionRegistryService` methods expect. Inside a `queryFn` we get a
- * `signal`; this wraps it in a controller that aborts when the signal does, so
- * we can keep the service signatures untouched while dropping component-level
- * `AbortController` refs.
- */
-export function controllerFromSignal(signal?: AbortSignal): AbortController {
-    const controller = new AbortController();
-    if (signal) {
-        if (signal.aborted) {
-            controller.abort();
-        } else {
-            signal.addEventListener('abort', () => controller.abort(), { once: true });
-        }
-    }
-    return controller;
-}

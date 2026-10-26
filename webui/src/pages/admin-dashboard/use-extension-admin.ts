@@ -14,7 +14,8 @@
 import { useContext } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import { controllerFromSignal } from '../../query-client';
+import { useReportedQuery } from '../../hooks/use-reported-query';
+import { isNotFound } from '../../server-request';
 
 interface ExtensionTarget {
     namespace: string;
@@ -28,24 +29,26 @@ interface DeleteExtensionRequest {
 }
 
 /**
- * Looks up an extension for the admin search view. `staleTime: 0` keeps each
- * lookup fresh and `retry: false` lets a 404 surface immediately as "not found".
+ * Looks up an extension for the admin search view, which shows a 404 as "not found".
+ * `staleTime: 0` keeps each lookup fresh and `retry: false` lets a 404 surface immediately.
  * Pass `null` until the user triggers a (validated) search.
  */
 export const useAdminExtension = (target: ExtensionTarget | null) => {
     const { service } = useContext(MainContext);
-    return useQuery({
-        queryKey: ['admin', 'extension', target?.namespace ?? '', target?.extension ?? ''],
-        queryFn: ({ signal }) =>
-            service.admin.getExtension(controllerFromSignal(signal), target!.namespace, target!.extension),
-        enabled: !!target,
-        retry: false,
-        staleTime: 0
-    });
+    return useReportedQuery(
+        useQuery({
+            queryKey: ['admin', 'extension', target?.namespace ?? '', target?.extension ?? ''],
+            queryFn: ({ signal }) => service.admin.getExtension(signal, target!.namespace, target!.extension),
+            enabled: !!target,
+            retry: false,
+            staleTime: 0
+        }),
+        { ignore: isNotFound }
+    );
 };
 
 /**
- * Deletes extension versions.
+ * Deletes extension versions. Not reported here: the version dialogs handle a failure themselves.
  */
 export const useDeleteExtension = () => {
     const { service } = useContext(MainContext);
@@ -56,7 +59,8 @@ export const useDeleteExtension = () => {
 
 /**
  * Permanently purges extension versions (admin only). Unlike delete, this physically removes the
- * versions from the database and storage, freeing their identities for republishing.
+ * versions from the database and storage, freeing their identities for republishing. Not reported
+ * here: the version dialogs handle a failure themselves.
  */
 export const usePurgeExtension = () => {
     const { service } = useContext(MainContext);

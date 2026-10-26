@@ -14,14 +14,14 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal, NO_CACHE } from '../../../query-client';
+import { NO_CACHE } from '../../../query-client';
 
 /** Names of the active extensions of a namespace; idle while no namespace is chosen. */
 export const useNamespaceExtensions = (namespace: string) => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: ['namespace-extensions', namespace],
-        queryFn: ({ signal }) => service.getPublicNamespace(controllerFromSignal(signal), namespace),
+        queryFn: ({ signal }) => service.getPublicNamespace(signal, namespace),
         select: ns => Object.keys(ns.extensions),
         enabled: namespace !== '',
         ...NO_CACHE

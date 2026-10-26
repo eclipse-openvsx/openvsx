@@ -33,14 +33,17 @@ const membership = (user: UserData, role: MembershipRole = 'contributor'): Names
 function renderMembers(members: NamespaceMembership[], config: NamespaceDetailConfig = {}) {
     const getNamespaceMembers = vi.fn().mockResolvedValue({ namespaceMemberships: members });
     const setNamespaceMember = vi.fn().mockResolvedValue({ success: 'ok' });
-    const service = { getNamespaceMembers, setNamespaceMember } as unknown as ExtensionRegistryService;
+    const getUserByName = vi.fn().mockResolvedValue([other]);
+    const handleError = vi.fn();
+    const setLoadingState = vi.fn();
+    const service = { getNamespaceMembers, setNamespaceMember, getUserByName } as unknown as ExtensionRegistryService;
     renderWithProviders(
         <NamespaceDetailConfigContext.Provider value={config}>
-            <NamespaceMemberList namespace={testNamespace({ roleUrl: '/role' })} setLoadingState={vi.fn()} />
+            <NamespaceMemberList namespace={testNamespace({ roleUrl: '/role' })} setLoadingState={setLoadingState} />
         </NamespaceDetailConfigContext.Provider>,
-        { mainContext: { service, user: viewer } }
+        { mainContext: { service, user: viewer, handleError } }
     );
-    return { getNamespaceMembers, setNamespaceMember };
+    return { getNamespaceMembers, setNamespaceMember, getUserByName, handleError, setLoadingState };
 }
 
 describe('NamespaceMemberList', () => {
@@ -78,9 +81,30 @@ describe('NamespaceMemberList', () => {
 
         await userEvent.click(await screen.findByLabelText('Remove someone'));
 
-        await waitFor(() =>
-            expect(setNamespaceMember).toHaveBeenCalledWith(expect.anything(), '/role', other, 'remove')
-        );
+        await waitFor(() => expect(setNamespaceMember).toHaveBeenCalledWith('/role', other, 'remove'));
         await waitFor(() => expect(getNamespaceMembers).toHaveBeenCalledTimes(2));
+    });
+
+    it('adds a user found by login name as a contributor and reloads the list', async () => {
+        const { getNamespaceMembers, setNamespaceMember, getUserByName } = renderMembers([]);
+        const user = userEvent.setup();
+
+        await user.click(await screen.findByText('Add member'));
+        await user.type(screen.getByLabelText('Search User'), 'some');
+        await user.click(await screen.findByText('Someone Else'));
+
+        expect(getUserByName).toHaveBeenCalledWith(expect.any(AbortSignal), 'some');
+        await waitFor(() => expect(setNamespaceMember).toHaveBeenCalledWith('/role', other, 'contributor'));
+        await waitFor(() => expect(getNamespaceMembers).toHaveBeenCalledTimes(2));
+    });
+
+    it('reports a rejected role change and clears the loading state', async () => {
+        const { setNamespaceMember, handleError, setLoadingState } = renderMembers([membership(other)]);
+        setNamespaceMember.mockRejectedValue({ error: 'Not allowed' });
+
+        await userEvent.click(await screen.findByLabelText('Remove someone'));
+
+        await waitFor(() => expect(handleError).toHaveBeenCalledWith({ error: 'Not allowed' }));
+        expect(setLoadingState).toHaveBeenLastCalledWith(false);
     });
 });

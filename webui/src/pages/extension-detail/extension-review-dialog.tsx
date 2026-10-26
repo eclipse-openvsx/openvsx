@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { ChangeEvent, FunctionComponent, useContext, useEffect, useState, useRef } from 'react';
+import { ChangeEvent, FunctionComponent, useContext, useState } from 'react';
 import {
     Box,
     Button,
@@ -20,53 +20,39 @@ import {
     DialogActions
 } from '@mui/material';
 import { ButtonWithProgress } from '../../components/button-with-progress';
-import { Extension, StarRating, isError } from '../../extension-registry-types';
+import { Extension, StarRating } from '../../extension-registry-types';
 import { ExtensionRatingStarSetter } from './extension-rating-star-setter';
 import { MainContext } from '../../context';
+import { usePostReview } from './use-extension-reviews';
 
 const REVIEW_COMMENT_SIZE = 2048;
 
 export const ExtensionReviewDialog: FunctionComponent<ExtensionReviewDialogProps> = props => {
     const [open, setOpen] = useState<boolean>(false);
-    const [posted, setPosted] = useState<boolean>(false);
     const [rating, setRating] = useState<StarRating>(1);
     const [comment, setComment] = useState<string>('');
     const [commentError, setCommentError] = useState<string>();
     const context = useContext(MainContext);
-    const abortController = useRef<AbortController>(new AbortController());
-
-    useEffect(() => {
-        return () => abortController.current.abort();
-    }, []);
+    const { mutate: postReview, isPending: posting } = usePostReview(props.extension);
 
     const handleOpenButton = () => {
         if (context.user) {
             setOpen(true);
-            setPosted(false);
         }
     };
 
     const handleCancel = () => setOpen(false);
 
-    const handlePost = async () => {
-        setPosted(true);
-        try {
-            const result = await context.service.postReview(
-                abortController.current,
-                { rating, comment },
-                props.reviewPostUrl
-            );
-            if (isError(result)) {
-                throw result;
+    const handlePost = () =>
+        postReview(
+            { review: { rating, comment }, postUrl: props.reviewPostUrl },
+            {
+                onSuccess: () => {
+                    setOpen(false);
+                    setComment('');
+                }
             }
-
-            setOpen(false);
-            setComment('');
-            props.saveCompleted();
-        } catch (err) {
-            context.handleError(err);
-        }
-    };
+        );
 
     const handleCommentChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         const comment = event.target.value;
@@ -84,7 +70,7 @@ export const ExtensionReviewDialog: FunctionComponent<ExtensionReviewDialogProps
     }
     return (
         <>
-            {!posted && (
+            {!posting && (
                 <Button variant='contained' color='secondary' onClick={handleOpenButton}>
                     Write a Review
                 </Button>
@@ -130,7 +116,7 @@ export const ExtensionReviewDialog: FunctionComponent<ExtensionReviewDialogProps
                     <ButtonWithProgress
                         autoFocus
                         error={Boolean(commentError)}
-                        working={posted}
+                        working={posting}
                         sx={{ ml: 1 }}
                         onClick={handlePost}>
                         Post Review
@@ -144,5 +130,4 @@ export const ExtensionReviewDialog: FunctionComponent<ExtensionReviewDialogProps
 export interface ExtensionReviewDialogProps {
     extension: Extension;
     reviewPostUrl: string;
-    saveCompleted: () => void;
 }

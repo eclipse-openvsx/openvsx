@@ -1,4 +1,4 @@
-FROM node:22-alpine3.22 AS builder
+FROM node:24-alpine3.22 AS builder
 
 # Copy sources
 COPY --chown=node:node package.json tsconfig.json vite.config.mts yarn.lock .yarnrc.yml /home/node/builder/
@@ -18,7 +18,7 @@ RUN yarn test
 RUN yarn build:default
 
 
-FROM node:22-alpine3.22
+FROM node:24-alpine3.22
 
 # Copy build result to runtime directory
 COPY --chown=node:node --from=builder /home/node/builder/dist /home/node/webui/dist/

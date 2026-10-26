@@ -35,6 +35,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { DateTime } from 'luxon';
 import { MainContext } from '../../../context';
 import type { AdminStatistics } from '../../../extension-registry-types';
+import { isNotFound } from '../../../server-request';
 import { useAdminStatistics } from './use-admin-statistics';
 import { countByPublishMethod, PUBLISH_METHODS } from './publish-methods';
 
@@ -192,7 +193,7 @@ export const StatisticsAdmin: FunctionComponent = () => {
 
             {isFetching && !data ? <CircularProgress /> : null}
             {error && !isFetching && !data ? (
-                isNotFoundError(error) ? (
+                isNotFound(error) ? (
                     <NoStatistics month={heading} />
                 ) : (
                     <StatisticsError month={heading} error={error} />
@@ -202,13 +203,6 @@ export const StatisticsAdmin: FunctionComponent = () => {
         </Box>
     );
 };
-
-/**
- * The request layer rejects with an error object carrying the HTTP status (see `server-request.ts`),
- * so a month that was never archived is distinguishable from a request that failed. Only the former
- * is normal.
- */
-const isNotFoundError = (error: unknown): boolean => (error as { status?: number })?.status === 404;
 
 /** A request that failed, as opposed to a month that has nothing to show. */
 const StatisticsError: FunctionComponent<{ month: string; error: unknown }> = ({ month, error }) => {

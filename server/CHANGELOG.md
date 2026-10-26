@@ -39,6 +39,14 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Dependencies
 
 - Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
+- Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
+
+## [1.3.1] - 2026-10-24
+
+### Fixed
+
+- `namespaceOwnershipConflict` on the admin and own-extension endpoints is no longer reported once the namespace has an owner, which left a stale "Namespace not verified" notice on extensions whose scan had recorded the conflict ([#2380](https://github.com/eclipse-openvsx/openvsx/pull/2380))
+- Accept OAuth token responses with long headers, which GitHub now sends and httpcore5 5.4.3+ rejected with `Maximum line length limit exceeded`, breaking login ([#2381](https://github.com/eclipse-openvsx/openvsx/pull/2381))
 
 ## [1.3.0] - 2026-10-16
 
@@ -91,6 +99,13 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Update other dependencies to newer patch versions ([#2255](https://github.com/eclipse-openvsx/openvsx/pull/2255))
 - Bump tika to 3.3.2 ([#2240](https://github.com/eclipse-openvsx/openvsx/pull/2240))
 - Remove unused `jaxb-api` and `jaxb-impl` dependencies ([#2317](https://github.com/eclipse-openvsx/openvsx/pull/2317))
+
+## [1.2.1] - 2026-10-23
+
+### Fixed
+
+- `namespaceOwnershipConflict` on the admin and own-extension endpoints is no longer reported once the namespace has an owner, which left a stale "Namespace not verified" notice on extensions whose scan had recorded the conflict ([#2380](https://github.com/eclipse-openvsx/openvsx/pull/2380))
+- Accept OAuth token responses with long headers, which GitHub now sends and httpcore5 5.4.3+ rejected with `Maximum line length limit exceeded`, breaking login ([#2381](https://github.com/eclipse-openvsx/openvsx/pull/2381))
 
 ## [v1.2.0] - 2026-09-10
 

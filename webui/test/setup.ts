@@ -14,11 +14,14 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { queryClient } from '../src/query-client';
 
 // Vitest globals are off, so React Testing Library cannot auto-register cleanup.
-// Unmount rendered trees between tests to keep the jsdom document isolated.
+// Unmount rendered trees between tests to keep the jsdom document isolated, and empty
+// the app's singleton client, which `Main` runs on, so no test sees another's cache.
 afterEach(() => {
     cleanup();
+    queryClient.clear();
 });
 
 // jsdom's getComputedStyle chokes on some MUI-generated relative font sizes

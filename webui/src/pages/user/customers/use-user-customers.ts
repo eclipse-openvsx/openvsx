@@ -14,7 +14,8 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal, NO_CACHE } from '../../../query-client';
+import { useReportedQuery } from '../../../hooks/use-reported-query';
+import { NO_CACHE } from '../../../query-client';
 
 /**
  * Loads the rate-limiting customer groups the current user is a member of.
@@ -23,10 +24,12 @@ import { controllerFromSignal, NO_CACHE } from '../../../query-client';
  */
 export const useUserCustomers = () => {
     const { service, user } = useContext(MainContext);
-    return useQuery({
-        queryKey: ['user', 'customers'],
-        queryFn: ({ signal }) => service.getCustomers(controllerFromSignal(signal)),
-        enabled: user != null,
-        ...NO_CACHE
-    });
+    return useReportedQuery(
+        useQuery({
+            queryKey: ['user', 'customers'],
+            queryFn: ({ signal }) => service.getCustomers(signal),
+            enabled: user != null,
+            ...NO_CACHE
+        })
+    );
 };

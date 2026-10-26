@@ -154,22 +154,24 @@ export const NamespaceDetailsForm: FunctionComponent<NamespaceDetailsFormProps> 
             buildDetailsPayload(newDetails, linkedInAccountType)
         );
 
-    const saveDetails = async () => {
+    const saveDetails = () => {
         if (!newDetails) {
             return;
         }
 
-        try {
-            await updateDetails.mutateAsync({
+        updateDetails.mutate(
+            {
                 detailsUrl: props.namespace.detailsUrl,
                 details: buildDetailsPayload(newDetails, linkedInAccountType)
-            });
-            setCurrentDetails(copy(newDetails));
-            setSavedLinkedInAccountType(linkedInAccountType);
-            flash();
-        } catch (err) {
-            context.handleError(err);
-        }
+            },
+            {
+                onSuccess: () => {
+                    setCurrentDetails(copy(newDetails));
+                    setSavedLinkedInAccountType(linkedInAccountType);
+                    flash();
+                }
+            }
+        );
     };
 
     const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {

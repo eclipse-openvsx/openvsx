@@ -12,7 +12,6 @@ import { FunctionComponent, useContext, useState } from 'react';
 import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { PublisherInfo } from '../../extension-registry-types';
-import { MainContext } from '../../context';
 import { UpdateContext } from './publisher-admin';
 import { useForgetUser } from './use-publisher-admin';
 
@@ -22,22 +21,23 @@ const dangerButtonSx = {
 } as const;
 
 export const PublisherForgetUserButton: FunctionComponent<PublisherForgetUserButtonProps> = props => {
-    const { handleError } = useContext(MainContext);
     const updateContext = useContext(UpdateContext);
-    const { mutateAsync: forgetUser, isPending: working } = useForgetUser();
+    const { mutate: forgetUser, isPending: working } = useForgetUser();
 
     const [dialogOpen, setDialogOpen] = useState(false);
 
     const { user } = props.publisherInfo;
 
-    const doForget = async () => {
-        try {
-            await forgetUser({ provider: user.provider as string, login: user.loginName });
-            setDialogOpen(false);
-            updateContext.handleUserDeleted();
-        } catch (err) {
-            handleError(err);
-        }
+    const doForget = () => {
+        forgetUser(
+            { provider: user.provider as string, login: user.loginName },
+            {
+                onSuccess: () => {
+                    setDialogOpen(false);
+                    updateContext.handleUserDeleted();
+                }
+            }
+        );
     };
 
     return (

@@ -11,7 +11,8 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FC, useState, useContext, useEffect, useRef } from 'react';
+import { FC, useState, useContext } from 'react';
+import { keepPreviousData } from '@tanstack/react-query';
 import {
     Dialog,
     DialogTitle,
@@ -26,6 +27,8 @@ import {
 } from '@mui/material';
 import type { UserData } from '../extension-registry-types';
 import { MainContext } from '../context';
+import { useDebouncedCallback } from '../hooks/use-debounced-callback';
+import { useUsersByName } from './use-users-by-name';
 
 export interface AddUserDialogProps {
     open: boolean;
@@ -46,38 +49,36 @@ export const AddUserDialog: FC<AddUserDialogProps> = ({
     onAddUser,
     filterUsers: externalFilter
 }) => {
-    const { service, handleError } = useContext(MainContext);
-    const [options, setOptions] = useState<UserData[]>([]);
-    const [loading, setLoading] = useState(false);
-    const abortController = useRef<AbortController>(new AbortController());
-    const debounceTimeout = useRef<ReturnType<typeof setTimeout>>();
-
-    useEffect(() => {
-        return () => {
-            abortController.current.abort();
-            clearTimeout(debounceTimeout.current);
-        };
-    }, []);
+    const { handleError } = useContext(MainContext);
+    const [inputValue, setInputValue] = useState('');
+    const [searchName, setSearchName] = useState('');
+    const debouncedSetSearchName = useDebouncedCallback(setSearchName);
+    const { data: users, isFetching } = useUsersByName(searchName, {
+        enabled: !!searchName,
+        placeholderData: keepPreviousData
+    });
+    const options = inputValue && users ? users : [];
+    // Loading spans the debounce too, so the list doesn't read "No options" while the user types.
+    const loading = !!inputValue && (inputValue !== searchName || isFetching);
 
     const isUserExcluded = (user: UserData) =>
         existingUsers.some(u => u.loginName === user.loginName && u.provider === user.provider) ||
         (externalFilter && !externalFilter(user));
 
     const handleInputChange = (_: unknown, value: string) => {
-        clearTimeout(debounceTimeout.current);
-        if (!value) {
-            setOptions([]);
-            setLoading(false);
-            return;
+        setInputValue(value);
+        if (value) {
+            debouncedSetSearchName(value);
+        } else {
+            debouncedSetSearchName.cancel();
+            setSearchName('');
         }
-        setLoading(true);
-        debounceTimeout.current = setTimeout(async () => {
-            const users = await service.getUserByName(abortController.current, value);
-            if (users) {
-                setOptions(users);
-            }
-            setLoading(false);
-        }, 300);
+    };
+
+    const resetSearch = () => {
+        debouncedSetSearchName.cancel();
+        setInputValue('');
+        setSearchName('');
     };
 
     const handleSelect = (_: unknown, user: UserData | null) => {
@@ -87,11 +88,12 @@ export const AddUserDialog: FC<AddUserDialogProps> = ({
             return;
         }
         onAddUser(user);
+        resetSearch();
         onClose();
     };
 
     const handleClose = () => {
-        setOptions([]);
+        resetSearch();
         onClose();
     };
 

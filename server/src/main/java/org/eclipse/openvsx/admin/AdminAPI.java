@@ -695,8 +695,10 @@ public class AdminAPI {
                         repositories.findTargetPlatformsGroupedByVersion(latest.getExtension()));
                 json.setActive(latest.getExtension().isActive());
                 json.setRemoved(latest.isExtensionRemoved());
+                // The threat stays recorded once the namespace gains an owner, so only an unverified one conflicts.
                 json.setNamespaceOwnershipConflict(
-                        repositories.hasThreatOfType(latest, NamespaceOwnershipCheckScanner.TYPE));
+                        !repositories.isVerified(latest.getExtension().getNamespace())
+                                && repositories.hasThreatOfType(latest, NamespaceOwnershipCheckScanner.TYPE));
             } else {
                 var extension = repositories.findExtension(extensionName, namespaceName);
                 if (extension == null) {

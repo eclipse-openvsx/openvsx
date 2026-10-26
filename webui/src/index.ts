@@ -22,8 +22,7 @@ export { useReportedQuery } from './hooks/use-reported-query';
 // The registry client, plus the request layer for building a service around endpoints it doesn't cover.
 export * from './extension-registry-service';
 export * from './extension-registry-types';
-export { sendRequest, sendNonRetriableRequest, type ErrorResponse } from './server-request';
-export { controllerFromSignal } from './query-client';
+export { sendRequest, isNotFound, type ErrorResponse } from './server-request';
 export { createRoute, createAbsoluteURL, addQuery } from './utils';
 
 // So a deployment with its own menu content can gate an admin entry the way the built-in menu does.

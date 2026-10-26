@@ -95,53 +95,45 @@ export const NamespaceLogo: FunctionComponent<NamespaceLogoProps> = props => {
 
     const handleApplyLogo = () => {
         const canvasScaled = editor.current?.getImageScaledToCanvas();
-        canvasScaled?.toBlob(async blob => {
+        canvasScaled?.toBlob(blob => {
             if (!blob || !logoFile) {
                 return;
             }
-            try {
-                await uploadLogo.mutateAsync({
-                    namespaceName: props.namespace.name,
-                    detailsUrl: props.namespace.detailsUrl,
-                    file: blob,
-                    fileName: logoFile.name
-                });
-            } catch (err) {
-                context.handleError(err);
-            }
+            uploadLogo.mutate({
+                namespaceName: props.namespace.name,
+                detailsUrl: props.namespace.detailsUrl,
+                file: blob,
+                fileName: logoFile.name
+            });
         });
         setEditing(false);
     };
 
-    const removeLogo = async () => {
+    const removeLogo = () => {
         setMenuAnchor(null);
         if (!details) {
             return;
         }
 
-        try {
-            // The update endpoint deletes the stored logo when the payload's logo is
-            // empty; send only the editable fields, unchanged. Blank social links must
-            // be dropped — the server validates any non-null value as a full URL.
-            await updateDetails.mutateAsync({
-                detailsUrl: props.namespace.detailsUrl,
-                details: {
-                    name: details.name,
-                    displayName: details.displayName,
-                    description: details.description,
-                    website: details.website,
-                    supportLink: details.supportLink,
-                    socialLinks: {
-                        linkedin: details.socialLinks.linkedin || undefined,
-                        github: details.socialLinks.github || undefined,
-                        twitter: details.socialLinks.twitter || undefined
-                    },
-                    logo: undefined
-                }
-            });
-        } catch (err) {
-            context.handleError(err);
-        }
+        // The update endpoint deletes the stored logo when the payload's logo is
+        // empty; send only the editable fields, unchanged. Blank social links must
+        // be dropped — the server validates any non-null value as a full URL.
+        updateDetails.mutate({
+            detailsUrl: props.namespace.detailsUrl,
+            details: {
+                name: details.name,
+                displayName: details.displayName,
+                description: details.description,
+                website: details.website,
+                supportLink: details.supportLink,
+                socialLinks: {
+                    linkedin: details.socialLinks.linkedin || undefined,
+                    github: details.socialLinks.github || undefined,
+                    twitter: details.socialLinks.twitter || undefined
+                },
+                logo: undefined
+            }
+        });
     };
 
     const adjustScale = (x: number) => (x < 1 ? 0.5 + x / 2 : x);

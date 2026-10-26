@@ -20,7 +20,10 @@ import { PageSettings } from '../../../../../src/page-settings';
 import { UserData } from '../../../../../src/extension-registry-types';
 
 const service = { serverUrl: 'https://open-vsx.org' } as ExtensionRegistryService;
-const pageSettings = { publisherAgreement: { name: 'Open VSX' } } as PageSettings;
+const pageSettings = {
+    publisherAgreement: { name: 'Open VSX' },
+    urls: { extensionDefaultIcon: '', namespaceAccessInfo: '', publisherAgreement: '/api/publisher-agreement' }
+} as PageSettings;
 
 const user = (overrides: Partial<UserData> = {}): UserData => ({
     loginName: 'octocat',

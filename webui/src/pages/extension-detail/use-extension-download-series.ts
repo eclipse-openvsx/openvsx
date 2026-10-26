@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import { controllerFromSignal } from '../../query-client';
 import { DownloadSeriesPoint } from '../../extension-registry-types';
 
 /**
@@ -31,7 +30,7 @@ export const useExtensionDownloadSeries = (namespace: string, name: string, opti
     return useQuery({
         queryKey: ['extension-downloads', namespace, name],
         queryFn: async ({ signal }): Promise<DownloadSeriesPoint[]> => {
-            const series = await service.getExtensionDownloadSeries(controllerFromSignal(signal), { namespace, name });
+            const series = await service.getExtensionDownloadSeries(signal, { namespace, name });
             return series.points;
         },
         ...options

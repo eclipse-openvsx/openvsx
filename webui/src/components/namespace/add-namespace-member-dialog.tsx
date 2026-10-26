@@ -8,11 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useRef } from 'react';
-import { Namespace, NamespaceMembership, UserData, isError } from '../../extension-registry-types';
+import { FunctionComponent, useContext } from 'react';
+import { Namespace, NamespaceMembership, UserData } from '../../extension-registry-types';
 import { NamespaceDetailConfigContext } from './namespace-detail-config';
-import { MainContext } from '../../context';
 import { AddUserDialog } from '../add-user-dialog';
+import { useSetNamespaceMember } from './use-namespace-members';
 
 export interface AddMemberDialogProps {
     open: boolean;
@@ -24,8 +24,7 @@ export interface AddMemberDialogProps {
 
 export const AddMemberDialog: FunctionComponent<AddMemberDialogProps> = props => {
     const config = useContext(NamespaceDetailConfigContext);
-    const { service, handleError } = useContext(MainContext);
-    const abortController = useRef<AbortController>(new AbortController());
+    const { mutateAsync: setNamespaceMember } = useSetNamespaceMember();
 
     const existingUsers = props.members.map(m => m.user);
 
@@ -35,21 +34,15 @@ export const AddMemberDialog: FunctionComponent<AddMemberDialogProps> = props =>
                 return;
             }
             props.setLoadingState(true);
-            const endpoint = props.namespace.roleUrl;
-            const result = await service.setNamespaceMember(
-                abortController.current,
-                endpoint,
+            await setNamespaceMember({
+                namespace: props.namespace,
                 user,
-                config.defaultMemberRole ?? 'contributor'
-            );
-            if (isError(result)) {
-                throw result;
-            }
+                role: config.defaultMemberRole ?? 'contributor'
+            });
+        } catch {
+            // Reported by the hook.
+        } finally {
             props.setLoadingState(false);
-            props.onClose();
-        } catch (err) {
-            props.setLoadingState(false);
-            handleError(err as Error);
         }
     };
 

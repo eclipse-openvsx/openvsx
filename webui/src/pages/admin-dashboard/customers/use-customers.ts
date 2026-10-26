@@ -15,7 +15,7 @@ import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
 import { type Customer, type UserData } from '../../../extension-registry-types';
-import { controllerFromSignal } from '../../../query-client';
+import { useReportedQuery } from '../../../hooks/use-reported-query';
 
 export const customerKeys = {
     all: ['admin', 'customers'] as const,
@@ -31,7 +31,7 @@ export const useCustomers = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: customerKeys.all,
-        queryFn: ({ signal }) => service.admin.getCustomers(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getCustomers(signal)
     });
 };
 
@@ -42,7 +42,7 @@ export const useCustomer = (name: string | undefined) => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: customerKeys.detail(name ?? ''),
-        queryFn: ({ signal }) => service.admin.getCustomer(controllerFromSignal(signal), name!),
+        queryFn: ({ signal }) => service.admin.getCustomer(signal, name!),
         enabled: !!name
     });
 };
@@ -96,10 +96,12 @@ export const useDeleteCustomer = () => {
  */
 export const useCustomerTokens = (name: string) => {
     const { service } = useContext(MainContext);
-    return useQuery({
-        queryKey: customerKeys.tokens(name),
-        queryFn: ({ signal }) => service.admin.getCustomerRateLimitTokens(controllerFromSignal(signal), name)
-    });
+    return useReportedQuery(
+        useQuery({
+            queryKey: customerKeys.tokens(name),
+            queryFn: ({ signal }) => service.admin.getCustomerRateLimitTokens(signal, name)
+        })
+    );
 };
 
 /**
@@ -108,12 +110,14 @@ export const useCustomerTokens = (name: string) => {
 export const useCreateCustomerToken = (name: string) => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (description: string) => service.admin.createCustomerRateLimitToken(name, description),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: customerKeys.tokens(name) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (description: string) => service.admin.createCustomerRateLimitToken(name, description),
+            onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: customerKeys.tokens(name) });
+            }
+        })
+    );
 };
 
 /**
@@ -122,12 +126,14 @@ export const useCreateCustomerToken = (name: string) => {
 export const useDeleteCustomerToken = (name: string) => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (tokenId: number) => service.admin.deleteCustomerRateLimitToken(name, tokenId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: customerKeys.tokens(name) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (tokenId: number) => service.admin.deleteCustomerRateLimitToken(name, tokenId),
+            onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: customerKeys.tokens(name) });
+            }
+        })
+    );
 };
 
 /**
@@ -135,10 +141,12 @@ export const useDeleteCustomerToken = (name: string) => {
  */
 export const useCustomerMembers = (name: string) => {
     const { service } = useContext(MainContext);
-    return useQuery({
-        queryKey: customerKeys.members(name),
-        queryFn: ({ signal }) => service.admin.getCustomerMembers(controllerFromSignal(signal), name)
-    });
+    return useReportedQuery(
+        useQuery({
+            queryKey: customerKeys.members(name),
+            queryFn: ({ signal }) => service.admin.getCustomerMembers(signal, name)
+        })
+    );
 };
 
 /**
@@ -147,12 +155,14 @@ export const useCustomerMembers = (name: string) => {
 export const useAddCustomerMember = (name: string) => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (user: UserData) => service.admin.addCustomerMember(name, user),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: customerKeys.members(name) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (user: UserData) => service.admin.addCustomerMember(name, user),
+            onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: customerKeys.members(name) });
+            }
+        })
+    );
 };
 
 /**
@@ -161,10 +171,12 @@ export const useAddCustomerMember = (name: string) => {
 export const useRemoveCustomerMember = (name: string) => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (user: UserData) => service.admin.removeCustomerMember(name, user),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: customerKeys.members(name) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (user: UserData) => service.admin.removeCustomerMember(name, user),
+            onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: customerKeys.members(name) });
+            }
+        })
+    );
 };

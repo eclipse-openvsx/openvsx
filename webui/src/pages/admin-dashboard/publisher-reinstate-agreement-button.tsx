@@ -11,23 +11,19 @@
 import { FunctionComponent, useContext } from 'react';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { PublisherInfo } from '../../extension-registry-types';
-import { MainContext } from '../../context';
 import { UpdateContext } from './publisher-admin';
 import { useReinstatePublisherAgreement } from './use-publisher-admin';
 
 export const PublisherReinstateAgreementButton: FunctionComponent<PublisherReinstateAgreementButtonProps> = props => {
-    const { handleError } = useContext(MainContext);
     const updateContext = useContext(UpdateContext);
-    const { mutateAsync: reinstate, isPending: working } = useReinstatePublisherAgreement();
+    const { mutate: reinstate, isPending: working } = useReinstatePublisherAgreement();
     const { user } = props.publisherInfo;
 
-    const doReinstate = async () => {
-        try {
-            await reinstate({ provider: user.provider as string, login: user.loginName });
-            updateContext.handleUpdate();
-        } catch (err) {
-            handleError(err);
-        }
+    const doReinstate = () => {
+        reinstate(
+            { provider: user.provider as string, login: user.loginName },
+            { onSuccess: () => updateContext.handleUpdate() }
+        );
     };
 
     return (

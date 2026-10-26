@@ -12,10 +12,11 @@
  *****************************************************************************/
 
 import { useContext } from 'react';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
+import { ExtensionRegistryService } from '../../../extension-registry-service';
+import { useReportedQuery } from '../../../hooks/use-reported-query';
 import { TrustedPublisher, TrustedPublisherRequest, UrlString } from '../../../extension-registry-types';
-import { controllerFromSignal } from '../../../query-client';
 
 export const trustedPublisherKeys = {
     // the status (and with it the provider list) is global, not namespace-scoped
@@ -34,18 +35,30 @@ export const useTrustedPublishingStatus = () => {
     const { service, user } = useContext(MainContext);
     return useQuery({
         queryKey: trustedPublisherKeys.status,
-        queryFn: ({ signal }) => service.getTrustedPublishingStatus(controllerFromSignal(signal)),
+        queryFn: ({ signal }) => service.getTrustedPublishingStatus(signal),
         enabled: user != null
     });
 };
 
-export const useTrustedPublishers = (trustedPublishingUrl?: UrlString) => {
-    const { service } = useContext(MainContext);
-    return useQuery({
+const trustedPublishersQuery = (service: ExtensionRegistryService, trustedPublishingUrl?: UrlString) =>
+    queryOptions({
         queryKey: trustedPublisherKeys.publishers(trustedPublishingUrl),
-        queryFn: ({ signal }) => service.getTrustedPublishers(controllerFromSignal(signal), trustedPublishingUrl!),
+        queryFn: ({ signal }) => service.getTrustedPublishers(signal, trustedPublishingUrl!),
         enabled: Boolean(trustedPublishingUrl)
     });
+
+export const useTrustedPublishers = (trustedPublishingUrl?: UrlString) => {
+    const { service } = useContext(MainContext);
+    return useReportedQuery(useQuery(trustedPublishersQuery(service, trustedPublishingUrl)));
+};
+
+/**
+ * The same list read as an ownership probe: it 403s unless the user owns the namespace, which
+ * is an answer rather than a failure, so it is not reported.
+ */
+export const useTrustedPublishersProbe = (trustedPublishingUrl?: UrlString) => {
+    const { service } = useContext(MainContext);
+    return useQuery(trustedPublishersQuery(service, trustedPublishingUrl));
 };
 
 /**
@@ -58,8 +71,7 @@ export const useAllTrustedPublishers = (trustedPublishingUrls: UrlString[]) => {
     return useQueries({
         queries: trustedPublishingUrls.map(trustedPublishingUrl => ({
             queryKey: trustedPublisherKeys.publishers(trustedPublishingUrl),
-            queryFn: ({ signal }: { signal?: AbortSignal }) =>
-                service.getTrustedPublishers(controllerFromSignal(signal), trustedPublishingUrl)
+            queryFn: ({ signal }: { signal: AbortSignal }) => service.getTrustedPublishers(signal, trustedPublishingUrl)
         })),
         combine: results => ({
             isLoading: results.some(result => result.isLoading),
@@ -89,11 +101,13 @@ export const useRegisterTrustedPublisher = () => {
 export const useDeleteTrustedPublisher = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: ({ trustedPublishingUrl, id }: { trustedPublishingUrl: UrlString; id: number }) =>
-            service.deleteTrustedPublisher(trustedPublishingUrl, id),
-        onSuccess: (_result, { trustedPublishingUrl }) => {
-            queryClient.invalidateQueries({ queryKey: trustedPublisherKeys.publishers(trustedPublishingUrl) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: ({ trustedPublishingUrl, id }: { trustedPublishingUrl: UrlString; id: number }) =>
+                service.deleteTrustedPublisher(trustedPublishingUrl, id),
+            onSuccess: (_result, { trustedPublishingUrl }) => {
+                queryClient.invalidateQueries({ queryKey: trustedPublisherKeys.publishers(trustedPublishingUrl) });
+            }
+        })
+    );
 };

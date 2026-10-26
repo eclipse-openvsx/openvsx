@@ -14,7 +14,8 @@
 import { useContext } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal, NO_CACHE } from '../../../query-client';
+import { useReportedQuery } from '../../../hooks/use-reported-query';
+import { NO_CACHE } from '../../../query-client';
 
 interface UserExtensionTarget {
     namespace: string;
@@ -32,15 +33,18 @@ interface DeleteUserExtensionRequest {
  */
 export const useUserExtension = (target: UserExtensionTarget) => {
     const { service } = useContext(MainContext);
-    return useQuery({
-        queryKey: ['user', 'extension', target.namespace, target.extension],
-        queryFn: ({ signal }) => service.getExtension(controllerFromSignal(signal), target.namespace, target.extension),
-        ...NO_CACHE
-    });
+    return useReportedQuery(
+        useQuery({
+            queryKey: ['user', 'extension', target.namespace, target.extension],
+            queryFn: ({ signal }) => service.getExtension(signal, target.namespace, target.extension),
+            ...NO_CACHE
+        })
+    );
 };
 
 /**
- * Deletes extension versions.
+ * Deletes extension versions. Not reported here: the delete dialogs it is handed to report
+ * its failures, a partial delete included.
  */
 export const useDeleteUserExtensionVersions = () => {
     const { service } = useContext(MainContext);

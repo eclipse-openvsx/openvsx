@@ -15,7 +15,6 @@ import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../context';
 import type { Settings, SiteSettings } from '../../extension-registry-types';
-import { controllerFromSignal } from '../../query-client';
 import { siteSettingsQueryKey } from '../../components/use-site-settings';
 
 export const settingsQueryKey = ['admin', 'settings'] as const;
@@ -27,7 +26,7 @@ export const useSettings = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: settingsQueryKey,
-        queryFn: ({ signal }) => service.admin.getSettings(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getSettings(signal)
     });
 };
 
