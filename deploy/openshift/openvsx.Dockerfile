@@ -23,7 +23,7 @@ RUN git clone --branch ${VERSION} --depth 1 https://github.com/eclipse/openvsx.g
 
 # Run the committed Yarn release directly; no global Yarn is installed.
 RUN cd webui \
-  && yarn() { node .yarn/releases/yarn-4.9.1.cjs "$@"; } \
+  && yarn() { node .yarn/releases/yarn-4.18.1.cjs "$@"; } \
   && yarn --version \
   && yarn install --immutable \
   && yarn build:default

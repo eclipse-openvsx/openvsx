@@ -43,7 +43,7 @@ export const useAdminExtension = (target: ExtensionTarget | null) => {
             retry: false,
             staleTime: 0
         }),
-        { ignore: isNotFound }
+        { action: 'load the extension', ignore: isNotFound }
     );
 };
 

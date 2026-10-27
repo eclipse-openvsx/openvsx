@@ -60,7 +60,9 @@ describe('DeleteVersionDialog', () => {
 
         await userEvent.click(removeButton());
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith({ error: 'boom' }));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith({ error: 'boom' }, { title: 'Couldn’t delete the version' })
+        );
         expect(onDeleted).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
     });

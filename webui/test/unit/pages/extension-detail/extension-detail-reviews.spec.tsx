@@ -174,7 +174,7 @@ describe('ExtensionDetailReviews', () => {
         await user.click(await screen.findByRole('button', { name: 'Write a Review' }));
         await user.click(screen.getByRole('button', { name: 'Post Review' }));
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(failure));
+        await waitFor(() => expect(handleError).toHaveBeenCalledWith(failure, { title: 'Couldn’t post your review' }));
         expect(screen.getByRole('dialog')).toHaveTextContent('Bar Review');
     });
 

@@ -107,6 +107,8 @@ describe('ExtensionDetail', () => {
         const { handleError } = renderFailingDetail(failure);
 
         expect(await screen.findByText('Failed to load extension details')).toBeInTheDocument();
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(failure));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(failure, { title: 'Couldn’t load the extension' })
+        );
     });
 });

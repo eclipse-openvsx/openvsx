@@ -64,6 +64,6 @@ export const useNamespaceExtensionList = (
             })),
             combine: combineExtensions
         }),
-        { ignore: options.omitUnavailable ? isNotFound : undefined }
+        { action: 'load the namespace’s extensions', ignore: options.omitUnavailable ? isNotFound : undefined }
     );
 };

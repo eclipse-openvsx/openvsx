@@ -34,7 +34,7 @@ export const useNamespaceDetails = (name: string) => {
             queryFn: ({ signal }) => service.getNamespaceDetails(signal, name),
             ...NO_CACHE
         }),
-        { ignore: isNotFound }
+        { action: 'load the namespace details', ignore: isNotFound }
     );
 };
 
@@ -49,7 +49,8 @@ export const useUpdateNamespaceDetails = () => {
             onSuccess: (_result, { details }) => {
                 queryClient.invalidateQueries({ queryKey: detailsKey(details.name) });
             }
-        })
+        }),
+        { action: 'save the namespace details' }
     );
 };
 
@@ -72,6 +73,7 @@ export const useUpdateNamespaceLogo = () => {
             onSuccess: (_result, { namespaceName }) => {
                 queryClient.invalidateQueries({ queryKey: detailsKey(namespaceName) });
             }
-        })
+        }),
+        { action: 'update the namespace logo' }
     );
 };

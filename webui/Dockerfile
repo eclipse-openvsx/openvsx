@@ -12,7 +12,7 @@ COPY --chown=node:node test ./test/
 
 # Build and test the library and default app
 # Run the committed Yarn release directly; the base image's Yarn is not relied on.
-RUN yarn() { node .yarn/releases/yarn-4.9.1.cjs "$@"; } \
+RUN yarn() { node .yarn/releases/yarn-4.18.1.cjs "$@"; } \
   && yarn install --immutable \
   && yarn test \
   && yarn build:default

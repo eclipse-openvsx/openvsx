@@ -80,7 +80,11 @@ describe('DeleteAllVersionsDialog', () => {
 
         await userEvent.click(deleteButton());
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(expect.objectContaining(aggregate)));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(expect.objectContaining(aggregate), {
+                title: 'Couldn’t delete the extension'
+            })
+        );
         expect(onDeleted).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
     });

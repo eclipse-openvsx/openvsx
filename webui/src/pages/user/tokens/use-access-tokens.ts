@@ -29,7 +29,8 @@ export const useAccessTokens = () => {
             queryFn: ({ signal }) => service.getAccessTokens(signal, user!),
             enabled: user != null,
             ...NO_CACHE
-        })
+        }),
+        { action: 'load your access tokens' }
     );
 };
 
@@ -50,7 +51,8 @@ export const useCreateAccessToken = () => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: ACCESS_TOKENS_QUERY_KEY });
             }
-        })
+        }),
+        { action: 'generate the access token' }
     );
 };
 
@@ -64,7 +66,8 @@ export const useDeleteAccessToken = () => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: ACCESS_TOKENS_QUERY_KEY });
             }
-        })
+        }),
+        { action: 'revoke the access token' }
     );
 };
 
@@ -78,6 +81,7 @@ export const useDeleteAllAccessTokens = () => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: ACCESS_TOKENS_QUERY_KEY });
             }
-        })
+        }),
+        { action: 'revoke your access tokens' }
     );
 };

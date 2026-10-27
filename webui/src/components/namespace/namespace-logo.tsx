@@ -82,7 +82,9 @@ export const NamespaceLogo: FunctionComponent<NamespaceLogoProps> = props => {
             return;
         }
         if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
-            context.handleError(new Error(`Unsupported file type '${file.type}'`));
+            context.handleError(new Error(`Unsupported file type '${file.type}'`), {
+                title: 'Couldn’t update the namespace logo'
+            });
             return;
         }
 

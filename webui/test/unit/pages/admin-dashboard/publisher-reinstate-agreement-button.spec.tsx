@@ -63,7 +63,12 @@ describe('PublisherReinstateAgreementButton', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Reinstate' }));
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith({ error: 'nope' }));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(
+                { error: 'nope' },
+                { title: 'Couldn’t reinstate the publisher agreement' }
+            )
+        );
         expect(handleUpdate).not.toHaveBeenCalled();
     });
 });

@@ -33,7 +33,8 @@ export const useNamespaceMembers = (namespace: Namespace) => {
             queryKey: membersKeys.list(namespace),
             queryFn: ({ signal }) => service.getNamespaceMembers(signal, namespace),
             ...NO_CACHE
-        })
+        }),
+        { action: 'load the namespace members' }
     );
 };
 
@@ -56,6 +57,7 @@ export const useSetNamespaceMember = () => {
                 service.setNamespaceMember(namespace.roleUrl, user, role),
             onSuccess: (_result, { namespace }) =>
                 queryClient.invalidateQueries({ queryKey: membersKeys.all(namespace) })
-        })
+        }),
+        { action: 'update the namespace members' }
     );
 };

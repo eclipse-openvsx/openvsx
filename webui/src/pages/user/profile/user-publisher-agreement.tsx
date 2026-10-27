@@ -44,7 +44,10 @@ export const UserPublisherAgreement: FunctionComponent<UserPublisherAgreementPro
 
     const openPublisherAgreement = () => {
         if (!agreementUrl) {
-            handleError({ error: 'Publisher agreement text is not available.' });
+            handleError(
+                { error: 'Publisher agreement text is not available.' },
+                { title: 'Couldn’t load the publisher agreement' }
+            );
         } else {
             setDialogOpen(true);
         }

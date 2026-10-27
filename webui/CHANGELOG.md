@@ -7,7 +7,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Added
 
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
-- `useReportedQuery` takes an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state
+- `useReportedQuery` requires an `action` that titles the error dialog with what failed, e.g. "Couldn’t load the namespace members", and an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state; `MainContext.handleError` takes the dialog `title` directly
 
 ### Changed
 
@@ -18,6 +18,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - The default publisher agreement text URL is now the server's `/api/publisher-agreement`, instead of `/documents/publisher-agreement.md`
 - `sendRequest` rejects a 200 carrying an error result and no longer retries; retries belong to the query client, which waits out a 429 for queries and never retries a mutation.
 - `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
+- The error dialog is titled with what failed, e.g. "Couldn’t load the namespace members", instead of a bare "Error"
 - A curated row on the home page that fails to load shows "We couldn’t load extensions at this time." with a Retry button instead of disappearing; `CuratedRow` carries the row's `error` and a `refetch` for custom home pages
 
 ### Fixed
@@ -36,6 +37,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Bump undici from 8.11.2 to 8.12.3 (#2362)
 - Remove `fetch-retry`; the query client owns retries
 - Bump dompurify from 3.4.16 to 3.4.17 (#2379)
+- Upgrade `yarn` from 4.9.1 to 4.18.1 and set `npmMinimalAgeGate` to 7 days, so versions published in the last 7 days are not picked for new resolutions (#2393)
 
 ## [1.3.0] - 2026-10-16
 

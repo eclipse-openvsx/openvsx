@@ -33,5 +33,7 @@ export const userExtensionsQuery = (service: ExtensionRegistryService) =>
 /** Lists the current user's published extensions; idle until there is a user to list them for. */
 export const useUserExtensions = () => {
     const { service, user } = useContext(MainContext);
-    return useReportedQuery(useQuery({ ...userExtensionsQuery(service), enabled: user != null }));
+    return useReportedQuery(useQuery({ ...userExtensionsQuery(service), enabled: user != null }), {
+        action: 'load your extensions'
+    });
 };

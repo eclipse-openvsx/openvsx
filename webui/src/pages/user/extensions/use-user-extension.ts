@@ -38,7 +38,8 @@ export const useUserExtension = (target: UserExtensionTarget) => {
             queryKey: ['user', 'extension', target.namespace, target.extension],
             queryFn: ({ signal }) => service.getExtension(signal, target.namespace, target.extension),
             ...NO_CACHE
-        })
+        }),
+        { action: 'load the extension' }
     );
 };
 

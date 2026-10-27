@@ -63,7 +63,7 @@ async getNamespace(signal: AbortSignal, name: string): Promise<Readonly<Namespac
 
 ## Errors are reported where the query is defined
 
-- A hook whose errors belong in the global error dialog wraps its result in `useReportedQuery` at the definition — `return useReportedQuery(useQuery({ … }))`, and the same for `useMutation`. Callers never report by hand: no `useEffect` on `error`, no `onError: handleError`, no `catch` that calls `handleError`.
+- A hook whose errors belong in the global error dialog wraps its result in `useReportedQuery` at the definition — `return useReportedQuery(useQuery({ … }), { action: 'load the namespace members' })`, and the same for `useMutation`. Always pass `action`: it titles the dialog "Couldn’t load the namespace members", so the user knows what failed. Callers never report by hand: no `useEffect` on `error`, no `onError: handleError`, no `catch` that calls `handleError`.
 - A page that renders an error itself passes a stable `ignore` predicate, e.g. `{ ignore: isNotFound }` (`server-request.ts`) for a 404 shown as a not-found state.
 - Errors shown inline (an `Alert`, `ListLoadError`) are not reported, so nothing is shown twice. `handleError` from `utils.ts` only formats a message; reporting goes through `MainContext.handleError`.
 - Mutation callers use `mutate(vars, { onSuccess })` for follow-up work; `isPending` drives spinners.

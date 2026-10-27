@@ -34,7 +34,8 @@ export const useUserNamespaces = () => {
             queryFn: ({ signal }) => service.getNamespaces(signal),
             enabled: user != null,
             ...NO_CACHE
-        })
+        }),
+        { action: 'load your namespaces' }
     );
 };
 

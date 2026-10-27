@@ -104,7 +104,12 @@ describe('NamespaceMemberList', () => {
 
         await userEvent.click(await screen.findByLabelText('Remove someone'));
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith({ error: 'Not allowed' }));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(
+                { error: 'Not allowed' },
+                { title: 'Couldn’t update the namespace members' }
+            )
+        );
         expect(setLoadingState).toHaveBeenLastCalledWith(false);
     });
 });
