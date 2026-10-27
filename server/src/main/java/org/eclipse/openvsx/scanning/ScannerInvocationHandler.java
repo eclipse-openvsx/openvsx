@@ -21,6 +21,7 @@ import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.ScanCheckResult;
@@ -233,6 +234,12 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         ScannerJob job = scanJobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
 
+        // The watchdog may have finalized the job while the scanner call was in flight
+        if (job.getStatus().isTerminal()) {
+            logger.debug("Job {} already {}, discarding result of scanner {}", jobId, job.getStatus(), scannerType);
+            return;
+        }
+
         // Determine the scan ID before processing (needed for completion check)
         String scanId = job.getScanId();
 
@@ -282,7 +289,7 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
     /**
      * Handle a completed (synchronous) scan result.
      * Marks job as complete, saves any threats found, and records result for audit.
-     * The job is saved before the threats, so a lost race leaves no orphaned rows.
+     * The job is saved together with the threats, so a lost race leaves no orphaned rows.
      *
      * @return false if the job changed concurrently and the result was discarded
      */
@@ -301,17 +308,19 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         job.setStatus(ScannerJob.JobStatus.COMPLETE);
         job.setExternalJobId(null); // No external job for sync scanners
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        if (!scanJobRepository.trySave(job)) {
+
+        // Job, threats and audit result commit together, so no completion check sees COMPLETE without them
+        ExtensionScanPersistenceService.CompletedScanResult processed;
+        try {
+            processed = persistenceService.completeScannerJob(
+                    job,
+                    completed.result(),
+                    scanner.enforcesThreats(),
+                    startedAt);
+        } catch (ObjectOptimisticLockingFailureException e) {
             logger.debug("Job {} changed concurrently, discarding result of scanner {}", job.getId(), scannerType);
             return false;
         }
-
-        // Process result: save threats, determine check result, record audit
-        var processed = persistenceService.processCompletedScan(
-                job,
-                completed.result(),
-                scanner.enforcesThreats(),
-                startedAt);
 
         // Only log when threats were found
         if (processed.checkResult() == ScanCheckResult.CheckResult.QUARANTINE) {

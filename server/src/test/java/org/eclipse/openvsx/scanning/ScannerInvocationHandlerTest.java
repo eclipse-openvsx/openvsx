@@ -17,6 +17,7 @@ import java.util.Optional;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import org.eclipse.openvsx.entities.ScannerJob;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
@@ -61,13 +62,33 @@ class ScannerInvocationHandlerTest {
     }
 
     @Test
-    void lostRaceOnCompletedScan_savesNoThreatsAndChecksNothing() throws Exception {
+    void lostRaceOnCompletedScan_checksNothing() throws Exception {
         when(scanner.startScan(any())).thenReturn(new Scanner.Invocation.Completed(mock(Scanner.Result.class)));
-        when(repo.trySave(any())).thenReturn(false);
+        when(persistence.completeScannerJob(any(), any(), anyBoolean(), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
 
         invoke();
 
-        verify(persistence, never()).processCompletedScan(any(), any(), anyBoolean(), any());
+        verify(completion, never()).checkCompletionSafely(anyString());
+    }
+
+    @Test
+    void watchdogFailedTheJobDuringTheScannerCall_resultIsDiscarded() throws Exception {
+        var failed = new ScannerJob();
+        failed.setId(1);
+        failed.setScanId("scan");
+        failed.setScannerType("argus");
+        failed.setStatus(ScannerJob.JobStatus.FAILED);
+        when(scanner.startScan(any())).thenAnswer(invocation -> {
+            // the watchdog's verdict lands while the scanner is busy
+            when(repo.findById(1L)).thenReturn(Optional.of(failed));
+            return new Scanner.Invocation.Completed(mock(Scanner.Result.class));
+        });
+
+        invoke();
+
+        verify(persistence, never()).completeScannerJob(any(), any(), anyBoolean(), any());
+        verify(repo, never()).trySave(any());
         verify(completion, never()).checkCompletionSafely(anyString());
     }
 

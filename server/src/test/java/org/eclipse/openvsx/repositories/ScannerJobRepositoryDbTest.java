@@ -12,12 +12,16 @@
  *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.jobrunr.scheduling.JobRequestScheduler;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
@@ -44,6 +48,16 @@ class ScannerJobRepositoryDbTest extends AbstractPostgresContainerTest {
     @MockitoBean
     JobRequestScheduler scheduler;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    private final List<Long> createdIds = new ArrayList<>();
+
+    @AfterEach
+    void deleteCreatedJobs() {
+        createdIds.forEach(id -> jdbc.update("DELETE FROM scan_job WHERE id = ?", id));
+    }
+
     private ScannerJob newJob() {
         var now = TimeUtil.getCurrentUTC();
         var job = new ScannerJob();
@@ -53,7 +67,9 @@ class ScannerJobRepositoryDbTest extends AbstractPostgresContainerTest {
         job.setStatus(ScannerJob.JobStatus.PROCESSING);
         job.setCreatedAt(now);
         job.setUpdatedAt(now);
-        return repo.save(job);
+        var saved = repo.save(job);
+        createdIds.add(saved.getId());
+        return saved;
     }
 
     @Test

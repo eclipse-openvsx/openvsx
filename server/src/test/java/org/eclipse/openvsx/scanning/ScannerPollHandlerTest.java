@@ -18,6 +18,7 @@ import java.util.Optional;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import org.eclipse.openvsx.entities.ScannerJob;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
@@ -97,14 +98,14 @@ class ScannerPollHandlerTest {
     }
 
     @Test
-    void lostRaceOnCompletedResults_discardsResultsAndThreats() throws Exception {
+    void lostRaceOnCompletedResults_checksNothing() throws Exception {
         when(scanner.pollStatus(any())).thenReturn(Scanner.PollStatus.COMPLETED);
         when(scanner.fetchResults(any())).thenReturn(mock(Scanner.Result.class));
-        when(repo.trySave(any())).thenReturn(false);
+        when(persistence.completeScannerJob(any(), any(), anyBoolean(), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
 
         poll();
 
-        verify(persistence, never()).processCompletedScan(any(), any(), anyBoolean(), any());
         verify(completion, never()).checkCompletionSafely(anyString());
     }
 

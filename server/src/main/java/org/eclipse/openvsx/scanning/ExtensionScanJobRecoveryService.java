@@ -608,13 +608,15 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
                     logger.info("Re-enqueued stuck job: scanId={}, scanner={}", job.getScanId(), job.getScannerType());
                 } catch (Exception e) {
                     logger.error("Failed to re-enqueue job {}", job.getScanId());
-                    // The save above made the loaded instance stale, so reload before failing the job.
-                    scanJobRepository.findById(job.getId()).ifPresent(current -> {
-                        current.setRecoveryInProgress(false);
-                        if (markFailed(current, "Recovery failed: " + e.getMessage())) {
-                            completionService.checkCompletionSafely(current.getScanId());
-                        }
-                    });
+                    // A worker may have claimed the job since the save above; only a still-QUEUED job is failed.
+                    scanJobRepository.findById(job.getId())
+                            .filter(current -> current.getStatus() == ScannerJob.JobStatus.QUEUED)
+                            .ifPresent(current -> {
+                                current.setRecoveryInProgress(false);
+                                if (markFailed(current, "Recovery failed: " + e.getMessage())) {
+                                    completionService.checkCompletionSafely(current.getScanId());
+                                }
+                            });
                 }
             }
         }

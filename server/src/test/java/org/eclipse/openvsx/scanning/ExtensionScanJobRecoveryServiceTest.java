@@ -12,8 +12,11 @@
  *****************************************************************************/
 package org.eclipse.openvsx.scanning;
 
+import java.util.List;
+import java.util.Optional;
 import javax.sql.DataSource;
 
+import org.jobrunr.jobs.lambdas.JobRequest;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
@@ -34,12 +37,15 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.ExtensionService;
+import org.eclipse.openvsx.entities.ScannerJob;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
+import org.eclipse.openvsx.util.TimeUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -169,6 +175,37 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
 
         // recoverPendingJobs() is the first thing a successful acquisition leads to.
         verify(scanJobRepository).findByStatusIn(ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void watchdog_doesNotFailAJobThatWasClaimedWhileReEnqueueFailed() throws Exception {
+        var scanner = Mockito.mock(Scanner.class);
+        when(scannerRegistry.getScanner("argus")).thenReturn(scanner);
+        var stale = new ScannerJob();
+        stale.setId(1);
+        stale.setScanId("scan");
+        stale.setScannerType("argus");
+        stale.setStatus(ScannerJob.JobStatus.QUEUED);
+        stale.setCreatedAt(TimeUtil.getCurrentUTC().minusMinutes(10));
+        when(
+                scanJobRepository.findByStatusAndCreatedAtBeforeAndRecoveryInProgressFalse(
+                        ArgumentMatchers.eq(ScannerJob.JobStatus.QUEUED),
+                        ArgumentMatchers.any()))
+                .thenReturn(List.of(stale));
+        when(scanJobRepository.trySave(stale)).thenReturn(true);
+        doThrow(new RuntimeException("queue down")).when(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
+        // a worker picked the job up in the meantime
+        var claimed = new ScannerJob();
+        claimed.setId(1);
+        claimed.setScanId("scan");
+        claimed.setStatus(ScannerJob.JobStatus.PROCESSING);
+        when(scanJobRepository.findById(1L)).thenReturn(Optional.of(claimed));
+
+        newService(dsl).run(null);
+
+        assertThat(claimed.getStatus()).isEqualTo(ScannerJob.JobStatus.PROCESSING);
+        verify(scanJobRepository, never()).trySave(claimed);
+        verifyNoInteractions(completionService);
     }
 
     @Test

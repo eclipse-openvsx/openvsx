@@ -21,6 +21,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
@@ -422,6 +423,23 @@ public class ExtensionScanPersistenceService {
             int threatCount,
             String summary
     ) {}
+
+    /**
+     * Save the completed job together with its threats and audit result in one transaction.
+     * <p>
+     * A version conflict on the job propagates as {@link ObjectOptimisticLockingFailureException} and
+     * rolls everything back, so a result that lost a race leaves nothing behind.
+     */
+    @Transactional(TxType.REQUIRES_NEW)
+    public CompletedScanResult completeScannerJob(
+            @NonNull ScannerJob job,
+            Scanner.@NonNull Result result,
+            boolean scannerEnforced,
+            @NonNull LocalDateTime startedAt
+    ) {
+        scannerJobRepository.saveAndFlush(job);
+        return processCompletedScan(job, result, scannerEnforced, startedAt);
+    }
 
     /**
      * Process a completed scanner result: save threats, determine check result, record audit.

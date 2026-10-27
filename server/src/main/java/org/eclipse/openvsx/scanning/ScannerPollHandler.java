@@ -20,6 +20,7 @@ import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.ScanCheckResult;
@@ -229,17 +230,19 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
         job.setErrorMessage(null);
         job.setPollLeaseUntil(null);
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        if (!scanJobRepository.trySave(job)) {
+
+        // Job, threats and audit result commit together, so no completion check sees COMPLETE without them
+        ExtensionScanPersistenceService.CompletedScanResult processed;
+        try {
+            processed = persistenceService.completeScannerJob(
+                    job,
+                    result,
+                    scanner.enforcesThreats(),
+                    startedAt);
+        } catch (ObjectOptimisticLockingFailureException e) {
             logger.debug("Scan job {} changed concurrently, discarding results", job.getId());
             return;
         }
-
-        // Process result: save threats, determine check result, record audit
-        var processed = persistenceService.processCompletedScan(
-                job,
-                result,
-                scanner.enforcesThreats(),
-                startedAt);
 
         // Log based on result
         if (processed.threatCount() == 0) {
