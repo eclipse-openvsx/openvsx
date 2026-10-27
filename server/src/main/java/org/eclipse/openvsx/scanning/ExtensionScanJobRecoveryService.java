@@ -594,25 +594,28 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
                 }
             } else {
                 try {
-                    job.setRecoveryInProgress(true);
-                    job.setUpdatedAt(TimeUtil.getCurrentUTC());
-                    if (!scanJobRepository.trySave(job)) {
-                        continue;
-                    }
+                    // The flag commits only once the enqueue went through, so a crash in between
+                    // cannot leave a job excluded from recovery.
+                    transactionTemplate.executeWithoutResult(status -> {
+                        job.setRecoveryInProgress(true);
+                        job.setUpdatedAt(TimeUtil.getCurrentUTC());
+                        scanJobRepository.saveAndFlush(job);
 
-                    jobScheduler.enqueue(
-                            new ScannerInvocationRequest(
-                                    job.getScannerType(),
-                                    job.getExtensionVersionId(),
-                                    job.getScanId()));
+                        jobScheduler.enqueue(
+                                new ScannerInvocationRequest(
+                                        job.getScannerType(),
+                                        job.getExtensionVersionId(),
+                                        job.getScanId()));
+                    });
                     logger.info("Re-enqueued stuck job: scanId={}, scanner={}", job.getScanId(), job.getScannerType());
+                } catch (ObjectOptimisticLockingFailureException e) {
+                    logger.debug("Stuck job {} changed concurrently, skipping", job.getId());
                 } catch (Exception e) {
                     logger.error("Failed to re-enqueue job {}", job.getScanId());
-                    // A worker may have claimed the job since the save above; only a still-QUEUED job is failed.
+                    // A worker may have claimed the job meanwhile; only a still-QUEUED job is failed.
                     scanJobRepository.findById(job.getId())
                             .filter(current -> current.getStatus() == ScannerJob.JobStatus.QUEUED)
                             .ifPresent(current -> {
-                                current.setRecoveryInProgress(false);
                                 if (markFailed(current, "Recovery failed: " + e.getMessage())) {
                                     completionService.checkCompletionSafely(current.getScanId());
                                 }

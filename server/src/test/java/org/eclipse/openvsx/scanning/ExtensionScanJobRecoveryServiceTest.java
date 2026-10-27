@@ -33,6 +33,7 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.util.Streamable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
@@ -192,7 +193,6 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
                         ArgumentMatchers.eq(ScannerJob.JobStatus.QUEUED),
                         ArgumentMatchers.any()))
                 .thenReturn(List.of(stale));
-        when(scanJobRepository.trySave(stale)).thenReturn(true);
         doThrow(new RuntimeException("queue down")).when(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
         // a worker picked the job up in the meantime
         var claimed = new ScannerJob();
@@ -205,6 +205,61 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
 
         assertThat(claimed.getStatus()).isEqualTo(ScannerJob.JobStatus.PROCESSING);
         verify(scanJobRepository, never()).trySave(claimed);
+        verifyNoInteractions(completionService);
+    }
+
+    private ScannerJob stuckQueuedJob() {
+        var scanner = Mockito.mock(Scanner.class);
+        when(scannerRegistry.getScanner("argus")).thenReturn(scanner);
+        var job = new ScannerJob();
+        job.setId(1);
+        job.setScanId("scan");
+        job.setScannerType("argus");
+        job.setStatus(ScannerJob.JobStatus.QUEUED);
+        job.setCreatedAt(TimeUtil.getCurrentUTC().minusMinutes(10));
+        when(
+                scanJobRepository.findByStatusAndCreatedAtBeforeAndRecoveryInProgressFalse(
+                        ArgumentMatchers.eq(ScannerJob.JobStatus.QUEUED),
+                        ArgumentMatchers.any()))
+                .thenReturn(List.of(job));
+        return job;
+    }
+
+    @Test
+    void watchdog_commitsTheRecoveryFlagOnlyAfterTheEnqueue() throws Exception {
+        var job = stuckQueuedJob();
+
+        newService(dsl).run(null);
+
+        var inOrder = Mockito.inOrder(transactionManager, scanJobRepository, jobScheduler);
+        inOrder.verify(transactionManager).getTransaction(ArgumentMatchers.any());
+        inOrder.verify(scanJobRepository).saveAndFlush(job);
+        inOrder.verify(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
+        inOrder.verify(transactionManager).commit(ArgumentMatchers.any());
+        assertThat(job.isRecoveryInProgress()).isTrue();
+    }
+
+    @Test
+    void watchdog_rollsTheRecoveryFlagBackWhenTheEnqueueFails() throws Exception {
+        stuckQueuedJob();
+        doThrow(new RuntimeException("queue down")).when(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
+
+        newService(dsl).run(null);
+
+        verify(transactionManager).rollback(ArgumentMatchers.any());
+        verify(transactionManager, never()).commit(ArgumentMatchers.any());
+    }
+
+    @Test
+    void watchdog_skipsAJobThatChangedConcurrently() throws Exception {
+        var job = stuckQueuedJob();
+        when(scanJobRepository.saveAndFlush(job))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
+
+        newService(dsl).run(null);
+
+        verify(jobScheduler, never()).enqueue(ArgumentMatchers.any(JobRequest.class));
+        verify(scanJobRepository, never()).findById(ArgumentMatchers.anyLong());
         verifyNoInteractions(completionService);
     }
 
