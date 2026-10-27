@@ -26,7 +26,7 @@ COPY ./configuration /workdir/configuration
 
 # Run the committed Yarn release directly; no global Yarn is installed.
 RUN cd webui \
-  && yarn() { node .yarn/releases/yarn-4.9.1.cjs "$@"; } \
+  && yarn() { node .yarn/releases/yarn-4.18.1.cjs "$@"; } \
   && yarn install --immutable \
   && yarn build \
   && yarn build:default

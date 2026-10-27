@@ -100,7 +100,8 @@ export const useCustomerTokens = (name: string) => {
         useQuery({
             queryKey: customerKeys.tokens(name),
             queryFn: ({ signal }) => service.admin.getCustomerRateLimitTokens(signal, name)
-        })
+        }),
+        { action: 'load the customer’s rate limit tokens' }
     );
 };
 
@@ -116,7 +117,8 @@ export const useCreateCustomerToken = (name: string) => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: customerKeys.tokens(name) });
             }
-        })
+        }),
+        { action: 'create the rate limit token' }
     );
 };
 
@@ -132,7 +134,8 @@ export const useDeleteCustomerToken = (name: string) => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: customerKeys.tokens(name) });
             }
-        })
+        }),
+        { action: 'delete the rate limit token' }
     );
 };
 
@@ -145,7 +148,8 @@ export const useCustomerMembers = (name: string) => {
         useQuery({
             queryKey: customerKeys.members(name),
             queryFn: ({ signal }) => service.admin.getCustomerMembers(signal, name)
-        })
+        }),
+        { action: 'load the customer’s members' }
     );
 };
 
@@ -161,7 +165,8 @@ export const useAddCustomerMember = (name: string) => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: customerKeys.members(name) });
             }
-        })
+        }),
+        { action: 'add the customer member' }
     );
 };
 
@@ -177,6 +182,7 @@ export const useRemoveCustomerMember = (name: string) => {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: customerKeys.members(name) });
             }
-        })
+        }),
+        { action: 'remove the customer member' }
     );
 };

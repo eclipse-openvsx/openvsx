@@ -21,19 +21,33 @@ import { isNotFound } from '../../../src/server-request';
 const failingWith = (status: number) => () => Promise.reject(Object.assign(new Error(`status ${status}`), { status }));
 
 describe('useReportedQuery', () => {
-    it('reports a failed query', async () => {
+    it('reports a failed query, titled with what it was doing', async () => {
         const handleError = vi.fn();
-        renderHookWithProviders(() => useReportedQuery(useQuery({ queryKey: ['q'], queryFn: failingWith(500) })), {
-            mainContext: { handleError }
-        });
+        renderHookWithProviders(
+            () =>
+                useReportedQuery(useQuery({ queryKey: ['q'], queryFn: failingWith(500) }), {
+                    action: 'load the thing'
+                }),
+            {
+                mainContext: { handleError }
+            }
+        );
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ status: 500 })));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ status: 500 }), {
+                title: 'Couldn’t load the thing'
+            })
+        );
     });
 
     it('leaves out an error the page renders itself', async () => {
         const handleError = vi.fn();
         const { result } = renderHookWithProviders(
-            () => useReportedQuery(useQuery({ queryKey: ['q'], queryFn: failingWith(404) }), { ignore: isNotFound }),
+            () =>
+                useReportedQuery(useQuery({ queryKey: ['q'], queryFn: failingWith(404) }), {
+                    action: 'load the thing',
+                    ignore: isNotFound
+                }),
             { mainContext: { handleError } }
         );
 
@@ -44,12 +58,16 @@ describe('useReportedQuery', () => {
     it('reports a failed mutation', async () => {
         const handleError = vi.fn();
         const { result } = renderHookWithProviders(
-            () => useReportedQuery(useMutation({ mutationFn: failingWith(403) })),
+            () => useReportedQuery(useMutation({ mutationFn: failingWith(403) }), { action: 'save the thing' }),
             { mainContext: { handleError } }
         );
 
         act(() => result.current.mutate());
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ status: 403 })));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(expect.objectContaining({ status: 403 }), {
+                title: 'Couldn’t save the thing'
+            })
+        );
     });
 });

@@ -26,7 +26,8 @@ export const useExtensionReviews = (extension: Extension) => {
         useQuery({
             queryKey: reviewsKey(extension),
             queryFn: ({ signal }) => service.getExtensionReviews(signal, extension)
-        })
+        }),
+        { action: 'load the reviews' }
     );
 };
 
@@ -51,7 +52,8 @@ export const usePostReview = (extension: Extension) => {
             mutationFn: ({ review, postUrl }: { review: NewReview; postUrl: UrlString }) =>
                 service.postReview(review, postUrl),
             onSuccess: refreshReviews
-        })
+        }),
+        { action: 'post your review' }
     );
 };
 
@@ -63,7 +65,8 @@ export const useDeleteReview = (extension: Extension) => {
         useMutation({
             mutationFn: (deleteUrl: UrlString) => service.deleteReview(deleteUrl),
             onSuccess: refreshReviews
-        })
+        }),
+        { action: 'remove your review' }
     );
 };
 
@@ -75,6 +78,7 @@ export const useDeleteUserReview = (extension: Extension) => {
         useMutation({
             mutationFn: (user: UserData) => service.deleteUserReview(extension, user),
             onSuccess: refreshReviews
-        })
+        }),
+        { action: 'remove the review' }
     );
 };

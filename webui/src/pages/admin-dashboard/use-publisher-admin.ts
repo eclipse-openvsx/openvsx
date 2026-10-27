@@ -44,7 +44,8 @@ export const useReinstatePublisherAgreement = () => {
             mutationKey: [...publisherMutationKey, 'reinstate-agreement'],
             mutationFn: ({ provider, login }: { provider: string; login: string }) =>
                 service.admin.reinstatePublisherAgreement(provider, login)
-        })
+        }),
+        { action: 'reinstate the publisher agreement' }
     );
 };
 
@@ -58,7 +59,8 @@ export const useRevokePublisherContributions = () => {
             mutationKey: [...publisherMutationKey, 'revoke-contributions'],
             mutationFn: ({ provider, login }: { provider: string; login: string }) =>
                 service.admin.revokePublisherContributions(provider, login)
-        })
+        }),
+        { action: 'revoke the publisher’s contributions' }
     );
 };
 
@@ -72,7 +74,8 @@ export const useRevokeAccessTokens = () => {
             mutationKey: [...publisherMutationKey, 'revoke-tokens'],
             mutationFn: ({ provider, login }: { provider: string; login: string }) =>
                 service.admin.revokeAccessTokens(provider, login)
-        })
+        }),
+        { action: 'revoke the publisher’s access tokens' }
     );
 };
 
@@ -86,6 +89,7 @@ export const useForgetUser = () => {
             mutationKey: [...publisherMutationKey, 'forget-user'],
             mutationFn: ({ provider, login }: { provider: string; login: string }) =>
                 service.admin.forgetUser(provider, login)
-        })
+        }),
+        { action: 'forget the user' }
     );
 };

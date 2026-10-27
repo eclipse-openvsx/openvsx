@@ -61,7 +61,8 @@ export const useConfirmAction = (service: any, state: ScanState, dispatch: Dispa
                 dispatch({ type: 'EXECUTE_CONFIRM_ACTION' });
                 dispatch({ type: 'TRIGGER_REFRESH' });
             }
-        })
+        }),
+        { action: 'apply the scan decision' }
     );
 
     return useCallback(() => {
@@ -84,7 +85,8 @@ export const useRetryFailedScannerJobsAction = (service: any, dispatch: Dispatch
             onSuccess: () => {
                 dispatch({ type: 'TRIGGER_REFRESH' });
             }
-        })
+        }),
+        { action: 'retry the failed scanner jobs' }
     );
 
     return useCallback(
@@ -146,7 +148,8 @@ export const useFileAction = (service: any, state: ScanState, dispatch: Dispatch
                 dispatch({ type: 'RESET_PAGE' }); // Go back to first page after action
                 dispatch({ type: 'TRIGGER_REFRESH' });
             }
-        })
+        }),
+        { action: 'update the file decisions' }
     );
 
     return useCallback(() => {

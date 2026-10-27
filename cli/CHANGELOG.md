@@ -18,6 +18,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Replace `is-ci` with `ci-info` 4.4.0 (#2377)
 - Bump undici from 8.11.2 to 8.12.3 (#2387)
 - Resolve `@azure/msal-node` to 7.1.1 (#2388)
+- Upgrade `yarn` from 4.9.1 to 4.18.1 and set `npmMinimalAgeGate` to 7 days, so versions published in the last 7 days are not picked for new resolutions (#2393)
 
 ## [1.3.0] - 2026-10-16
 

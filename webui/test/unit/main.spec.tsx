@@ -45,7 +45,9 @@ const notLoggedIn = { error: 'Not logged in.', status: 200 };
 // A consumer page whose query keeps failing, reported to the dialog through MainContext.
 const failingQueryFn = vi.fn(() => Promise.reject(failure));
 const FailingQueryReporter: FunctionComponent = () => {
-    useReportedQuery(useQuery({ queryKey: ['main-spec-failing'], queryFn: failingQueryFn }));
+    useReportedQuery(useQuery({ queryKey: ['main-spec-failing'], queryFn: failingQueryFn }), {
+        action: 'load the thing'
+    });
     return null;
 };
 let failingPageRenders = 0;
@@ -118,6 +120,7 @@ describe('Main', () => {
         rejectUser({ error: 'Forbidden', message: 'no access', status: 403 });
 
         const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Couldn’t load your account');
         expect(dialog).toHaveTextContent('no access');
         expect(screen.getByTestId('probe')).toHaveTextContent('loading=false user=none');
     });

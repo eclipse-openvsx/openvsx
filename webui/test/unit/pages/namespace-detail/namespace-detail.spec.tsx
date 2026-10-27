@@ -54,7 +54,9 @@ describe('NamespaceDetail', () => {
         const failure = { error: 'Server error', status: 500 };
         const { handleError } = renderPage(vi.fn().mockRejectedValue(failure));
 
-        await waitFor(() => expect(handleError).toHaveBeenCalledWith(failure));
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(failure, { title: 'Couldn’t load the namespace details' })
+        );
         expect(screen.queryByText('Namespace Not Found: foo')).not.toBeInTheDocument();
     });
 });

@@ -30,7 +30,7 @@ const AdminDashboard = lazy(() =>
 );
 
 export const Main: FunctionComponent<MainProps> = props => {
-    const [error, setError] = useState<{ message: string; code?: number | string }>();
+    const [error, setError] = useState<{ title?: string; message: string; code?: number | string }>();
     const [isErrorDialogOpen, setIsErrorDialogOpen] = useState<boolean>(false);
     // Optional callback to run when the error dialog is dismissed (e.g. re-fetch stale data).
     const errorDialogOnClose = useRef<(() => void) | undefined>(undefined);
@@ -51,7 +51,7 @@ export const Main: FunctionComponent<MainProps> = props => {
     const loginProviders = props.loginProviders ?? registryLoginProviders ?? undefined;
     const loggedOut = isNotLoggedIn(userError);
 
-    const onError = useCallback((err: unknown, options?: { onClose?: () => void }) => {
+    const onError = useCallback((err: unknown, options?: { onClose?: () => void; title?: string }) => {
         if (err instanceof DOMException && err.message.trim() === 'The operation was aborted.') {
             // an aborted request is not a failure to report
             return;
@@ -60,20 +60,20 @@ export const Main: FunctionComponent<MainProps> = props => {
         const message = handleError(err);
         const code = (err as ReportedError).code;
         errorDialogOnClose.current = options?.onClose;
-        setError({ message, code });
+        setError({ title: options?.title, message, code });
         setIsErrorDialogOpen(true);
     }, []);
 
     useEffect(() => {
         if (userError && !loggedOut) {
-            onError(userError);
+            onError(userError, { title: 'Couldn’t load your account' });
         }
     }, [userError, loggedOut, onError]);
 
     // A 404 means the session holds no login error any more, e.g. a stale `?auth-error` URL.
     useEffect(() => {
         if (authError && !isNotFound(authError)) {
-            onError(authError);
+            onError(authError, { title: 'Couldn’t log you in' });
         }
     }, [authError, onError]);
 
@@ -107,6 +107,7 @@ export const Main: FunctionComponent<MainProps> = props => {
                 </Routes>
                 {error ? (
                     <ErrorDialog
+                        title={error.title}
                         errorMessage={error.message}
                         errorCode={error.code}
                         isErrorDialogOpen={isErrorDialogOpen}
