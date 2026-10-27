@@ -120,6 +120,14 @@ class ServerUrlConfigTest {
     }
 
     @Test
+    void keepsPercentEscapesInTheServerUrlPath() {
+        runner.withPropertyValues("ovsx.server.url=https://example.com/registry%23one/").run(context -> {
+            assertThat(config(context).getPrefix()).isEqualTo("/registry%23one");
+            assertThat(UrlUtil.getBaseUrl()).isEqualTo("https://example.com/registry%23one");
+        });
+    }
+
+    @Test
     void treatsABlankServerUrlAsUnset() {
         runner.withPropertyValues("ovsx.server.url=   ").run(context -> {
             assertThat(context).hasNotFailed();

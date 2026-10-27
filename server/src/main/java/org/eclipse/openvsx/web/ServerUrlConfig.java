@@ -85,7 +85,7 @@ public class ServerUrlConfig {
             var uri = parseServerUrl(serverUrl.trim());
             scheme = uri.getScheme().toLowerCase(Locale.ROOT);
             hostAndPort = uri.getPort() == -1 ? uri.getHost() : uri.getHost() + ":" + uri.getPort();
-            prefix = StringUtils.stripEnd(StringUtils.defaultString(uri.getPath()), "/");
+            prefix = StringUtils.stripEnd(StringUtils.defaultString(uri.getRawPath()), "/");
         }
         UrlUtil.setConfiguredBaseUrl(scheme == null ? null : scheme + "://" + hostAndPort + prefix);
 
