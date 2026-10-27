@@ -129,8 +129,7 @@ public class DownloadIngestionRunner {
                 }
             }
         } finally {
-            // evict caches and update search entries for all updated extensions
-            allUpdatedExtensions.values().forEach(processor::evictCaches);
+            // no cache eviction: each one is a full Redis keyspace SCAN, and the counts expire with the TTL
             processor.updateSearchEntries(allUpdatedExtensions.values().stream().toList());
         }
 
