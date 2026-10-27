@@ -29,6 +29,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 #### Fixed
 
+- Stop evicting the extension caches per extension after download ingestion, which ran one Redis keyspace scan each and overloaded the cache; cached download counts now refresh on the cache TTL
 - Match secret detection rules case-sensitively unless the rule has an inline `(?i)`, which stops mixed-case words such as `Asiakasdokumentaatio` being flagged as AWS keys, see #2329 ([#2330](https://github.com/eclipse-openvsx/openvsx/pull/2330))
 - Keep polling async scanners through transient errors, confirm an error status on a second poll before failing a scan, and treat every non-2xx scanner response as an error ([#2307](https://github.com/eclipse-openvsx/openvsx/pull/2307))
 - Remove the max-override-size ceiling on extension size overrides ([#2297](https://github.com/eclipse-openvsx/openvsx/pull/2297))
