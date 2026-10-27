@@ -33,6 +33,9 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 - Moving extensions into an existing namespace no longer reverts edits made to that namespace while its files were being copied ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
 - Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
+- A scan job that the timeout watchdog already failed is no longer flipped back to `COMPLETE` by a late scanner result; scan job writes are now version-checked ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
+- Threats of a scan job that did not complete no longer count towards the quarantine decision ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
+- **Upgrade:** migration `V1_84` adds the `scan_job.version` column; it does not rewrite the table ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
 
 ### Dependencies
 

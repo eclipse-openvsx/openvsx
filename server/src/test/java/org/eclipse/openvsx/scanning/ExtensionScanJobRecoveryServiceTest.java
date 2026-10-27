@@ -30,6 +30,7 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.util.Streamable;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.ExtensionService;
@@ -96,6 +97,8 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
     JobRequestScheduler jobScheduler;
     @Mock
     DSLContext dsl;
+    @Mock
+    PlatformTransactionManager transactionManager;
 
     private ExtensionScanJobRecoveryService newService(DSLContext dslContext) {
         return new ExtensionScanJobRecoveryService(
@@ -109,7 +112,8 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
                 publishService,
                 extensionService,
                 jobScheduler,
-                dslContext);
+                dslContext,
+                transactionManager);
     }
 
     // Proves the actual Postgres mechanism recoverOnStartup() relies on: two separate connections

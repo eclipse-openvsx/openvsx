@@ -52,6 +52,7 @@ class ScannerPollHandlerTest {
         job.setExternalJobId("ext");
         job.setStatus(ScannerJob.JobStatus.PROCESSING);
         when(repo.findById(1L)).thenReturn(Optional.of(job));
+        when(repo.trySave(any())).thenReturn(true);
         when(registry.getScanner("argus")).thenReturn(scanner);
         when(scanner.isAsync()).thenReturn(true);
     }
@@ -81,6 +82,30 @@ class ScannerPollHandlerTest {
 
         assertEquals(ScannerJob.JobStatus.FAILED, job.getStatus());
         verify(completion).checkCompletionSafely("scan");
+    }
+
+    @Test
+    void lostRaceOnFailure_doesNotRecordResultOrCheckCompletion() throws Exception {
+        job.setErrorMessage(ScannerPollHandler.UNCONFIRMED_FAILURE);
+        when(scanner.pollStatus(any())).thenReturn(Scanner.PollStatus.FAILED);
+        when(repo.trySave(any())).thenReturn(false);
+
+        poll();
+
+        verify(persistence, never()).recordScannerJobResult(any(), any(), any(), any(), any(), anyInt(), any(), any());
+        verify(completion, never()).checkCompletionSafely(anyString());
+    }
+
+    @Test
+    void lostRaceOnCompletedResults_discardsResultsAndThreats() throws Exception {
+        when(scanner.pollStatus(any())).thenReturn(Scanner.PollStatus.COMPLETED);
+        when(scanner.fetchResults(any())).thenReturn(mock(Scanner.Result.class));
+        when(repo.trySave(any())).thenReturn(false);
+
+        poll();
+
+        verify(persistence, never()).processCompletedScan(any(), any(), anyBoolean(), any());
+        verify(completion, never()).checkCompletionSafely(anyString());
     }
 
     @Test
