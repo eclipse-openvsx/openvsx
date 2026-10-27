@@ -12,19 +12,27 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useEffect, useMemo, useRef } from 'react';
+import { FunctionComponent, useEffect, useMemo, useRef } from 'react';
 import { ExtensionGrid } from './page-primitives';
 import { ExtensionCard } from './extension-card';
+import { ExtensionListLoadError } from './extension-list-load-error';
 import { ExtensionFilter } from '../extension-registry-service';
 import { useExtensionResultsCursor } from '../hooks/use-extension-results-cursor';
 import { useInfiniteSearch } from '../hooks/use-infinite-search';
 import { useInView } from '../hooks/use-in-view';
-import { MainContext } from '../context';
 
 export const ExtensionList: FunctionComponent<ExtensionListProps> = ({ filter, onUpdate }) => {
-    const { handleError } = useContext(MainContext);
-    const { data, error, isLoading, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage } =
-        useInfiniteSearch(filter);
+    const {
+        data,
+        isError,
+        isLoading,
+        isFetching,
+        isFetchingNextPage,
+        isFetchNextPageError,
+        hasNextPage,
+        fetchNextPage,
+        refetch
+    } = useInfiniteSearch(filter);
     const sentinelRef = useRef<HTMLDivElement>(null);
     const nearEnd = useInView(sentinelRef, { once: false, rootMargin: '200px', enabled: hasNextPage });
 
@@ -37,20 +45,17 @@ export const ExtensionList: FunctionComponent<ExtensionListProps> = ({ filter, o
         onUpdate(totalSize);
     }, [totalSize, onUpdate]);
 
-    // Surface fetch failures through the app's error handler.
-    useEffect(() => {
-        if (error) {
-            handleError(error);
-        }
-    }, [error, handleError]);
-
     // Fresh filter: put the cursor back on the first card so Enter opens it.
     useEffect(() => {
         grid.reset();
     }, [filter.query, filter.category, filter.sortBy, filter.sortOrder, grid.reset]);
 
     const pageSize = filter.size;
-    const loading = isLoading || isFetchingNextPage;
+    // Retrying a failed first page is not `isLoading` (the query stays in error), hence `!data`.
+    const loading = isLoading || isFetchingNextPage || (isFetching && !data);
+    // Load failures show inline rather than in the error dialog; a failed refetch keeps its results.
+    const firstPageFailed = isError && !data && !isFetching;
+    const nextPageFailed = isFetchNextPageError && !isFetching;
 
     // Cards already in the query cache when this list mounts (e.g. returning via
     // browser back) render in place without replaying the entrance fade, so the
@@ -74,17 +79,28 @@ export const ExtensionList: FunctionComponent<ExtensionListProps> = ({ filter, o
     });
 
     // The observer only reports changes, so re-check whenever a page lands: a sentinel still in
-    // view must trigger the next one. Waiting out any fetch avoids cancelling it.
+    // view must trigger the next one. Waiting out any fetch avoids cancelling it. A failed page
+    // leaves nothing here changed, so it waits for the retry button instead of looping.
     const loadedCount = extensions.length;
     useEffect(() => {
-        if (nearEnd && hasNextPage && !isFetching) {
+        if (nearEnd && hasNextPage && !isFetching && !isFetchNextPageError) {
             void fetchNextPage();
         }
-    }, [nearEnd, hasNextPage, isFetching, loadedCount, fetchNextPage]);
+    }, [nearEnd, hasNextPage, isFetching, isFetchNextPageError, loadedCount, fetchNextPage]);
 
     return (
         <div>
             <ExtensionGrid {...grid.containerProps}>{cards}</ExtensionGrid>
+            {firstPageFailed && (
+                <ExtensionListLoadError message='We couldn’t load extensions at this time.' onRetry={() => refetch()} />
+            )}
+            {nextPageFailed && (
+                <ExtensionListLoadError
+                    showDivider
+                    message='We couldn’t load more extensions at this time.'
+                    onRetry={() => fetchNextPage()}
+                />
+            )}
             <div ref={sentinelRef} />
         </div>
     );

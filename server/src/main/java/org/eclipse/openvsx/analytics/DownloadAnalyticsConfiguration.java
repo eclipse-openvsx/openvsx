@@ -55,8 +55,11 @@ class DownloadAnalyticsConfiguration {
     boolean statisticsEnabled;
 
     @Bean
-    DownloadAnalyticsRepository downloadAnalyticsRepository(@Qualifier("timeseriesDsl") DSLContext dsl) {
-        return new DownloadAnalyticsRepository(dsl);
+    DownloadAnalyticsRepository downloadAnalyticsRepository(
+            @Qualifier("timeseriesDsl") DSLContext dsl,
+            AnalyticsAvailability availability
+    ) {
+        return new DownloadAnalyticsRepository(dsl, availability);
     }
 
     /** Registers download_stats_daily for backfill refreshes. */

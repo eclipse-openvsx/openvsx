@@ -12,9 +12,8 @@
  *****************************************************************************/
 
 import { useContext } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import { controllerFromSignal } from '../../query-client';
 import { Extension, SearchEntry } from '../../extension-registry-types';
 
 /**
@@ -26,11 +25,13 @@ import { Extension, SearchEntry } from '../../extension-registry-types';
  * Pass `enabled: false` to hold the request back until the icon is worth loading; see
  * {@link useInView}, which is how the icon components defer everything below the fold.
  */
-export const useExtensionIcon = (extension: Extension | SearchEntry, enabled = true) => {
+export const useExtensionIcon = (
+    extension: Extension | SearchEntry,
+    options?: Omit<UseQueryOptions<string | null>, 'queryKey' | 'queryFn'>
+) => {
     const { service } = useContext(MainContext);
     const targetPlatform = 'targetPlatform' in extension ? extension.targetPlatform : undefined;
     return useQuery({
-        enabled,
         queryKey: [
             'extension-icon',
             extension.namespace,
@@ -40,9 +41,10 @@ export const useExtensionIcon = (extension: Extension | SearchEntry, enabled = t
             extension.files?.icon
         ],
         queryFn: async ({ signal }) => {
-            const icon = await service.getExtensionIcon(controllerFromSignal(signal), extension);
+            const icon = await service.getExtensionIcon(signal, extension);
             // useQuery forbids `undefined`; normalise the "no icon" case to null.
             return icon ?? null;
-        }
+        },
+        ...options
     });
 };

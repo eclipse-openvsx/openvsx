@@ -28,14 +28,4 @@ public enum DownloadSeriesInterval {
     public String value() {
         return value;
     }
-
-    public static DownloadSeriesInterval fromValue(String value) {
-        for (var interval : values()) {
-            if (interval.value.equals(value)) {
-                return interval;
-            }
-        }
-
-        throw new IllegalArgumentException("unknown interval '" + value + "', expected day, week or month");
-    }
 }

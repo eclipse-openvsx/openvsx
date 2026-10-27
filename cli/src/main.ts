@@ -74,22 +74,6 @@ module.exports = function (argv: string[]): void {
                 console.error('\u274c  Please specify either a package file or a package path, but not both.\n');
                 publishCmd.help();
             }
-            if (extensionFile !== undefined && target !== undefined) {
-                console.warn("Ignoring option '--target' for prepackaged extension.");
-                target = undefined;
-            }
-            if (extensionFile !== undefined && baseContentUrl !== undefined)
-                console.warn("Ignoring option '--baseContentUrl' for prepackaged extension.");
-            if (extensionFile !== undefined && baseImagesUrl !== undefined)
-                console.warn("Ignoring option '--baseImagesUrl' for prepackaged extension.");
-            if (extensionFile !== undefined && yarn !== undefined)
-                console.warn("Ignoring option '--yarn' for prepackaged extension.");
-            if (extensionFile !== undefined && followSymlinks !== undefined)
-                console.warn("Ignoring option '--follow-symlinks' for prepackaged extension.");
-            if (extensionFile !== undefined && packageVersion !== undefined)
-                console.warn("Ignoring option '--packageVersion' for prepackaged extension.");
-            if (extensionFile !== undefined && allowMissingRepository !== undefined)
-                console.warn("Ignoring option '--allow-missing-repository' for prepackaged extension.");
             const { registryUrl, pat, debug } = program.opts();
             publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience })
                 .then(results => {
@@ -106,7 +90,8 @@ module.exports = function (argv: string[]): void {
 
                         process.exit(1);
                     }
-                });
+                })
+                .catch(handleError(debug));
         });
 
     const unpublishCmd = program.command('unpublish [namespace.extension]');
@@ -225,7 +210,7 @@ module.exports = function (argv: string[]): void {
         program.help();
     });
 
-    if (process.argv.length <= 2) {
+    if (argv.length <= 2) {
         // Commander 14 would otherwise print this to stderr and exit 1 during program.parse(argv) below.
         program.help();
     }

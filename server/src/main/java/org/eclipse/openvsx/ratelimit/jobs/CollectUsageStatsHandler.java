@@ -23,25 +23,25 @@ import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.ratelimit.UsageStatsService;
-import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.settings.ReadOnlySetting;
 
 @Component
 public class CollectUsageStatsHandler implements JobRequestHandler<HandlerJobRequest<?>> {
 
     private final Logger logger = LoggerFactory.getLogger(CollectUsageStatsHandler.class);
 
-    private final SettingsService settings;
+    private final ReadOnlySetting readOnly;
     private final UsageStatsService usageStatsService;
 
-    public CollectUsageStatsHandler(SettingsService settings, @Nullable UsageStatsService usageStatsService) {
-        this.settings = settings;
+    public CollectUsageStatsHandler(ReadOnlySetting readOnly, @Nullable UsageStatsService usageStatsService) {
+        this.readOnly = readOnly;
         this.usageStatsService = usageStatsService;
     }
 
     @Override
     @Job(name = "Collect usage stats", retries = 0)
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
-        if (settings.isReadOnly()) {
+        if (readOnly.isEnabled()) {
             return;
         }
 

@@ -12,7 +12,8 @@ import { FunctionComponent, ReactNode } from 'react';
 import { Link as RouteLink } from 'react-router';
 import { Box, Button, Typography } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { FetchNamespaceExtension, NamespaceExtensionList } from './namespace-extension-list';
+import { NamespaceExtensionList } from './namespace-extension-list';
+import { NamespaceExtensionQuery } from './use-namespace-extension-list';
 import { NamespaceDetailRoutes } from '../../pages/namespace-detail/namespace-detail-routes';
 import { NamespaceClaimNotice } from './namespace-claim-notice';
 import { createRoute } from '../../utils';
@@ -29,7 +30,7 @@ import { MONO_FONT } from '../../default/theme';
  * Reusable view of a namespace: header, details form, member list, trusted publishers and extension
  * list, with the logo in the media sidebar. Page-specific concerns are injected — `headerActions` for
  * extra header buttons (e.g. the admin change/delete actions), `extensionRoutePrefix` and
- * `fetchExtension` for where the extension cards link and which endpoint loads them. Member roles and
+ * `extensionQuery` for where the extension cards link and which endpoint loads them. Member roles and
  * the add-member search are configured through {@link NamespaceDetailConfigContext}.
  */
 export const NamespaceDetailView: FunctionComponent<NamespaceDetailViewProps> = props => {
@@ -102,7 +103,7 @@ export const NamespaceDetailView: FunctionComponent<NamespaceDetailViewProps> = 
                 <NamespaceExtensionList
                     namespace={props.namespace}
                     routePrefix={props.extensionRoutePrefix}
-                    fetchExtension={props.fetchExtension}
+                    extensionQuery={props.extensionQuery}
                     omitUnavailable={props.omitUnavailable}
                 />
             </MediaSidebarLayout>
@@ -120,11 +121,11 @@ export interface NamespaceDetailViewProps {
     // Base route each extension card links to: the user settings extension route on the user
     // surface, the admin extension route on the admin dashboard.
     extensionRoutePrefix: string;
-    // Endpoint used to retrieve each extension's detail; forwarded to the extension list. Defaults
+    // Query used to retrieve each extension's detail; forwarded to the extension list. Defaults
     // to the public registry API when omitted. The admin surface passes the admin endpoint so
     // inactive/soft-deleted extensions show up too.
-    fetchExtension?: FetchNamespaceExtension;
-    // Forwarded to the extension list: leave out what the fetch cannot resolve rather than
+    extensionQuery?: NamespaceExtensionQuery;
+    // Forwarded to the extension list: leave out what the query cannot resolve rather than
     // reporting it, for an admin namespace listed through the public API.
     omitUnavailable?: boolean;
     // Claiming is the publisher's action, so only the user surface offers it; the admin dashboard

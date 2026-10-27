@@ -564,7 +564,7 @@ How many log objects to list per request while reading download logs from the bu
 |---------------|-------------------------------
 | Type          | string
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 Where to keep a processed log file instead of only deleting it. When set, the file is copied to this prefix within the same bucket before the original is removed; when empty, the default, a processed file is deleted outright.
 
@@ -645,48 +645,6 @@ Whether to update public ids on startup from the upstream registry instance.
 | Compatibility | Since 1.1.1
 
 How many of an extension's pre-release versions an `extensionquery` response lists. Regular releases are never capped. A negative value, the default, caps nothing.
-
-## Eclipse
-
-| Property      | `ovsx.eclipse.base-url`
-|---------------|-------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.1.0
-
-Base URL of the Eclipse API.
-
-| Property      | `ovsx.eclipse.publisher-agreement.version`
-|---------------|--------------------------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.1.0
-
-Current version of the Eclipse Publisher Agreement. Since 0.28.0 only used to sign Eclipse Publisher Agreement.
-
-| Property      | `ovsx.eclipse.publisher-agreement.allowed-versions`
-|---------------|--------------------------------------------
-| Type          | string[]
-| Default       |
-| Compatibility | Since 0.28.0
-
-Allowed versions of the Eclipse Publisher Agreement. Used to check Eclipse Publisher Agreement.
-
-| Property      | `ovsx.eclipse.publisher-agreement.timezone`
-|---------------|---------------------------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.1.0, **removed** in 0.15.2
-
-`java.time.ZoneId` for timestamps returned by the Eclipse API.
-
-| Property      | `ovsx.eclipse.check-compliance-on-start`
-|---------------|-------------------------
-| Type          | boolean
-| Default       | `false`
-| Compatibility | Since 0.1.0
-
-Whether to check for publisher compliance on startup. A publisher is compliant when they have signed the Eclipse Publisher Agreement. The `ovsx.eclipse.publisher-agreement.version` property must also be configured for this check to run.
 
 ## Migrations
 
@@ -1008,7 +966,7 @@ Whether to use Redis for caching. Caffeine (in-memory cache) is used by default.
 |---------------|-------------------------
 | Type          | boolean
 | Default       | `false`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 Whether the caches count hits, misses and evictions, which the admin dashboard's Caches page reports. Off by default: every cache implementation counts on the lookup path, so it is paid on every cache read for numbers nothing consults unless somebody is looking at that page. Changing it takes a restart, since the counting is configured when each cache is built.
 
@@ -1379,6 +1337,42 @@ Content type of that response.
 
 Body of that response.
 
+## Publisher Agreement
+
+Requires publishers to sign an agreement before they can publish. Disabled by default. Each signing, revocation and reinstatement is recorded with the agreement version, whichever provider keeps the agreement. Which signatures stay valid is set by the allowed versions: without any, a signature of the configured major version or a higher one stays valid, so raising the major version makes everyone sign again; until they do, they cannot publish, but their extensions stay published. An admin revocation blocks the user from signing again until an admin reinstates them. A deployment that keeps the agreement elsewhere supplies its own `PublisherAgreementProvider` (a `@Primary` bean), which replaces the default one; which signed versions still count is decided from `ovsx.publisher-agreement.version` and `ovsx.publisher-agreement.allowed-versions` whichever provider is in use, and the rest, such as who may publish, the block after a revocation and the history, is the server's and stays.
+
+| Property      | `ovsx.publisher-agreement.version`
+|---------------|-----------------------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 1.4.0
+
+The current version of the agreement, such as `1`, `1.0` or `1.0.0`: a semantic version whose minor and patch numbers may be left out. Empty disables agreements: everyone may publish. An invalid value stops the server from starting.
+
+| Property      | `ovsx.publisher-agreement.allowed-versions`
+|---------------|--------------------------------------------
+| Type          | list of strings
+| Default       |
+| Compatibility | Since 1.4.0
+
+The versions a signature may have to count as signed, comma separated, such as `1.1,1.2`; the version of `ovsx.publisher-agreement.version` is always one of them. A signature of any other version is outdated, whatever its major version, and its signer has to sign again before publishing. Versions are compared as semantic versions, so `1`, `1.0` and `1.0.0` are the same. Empty accepts any signature of the same or a higher major version than the configured one. In YAML the list may be written as a YAML list, and a single version such as `1.10` has to be quoted, or it is read as the number 1.1. A signature whose version cannot be read counts as outdated. An invalid version in the list stops the server from starting.
+
+| Property      | `ovsx.publisher-agreement.text`
+|---------------|--------------------------------
+| Type          | string
+| Default       |
+| Compatibility | Since 1.4.0
+
+Location of the agreement text, in Markdown, as any Spring resource location such as `classpath:agreement.md` or `file:/etc/openvsx/agreement.md`. It is served at `/api/publisher-agreement`, which the web UI shows by default; the response may be cached for five minutes, so a changed text can take that long to show.
+
+| Property      | `ovsx.publisher-agreement.check-compliance-on-start`
+|---------------|-----------------------------------------------------
+| Type          | boolean
+| Default       | `false`
+| Compatibility | Since 1.4.0
+
+Whether to check publishers on startup and deactivate the extension versions of those without an agreement. The agreement provider decides who has one: with the default provider a publisher who never signed or was revoked is not compliant, while an outdated signature still is, as it only keeps them from publishing. A publisher whose status cannot be determined, for instance because a remote service is unreachable, is left alone. Has no effect while agreements are disabled.
+
 ## Trusted Publishing
 
 Publishing with a short-lived token proved by an OIDC ID token from a CI provider, rather than
@@ -1601,7 +1595,7 @@ Download analytics keeps its time-series data in a **separate** database from th
 |---------------|-------------------------
 | Type          | boolean
 | Default       | `false`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 Whether to enable download analytics. When `false`, the time-series datasource, its migrations and its jOOQ context are not created at all, and none of the settings below are read.
 
@@ -1609,7 +1603,7 @@ Whether to enable download analytics. When `false`, the time-series datasource, 
 |---------------|-------------------------
 | Type          | long
 | Default       | `536870912`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 The decompressed-size cap applied while parsing an access-log stream, whether read from the scheduled AWS source or uploaded to the admin backfill endpoint. A highly-compressible gzip file could otherwise grow the in-memory record list without bound; exceeding the limit fails the parse.
 
@@ -1617,7 +1611,7 @@ The decompressed-size cap applied while parsing an access-log stream, whether re
 |---------------|-------------------------
 | Type          | ISO 8601 duration
 | Default       | `PT1H`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 How long the settled part of a download series is held in memory before being read again. Settled ranges are older than `ovsx.analytics.settling-margin` and so do not normally change, which is what makes caching them safe.
 
@@ -1629,7 +1623,7 @@ It is a per-node, in-memory cache, so in a cluster each node expires on its own 
 |---------------|-------------------------
 | Type          | ISO 8601 duration
 | Default       | `PT2H`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 How far back from now a download series is treated as settled. Buckets older than this are answered from a cached query and buckets newer than it are read live, so the margin is the point at which the series stops being re-read on every request.
 
@@ -1637,11 +1631,29 @@ It exists because the time-series aggregate is materialized on a delay: its refr
 
 Note that the buckets on either side of the boundary carry the same counts — the margin decides how a range is read, not what it contains.
 
+| Property      | `ovsx.analytics.availability.probe-interval`
+|---------------|-------------------------
+| Type          | ISO 8601 duration
+| Default       | `PT30S`
+| Compatibility | Since 1.3.0
+
+How often the time-series database is probed. Analytics is optional: while the database is unreachable the registry keeps serving, the analytics endpoint answers `503` with a `Retry-After` header, and analytics writes are skipped without waiting on a connection timeout. A probe is also what notices that the database is back, so probing cannot be switched off. Must be at least `PT1S`; startup fails otherwise.
+
+The server starts without the time-series database being reachable. Its schema is migrated on the first successful probe, and analytics stays unavailable until then. A failure that is not a connectivity problem, such as a migration the database rejects, still fails startup.
+
+| Property      | `ovsx.analytics.availability.failure-threshold`
+|---------------|-------------------------
+| Type          | int
+| Default       | `3`
+| Compatibility | Since 1.3.0
+
+How many analytics calls in a row may fail to reach the time-series database before it is treated as unavailable without waiting for the next probe. Only connectivity failures count. Must be at least 1.
+
 | Property      | `ovsx.analytics.datasource.url`
 |---------------|-------------------------
 | Type          | string
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 JDBC URL of the time-series database, e.g. `jdbc:postgresql://localhost:5433/openvsx_timeseries`. Required when analytics are enabled: startup fails if it is not set, because reaching that point means analytics were asked for and a missing URL is a mistake rather than a way to opt out. It must not point at the registry database, whose schema is migrated separately and does not need the `timescaledb` extension.
 
@@ -1649,7 +1661,7 @@ JDBC URL of the time-series database, e.g. `jdbc:postgresql://localhost:5433/ope
 |---------------|-------------------------
 | Type          | string
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 User name for the time-series database. Optional: when unset, nothing is passed to the pool and the driver resolves it its own way, from a URL parameter, `.pgpass` or IAM.
 
@@ -1657,7 +1669,7 @@ User name for the time-series database. Optional: when unset, nothing is passed 
 |---------------|-------------------------
 | Type          | string
 | Default       |
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 Password for the time-series database. Optional, on the same terms as the user name above.
 
@@ -1665,7 +1677,7 @@ Password for the time-series database. Optional, on the same terms as the user n
 |---------------|-------------------------
 | Type          | int
 | Default       | `5`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
 Maximum size of the time-series connection pool. Must be at least 1. Enabling analytics gives a deployment a **second** pool, so size this against the time-series server's `max_connections` together with the registry pool rather than in isolation.
 
@@ -1673,6 +1685,6 @@ Maximum size of the time-series connection pool. Must be at least 1. Enabling an
 |---------------|-------------------------
 | Type          | long
 | Default       | `2000`
-| Compatibility | Unreleased
+| Compatibility | Since 1.3.0
 
-How long to wait for a connection from the time-series pool, in milliseconds. Deliberately far below Hikari's own 30 seconds: analytics writes happen on the download-serving path, so an unreachable time-series database has to fail fast enough for the caller to swallow the error rather than holding a request thread. Must be greater than 250ms — the validation timeout is derived at half this value with a 250ms floor, and Hikari rejects a validation timeout that is not below the connection timeout.
+How long to wait for a connection from the time-series pool, in milliseconds. Deliberately far below Hikari's own 30 seconds, so that an unreachable time-series database fails fast enough for the caller to give up rather than holding a thread; once it is judged unavailable (see `ovsx.analytics.availability.probe-interval`) calls do not wait at all. Must be greater than 250ms — the validation timeout is derived at half this value with a 250ms floor, and Hikari rejects a validation timeout that is not below the connection timeout.

@@ -72,7 +72,7 @@ class BannerSettingTest {
     void anUpdateTouchingNoBannerRowLeavesTheValueAlone() {
         var current = new Banner(true, "Maintenance tonight", "warning", "token-1");
 
-        assertThat(banner.merge(current, rows("read-only", true))).isEqualTo(current);
+        assertThat(banner.merge(current, rows(ReadOnlySetting.KEY, true))).isEqualTo(current);
     }
 
     @Test

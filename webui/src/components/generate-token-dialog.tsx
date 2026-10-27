@@ -74,8 +74,8 @@ export const GenerateTokenDialog: FunctionComponent<GenerateTokenDialogProps> = 
         try {
             const value = await props.onGenerate(description);
             setTokenValue(value);
-        } catch (err) {
-            props.onError?.(err);
+        } catch {
+            // The caller's `onGenerate` reports its own failure.
         } finally {
             setLoading(false);
         }
@@ -175,7 +175,6 @@ export interface GenerateTokenDialogProps {
     open: boolean;
     onClose: () => void;
     onGenerate: (description: string) => Promise<string>;
-    onError?: (err: unknown) => void;
     title?: string;
     canGenerate?: boolean;
     children?: ReactNode;

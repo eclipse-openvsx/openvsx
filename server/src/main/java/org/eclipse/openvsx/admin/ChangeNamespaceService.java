@@ -60,7 +60,8 @@ public class ChangeNamespaceService {
             Namespace oldNamespace,
             List<FileResource> updatedResources,
             boolean createNewNamespace,
-            boolean removeOldNamespace
+            boolean removeOldNamespace,
+            boolean logoCopied
     ) {
         var extensions = repositories.findExtensions(oldNamespace);
         for (var extension : extensions) {
@@ -77,11 +78,17 @@ public class ChangeNamespaceService {
         if (createNewNamespace) {
             entityManager.persist(newNamespace);
         } else {
-            // Deliberately a merge, unlike the rest of #989's call sites: the caller mutates this
-            // detached namespace before handing it over (ChangeNamespaceJobRequestHandler sets
-            // logoName on it), so the update belongs to the caller and only merge can carry it.
-            // find-then-set would silently drop that rename.
-            newNamespace = entityManager.merge(newNamespace);
+            // The caller loaded this copy before the slow file copy; write only the logo it changed.
+            var managedNewNamespace = entityManager.find(Namespace.class, newNamespace.getId());
+            if (managedNewNamespace == null) {
+                // Rolls back; the job's retry finds no target and creates it.
+                throw new IllegalStateException("Namespace was deleted during the change: " + newNamespace.getName());
+            }
+            if (logoCopied) {
+                managedNewNamespace.setLogoName(newNamespace.getLogoName());
+                managedNewNamespace.setLogoStorageType(newNamespace.getLogoStorageType());
+            }
+            newNamespace = managedNewNamespace;
         }
 
         changeExtensionNamespace(extensions, newNamespace);
@@ -150,8 +157,7 @@ public class ChangeNamespaceService {
     private void changeExtensionNamespace(Streamable<Extension> extensions, Namespace newNamespace) {
         for (var extension : extensions) {
             // findExtensions ran inside changeNamespaceInDatabase's transaction, so these are
-            // already managed and merge just handed back the same instance; the setter is what
-            // persists the change.
+            // already managed; the setter is what persists the change.
             extension.setNamespace(newNamespace);
         }
     }

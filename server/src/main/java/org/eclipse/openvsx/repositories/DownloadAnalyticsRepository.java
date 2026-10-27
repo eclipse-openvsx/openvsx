@@ -15,20 +15,24 @@ package org.eclipse.openvsx.repositories;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.function.Supplier;
 
-import com.google.common.collect.Lists;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import org.eclipse.openvsx.analytics.AnalyticsAvailability;
+import org.eclipse.openvsx.analytics.AnalyticsUnavailableException;
 import org.eclipse.openvsx.analytics.DownloadAnalyticsService;
 import org.eclipse.openvsx.analytics.DownloadEvent;
 import org.eclipse.openvsx.analytics.DownloadSeriesGroupBy;
 import org.eclipse.openvsx.analytics.DownloadSeriesInterval;
 import org.eclipse.openvsx.analytics.DownloadSeriesRequest;
 import org.eclipse.openvsx.analytics.DownloadSeriesRow;
+import org.eclipse.openvsx.util.CollectionUtil;
 
 /**
  * Storage for download analytics, backed by TimescaleDB: writes to the download_event hypertable
@@ -85,17 +89,56 @@ public class DownloadAnalyticsRepository {
             .field(DSL.name("download_stats_daily", "downloads"), Long.class);
 
     private final DSLContext dsl;
+    private final AnalyticsAvailability availability;
 
-    public DownloadAnalyticsRepository(DSLContext dsl) {
+    public DownloadAnalyticsRepository(DSLContext dsl, AnalyticsAvailability availability) {
         this.dsl = dsl;
+        this.availability = availability;
+    }
+
+    /** Whether the time-series database is believed reachable; every query fails fast while it is not. */
+    public boolean isAvailable() {
+        return availability.isAvailable();
+    }
+
+    /**
+     * Runs a query unless the database is known to be down, and feeds its outcome back so that an
+     * outage is noticed between availability probes. Only a connectivity failure counts: a statement
+     * the database rejects says nothing about whether it can be reached.
+     *
+     * @throws AnalyticsUnavailableException if the database is unavailable or cannot be reached
+     */
+    private <T> T guarded(Supplier<T> query) {
+        if (!availability.isAvailable()) {
+            throw new AnalyticsUnavailableException();
+        }
+
+        try {
+            var result = query.get();
+            availability.recordSuccess();
+            return result;
+        } catch (DataAccessException e) {
+            if (AnalyticsAvailability.isConnectivityFailure(e)) {
+                availability.recordFailure();
+                throw new AnalyticsUnavailableException(e);
+            }
+            throw e;
+        }
     }
 
     /**
      * Persists the given events atomically: either all of them are stored or none are.
      */
     public void save(List<DownloadEvent> events) {
+        guarded(() -> {
+            saveEvents(events);
+            return null;
+        });
+    }
+
+    private void saveEvents(List<DownloadEvent> events) {
         dsl.transaction(configuration -> {
-            for (var batch : Lists.partition(events, BATCH_SIZE)) {
+            for (var batch : CollectionUtil.partition(events, BATCH_SIZE)) {
                 var insert = DSL.using(configuration)
                         .insertInto(
                                 EVENT,
@@ -134,6 +177,10 @@ public class DownloadAnalyticsRepository {
      * downloads are absent; zero-filling is the {@link DownloadAnalyticsService}'s concern.
      */
     public List<DownloadSeriesRow> findSeries(DownloadSeriesRequest request) {
+        return guarded(() -> querySeries(request));
+    }
+
+    private List<DownloadSeriesRow> querySeries(DownloadSeriesRequest request) {
         var bucket = bucketField(request.interval());
         var group = groupField(request.groupBy());
         var total = DSL.sum(STATS_DOWNLOADS).cast(Long.class);

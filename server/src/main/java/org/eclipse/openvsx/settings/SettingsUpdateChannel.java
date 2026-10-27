@@ -36,11 +36,11 @@ public class SettingsUpdateChannel {
 
     private final @Nullable RedisClusterClient redisClusterClient;
     private final @Nullable SettingsUpdateListener listener;
-    private final SettingsCache cache;
+    private final SettingsStore store;
 
-    public SettingsUpdateChannel(@Nullable RedisClusterClient redisClusterClient, SettingsCache cache) {
+    public SettingsUpdateChannel(@Nullable RedisClusterClient redisClusterClient, SettingsStore store) {
         this.redisClusterClient = redisClusterClient;
-        this.cache = cache;
+        this.store = store;
 
         if (redisClusterClient != null) {
             listener = new SettingsUpdateListener(redisClusterClient);
@@ -81,7 +81,7 @@ public class SettingsUpdateChannel {
         public void onMessage(String channel, String message) {
             if (SETTINGS_UPDATE_CHANNEL.equals(channel)) {
                 logger.debug("received settings update");
-                cache.clear();
+                store.clear();
             }
         }
     }

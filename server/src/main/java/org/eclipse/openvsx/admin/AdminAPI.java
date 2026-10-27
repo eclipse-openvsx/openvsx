@@ -69,6 +69,7 @@ import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.NamespaceMembershipListJson;
 import org.eclipse.openvsx.json.PersistedLogJson;
+import org.eclipse.openvsx.json.PublisherAgreementEntryJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.SearchExplainJson;
 import org.eclipse.openvsx.json.SearchIndexJson;
@@ -694,8 +695,10 @@ public class AdminAPI {
                         repositories.findTargetPlatformsGroupedByVersion(latest.getExtension()));
                 json.setActive(latest.getExtension().isActive());
                 json.setRemoved(latest.isExtensionRemoved());
+                // The threat stays recorded once the namespace gains an owner, so only an unverified one conflicts.
                 json.setNamespaceOwnershipConflict(
-                        repositories.hasThreatOfType(latest, NamespaceOwnershipCheckScanner.TYPE));
+                        !repositories.isVerified(latest.getExtension().getNamespace())
+                                && repositories.hasThreatOfType(latest, NamespaceOwnershipCheckScanner.TYPE));
             } else {
                 var extension = repositories.findExtension(extensionName, namespaceName);
                 if (extension == null) {
@@ -1321,6 +1324,41 @@ public class AdminAPI {
         }
     }
 
+    @GetMapping(
+        path = "/publisher/{provider}/{loginName}/agreement-history",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "List the publisher agreement signings of a user")
+    public ResponseEntity<List<PublisherAgreementEntryJson>> getPublisherAgreementHistory(
+            @PathVariable String loginName,
+            @PathVariable String provider
+    ) {
+        try {
+            admins.checkPermission(Permission.MANAGE_PUBLISHERS);
+            return ResponseEntity.ok(admins.getPublisherAgreementHistory(provider, loginName));
+        } catch (ErrorResultException exc) {
+            return ResponseEntity.status(exc.getStatus()).build();
+        }
+    }
+
+    @PostMapping(
+        path = "/publisher/{provider}/{loginName}/reinstate-agreement",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "Lift the block of a revoked publisher agreement")
+    @MutatingOperation
+    public ResponseEntity<ResultJson> reinstatePublisherAgreement(
+            @PathVariable String loginName,
+            @PathVariable String provider
+    ) {
+        try {
+            var admin = admins.checkPermission(Permission.MANAGE_PUBLISHERS);
+            return ResponseEntity.ok(admins.reinstatePublisherAgreement(provider, loginName, admin));
+        } catch (ErrorResultException exc) {
+            return exc.toResponseEntity();
+        }
+    }
+
     @PostMapping(
         path = "/publisher/{provider}/{loginName}/revoke",
         produces = MediaType.APPLICATION_JSON_VALUE
@@ -1360,6 +1398,7 @@ public class AdminAPI {
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     @Operation(summary = "Bulk revoke publisher contributions")
+    @MutatingOperation
     @ApiResponse(
         responseCode = "200",
         description = "A success message is returned in JSON format",
@@ -1552,7 +1591,7 @@ public class AdminAPI {
         try {
             var adminUser = admins.checkPermission(Permission.MANAGE_SETTINGS);
 
-            var changes = settings.updateFromJson(newSettings);
+            var changes = settings.update(newSettings);
             var json = settings.getCurrentSettings();
             json.setSuccess("Updated settings: " + changes);
             logs.logAction(adminUser, json);

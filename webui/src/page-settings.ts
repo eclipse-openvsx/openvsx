@@ -12,6 +12,7 @@ import { ComponentType, ReactNode } from 'react';
 import { SxProps, Theme } from '@mui/material/styles';
 import { Extension, NamespaceDetails, SortBy } from './extension-registry-types';
 import { AdminPage } from './pages/admin-dashboard/nav-types';
+import { AdminSettingsSection } from './pages/admin-dashboard/settings-sections';
 import { Cookie } from './utils';
 
 /** One entry contributed to the account menu, rendered by the menu's own styling. */
@@ -123,6 +124,12 @@ export interface HomeSettings {
  */
 export type HomePageSettings = HomeSettings | ComponentType;
 
+/** What the error dialog passes to {@link PageSettings.elements.errorHelp}. */
+export interface ErrorHelpProps {
+    errorCode?: number | string;
+    errorMessage: string;
+}
+
 export interface PageSettings {
     pageTitle: string;
     themeType?: 'light' | 'dark';
@@ -147,12 +154,23 @@ export interface PageSettings {
         reportAbuse?: ComponentType<{ extension: Extension; sx?: SxProps<Theme> }>;
         claimNamespace?: ComponentType<{ namespace: string; extension?: Extension; sx?: SxProps<Theme> }>;
         downloadTerms?: ComponentType;
+        /**
+         * Extra help shown below the message of the error dialog, such as a link for the code of a
+         * login provider the deployment adds. Render `null` for a code it has no help for.
+         */
+        errorHelp?: ComponentType<ErrorHelpProps>;
         additionalRoutes?: ReactNode;
         /**
          * Extra pages for the admin dashboard, each appearing in the side panel, as a card on the
          * dashboard overview and as a route. Additive only — see {@link AdminPage}.
          */
         adminPages?: AdminPage[];
+        /**
+         * Extra switches for the admin dashboard's Settings page, each bound to a boolean runtime
+         * setting the deployment's server registers, grouped into the built-in sections or sections
+         * of their own. Additive only — see {@link AdminSettingsSection}.
+         */
+        adminSettingsSections?: AdminSettingsSection[];
         banner?: {
             content: ComponentType;
             props?: {

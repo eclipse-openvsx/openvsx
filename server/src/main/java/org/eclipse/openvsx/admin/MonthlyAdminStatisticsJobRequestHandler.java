@@ -18,23 +18,23 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.migration.HandlerJobRequest;
-import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.settings.ReadOnlySetting;
 import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UUIDService;
 
 @Component
 public class MonthlyAdminStatisticsJobRequestHandler implements JobRequestHandler<HandlerJobRequest<?>> {
 
-    private final SettingsService settings;
+    private final ReadOnlySetting readOnly;
     private final JobRequestScheduler scheduler;
     private final UUIDService uuidService;
 
     public MonthlyAdminStatisticsJobRequestHandler(
-            SettingsService settings,
+            ReadOnlySetting readOnly,
             JobRequestScheduler scheduler,
             UUIDService uuidService
     ) {
-        this.settings = settings;
+        this.readOnly = readOnly;
         this.scheduler = scheduler;
         this.uuidService = uuidService;
     }
@@ -42,7 +42,7 @@ public class MonthlyAdminStatisticsJobRequestHandler implements JobRequestHandle
     @Override
     @Job(name = "Monthly admin statistics update", retries = 0)
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
-        if (settings.isReadOnly()) {
+        if (readOnly.isEnabled()) {
             return;
         }
 

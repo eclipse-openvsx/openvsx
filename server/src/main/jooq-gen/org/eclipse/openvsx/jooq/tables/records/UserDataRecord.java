@@ -143,34 +143,6 @@ public class UserDataRecord extends UpdatableRecordImpl<UserDataRecord> {
         return (String) get(8);
     }
 
-    /**
-     * Setter for <code>public.user_data.eclipse_token</code>.
-     */
-    public void setEclipseToken(String value) {
-        set(9, value);
-    }
-
-    /**
-     * Getter for <code>public.user_data.eclipse_token</code>.
-     */
-    public String getEclipseToken() {
-        return (String) get(9);
-    }
-
-    /**
-     * Setter for <code>public.user_data.eclipse_person_id</code>.
-     */
-    public void setEclipsePersonId(String value) {
-        set(10, value);
-    }
-
-    /**
-     * Getter for <code>public.user_data.eclipse_person_id</code>.
-     */
-    public String getEclipsePersonId() {
-        return (String) get(10);
-    }
-
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -194,7 +166,7 @@ public class UserDataRecord extends UpdatableRecordImpl<UserDataRecord> {
     /**
      * Create a detached, initialised UserDataRecord
      */
-    public UserDataRecord(Long id, String avatarUrl, String email, String fullName, String loginName, String provider, String authId, String providerUrl, String role, String eclipseToken, String eclipsePersonId) {
+    public UserDataRecord(Long id, String avatarUrl, String email, String fullName, String loginName, String provider, String authId, String providerUrl, String role) {
         super(UserData.USER_DATA);
 
         setId(id);
@@ -206,8 +178,6 @@ public class UserDataRecord extends UpdatableRecordImpl<UserDataRecord> {
         setAuthId(authId);
         setProviderUrl(providerUrl);
         setRole(role);
-        setEclipseToken(eclipseToken);
-        setEclipsePersonId(eclipsePersonId);
         resetChangedOnNotNull();
     }
 }

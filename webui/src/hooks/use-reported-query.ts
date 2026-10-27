@@ -15,21 +15,27 @@ import { useContext, useEffect } from 'react';
 import { MainContext } from '../context';
 
 /**
- * Passes a TanStack Query result through untouched, reporting any query error
- * to the global error dialog:
+ * Passes a TanStack Query or mutation result through untouched, reporting any
+ * error to the global error dialog. Wrap a hook's definition in it, so its
+ * callers never report errors themselves:
  *
- *     const namespacesQuery = useReportedQuery(useUserNamespaces());
+ *     return useReportedQuery(useQuery({ queryKey, queryFn }), { action: 'load the namespace members' });
  *
- * Opt-in on purpose: mutations and queries with bespoke error handling
- * (e.g. 404 → redirect) keep calling `handleError` themselves.
+ * `action` says what failed, titling the dialog "Couldn’t load the namespace members".
+ * `ignore` leaves out the errors a page renders itself, such as a 404 shown as
+ * a not-found state; pass a stable function, since a new one reports again.
  */
-export const useReportedQuery = <Q extends { error: Error | null }>(query: Q): Q => {
+export const useReportedQuery = <Q extends { error: Error | null }>(
+    query: Q,
+    options: { action: string; ignore?: (error: Error) => boolean }
+): Q => {
     const { handleError } = useContext(MainContext);
     const { error } = query;
+    const { action, ignore } = options;
     useEffect(() => {
-        if (error) {
-            handleError(error);
+        if (error && !ignore?.(error)) {
+            handleError(error, { title: `Couldn’t ${action}` });
         }
-    }, [error, handleError]);
+    }, [error, action, ignore, handleError]);
     return query;
 };

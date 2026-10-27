@@ -27,7 +27,7 @@ import tools.jackson.databind.JsonNode;
 import org.eclipse.openvsx.admin.AdminService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.settings.ReadOnlySetting;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.NamingUtil;
@@ -37,18 +37,18 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
 
     protected final Logger logger = LoggerFactory.getLogger(ExtensionControlJobRequestHandler.class);
 
-    private final SettingsService settings;
+    private final ReadOnlySetting readOnly;
     private final AdminService admin;
     private final ExtensionControlService service;
     private final RepositoryService repositories;
 
     public ExtensionControlJobRequestHandler(
-            SettingsService settings,
+            ReadOnlySetting readOnly,
             AdminService admin,
             ExtensionControlService service,
             RepositoryService repositories
     ) {
-        this.settings = settings;
+        this.readOnly = readOnly;
         this.admin = admin;
         this.service = service;
         this.repositories = repositories;
@@ -57,7 +57,7 @@ public class ExtensionControlJobRequestHandler implements JobRequestHandler<Hand
     @Override
     @Job(name = "Extension control update", retries = 0)
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
-        if (settings.isReadOnly()) {
+        if (readOnly.isEnabled()) {
             return;
         }
 

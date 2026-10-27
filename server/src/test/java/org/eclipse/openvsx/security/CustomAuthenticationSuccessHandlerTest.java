@@ -26,7 +26,7 @@ class CustomAuthenticationSuccessHandlerTest {
 
     private static final String WEBUI_URL = "https://open-vsx.org";
 
-    private final LoginReturnTo returnTo = new LoginReturnTo(new String[] { "/extension/**" });
+    private final LoginReturnTo returnTo = new LoginReturnTo(new String[] { "/extension/**", "/user-settings/**" });
 
     @Test
     void returnsToThePageTheLoginStartedFrom() {
@@ -49,10 +49,15 @@ class CustomAuthenticationSuccessHandlerTest {
         assertThat(targetUrl(WEBUI_URL, new MockHttpServletRequest(), login("github"))).isEqualTo(WEBUI_URL);
     }
 
-    // Eclipse logins keep going to the profile page, where the publisher agreement is signed
     @Test
-    void sendsAnEclipseLoginToTheProfilePage() {
-        var request = requestReturningTo("/extension/foo/bar");
+    void landsAnEclipseLoginWithoutATargetOnTheDefaultPage() {
+        assertThat(targetUrl(WEBUI_URL, new MockHttpServletRequest(), login("eclipse"))).isEqualTo(WEBUI_URL);
+    }
+
+    // The page that links an extra login, such as the publisher agreement panel, names itself as the target
+    @Test
+    void returnsALoginOfAnyProviderToThePageItStartedFrom() {
+        var request = requestReturningTo("/user-settings/profile");
 
         assertThat(targetUrl(WEBUI_URL, request, login("eclipse")))
                 .isEqualTo("https://open-vsx.org/user-settings/profile");

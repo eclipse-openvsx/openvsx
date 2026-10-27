@@ -12,11 +12,12 @@
  *****************************************************************************/
 
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../support/test-providers';
 import { WeeklyDownloads } from '../../../src/pages/extension-detail/weekly-downloads';
-import { DownloadSeriesPoint, Extension, RegistryVersion } from '../../../src/extension-registry-types';
+import { useSiteSettings } from '../../../src/components/use-site-settings';
+import { DownloadSeriesPoint, Extension, SiteSettings } from '../../../src/extension-registry-types';
 import { ExtensionRegistryService } from '../../../src/extension-registry-service';
 
 // The real chart pulls in SVG measurement APIs jsdom lacks; stub it so the test exercises the
@@ -56,20 +57,25 @@ vi.mock('@mui/x-charts/SparkLineChart', () => ({
 }));
 
 const extension = { namespace: 'redhat', name: 'java' } as unknown as Extension;
-const analyticsEnabled: RegistryVersion = { version: '1.0.0', analyticsEnabled: true };
+const analyticsOn: SiteSettings = { downloadAnalyticsVisible: true };
 
 function points(counts: number[]): DownloadSeriesPoint[] {
     return counts.map((count, i) => ({ t: `2026-01-${String(i + 1).padStart(2, '0')}`, count }));
 }
 
-function serviceReturning(series: DownloadSeriesPoint[]): ExtensionRegistryService {
+function serviceReturning(
+    series: DownloadSeriesPoint[],
+    siteSettings: SiteSettings = analyticsOn
+): ExtensionRegistryService {
     return {
+        getSiteSettings: vi.fn().mockResolvedValue(siteSettings),
         getExtensionDownloadSeries: vi.fn().mockResolvedValue({ points: series })
     } as unknown as ExtensionRegistryService;
 }
 
 function serviceRejecting(): ExtensionRegistryService {
     return {
+        getSiteSettings: vi.fn().mockResolvedValue(analyticsOn),
         getExtensionDownloadSeries: vi.fn().mockRejectedValue(new Error('analytics endpoint unavailable'))
     } as unknown as ExtensionRegistryService;
 }
@@ -83,21 +89,21 @@ describe('WeeklyDownloads', () => {
         // 14 daily points of 1000 → two whole weeks of 7000 each
         const service = serviceReturning(points(Array(14).fill(1000)));
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: analyticsEnabled }
+            mainContext: { service }
         });
 
         expect(await screen.findByText((7000).toLocaleString())).toBeInTheDocument();
         expect(screen.getByText(/weekly downloads/i)).toBeInTheDocument();
         expect(screen.getByTestId('sparkline')).toHaveAttribute('data-length', '2');
-        expect(service.getExtensionDownloadSeries).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({ namespace: 'redhat', name: 'java', interval: 'day' })
-        );
+        expect(service.getExtensionDownloadSeries).toHaveBeenCalledWith(expect.anything(), {
+            namespace: 'redhat',
+            name: 'java'
+        });
     });
 
     it('frames the area from zero, so a steady series is not drawn as a climbing one', async () => {
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(ascending) }
         });
 
         // filling from the quietest week instead would make any series climb out of nothing, which
@@ -109,7 +115,7 @@ describe('WeeklyDownloads', () => {
 
     it('says what the figure counts, so the number is not one of two unlabelled download counts', async () => {
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(ascending) }
         });
 
         expect(await screen.findByText((77).toLocaleString())).toBeInTheDocument();
@@ -118,7 +124,7 @@ describe('WeeklyDownloads', () => {
 
     it('describes the curve for anyone who cannot see it, naming the per-week unit', async () => {
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(ascending) }
         });
         await screen.findByText((77).toLocaleString());
 
@@ -131,7 +137,7 @@ describe('WeeklyDownloads', () => {
 
     it('headlines the last week and labels the period it covers', async () => {
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(ascending) }
         });
 
         expect(await screen.findByText((77).toLocaleString())).toBeInTheDocument();
@@ -140,7 +146,7 @@ describe('WeeklyDownloads', () => {
 
     it('reads out the hovered week, and returns to the last week when the pointer leaves', async () => {
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(ascending), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(ascending) }
         });
         await screen.findByText((77).toLocaleString());
 
@@ -160,7 +166,7 @@ describe('WeeklyDownloads', () => {
         // a quiet week of 7 then a busy one of 12,257,000 (ten chars with separators)
         const uneven = points([...Array(7).fill(1), ...Array(7).fill(1751000)]);
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(uneven), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(uneven) }
         });
 
         // asserted on the style attribute: jsdom drops `ch` from the computed style
@@ -177,7 +183,7 @@ describe('WeeklyDownloads', () => {
         // week 0 is a single download, week 1 (the default) is many
         const oneThenMany = points([1, 0, 0, 0, 0, 0, 0, ...Array(7).fill(80)]);
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service: serviceReturning(oneThenMany), version: analyticsEnabled }
+            mainContext: { service: serviceReturning(oneThenMany) }
         });
 
         // asserted on the style attribute: jsdom drops `ch` from the computed style
@@ -193,14 +199,15 @@ describe('WeeklyDownloads', () => {
     it('draws the chart at a flat zero while loading, holding the figure until the series lands', async () => {
         let resolve!: (value: { points: DownloadSeriesPoint[] }) => void;
         const service = {
+            getSiteSettings: vi.fn().mockResolvedValue(analyticsOn),
             getExtensionDownloadSeries: vi.fn().mockReturnValue(new Promise(done => (resolve = done)))
         } as unknown as ExtensionRegistryService;
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: analyticsEnabled }
+            mainContext: { service }
         });
 
-        // the chart is drawn from first paint, a flat two-point zero, while the figure is still a placeholder
-        expect(screen.getByRole('img', { name: 'Weekly downloads, loading' })).toBeInTheDocument();
+        // the chart is drawn as soon as the switch is known, a flat two-point zero, while the figure is still a placeholder
+        expect(await screen.findByRole('img', { name: 'Weekly downloads, loading' })).toBeInTheDocument();
         expect(screen.getByTestId('sparkline')).toHaveAttribute('data-length', '2');
         expect(screen.queryByText((77).toLocaleString())).not.toBeInTheDocument();
 
@@ -211,12 +218,19 @@ describe('WeeklyDownloads', () => {
         expect(screen.getByRole('img', { name: /Downloads per week over the last 2 weeks/ })).toBeInTheDocument();
     });
 
-    it('renders nothing (and never calls the endpoint) when analytics is disabled', () => {
-        const service = serviceReturning(points(Array(14).fill(1)));
-        renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: { version: '1.0.0', analyticsEnabled: false } }
-        });
+    it('renders nothing (and never calls the endpoint) while the site settings say analytics is off', async () => {
+        const service = serviceReturning(points(Array(14).fill(1)), { downloadAnalyticsVisible: false });
+        // The card is hidden while the settings load too, so wait until they say off.
+        const SettingsLoaded = () => (useSiteSettings().isSuccess ? <output>settings loaded</output> : null);
+        renderWithProviders(
+            <>
+                <WeeklyDownloads extension={extension} />
+                <SettingsLoaded />
+            </>,
+            { mainContext: { service } }
+        );
 
+        await screen.findByText('settings loaded');
         expect(screen.queryByText(/weekly downloads/i)).not.toBeInTheDocument();
         expect(service.getExtensionDownloadSeries).not.toHaveBeenCalled();
     });
@@ -224,7 +238,7 @@ describe('WeeklyDownloads', () => {
     it('still shows the card, headlining zero, when the extension has no downloads in the window', async () => {
         const service = serviceReturning(points(Array(14).fill(0)));
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: analyticsEnabled }
+            mainContext: { service }
         });
 
         // waits past the skeleton for the loaded headline, which the eyebrow alone would not
@@ -236,7 +250,7 @@ describe('WeeklyDownloads', () => {
     it('draws a flat zero, not nothing, when the series is empty', async () => {
         const service = serviceReturning([]);
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: analyticsEnabled }
+            mainContext: { service }
         });
 
         expect(await screen.findByText('0')).toBeInTheDocument();
@@ -252,7 +266,7 @@ describe('WeeklyDownloads', () => {
     it('shows the card as unavailable, not a claimed zero, when the request fails', async () => {
         const service = serviceRejecting();
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: analyticsEnabled }
+            mainContext: { service }
         });
 
         // a failed request is not the same claim as "no downloads yet": it says nothing was learned
@@ -268,16 +282,17 @@ describe('WeeklyDownloads', () => {
     it('does not carry a hover picked up on the loading placeholder into the real series', async () => {
         let resolve!: (value: { points: DownloadSeriesPoint[] }) => void;
         const service = {
+            getSiteSettings: vi.fn().mockResolvedValue(analyticsOn),
             getExtensionDownloadSeries: vi.fn().mockReturnValue(new Promise(done => (resolve = done)))
         } as unknown as ExtensionRegistryService;
         renderWithProviders(<WeeklyDownloads extension={extension} />, {
-            mainContext: { service, version: analyticsEnabled }
+            mainContext: { service }
         });
 
         // the placeholder's two points are indices 0 and 1, both valid indices into the real
         // 2-week series that lands below - so a stale hover here would go unnoticed by index
         // bounds alone
-        await userEvent.click(screen.getByRole('button', { name: 'hover 0' }));
+        await userEvent.click(await screen.findByRole('button', { name: 'hover 0' }));
 
         resolve({ points: ascending });
 

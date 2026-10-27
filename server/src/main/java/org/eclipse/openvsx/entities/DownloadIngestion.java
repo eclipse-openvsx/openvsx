@@ -24,6 +24,15 @@ import jakarta.persistence.Table;
 @Table(name = "download_ingestion")
 public class DownloadIngestion {
 
+    /** No analytics to write: analytics is off, or the log file held no downloads. */
+    public static final String ANALYTICS_NONE = "NONE";
+
+    /** The registry counters are updated but the analytics events are not stored yet. */
+    public static final String ANALYTICS_PENDING = "PENDING";
+
+    /** The analytics events are stored. */
+    public static final String ANALYTICS_DONE = "DONE";
+
     @Id
     @GeneratedValue(generator = "downloadIngestionSeq")
     @SequenceGenerator(name = "downloadIngestionSeq", sequenceName = "download_ingestion_seq")
@@ -38,6 +47,8 @@ public class DownloadIngestion {
     private int executionTime;
 
     private boolean success;
+
+    private String analyticsStatus = ANALYTICS_NONE;
 
     public long getId() {
         return id;
@@ -85,5 +96,13 @@ public class DownloadIngestion {
 
     public void setSuccess(boolean success) {
         this.success = success;
+    }
+
+    public String getAnalyticsStatus() {
+        return analyticsStatus;
+    }
+
+    public void setAnalyticsStatus(String analyticsStatus) {
+        this.analyticsStatus = analyticsStatus;
     }
 }

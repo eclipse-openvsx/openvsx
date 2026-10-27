@@ -141,22 +141,9 @@ outright; one that has shipped needs a fallback to its old key (see
 
 ## Changelog
 
-Location: `CHANGELOG.md`.
+`CHANGELOG.md`, following the rules in the root `AGENTS.md`. Entries say why a
+change matters to someone running or integrating the server.
 
-- **Keep entries short — one line per change.** State what changed and why it
-  matters to someone running or integrating the server; link the issue/PR for
-  detail instead of writing the detail out.
-- New entries go under `### [next] (unreleased)`, in `#### Added` /
-  `#### Changed` / `#### Fixed` / `#### Dependencies` as needed. Read the
-  section first and append to an existing subsection rather than duplicating
-  it. A release commit renames that heading to the version and date — don't do
-  that yourself.
-- Released sections are immutable; never modify them.
-- Never describe a change against something that is itself unreleased: if your
-  work modifies behaviour introduced by an entry under `[next]`, edit that
-  entry to describe the final state.
 - Call out anything an operator must act on at upgrade time (a Flyway
   migration that needs care, a renamed configuration property, a changed
   deployment descriptor) in its own entry, not buried in a feature line.
-- Internal-only changes (tests, CI, docs, refactors with no behaviour change)
-  get no entry.

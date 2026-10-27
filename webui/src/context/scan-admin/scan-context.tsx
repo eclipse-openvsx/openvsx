@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FC, createContext, useContext, useReducer, useMemo, useRef } from 'react';
+import { FC, createContext, useContext, useReducer, useMemo } from 'react';
 import { initialScanState, ScanResult, FileDecision } from './scan-types';
 import { scanReducer } from './scan-reducer';
 import { ScanContextValue, ScanProviderProps, DerivedData } from './scan-context-types';
@@ -36,32 +36,27 @@ const ScanContext = createContext<ScanContextValue | null>(null);
 // Provider Component
 // ============================================================================
 
-export const ScanProvider: FC<ScanProviderProps> = ({ children, service, handleError }) => {
+export const ScanProvider: FC<ScanProviderProps> = ({ children, service }) => {
     const [state, dispatch] = useReducer(scanReducer, initialScanState);
-
-    // Use a ref for handleError to avoid re-running effects when parent re-renders
-    // This prevents infinite loops when errors trigger parent state changes
-    const handleErrorRef = useRef(handleError);
-    handleErrorRef.current = handleError;
 
     // ========================================================================
     // API Effects
     // ========================================================================
 
-    useFilterOptionsEffect(service, state, dispatch, handleErrorRef);
-    useScansEffect(service, state, dispatch, handleErrorRef);
-    useScanCountsEffect(service, state, dispatch, handleErrorRef);
-    useFilesEffect(service, state, dispatch, handleErrorRef);
-    useFileCountsEffect(service, state, dispatch, handleErrorRef);
+    useFilterOptionsEffect(service, state, dispatch);
+    useScansEffect(service, state, dispatch);
+    useScanCountsEffect(service, state, dispatch);
+    useFilesEffect(service, state, dispatch);
+    useFileCountsEffect(service, state, dispatch);
     useAutoRefreshEffect(state, dispatch);
 
     // ========================================================================
     // Async API Actions
     // ========================================================================
 
-    const executeConfirmAction = useConfirmAction(service, state, dispatch, handleErrorRef);
-    const executeFileAction = useFileAction(service, state, dispatch, handleErrorRef);
-    const retryFailedScannerJobs = useRetryFailedScannerJobsAction(service, dispatch, handleErrorRef);
+    const executeConfirmAction = useConfirmAction(service, state, dispatch);
+    const executeFileAction = useFileAction(service, state, dispatch);
+    const retryFailedScannerJobs = useRetryFailedScannerJobsAction(service, dispatch);
 
     // ========================================================================
     // Actions

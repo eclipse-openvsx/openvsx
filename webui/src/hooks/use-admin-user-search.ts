@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { MainContext } from '../context';
-import { controllerFromSignal } from '../query-client';
 
 const ADMIN_USER_SEARCH_PAGE_SIZE = 25;
 
@@ -33,7 +32,7 @@ export const useAdminUserSearch = (search: string, role: string) => {
     return useInfiniteQuery({
         queryKey: adminUserSearchKeys.list(search, role),
         queryFn: ({ pageParam, signal }) =>
-            service.admin.getUsers(controllerFromSignal(signal), {
+            service.admin.getUsers(signal, {
                 search: search || undefined,
                 role: role || undefined,
                 size: ADMIN_USER_SEARCH_PAGE_SIZE,

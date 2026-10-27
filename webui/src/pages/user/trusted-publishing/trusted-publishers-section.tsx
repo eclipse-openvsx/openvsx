@@ -18,13 +18,17 @@ import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import { Eyebrow } from '../../../components/page-primitives';
 import { SettingsSectionTitle } from '../settings/settings-primitives';
-import { useReportedQuery } from '../../../hooks/use-reported-query';
 import { MainContext } from '../../../context';
 import { Namespace, TrustedPublisher, TrustedPublisherProvider, UrlString } from '../../../extension-registry-types';
 import { RegisterTrustedPublisherDialog, TrustedPublishingDocsLink } from './register-trusted-publisher-dialog';
 import { PublisherList } from './publisher-list';
 import { TrustedPublisherProviderIcon } from './trusted-publisher-provider-icon';
-import { useDeleteTrustedPublisher, useTrustedPublishers, useTrustedPublishingStatus } from './use-trusted-publishers';
+import {
+    useDeleteTrustedPublisher,
+    useTrustedPublishers,
+    useTrustedPublishersProbe,
+    useTrustedPublishingStatus
+} from './use-trusted-publishers';
 
 const AddPublisherPanel = styled(Box)(({ theme }) => ({
     position: 'relative',
@@ -59,8 +63,7 @@ export interface TrustedPublishersSectionProps {
 }
 
 export const TrustedPublishersSection: FunctionComponent<TrustedPublishersSectionProps> = props => {
-    const { handleError } = useContext(MainContext);
-    const { data, isFetching } = useReportedQuery(useTrustedPublishers(props.trustedPublishingUrl));
+    const { data, isFetching } = useTrustedPublishers(props.trustedPublishingUrl);
     const { mutateAsync: deleteTrustedPublisher, isPending: deleting } = useDeleteTrustedPublisher();
     const [selectedProvider, setSelectedProvider] = useState('');
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,8 +85,8 @@ export const TrustedPublishersSection: FunctionComponent<TrustedPublishersSectio
     const remove = async (publisher: TrustedPublisher) => {
         try {
             await deleteTrustedPublisher({ trustedPublishingUrl: props.trustedPublishingUrl, id: publisher.id });
-        } catch (err) {
-            handleError(err);
+        } catch {
+            // Reported by the hook; awaited so the confirmation closes once the delete settles.
         }
     };
 
@@ -211,7 +214,7 @@ export const ExtensionTrustedPublishers: FunctionComponent<{ namespace: string; 
     // The URL is built client-side (unlike Namespace.trustedPublishingUrl it is not owner-granted),
     // so the publishers list doubles as the ownership probe: it 403s unless the user owns the
     // namespace (e.g. an admin inspecting a foreign extension), which keeps the section hidden.
-    const { isSuccess: canManage } = useTrustedPublishers(providers.length > 0 ? trustedPublishingUrl : undefined);
+    const { isSuccess: canManage } = useTrustedPublishersProbe(providers.length > 0 ? trustedPublishingUrl : undefined);
     if (!user || providers.length === 0 || !canManage) {
         return null;
     }

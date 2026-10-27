@@ -31,18 +31,18 @@ import static org.mockito.Mockito.verify;
 class SettingsUpdateChannelTest {
 
     private final RedisClusterClient redis = Mockito.mock(RedisClusterClient.class);
-    private final SettingsCache cache = Mockito.mock(SettingsCache.class);
+    private final SettingsStore store = Mockito.mock(SettingsStore.class);
 
     @Test
     void publishGoesOutOnTheSettingsChannel() {
-        new SettingsUpdateChannel(redis, cache).publish();
+        new SettingsUpdateChannel(redis, store).publish();
 
         verify(redis).publish(eq("settings.update"), anyString());
     }
 
     @Test
     void publishWithoutRedisIsANoOp() {
-        new SettingsUpdateChannel(null, cache).publish();
+        new SettingsUpdateChannel(null, store).publish();
 
         verify(redis, never()).publish(anyString(), anyString());
     }
@@ -59,16 +59,16 @@ class SettingsUpdateChannelTest {
             return null;
         }).when(redis).subscribe(any(JedisPubSub.class), eq("settings.update"));
 
-        var channel = new SettingsUpdateChannel(redis, cache);
+        var channel = new SettingsUpdateChannel(redis, store);
         channel.initialize();
         try {
             assertThat(subscribed.await(5, TimeUnit.SECONDS)).isTrue();
 
             listener.get().onMessage("settings.update", "1");
-            verify(cache).clear();
+            verify(store).clear();
 
             listener.get().onMessage("some.other.channel", "1");
-            verify(cache, Mockito.times(1)).clear();
+            verify(store, Mockito.times(1)).clear();
         } finally {
             release.countDown();
             channel.shutdown();

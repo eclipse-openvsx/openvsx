@@ -37,6 +37,10 @@ import org.eclipse.openvsx.repositories.ExtensionSizeOverrideRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
 
+/**
+ * Size limits for published packages: the admin-set default of {@link MaxExtensionSizeSetting}, the
+ * per-namespace and per-extension overrides on top of it, and the ceiling across all of them.
+ */
 @Service
 @CacheConfig(cacheManager = "localCacheManager")
 public class ExtensionSizeLimitService {
@@ -44,24 +48,28 @@ public class ExtensionSizeLimitService {
     private static final String CACHE_KEY_CEILING = "'extension-size-ceiling'";
 
     private final SettingsService settings;
+    private final MaxExtensionSizeSetting maxExtensionSize;
     private final ExtensionSizeOverrideRepository overrides;
     private final RepositoryService repositories;
     private final PublishingConfig publishingConfig;
 
     public ExtensionSizeLimitService(
             SettingsService settings,
+            MaxExtensionSizeSetting maxExtensionSize,
             ExtensionSizeOverrideRepository overrides,
             RepositoryService repositories,
             PublishingConfig publishingConfig
     ) {
         this.settings = settings;
+        this.maxExtensionSize = maxExtensionSize;
         this.overrides = overrides;
         this.repositories = repositories;
         this.publishingConfig = publishingConfig;
     }
 
+    /** The admin-set default, ignoring overrides. */
     public long getDefaultLimit() {
-        return settings.getMaxExtensionSize();
+        return maxExtensionSize.getValue();
     }
 
     /** The write-time ceiling {@link #requireValidSize} enforces; see {@link PublishingConfig#getMaxOverrideSize()}. */
@@ -71,7 +79,7 @@ public class ExtensionSizeLimitService {
 
     /**
      * Largest package any namespace may publish. Used as the stream-time cap, before the namespace is
-     * known. Evicted by {@link SettingsCache#clear()}, which every settings write triggers.
+     * known. Evicted by {@link SettingsStore#clear()}, which every settings write triggers.
      */
     @Cacheable(value = CacheService.CACHE_SETTING, key = CACHE_KEY_CEILING)
     public long getCeiling() {

@@ -105,12 +105,6 @@ public class UserData implements Serializable {
     @OneToMany(mappedBy = "user")
     private List<NamespaceMembership> memberships;
 
-    private String eclipsePersonId;
-
-    @Column(length = 4096)
-    @Convert(converter = AuthTokenConverter.class)
-    private AuthToken eclipseToken;
-
     /**
      * Convert to a JSON object.
      */
@@ -234,22 +228,6 @@ public class UserData implements Serializable {
         this.providerUrl = providerUrl;
     }
 
-    public String getEclipsePersonId() {
-        return eclipsePersonId;
-    }
-
-    public void setEclipsePersonId(String eclipsePersonId) {
-        this.eclipsePersonId = eclipsePersonId;
-    }
-
-    public AuthToken getEclipseToken() {
-        return eclipseToken;
-    }
-
-    public void setEclipseToken(AuthToken eclipseToken) {
-        this.eclipseToken = eclipseToken;
-    }
-
     // tokens and memberships are deliberately excluded below: each of their elements holds this
     // user back (PersonalAccessToken#user, NamespaceMembership#user), so hashing them here would
     // recurse into this user's hashCode again, unconditionally. permissions has no such back-reference
@@ -272,9 +250,7 @@ public class UserData implements Serializable {
                 && Objects.equals(avatarUrl, userData.avatarUrl)
                 && Objects.equals(provider, userData.provider)
                 && Objects.equals(authId, userData.authId)
-                && Objects.equals(providerUrl, userData.providerUrl)
-                && Objects.equals(eclipsePersonId, userData.eclipsePersonId)
-                && Objects.equals(eclipseToken, userData.eclipseToken);
+                && Objects.equals(providerUrl, userData.providerUrl);
     }
 
     @Override
@@ -289,8 +265,6 @@ public class UserData implements Serializable {
                 avatarUrl,
                 provider,
                 authId,
-                providerUrl,
-                eclipsePersonId,
-                eclipseToken);
+                providerUrl);
     }
 }

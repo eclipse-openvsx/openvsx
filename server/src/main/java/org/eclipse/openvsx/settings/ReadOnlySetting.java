@@ -17,9 +17,9 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * Blocks write operations while keeping browsing, search and downloads available. Not a
- * {@link PublicSetting}: the web UI learns that the registry is read-only from the 409s
- * {@link ReadOnlyEndpointAspect} returns, not from a published flag.
+ * Blocks write operations while keeping browsing, search and downloads available. The server asks
+ * {@link #isEnabled()}. Not a {@link PublicSetting}: the web UI learns that the registry is
+ * read-only from the 409s {@link ReadOnlyEndpointAspect} returns, not from a published flag.
  */
 @Component
 public class ReadOnlySetting implements WritableSetting<Boolean> {
@@ -27,18 +27,15 @@ public class ReadOnlySetting implements WritableSetting<Boolean> {
     /** Shipped before settings had owners, so the name is also its bare row key. */
     public static final String KEY = "read-only";
 
-    private final SettingsCache cache;
+    private final SettingsStore store;
 
-    public ReadOnlySetting(SettingsCache cache) {
-        this.cache = cache;
+    public ReadOnlySetting(SettingsStore store) {
+        this.store = store;
     }
 
-    /**
-     * The only setting read from inside the server rather than through an endpoint, and so the only
-     * one that reads the store itself.
-     */
+    /** {@code false} until an admin switches it on, as this node's snapshot has it. */
     public boolean isEnabled() {
-        return read(cache.snapshot());
+        return read(store.snapshot());
     }
 
     @Override

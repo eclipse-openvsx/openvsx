@@ -22,8 +22,7 @@ export { useReportedQuery } from './hooks/use-reported-query';
 // The registry client, plus the request layer for building a service around endpoints it doesn't cover.
 export * from './extension-registry-service';
 export * from './extension-registry-types';
-export { sendRequest, sendNonRetriableRequest, type ErrorResponse } from './server-request';
-export { controllerFromSignal } from './query-client';
+export { sendRequest, isNotFound, type ErrorResponse } from './server-request';
 export { createRoute, createAbsoluteURL, addQuery } from './utils';
 
 // So a deployment with its own menu content can gate an admin entry the way the built-in menu does.
@@ -36,6 +35,7 @@ export { NamespaceDetail } from './pages/namespace-detail/namespace-detail';
 export { UserSettings, type UserSettingsProps } from './pages/user/user-settings';
 export { NotFound } from './not-found';
 export type { AdminPage, AdminPageCategory } from './pages/admin-dashboard/nav-types';
+export type { AdminSettingsSection, AdminSettingsFlag } from './pages/admin-dashboard/settings-sections';
 
 // Building blocks of the built-in home page, for composing a custom one.
 export { HeroSearch, type HeroSearchProps } from './pages/home/hero-search';
@@ -57,6 +57,7 @@ export { Pill } from './components/pill';
 export { KbdKey } from './components/kbd-key';
 export { OpenVsxMark } from './components/openvsx-mark';
 export { PageContainer, type PageContainerProps } from './components/page-container';
+export { ListLoadError, type ListLoadErrorProps } from './components/list-load-error';
 // Also the app's drop target for .vsix packages, so a custom menu keeps drag-and-drop publishing.
 export { PublishButton, type PublishButtonProps } from './components/publish/publish-button';
 

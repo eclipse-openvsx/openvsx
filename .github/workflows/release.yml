@@ -80,7 +80,7 @@ jobs:
         persist-credentials: false
 
     - name: Set up JDK
-      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
       with:
         distribution: 'temurin'
         java-version: 25
@@ -143,13 +143,22 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
+        # The previous release tag is needed to know where its change log sections end.
+        fetch-depth: 0
+
+    - name: "Write release notes"
+      env:
+        RELEASE_TAG: ${{ needs.prepare.outputs.release-tag }}
+      run: |
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${RELEASE_TAG}^")
+        ./scripts/release-notes.sh "${PREVIOUS_TAG}" > RELEASE_NOTES.md
 
     - name: "Create GitHub release"
       uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
       with:
         name: "v${{ needs.prepare.outputs.release-version }}"
         tag_name: "${{ needs.prepare.outputs.release-tag }}"
+        body_path: "RELEASE_NOTES.md"
         draft: false
         prerelease: false
-        generate_release_notes: true
         make_latest: true

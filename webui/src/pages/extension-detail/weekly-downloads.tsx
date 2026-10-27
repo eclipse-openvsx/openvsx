@@ -16,9 +16,9 @@ import { chartsAxisHighlightClasses } from '@mui/x-charts/ChartsAxisHighlight';
 import { lineClasses } from '@mui/x-charts/LineChart';
 import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
 import { DateTime } from 'luxon';
-import { FunctionComponent, useContext, useMemo, useState } from 'react';
+import { FunctionComponent, useMemo, useState } from 'react';
 import { Eyebrow } from '../../components/page-primitives';
-import { MainContext } from '../../context';
+import { useSiteSettings } from '../../components/use-site-settings';
 import { DownloadSeriesPoint, Extension } from '../../extension-registry-types';
 import { useExtensionDownloadSeries } from './use-extension-download-series';
 
@@ -110,15 +110,16 @@ const sectionSx = {
 /**
  * "Weekly downloads" sidebar card: the downloads of the last 7 days, with a sparkline of the weekly
  * totals for the year behind it — one point per week, so the headline is simply its last point.
- * Hovering reads out that week instead. Renders nothing only when download analytics are disabled
- * server-side (the endpoint 404s); otherwise the chart draws immediately, as a flat zero while the
- * series loads, when the extension has no downloads yet, or when the request failed — with the
- * figure held as a placeholder or shown as unavailable, never as a claimed zero.
+ * Hovering reads out that week instead. Renders nothing only while the public site settings say
+ * download analytics is hidden; otherwise the chart draws immediately, as a
+ * flat zero while the series loads, when the extension has no downloads yet, or when the request
+ * failed — with the figure held as a placeholder or shown as unavailable, never as a claimed zero.
  */
 export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ extension }) => {
     const theme = useTheme();
-    const { version } = useContext(MainContext);
-    const analyticsEnabled = version?.analyticsEnabled ?? false;
+    // An admin's save seeds the site settings and they poll, so a switch flipped during this
+    // session reaches the card without a reload.
+    const analyticsVisible = useSiteSettings().data?.downloadAnalyticsVisible ?? false;
     const [hovered, setHovered] = useState<number | undefined>(undefined);
 
     const {
@@ -126,12 +127,12 @@ export const WeeklyDownloads: FunctionComponent<{ extension: Extension }> = ({ e
         isLoading,
         isError
     } = useExtensionDownloadSeries(extension.namespace, extension.name, {
-        enabled: analyticsEnabled
+        enabled: analyticsVisible
     });
 
     const daily = useMemo(() => points ?? [], [points]);
     const counts = useMemo(() => weeklyTotals(daily.map(point => point.count)), [daily]);
-    if (!analyticsEnabled) {
+    if (!analyticsVisible) {
         return null;
     }
 

@@ -83,6 +83,11 @@ public class DownloadIngestion extends TableImpl<DownloadIngestionRecord> {
      */
     public final TableField<DownloadIngestionRecord, Boolean> SUCCESS = createField(DSL.name("success"), SQLDataType.BOOLEAN.nullable(false), this, "");
 
+    /**
+     * The column <code>public.download_ingestion.analytics_status</code>.
+     */
+    public final TableField<DownloadIngestionRecord, String> ANALYTICS_STATUS = createField(DSL.name("analytics_status"), SQLDataType.VARCHAR(16).nullable(false).defaultValue(DSL.field(DSL.raw("'NONE'::character varying"), SQLDataType.VARCHAR)), this, "");
+
     private DownloadIngestion(Name alias, Table<DownloadIngestionRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
     }

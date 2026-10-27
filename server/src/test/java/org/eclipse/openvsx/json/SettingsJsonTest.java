@@ -12,13 +12,10 @@
  *****************************************************************************/
 package org.eclipse.openvsx.json;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
 
 /** The payload is camelCase like every other DTO, whatever the kebab-case keys the settings are stored under. */
 class SettingsJsonTest {
@@ -69,33 +66,5 @@ class SettingsJsonTest {
         assertThat(json.getReadOnly()).isNull();
         assertThat(json.getBannerEnabled()).isNull();
         assertThat(json.getBannerMessage()).isEqualTo("Hi");
-    }
-
-    @Test
-    void theRowsUseTheStoredKebabCaseKeys() {
-        var json = new SettingsJson();
-        json.setReadOnly(true);
-        json.setBannerMessage("Maintenance tonight");
-
-        assertThat(json.toRows())
-                .containsExactly(
-                        entry("read-only", true),
-                        entry("banner-message", "Maintenance tonight"));
-    }
-
-    @Test
-    void aSettingLeftOutOfTheRequestProducesNoRow() {
-        assertThat(new SettingsJson().toRows()).isEmpty();
-    }
-
-    @Test
-    void rowsReadBackIntoThePayload() {
-        var json = SettingsJson
-                .of(Map.of("read-only", true, "banner-severity", "warning", "banner-message", "Hi"));
-
-        assertThat(json.getReadOnly()).isTrue();
-        assertThat(json.getBannerSeverity()).isEqualTo("warning");
-        assertThat(json.getBannerMessage()).isEqualTo("Hi");
-        assertThat(json.getBannerEnabled()).isNull();
     }
 }

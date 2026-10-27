@@ -63,12 +63,21 @@ class DownloadAnalyticsAPITest {
                         new DownloadSeriesPoint(Instant.parse("2026-07-01T00:00:00Z"), null, 4321, false),
                         new DownloadSeriesPoint(Instant.parse("2026-07-02T00:00:00Z"), null, 10, true)));
 
-        mockMvc.perform(get("/api/foo/bar/analytics/downloads?from=2026-07-01&to=2026-07-03"))
+        mockMvc.perform(get("/api/foo/bar/analytics/downloads"))
                 .andExpect(status().isOk())
                 .andExpect(
                         content().json(
                                 "{\"points\":[{\"t\":\"2026-07-01\",\"count\":4321},{\"t\":\"2026-07-02\",\"count\":10}]}",
                                 true));
+    }
+
+    @Test
+    void testUnreachableAnalyticsDatabaseIsServiceUnavailable() throws Exception {
+        Mockito.when(service.getSeries(any())).thenThrow(new AnalyticsUnavailableException());
+
+        mockMvc.perform(get("/api/foo/bar/analytics/downloads"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "30"));
     }
 
     @Test
@@ -81,46 +90,33 @@ class DownloadAnalyticsAPITest {
     }
 
     @Test
-    void testRequestParametersArePassedToService() throws Exception {
-        Mockito.when(service.getSeries(any())).thenReturn(List.of());
-
-        mockMvc.perform(get("/api/foo/bar/analytics/downloads?from=2026-06-01&to=2026-07-01&interval=week"))
-                .andExpect(status().isOk());
-
-        var captor = ArgumentCaptor.forClass(DownloadSeriesRequest.class);
-        Mockito.verify(service).getSeries(captor.capture());
-        var request = captor.getValue();
-        assertEquals(List.of(42L), request.extensionIds());
-        assertEquals(Instant.parse("2026-06-01T00:00:00Z"), request.from());
-        assertEquals(Instant.parse("2026-07-01T00:00:00Z"), request.to());
-        assertEquals(DownloadSeriesInterval.WEEK, request.interval());
-        assertEquals(DownloadSeriesGroupBy.NONE, request.groupBy());
-    }
-
-    @Test
-    void testDefaultRangeIsTheLastThirtyDays() throws Exception {
+    void testWindowIsTheLast52WeeksOfDays() throws Exception {
         Mockito.when(service.getSeries(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/foo/bar/analytics/downloads")).andExpect(status().isOk());
 
         var captor = ArgumentCaptor.forClass(DownloadSeriesRequest.class);
         Mockito.verify(service).getSeries(captor.capture());
-        // now is 2026-07-15T10:00Z: the range ends after today (partial) and spans 30 days
-        assertEquals(Instant.parse("2026-07-16T00:00:00Z"), captor.getValue().to());
-        assertEquals(Instant.parse("2026-06-16T00:00:00Z"), captor.getValue().from());
-        assertEquals(DownloadSeriesInterval.DAY, captor.getValue().interval());
+        var request = captor.getValue();
+        // now is 2026-07-15T10:00Z: the window ends after today (partial) and spans 364 days
+        assertEquals(List.of(42L), request.extensionIds());
+        assertEquals(Instant.parse("2026-07-16T00:00:00Z"), request.to());
+        assertEquals(Instant.parse("2025-07-17T00:00:00Z"), request.from());
+        assertEquals(DownloadSeriesInterval.DAY, request.interval());
+        assertEquals(DownloadSeriesGroupBy.NONE, request.groupBy());
     }
 
     @Test
-    void testParameterValidation() throws Exception {
-        mockMvc.perform(get("/api/foo/bar/analytics/downloads?interval=hour"))
-                .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/api/foo/bar/analytics/downloads?from=not-a-date"))
-                .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/api/foo/bar/analytics/downloads?from=2026-07-02&to=2026-07-01"))
-                .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/api/foo/bar/analytics/downloads?from=2000-01-01&to=2026-07-01"))
-                .andExpect(status().isBadRequest());
+    void testQueryParametersDoNotChangeTheWindow() throws Exception {
+        Mockito.when(service.getSeries(any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/foo/bar/analytics/downloads")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/foo/bar/analytics/downloads?from=2000-01-01&to=2026-07-01&interval=month"))
+                .andExpect(status().isOk());
+
+        var captor = ArgumentCaptor.forClass(DownloadSeriesRequest.class);
+        Mockito.verify(service, Mockito.times(2)).getSeries(captor.capture());
+        assertEquals(captor.getAllValues().get(0), captor.getAllValues().get(1));
     }
 
     @Test
