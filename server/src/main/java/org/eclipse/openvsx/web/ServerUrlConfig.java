@@ -28,6 +28,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
+import org.eclipse.openvsx.util.UrlUtil;
+
 /**
  * Where this registry is reachable, which the absolute URLs in a response are built from.
  * {@link TrustedForwardedHeaderFilter} applies these settings; doc/configuration.md, Server URL says which
@@ -85,6 +87,7 @@ public class ServerUrlConfig {
             hostAndPort = uri.getPort() == -1 ? uri.getHost() : uri.getHost() + ":" + uri.getPort();
             prefix = StringUtils.stripEnd(StringUtils.defaultString(uri.getPath()), "/");
         }
+        UrlUtil.setConfiguredBaseUrl(scheme == null ? null : scheme + "://" + hostAndPort + prefix);
 
         var matchers = new ArrayList<IpAddressMatcher>();
         for (var proxy : trustedProxies) {

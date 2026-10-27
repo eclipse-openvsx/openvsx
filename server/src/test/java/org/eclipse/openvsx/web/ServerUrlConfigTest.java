@@ -14,6 +14,7 @@ package org.eclipse.openvsx.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -22,8 +23,13 @@ import org.springframework.core.Ordered;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import org.eclipse.openvsx.util.UrlUtil;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
+// Every context started here sets the static base URL in UrlUtil, which another class running at the same time
+// would overwrite.
+@Isolated
 class ServerUrlConfigTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
@@ -102,6 +108,15 @@ class ServerUrlConfigTest {
         runner.withPropertyValues("ovsx.server.url=https://example.com/").run(context -> {
             assertThat(config(context).getPrefix()).isEmpty();
         });
+    }
+
+    @Test
+    void makesTheServerUrlTheBaseUrlOutsideARequest() {
+        runner.withPropertyValues("ovsx.server.url=HTTPS://example.com:8443/registry/").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(UrlUtil.getBaseUrl()).isEqualTo("https://example.com:8443/registry");
+        });
+        runner.run(context -> assertThat(UrlUtil.getBaseUrl()).isEmpty());
     }
 
     @Test
