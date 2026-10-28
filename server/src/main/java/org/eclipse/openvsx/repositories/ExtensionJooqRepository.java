@@ -495,7 +495,9 @@ public class ExtensionJooqRepository {
         // number of extensions actually carrying the name.
         var latestQuery = extensionVersionRepo.findLatestQuery(null, false, true);
         latestQuery.addSelect(EXTENSION_VERSION.ID);
-        latestQuery.addConditions(EXTENSION_VERSION.EXTENSION_ID.eq(evMatch.EXTENSION_ID));
+        latestQuery.addConditions(
+                EXTENSION_VERSION.EXTENSION_ID.eq(evMatch.EXTENSION_ID),
+                EXTENSION_VERSION.TARGET_PLATFORM.eq(evMatch.TARGET_PLATFORM));
         var latestVersionId = latestQuery.asField().coerce(Long.class);
 
         var query = findAllActive();
