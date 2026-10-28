@@ -596,6 +596,10 @@ public class ExtensionScanCompletionService implements JobRequestHandler<Handler
         int warningThreatCount = 0;
 
         for (ScannerJob job : jobs) {
+            // A job that did not complete can still own threat rows from a result that lost a race
+            if (job.getStatus() != ScannerJob.JobStatus.COMPLETE) {
+                continue;
+            }
             List<ExtensionThreat> threats = extensionThreatRepository.findByJobId(job.getId());
 
             if (!threats.isEmpty()) {

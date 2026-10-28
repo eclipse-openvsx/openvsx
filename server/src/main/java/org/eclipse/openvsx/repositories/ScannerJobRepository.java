@@ -21,6 +21,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.eclipse.openvsx.entities.ScannerJob;
@@ -37,6 +38,26 @@ public interface ScannerJobRepository extends Repository<ScannerJob, Long> {
      * Save a scan job.
      */
     ScannerJob save(ScannerJob scanJob);
+
+    /**
+     * Save and flush immediately, so a version conflict surfaces here
+     * rather than at the end of an enclosing transaction.
+     */
+    ScannerJob saveAndFlush(ScannerJob scanJob);
+
+    /**
+     * Save a scan job, unless it changed since it was loaded.
+     *
+     * @return false if another writer got there first; the caller must discard its result
+     */
+    default boolean trySave(ScannerJob scanJob) {
+        try {
+            saveAndFlush(scanJob);
+            return true;
+        } catch (ObjectOptimisticLockingFailureException e) {
+            return false;
+        }
+    }
 
     /**
      * Find a scan job by ID.
@@ -91,7 +112,7 @@ public interface ScannerJobRepository extends Repository<ScannerJob, Long> {
     @Transactional
     @Query(
         "UPDATE ScannerJob j SET j.status = 'PROCESSING', j.recoveryInProgress = false, "
-                + "j.updatedAt = :now WHERE j.id = :id AND j.status = 'QUEUED'"
+                + "j.updatedAt = :now, j.version = j.version + 1 WHERE j.id = :id AND j.status = 'QUEUED'"
     )
     int claimForProcessing(@Param("id") long id, @Param("now") LocalDateTime now);
 

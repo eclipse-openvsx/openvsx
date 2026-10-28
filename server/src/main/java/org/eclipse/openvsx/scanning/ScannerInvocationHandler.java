@@ -21,6 +21,7 @@ import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.ScanCheckResult;
@@ -212,7 +213,7 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
             job.setStatus(ScannerJob.JobStatus.FAILED);
             job.setErrorMessage("Scanner not found: " + scannerType);
             job.setUpdatedAt(TimeUtil.getCurrentUTC());
-            scanJobRepository.save(job);
+            scanJobRepository.trySave(job);
             logger.error("Scanner not found: {}", scannerType);
             return null; // Don't retry - scanner will never exist
         }
@@ -233,20 +234,27 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         ScannerJob job = scanJobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
 
+        // The watchdog may have finalized the job while the scanner call was in flight
+        if (job.getStatus().isTerminal()) {
+            logger.debug("Job {} already {}, discarding result of scanner {}", jobId, job.getStatus(), scannerType);
+            return;
+        }
+
         // Determine the scan ID before processing (needed for completion check)
         String scanId = job.getScanId();
 
         // Update job status based on invocation result
         // For sync scanners: status -> COMPLETE, save threats
         // For async scanners: status -> SUBMITTED, store external job ID
-        switch (invocation) {
+        boolean saved = switch (invocation) {
             case Scanner.Invocation.Completed c ->
                 handleCompletedScan(job, c, scanner, scannerType, extensionVersionId);
             case Scanner.Invocation.Submitted s ->
                 handleSubmittedScan(job, s, scanner, scannerType, extensionVersionId);
+        };
+        if (!saved) {
+            return;
         }
-
-        scanJobRepository.save(job);
 
         // Now check if all jobs for this scan are complete.
         // Only do this for sync scanners (Completed) - async scanners will trigger
@@ -267,7 +275,9 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         job.setStatus(ScannerJob.JobStatus.FAILED);
         job.setErrorMessage("Scanner invocation failed: " + e.getMessage());
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        scanJobRepository.save(job);
+        if (!scanJobRepository.trySave(job)) {
+            logger.debug("Job {} changed concurrently, not marking it failed", jobId);
+        }
     }
 
     /**
@@ -279,8 +289,11 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
     /**
      * Handle a completed (synchronous) scan result.
      * Marks job as complete, saves any threats found, and records result for audit.
+     * The job is saved together with the threats, so a lost race leaves no orphaned rows.
+     *
+     * @return false if the job changed concurrently and the result was discarded
      */
-    private void handleCompletedScan(
+    private boolean handleCompletedScan(
             ScannerJob job,
             Scanner.Invocation.Completed completed,
             Scanner scanner,
@@ -296,12 +309,18 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         job.setExternalJobId(null); // No external job for sync scanners
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
 
-        // Process result: save threats, determine check result, record audit
-        var processed = persistenceService.processCompletedScan(
-                job,
-                completed.result(),
-                scanner.enforcesThreats(),
-                startedAt);
+        // Job, threats and audit result commit together, so no completion check sees COMPLETE without them
+        ExtensionScanPersistenceService.CompletedScanResult processed;
+        try {
+            processed = persistenceService.completeScannerJob(
+                    job,
+                    completed.result(),
+                    scanner.enforcesThreats(),
+                    startedAt);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            logger.debug("Job {} changed concurrently, discarding result of scanner {}", job.getId(), scannerType);
+            return false;
+        }
 
         // Only log when threats were found
         if (processed.checkResult() == ScanCheckResult.CheckResult.QUARANTINE) {
@@ -318,13 +337,16 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
                     processed.summary(),
                     extensionVersionId);
         }
+        return true;
     }
 
     /**
      * Handle a submitted (asynchronous) scan.
      * Marks job as submitted, stores file hashes, and schedules first poll.
+     *
+     * @return false if the job changed concurrently and the submission was discarded
      */
-    private void handleSubmittedScan(
+    private boolean handleSubmittedScan(
             ScannerJob job,
             Scanner.Invocation.Submitted submitted,
             Scanner scanner,
@@ -353,6 +375,11 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
             }
         }
 
+        if (!scanJobRepository.trySave(job)) {
+            logger.debug("Job {} changed concurrently, discarding submission to scanner {}", job.getId(), scannerType);
+            return false;
+        }
+
         logger.debug(
                 "Scanner {} submitted to external service. Job ID: {} (extension version: {})",
                 scannerType,
@@ -362,6 +389,7 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
         // Schedule first poll using scanner's poll configuration
         // No need for a separate polling monitor - polls chain themselves
         scheduleFirstPoll(job.getId(), scanner);
+        return true;
     }
 
     /**
