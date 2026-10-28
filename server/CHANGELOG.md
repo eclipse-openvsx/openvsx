@@ -42,6 +42,12 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
 
+## [1.3.2] - 2026-10-27
+
+### Fixed
+
+- Stop evicting the extension caches per extension after download ingestion, which ran one Redis keyspace scan each and overloaded the cache; cached download counts now refresh on the cache TTL ([#2404](https://github.com/eclipse-openvsx/openvsx/pull/2404))
+
 ## [1.3.1] - 2026-10-24
 
 ### Fixed
