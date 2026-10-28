@@ -22,6 +22,8 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Publish a `SettingsChangedEvent` after the site settings change ([#2316](https://github.com/eclipse-openvsx/openvsx/pull/2316))
 - Expose the download size of each target platform as `downloadSizes` on the extension API response ([#2168](https://github.com/eclipse-openvsx/openvsx/pull/2168))
 - Add a consistency check that finds and repairs extensions whose stored average rating or review count differs from their active reviews, see #2327 ([#2328](https://github.com/eclipse-openvsx/openvsx/pull/2328))
+- Add a `DISPLAY_NAME_CONFLICT` publish check that rejects a new extension, or a rename, onto the exact display name of another publisher's active extension; configured under `ovsx.scanning.display-name-conflict` and only run when scanning is enabled
+- Migrations `V1_81` (expression index on `extension_version` display names) and `V1_82` (`extension_scan.declared_display_name`); `V1_81` briefly blocks writes to `extension_version` and can be created `CONCURRENTLY` beforehand, see the migration file
 
 #### Changed
 

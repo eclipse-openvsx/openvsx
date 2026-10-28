@@ -4053,8 +4053,7 @@ class RegistryAPITest {
                     users,
                     validator,
                     extensionControl,
-                    extensionScanService,
-                    false);
+                    extensionScanService);
         }
 
         @Bean

@@ -14,6 +14,7 @@ package org.eclipse.openvsx.repositories;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -32,6 +33,7 @@ import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.util.DisplayNameUtil;
 import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -275,8 +277,20 @@ class ExtensionJooqRepositoryTest extends AbstractPostgresContainerTest {
         return extension;
     }
 
+    private UserData publisher;
+
+    private UserData publisher() {
+        if (publisher == null) {
+            publisher = new UserData();
+            publisher.setLoginName("extension-repo-test-" + UUID.randomUUID());
+            em.persist(publisher);
+        }
+        return publisher;
+    }
+
     private void persistVersion(Extension extension, String version, String displayName, boolean active) {
         var extVersion = new ExtensionVersion();
+        extVersion.setPublishedBy(publisher());
         extVersion.setExtension(extension);
         extVersion.setVersion(version);
         extVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);

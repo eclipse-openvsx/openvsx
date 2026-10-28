@@ -1,7 +1,7 @@
--- Backs the display name conflict check that publishing a new extension runs (see
--- ExtensionJooqRepository#findActiveExtensionByDisplayName): a package whose display name is already
--- carried by another publisher's extension is rejected, so every initial publication looks the
--- incoming display name up once.
+-- Backs the DISPLAY_NAME_CONFLICT publish check (see
+-- ExtensionJooqRepository#findActiveExtensionByDisplayName): a package adopting a display name already
+-- carried by another publisher's extension is rejected, so every publication that introduces or
+-- changes a display name looks it up once.
 --
 -- The expression has to match the one used by the query, or the planner falls back to a sequential
 -- scan over every version there is: the lookup normalises casing and surrounding whitespace away,

@@ -66,6 +66,10 @@ public class ExtensionScan implements Serializable {
     @Column(name = "extension_display_name", length = 255)
     private String extensionDisplayName;
 
+    /** Display name declared by the package, {@code null} when it declares none */
+    @Column(name = "declared_display_name", length = 255)
+    private String declaredDisplayName;
+
     /** Target platform flag captured at scan creation */
     @Column(name = "universal_target_platform")
     private boolean universalTargetPlatform;
@@ -161,6 +165,14 @@ public class ExtensionScan implements Serializable {
 
     public void setExtensionDisplayName(String extensionDisplayName) {
         this.extensionDisplayName = extensionDisplayName;
+    }
+
+    public String getDeclaredDisplayName() {
+        return declaredDisplayName;
+    }
+
+    public void setDeclaredDisplayName(String declaredDisplayName) {
+        this.declaredDisplayName = declaredDisplayName;
     }
 
     public boolean isUniversalTargetPlatform() {

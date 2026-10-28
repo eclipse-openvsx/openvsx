@@ -225,6 +225,10 @@ ovsx:
       only-protect-verified-names: false
       allow-similarity-to-own-names: true
       only-check-new-extensions: true
+    display-name-conflict:
+      enabled: true
+      enforced: false
+      required: false
     secret-detection:
       enabled: true
       enforced: false

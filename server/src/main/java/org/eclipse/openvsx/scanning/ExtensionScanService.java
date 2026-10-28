@@ -85,6 +85,7 @@ public class ExtensionScanService {
                 processor.getVersion(),
                 processor.getTargetPlatform(),
                 processor.getDisplayNameOrExtensionName(),
+                processor.getDeclaredDisplayName(),
                 user);
     }
 
@@ -94,6 +95,7 @@ public class ExtensionScanService {
             String version,
             String targetPlatform,
             String displayName,
+            String declaredDisplayName,
             UserData user
     ) {
         logger.debug("Starting publish scan for {}.{} v{}", namespaceName, extensionName, version);
@@ -104,6 +106,7 @@ public class ExtensionScanService {
                 version,
                 targetPlatform,
                 displayName,
+                declaredDisplayName,
                 user);
     }
 
