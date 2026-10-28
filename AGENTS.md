@@ -37,6 +37,30 @@ request from the user, ask before overriding it.
 - Ask before removing functionality or code that appears intentional. Do not
   preserve backward compatibility unless the user asks for it.
 
+## Changelog
+
+Each component keeps its own `CHANGELOG.md` (`server/`, `webui/`, `cli/`), in
+the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. A change
+with user-visible behaviour is incomplete without its entry.
+
+- **Keep entries short — one line per change.** State what changed and why it
+  matters to the component's audience (see its `AGENTS.md`); link the
+  issue/PR for detail instead of writing the detail out.
+- New entries go under `## [next] (unreleased)`, in `### Added`,
+  `### Changed`, `### Fixed`, `### Removed` or `### Dependencies`. Read the
+  whole section first and append to an existing subsection; add one only if
+  it is missing.
+- A release commit renames that heading to `## [vX.Y.Z] - YYYY-MM-DD` and
+  opens a new `[next]`; don't do that yourself. Released sections are
+  immutable.
+- **Never describe a change against something that is itself unreleased.** If
+  your work modifies behaviour introduced by an entry under `[next]`, edit
+  that entry to describe the final state instead of adding a second one:
+  readers of the release never saw the intermediate version. A genuinely new
+  behaviour still earns its own entry, phrased as the end state.
+- Internal-only changes (tests, CI, docs, refactors with no behaviour change)
+  get no entry.
+
 ## Conventions
 
 - Commit subjects use a conventional-commit prefix: `feat:`, `fix:`,

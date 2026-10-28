@@ -114,7 +114,6 @@ dependencies {
     implementation libs.commons.lang3
     implementation libs.bouncycastle
     implementation libs.jedis
-    implementation libs.guava
     implementation libs.uuid.generator
 
     implementation libs.bucket4j.spring

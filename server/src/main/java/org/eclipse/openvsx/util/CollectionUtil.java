@@ -61,6 +61,20 @@ public final class CollectionUtil {
         return result;
     }
 
+    /**
+     * Splits a list into consecutive {@code subList} views of at most {@code size} elements.
+     */
+    public static <T> List<List<T>> partition(List<T> source, int size) {
+        if (size < 1) {
+            throw new IllegalArgumentException("size must be positive, got " + size);
+        }
+        var result = new ArrayList<List<T>>((source.size() + size - 1) / size);
+        for (var from = 0; from < source.size(); from += size) {
+            result.add(source.subList(from, Math.min(from + size, source.size())));
+        }
+        return result;
+    }
+
     public static <T> List<T> limit(Iterable<T> source, int limit) {
         var result = new ArrayList<T>();
         var count = 0;

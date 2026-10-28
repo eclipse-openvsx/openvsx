@@ -28,6 +28,7 @@ import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -35,6 +36,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.util.Streamable;
@@ -68,8 +70,6 @@ import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
-import org.eclipse.openvsx.eclipse.EclipseService;
-import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.CustomerMembership;
 import org.eclipse.openvsx.entities.Extension;
@@ -88,6 +88,7 @@ import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.NamespaceMembershipJson;
 import org.eclipse.openvsx.json.NamespaceMembershipListJson;
+import org.eclipse.openvsx.json.PublisherAgreementEntryJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.SettingsJson;
 import org.eclipse.openvsx.json.UserJson;
@@ -96,6 +97,7 @@ import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -111,6 +113,7 @@ import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
 import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
+import org.eclipse.openvsx.settings.MaxExtensionSizeSetting;
 import org.eclipse.openvsx.settings.SettingsService;
 import org.eclipse.openvsx.storage.AwsStorageService;
 import org.eclipse.openvsx.storage.AzureBlobStorageService;
@@ -168,7 +171,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SearchUtilService.class,
         SearchExplainService.class,
         CacheInfoService.class,
-        EclipseService.class,
+        PublisherAgreementService.class,
         RestTemplate.class,
         SimpleMeterRegistry.class,
         FileCacheDurationConfig.class,
@@ -223,6 +226,10 @@ class AdminAPITest {
 
     // registered as a mock through the @MockitoBean types list above
     @Autowired
+    PublisherAgreementService publisherAgreements;
+
+    // registered as a mock through the @MockitoBean types list above
+    @Autowired
     SettingsService settings;
 
     // registered as a mock through the @MockitoBean types list above
@@ -271,11 +278,7 @@ class AdminAPITest {
     @Test
     void testGetSettingsReportsMaxExtensionSize() throws Exception {
         mockAdminUser();
-        var currentSettings = new SettingsJson();
-        currentSettings.setReadOnly(false);
-        currentSettings.setMaxExtensionSize(536_870_912L);
-        currentSettings.setMaxOverrideSize(1_073_741_824L);
-        Mockito.when(settings.getCurrentSettings()).thenReturn(currentSettings);
+        Mockito.when(settings.getCurrentSettings()).thenReturn(settingsJson(536_870_912L));
 
         mockMvc.perform(
                 get("/admin/settings")
@@ -290,11 +293,8 @@ class AdminAPITest {
     @Test
     void testUpdateSettingsAppliesMaxExtensionSizeAndLogsIt() throws Exception {
         var admin = mockAdminUser();
-        Mockito.when(settings.updateFromJson(Mockito.any())).thenReturn("max-extension-size -> 1073741824");
-        var updatedSettings = new SettingsJson();
-        updatedSettings.setReadOnly(false);
-        updatedSettings.setMaxExtensionSize(1_073_741_824L);
-        Mockito.when(settings.getCurrentSettings()).thenReturn(updatedSettings);
+        Mockito.when(settings.update(Mockito.any())).thenReturn(MaxExtensionSizeSetting.KEY + " -> 1073741824");
+        Mockito.when(settings.getCurrentSettings()).thenReturn(settingsJson(1_073_741_824L));
 
         mockMvc.perform(
                 put("/admin/settings")
@@ -305,7 +305,18 @@ class AdminAPITest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.maxExtensionSize").value(1073741824));
 
+        var update = ArgumentCaptor.forClass(SettingsJson.class);
+        Mockito.verify(settings).update(update.capture());
+        assertThat(update.getValue().getMaxExtensionSize()).isEqualTo(1_073_741_824L);
         Mockito.verify(logs).logAction(Mockito.eq(admin), Mockito.any());
+    }
+
+    private static SettingsJson settingsJson(long maxExtensionSize) {
+        var json = new SettingsJson();
+        json.setReadOnly(false);
+        json.setMaxExtensionSize(maxExtensionSize);
+        json.setMaxOverrideSize(1_073_741_824L);
+        return json;
     }
 
     @Test
@@ -628,6 +639,22 @@ class AdminAPITest {
                         .with(csrf().asHeader()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.namespaceOwnershipConflict").value(true));
+    }
+
+    // The scan's threat stays recorded after the namespace gains an owner, which resolves the conflict.
+    @Test
+    void testGetExtensionNamespaceOwnershipConflictResolvedByOwner() throws Exception {
+        mockAdminUser();
+        var latest = mockExtension(2, 0, 0).getLast();
+        when(repositories.hasThreatOfType(latest, NamespaceOwnershipCheckScanner.TYPE)).thenReturn(true);
+        when(repositories.isVerified(latest.getExtension().getNamespace())).thenReturn(true);
+
+        mockMvc.perform(
+                get("/admin/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.namespaceOwnershipConflict").value(false));
     }
 
     @Test
@@ -1484,6 +1511,68 @@ class AdminAPITest {
                     ext1.setVersion("1.0.0");
                     upi.setExtensions(List.of(ext1));
                 })));
+
+        // the agreement is added to what the admin sees by the service
+        Mockito.verify(publisherAgreements).enrichUserJsonForAdmin(any(), eq(user));
+    }
+
+    @Test
+    void testPublisherAgreementHistoryNotAdmin() throws Exception {
+        mockNormalUser();
+        mockMvc.perform(
+                get("/admin/publisher/{provider}/{loginName}/agreement-history", "github", "test")
+                        .with(user("test_user")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testPublisherAgreementHistoryUnknownUser() throws Exception {
+        mockAdminUser();
+        when(repositories.findUserByLoginName("github", "nobody")).thenReturn(null);
+        mockMvc.perform(
+                get("/admin/publisher/{provider}/{loginName}/agreement-history", "github", "nobody")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testPublisherAgreementHistory() throws Exception {
+        mockAdminUser();
+        var user = new UserData();
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test")).thenReturn(user);
+        when(publisherAgreements.history(user)).thenReturn(
+                List.of(
+                        new PublisherAgreementEntryJson("reinstated", null, "2026-10-18T10:00:00Z", 9L),
+                        new PublisherAgreementEntryJson("revoked", null, "2026-10-10T10:00:00Z", 9L),
+                        new PublisherAgreementEntryJson("signed", "1.0.0", "2026-10-01T10:00:00Z", 7L)));
+        mockMvc.perform(
+                get("/admin/publisher/{provider}/{loginName}/agreement-history", "github", "test")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("reinstated"))
+                .andExpect(jsonPath("$[0].version").doesNotExist())
+                .andExpect(jsonPath("$[1].actorId").value(9))
+                .andExpect(jsonPath("$[2].type").value("signed"))
+                .andExpect(jsonPath("$[2].version").value("1.0.0"))
+                .andExpect(jsonPath("$[2].timestamp").value("2026-10-01T10:00:00Z"));
+    }
+
+    @Test
+    void testReinstatePublisherAgreement() throws Exception {
+        var admin = mockAdminUser();
+        var user = new UserData();
+        user.setId(admin.getId() + 1);
+        user.setLoginName("test");
+        user.setProvider("github");
+        when(repositories.findUserByLoginName("github", "test")).thenReturn(user);
+        mockMvc.perform(
+                post("/admin/publisher/{provider}/{loginName}/reinstate-agreement", "github", "test")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk());
+        Mockito.verify(publisherAgreements).reinstate(user, admin);
     }
 
     @Test
@@ -3281,22 +3370,9 @@ class AdminAPITest {
         @Bean
         OAuth2UserServices oauth2UserServices(
                 UserService users,
-                EclipseTokenService eclipseTokenService,
-                EntityManager entityManager,
-                EclipseService eclipse,
                 OAuth2AttributesConfig attributesConfig
         ) {
-            return new OAuth2UserServices(users, eclipseTokenService, entityManager, eclipse, attributesConfig);
-        }
-
-        @Bean
-        EclipseTokenService eclipseTokenService(
-                TransactionTemplate transactions,
-                EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository,
-                RestTemplate restTemplate
-        ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
+            return new OAuth2UserServices(users, List.of(), attributesConfig);
         }
 
         @Bean
@@ -3308,14 +3384,15 @@ class AdminAPITest {
                 AccessTokenService tokenService,
                 ExtensionValidator validator,
                 SearchUtilService search,
-                EclipseService eclipse,
+                PublisherAgreementService eclipse,
                 StorageUtilService storageUtil,
                 CacheService cache,
                 JobRequestScheduler scheduler,
                 MailService mail,
                 ExtensionSizeLimitService sizeLimits,
                 LogService logs,
-                AdminStatisticsService statistics
+                AdminStatisticsService statistics,
+                ApplicationEventPublisher events
         ) {
             return new AdminService(
                     repositories,
@@ -3332,7 +3409,8 @@ class AdminAPITest {
                     mail,
                     sizeLimits,
                     logs,
-                    statistics);
+                    statistics,
+                    events);
         }
 
         @Bean
@@ -3346,7 +3424,7 @@ class AdminAPITest {
                 SearchUtilService search,
                 ExtensionValidator validator,
                 StorageUtilService storageUtil,
-                EclipseService eclipse,
+                PublisherAgreementService eclipse,
                 CacheService cache,
                 ExtensionVersionIntegrityService integrityService,
                 SimilarityCheckService similarityCheckService

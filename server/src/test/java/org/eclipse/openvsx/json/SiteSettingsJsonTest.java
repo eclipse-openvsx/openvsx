@@ -12,8 +12,6 @@
  *****************************************************************************/
 package org.eclipse.openvsx.json;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -25,28 +23,16 @@ class SiteSettingsJsonTest {
 
     @Test
     void serializesTheBannerAsCamelCase() {
-        var json = SiteSettingsJson.of(
-                Map.of(
-                        "banner-enabled",
-                        true,
-                        "banner-message",
-                        "Maintenance tonight",
-                        "banner-severity",
-                        "warning",
-                        "banner-dismiss-id",
-                        "token-1"));
+        var json = new SiteSettingsJson();
+        json.setBannerEnabled(true);
+        json.setBannerMessage("Maintenance tonight");
+        json.setBannerSeverity("warning");
+        json.setBannerDismissId("token-1");
 
         var tree = mapper.readTree(mapper.writeValueAsString(json));
 
         assertThat(tree.propertyNames())
                 .containsExactlyInAnyOrder("bannerEnabled", "bannerMessage", "bannerSeverity", "bannerDismissId");
         assertThat(tree.get("bannerMessage").stringValue()).isEqualTo("Maintenance tonight");
-    }
-
-    @Test
-    void leavesOutEverythingButTheBanner() {
-        var json = SiteSettingsJson.of(Map.of("read-only", true, "max-extension-size", 1L));
-
-        assertThat(mapper.readTree(mapper.writeValueAsString(json)).propertyNames()).isEmpty();
     }
 }

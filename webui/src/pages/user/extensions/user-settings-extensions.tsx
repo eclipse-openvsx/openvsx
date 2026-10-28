@@ -19,13 +19,12 @@ import { ExtensionGrid } from '../../../components/page-primitives';
 import { SettingsHeader } from '../settings/settings-header';
 import { UserSettingsRoutes } from '../user-settings-routes';
 import { PublishRoutes } from '../../publish/publish-routes';
-import { useReportedQuery } from '../../../hooks/use-reported-query';
 import { useUserExtensions } from '../../../hooks/use-user-extensions';
 
 export const UserSettingsExtensions: FunctionComponent = () => {
     // The publish queue reads the same entry as it follows a package, so a card lands here as soon
     // as the registry has the package, without this page fetching again.
-    const { data: extensions, isLoading } = useReportedQuery(useUserExtensions());
+    const { data: extensions, isLoading } = useUserExtensions();
 
     return (
         <Box>

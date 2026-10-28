@@ -18,11 +18,15 @@ import { Registry } from '../../src/registry';
 
 // registry.ts imports 'fs', so the mock has to name the same specifier. Everything but
 // createWriteStream is the real module; that one is wrapped only to record when the file closes.
-const recorder = vi.hoisted(() => ({ events: [] as string[] }));
+const recorder = vi.hoisted(() => ({ events: [] as string[], removed: [] as string[] }));
 vi.mock('fs', async importOriginal => {
     const actual = await importOriginal<typeof import('fs')>();
     return {
         ...actual,
+        rm: (...args: Parameters<typeof actual.rm>) => {
+            recorder.removed.push(String(args[0]));
+            return actual.rm(...args);
+        },
         createWriteStream: (...args: Parameters<typeof actual.createWriteStream>) => {
             const stream = actual.createWriteStream(...args);
             stream.on('close', () => recorder.events.push('file closed'));
@@ -204,6 +208,24 @@ describe('Registry.download', () => {
         expect(outcome).toBe('rejected');
         expect(fs.readFileSync(file, 'utf-8')).toBe('the file the user already had');
         expect(fs.existsSync(`${file}.part`), 'the partial download should be cleaned up').toBe(false);
+    });
+
+    // The error body is drained after rejecting, so a stall or reset there still reaches the failure
+    // handler; it must find the failure already claimed rather than run cleanup a second time.
+    it('ignores a timeout while draining an error response', async () => {
+        const url = await serve((_, res) => {
+            res.writeHead(500, { 'Content-Length': '1000' });
+            res.write(Buffer.alloc(100, 'x'));
+            // and then nothing
+        });
+        const registry = new Registry({ registryUrl: url, timeout: 100 });
+        const file = tempPath('.vsix');
+
+        recorder.removed.length = 0;
+        await expect(registry.download(file, new URL(`${url}/broken`))).rejects.toThrow('status 500');
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        expect(recorder.removed).toEqual([]);
     });
 
     it('does not create the file at all when the download fails', async () => {

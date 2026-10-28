@@ -8,35 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  * ****************************************************************************** */
 
-import { PropsWithChildren, useContext, useEffect, useRef, useState, forwardRef } from 'react';
-import { isError, CsrfTokenJson } from '../../extension-registry-types';
+import { PropsWithChildren, useContext, forwardRef } from 'react';
 import { MainContext } from '../../context';
+import { useCsrfToken } from './use-csrf-token';
 
 export const LogoutForm = forwardRef<HTMLFormElement, PropsWithChildren>(({ children }, ref) => {
-    const [csrf, setCsrf] = useState<string>();
-    const context = useContext(MainContext);
-
-    const abortController = useRef<AbortController>(new AbortController());
-    useEffect(() => {
-        updateCsrf();
-        return () => abortController.current.abort();
-    }, []);
-
-    const updateCsrf = async () => {
-        try {
-            const csrfResponse = await context.service.getCsrfToken(abortController.current);
-            if (!isError(csrfResponse)) {
-                const csrfToken = csrfResponse as CsrfTokenJson;
-                setCsrf(csrfToken.value);
-            }
-        } catch (err) {
-            context.handleError(err);
-        }
-    };
+    const { service } = useContext(MainContext);
+    const { data: csrfToken } = useCsrfToken();
 
     return (
-        <form ref={ref} method='post' action={context.service.getLogoutUrl()} style={{ display: 'contents' }}>
-            {csrf ? <input name='_csrf' type='hidden' value={csrf} /> : null}
+        <form ref={ref} method='post' action={service.getLogoutUrl()} style={{ display: 'contents' }}>
+            {csrfToken ? <input name='_csrf' type='hidden' value={csrfToken.value} /> : null}
             {children}
         </form>
     );

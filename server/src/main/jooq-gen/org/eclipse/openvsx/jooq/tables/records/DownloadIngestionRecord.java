@@ -103,6 +103,20 @@ public class DownloadIngestionRecord extends UpdatableRecordImpl<DownloadIngesti
         return (Boolean) get(5);
     }
 
+    /**
+     * Setter for <code>public.download_ingestion.analytics_status</code>.
+     */
+    public void setAnalyticsStatus(String value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.download_ingestion.analytics_status</code>.
+     */
+    public String getAnalyticsStatus() {
+        return (String) get(6);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -126,7 +140,7 @@ public class DownloadIngestionRecord extends UpdatableRecordImpl<DownloadIngesti
     /**
      * Create a detached, initialised DownloadIngestionRecord
      */
-    public DownloadIngestionRecord(Long id, String name, String storageType, LocalDateTime processedOn, Integer executionTime, Boolean success) {
+    public DownloadIngestionRecord(Long id, String name, String storageType, LocalDateTime processedOn, Integer executionTime, Boolean success, String analyticsStatus) {
         super(DownloadIngestion.DOWNLOAD_INGESTION);
 
         setId(id);
@@ -135,6 +149,7 @@ public class DownloadIngestionRecord extends UpdatableRecordImpl<DownloadIngesti
         setProcessedOn(processedOn);
         setExecutionTime(executionTime);
         setSuccess(success);
+        setAnalyticsStatus(analyticsStatus);
         resetChangedOnNotNull();
     }
 }

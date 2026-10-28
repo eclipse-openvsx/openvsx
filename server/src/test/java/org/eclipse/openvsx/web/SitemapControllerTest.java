@@ -27,8 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import org.eclipse.openvsx.UserService;
-import org.eclipse.openvsx.eclipse.EclipseService;
-import org.eclipse.openvsx.eclipse.EclipseTokenService;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.security.OAuth2UserServices;
@@ -41,10 +40,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(SitemapController.class)
 @MockitoBean(
     types = {
-        EclipseService.class,
+        PublisherAgreementService.class,
         SimpleMeterRegistry.class,
         UserService.class,
-        EclipseTokenService.class,
         EntityManager.class
     }
 )
@@ -81,12 +79,9 @@ class SitemapControllerTest {
         @Bean
         OAuth2UserServices oauth2UserServices(
                 UserService users,
-                EclipseTokenService eclipseTokenService,
-                EntityManager entityManager,
-                EclipseService eclipse,
                 OAuth2AttributesConfig attributesConfig
         ) {
-            return new OAuth2UserServices(users, eclipseTokenService, entityManager, eclipse, attributesConfig);
+            return new OAuth2UserServices(users, List.of(), attributesConfig);
         }
 
         @Bean

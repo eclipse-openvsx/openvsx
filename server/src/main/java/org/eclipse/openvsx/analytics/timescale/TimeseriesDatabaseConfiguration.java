@@ -12,6 +12,8 @@
  *****************************************************************************/
 package org.eclipse.openvsx.analytics.timescale;
 
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariConfig;
@@ -29,6 +31,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import org.eclipse.openvsx.analytics.AnalyticsAvailability;
+
 /**
  * The time-series database behind download analytics: its own PostgreSQL instance (with the
  * timescaledb extension), its own connection pool, its own Flyway migration set and its own
@@ -41,14 +45,14 @@ class TimeseriesDatabaseConfiguration {
 
     private static final String DEFAULT_POOL_SIZE = "5";
 
-    // A download records its event on the request path, so an unreachable time-series database has
-    // to surface as a fast failure the caller can swallow. Hikari's 30 second default would hold a
-    // request thread for that long on every download until the outage ends.
+    // An unreachable time-series database has to surface as a fast failure the caller can swallow.
+    // Hikari's 30 second default would hold a thread for that long on every call until the outage ends.
     private static final String DEFAULT_CONNECTION_TIMEOUT_MS = "2000";
 
     // The derived validation timeout floors at this, and Hikari rejects a validation timeout that
     // is not below the connection timeout, so the connection timeout has to exceed it.
     private static final long VALIDATION_TIMEOUT_FLOOR_MS = 250L;
+    private static final Duration MIN_PROBE_INTERVAL = Duration.ofSeconds(1);
 
     /** JDBC URL of the time-series database. Required whenever analytics are enabled. */
     @Value("${ovsx.analytics.datasource.url:}")
@@ -70,6 +74,14 @@ class TimeseriesDatabaseConfiguration {
     @Value("${ovsx.analytics.datasource.connection-timeout:" + DEFAULT_CONNECTION_TIMEOUT_MS + "}")
     long connectionTimeout;
 
+    /** Delay between two probes of the time-series database. Default: {@code PT30S} */
+    @Value("${ovsx.analytics.availability.probe-interval:PT30S}")
+    Duration probeInterval;
+
+    /** Consecutive failed calls that mark the time-series database unavailable between probes. Default: {@code 3} */
+    @Value("${ovsx.analytics.availability.failure-threshold:3}")
+    int failureThreshold;
+
     /**
      * Rejects a half-configured analytics deployment at startup rather than at the first download.
      * These beans only exist when {@code ovsx.analytics.enabled=true}, so reaching here at all means
@@ -90,6 +102,15 @@ class TimeseriesDatabaseConfiguration {
                     "ovsx.analytics.datasource.connection-timeout must be greater than "
                             + VALIDATION_TIMEOUT_FLOOR_MS + "ms, but was " + connectionTimeout + "ms");
         }
+        if (probeInterval.compareTo(MIN_PROBE_INTERVAL) < 0) {
+            throw new IllegalStateException(
+                    "ovsx.analytics.availability.probe-interval must be at least " + MIN_PROBE_INTERVAL
+                            + ", but was " + probeInterval);
+        }
+        if (failureThreshold < 1) {
+            throw new IllegalStateException(
+                    "ovsx.analytics.availability.failure-threshold must be at least 1, but was " + failureThreshold);
+        }
     }
 
     // defaultCandidate = false keeps these beans invisible to @ConditionalOnMissingBean and to
@@ -107,6 +128,8 @@ class TimeseriesDatabaseConfiguration {
         config.setMaximumPoolSize(maximumPoolSize);
         config.setConnectionTimeout(connectionTimeout);
         config.setValidationTimeout(Math.max(VALIDATION_TIMEOUT_FLOOR_MS, connectionTimeout / 2));
+        // Connect lazily: the registry must start even when this database is down.
+        config.setInitializationFailTimeout(-1);
         return new HikariDataSource(config);
     }
 
@@ -115,21 +138,20 @@ class TimeseriesDatabaseConfiguration {
     }
 
     /**
-     * Migrates the time-series schema. Configured programmatically rather than through
+     * The time-series migrations, configured programmatically rather than through
      * {@code spring.flyway.*} so that the main and the time-series migration settings cannot leak
      * into each other; in particular there is no baseline, because this database starts empty and
-     * an unexpected schema must fail the startup.
+     * an unexpected schema must fail the startup. Not run here: the availability probe migrates once
+     * the database can be reached, so that an outage does not keep the registry from starting.
      */
     @Bean(defaultCandidate = false)
     Flyway timeseriesFlyway(@Qualifier("timeseriesDataSource") DataSource dataSource) {
-        var flyway = Flyway.configure()
+        return Flyway.configure()
                 .dataSource(dataSource)
                 // a sibling of db/migration, never a child: Flyway scans locations recursively,
                 // so a child would be swept into the registry's migration chain as well
                 .locations("classpath:db/migration-timeseries")
                 .load();
-        flyway.migrate();
-        return flyway;
     }
 
     /**
@@ -138,11 +160,30 @@ class TimeseriesDatabaseConfiguration {
      * rather than Spring's, and never join a caller's registry transaction.
      */
     @Bean(defaultCandidate = false)
-    DSLContext timeseriesDsl(
-            @Qualifier("timeseriesDataSource") DataSource dataSource,
-            // depended upon so the schema exists before the first query
+    DSLContext timeseriesDsl(@Qualifier("timeseriesDataSource") DataSource dataSource) {
+        return DSL.using(dataSource, SQLDialect.POSTGRES);
+    }
+
+    /**
+     * Migrates the schema on the first successful probe, then only checks that the database answers.
+     * Queries are gated on its verdict, so none of them runs before the schema exists.
+     */
+    @Bean(initMethod = "start")
+    AnalyticsAvailability analyticsAvailability(
+            @Qualifier("timeseriesDsl") DSLContext dsl,
             @Qualifier("timeseriesFlyway") Flyway flyway
     ) {
-        return DSL.using(dataSource, SQLDialect.POSTGRES);
+        return new AnalyticsAvailability(probe(dsl, flyway), probeInterval, failureThreshold);
+    }
+
+    static Runnable probe(DSLContext dsl, Flyway flyway) {
+        var migrated = new AtomicBoolean();
+        return () -> {
+            if (!migrated.get()) {
+                flyway.migrate();
+                migrated.set(true);
+            }
+            dsl.selectOne().fetch();
+        };
     }
 }

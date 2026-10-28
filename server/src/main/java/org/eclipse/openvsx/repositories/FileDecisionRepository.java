@@ -64,7 +64,7 @@ public interface FileDecisionRepository extends Repository<FileDecision, Long> {
     @Query(
         value = """
                 SELECT f.*, u.id AS user_id, u.login_name, u.email, u.full_name, u.avatar_url,
-                       u.provider, u.provider_url, u.auth_id, u.role, u.eclipse_token, u.eclipse_person_id
+                       u.provider, u.provider_url, u.auth_id, u.role
                 FROM file_decision f
                 JOIN user_data u ON u.id = f.decided_by_id
                 WHERE (CAST(:decision AS TEXT) IS NULL OR f.decision = :decision)

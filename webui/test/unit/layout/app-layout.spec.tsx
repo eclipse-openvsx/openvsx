@@ -24,7 +24,7 @@ const Home = () => <div>home</div>;
 // as a render result
 const mountApp = (banner?: PageSettings['elements']['banner']) => {
     const service = {
-        getUser: vi.fn().mockResolvedValue({ error: 'Not logged in' }),
+        getUser: vi.fn().mockRejectedValue({ error: 'Not logged in.', status: 200 }),
         getRegistryVersion: vi.fn().mockResolvedValue({ version: '1.0.0' }),
         getSiteSettings: vi.fn().mockResolvedValue({
             bannerEnabled: true,

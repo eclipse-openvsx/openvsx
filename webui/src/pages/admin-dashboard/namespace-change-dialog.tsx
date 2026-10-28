@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { ChangeEvent, FunctionComponent, useState, useContext, useEffect } from 'react';
+import { ChangeEvent, FunctionComponent, useState, useEffect } from 'react';
 import {
     Button,
     Checkbox,
@@ -22,7 +22,6 @@ import {
 } from '@mui/material';
 import { ButtonWithProgress } from '../../components/button-with-progress';
 import { Namespace } from '../../extension-registry-types';
-import { MainContext } from '../../context';
 import { InfoDialog } from '../../components/info-dialog';
 import { useChangeNamespace } from './use-namespace-admin';
 
@@ -35,8 +34,7 @@ export interface NamespaceChangeDialogProps {
 
 export const NamespaceChangeDialog: FunctionComponent<NamespaceChangeDialogProps> = props => {
     const { open } = props;
-    const { handleError } = useContext(MainContext);
-    const { mutateAsync: changeNamespace, isPending: working } = useChangeNamespace();
+    const { mutate: changeNamespace, isPending: working } = useChangeNamespace();
     const [newNamespace, setNewNamespace] = useState('');
     const [removeOldNamespace, setRemoveOldNamespace] = useState(false);
     const [mergeIfNewNamespaceAlreadyExists, setMergeIfNewNamespaceAlreadyExists] = useState(false);
@@ -64,27 +62,21 @@ export const NamespaceChangeDialog: FunctionComponent<NamespaceChangeDialogProps
     const onMergeIfNewNamespaceAlreadyExistsChange = (event: ChangeEvent, checked: boolean) => {
         setMergeIfNewNamespaceAlreadyExists(checked);
     };
-    const handleChangeNamespace = async () => {
+    const handleChangeNamespace = () => {
         if (!props.namespace) {
             return;
         }
         props.setLoadingState(true);
-        try {
-            const oldNamespace = props.namespace.name;
-            const result = await changeNamespace({
-                oldNamespace,
-                newNamespace,
-                removeOldNamespace,
-                mergeIfNewNamespaceAlreadyExists
-            });
-
-            props.setLoadingState(false);
-            setInfoDialogIsOpen(true);
-            setInfoDialogMessage(result.success);
-        } catch (err) {
-            props.setLoadingState(false);
-            handleError(err);
-        }
+        changeNamespace(
+            { oldNamespace: props.namespace.name, newNamespace, removeOldNamespace, mergeIfNewNamespaceAlreadyExists },
+            {
+                onSuccess: result => {
+                    setInfoDialogIsOpen(true);
+                    setInfoDialogMessage(result.success);
+                },
+                onSettled: () => props.setLoadingState(false)
+            }
+        );
     };
 
     return (

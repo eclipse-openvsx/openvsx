@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { ChangeEvent, FC, useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, FC, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { SaveButton } from '../../components/save-button';
 import {
     Alert,
@@ -23,15 +23,17 @@ import {
     DialogContentText,
     DialogTitle,
     Stack,
-    TextField,
     Typography
 } from '@mui/material';
 import type { Settings, SiteSettings } from '../../extension-registry-types';
+import { MainContext } from '../../context';
 import { handleError } from '../../utils';
 import { useSavedFlash } from '../../hooks/use-saved-flash';
 import { SettingsBannerItem } from './settings-banner-item';
 import { SettingsItem } from './settings-item';
+import { BYTES_PER_MB, SettingsMaxSizeItem } from './settings-max-size-item';
 import { SettingsSection } from './settings-section';
+import { ResolvedSettingsSection, withContributedSections } from './settings-sections';
 import { useSettings, useUpdateSettings } from './use-settings';
 
 interface NotificationState {
@@ -42,34 +44,11 @@ interface NotificationState {
 }
 
 const NOTIFICATION_TIMEOUT = 2000;
-const BYTES_PER_MB = 1024 * 1024;
-
-// Flooring would understate a ceiling that is not a whole number of MB (e.g. 1.5 MiB reported as
-// "1 MB"), making a value the server would accept look invalid. Rounding instead can overstate it
-// at a near-boundary value (e.g. 2 MiB - 1 byte rounds to "2 MB", naming a value the server would
-// reject) - so the exact byte count is the authoritative part of the message, with the MB figure
-// only an approximation alongside it.
-const formatCeiling = (bytes: number): string => {
-    const mb = bytes / BYTES_PER_MB;
-    const approxMB = Number.isInteger(mb) ? String(mb) : mb.toFixed(2);
-    return `${bytes} bytes (~${approxMB} MB)`;
-};
-
-/** Settings rendered as a plain on/off toggle. */
-type FlagKey = 'readOnly';
-
-const FLAGS: Record<FlagKey, { title: string; description: string }> = {
-    readOnly: {
-        title: 'Read-only mode',
-        description: 'Blocks write operations while keeping browsing, search, and downloads available.'
-    }
-};
 
 const BANNER_KEYS = ['bannerEnabled', 'bannerMessage', 'bannerSeverity'] as const satisfies readonly (keyof Settings)[];
 
-// `bannerDismissId` is not edited: it is stamped into the patch at save time, when the admin
-// asks for the banner to be shown again to everyone who dismissed it.
-const SETTING_KEYS = ['readOnly', 'maxExtensionSize', ...BANNER_KEYS] as const satisfies readonly (keyof Settings)[];
+/** A setting by key, which for a contributed switch is one the library's `Settings` type does not declare. */
+const valueOf = (settings: object, key: string): unknown => (settings as Record<string, unknown>)[key];
 
 const hasMessage = (settings: SiteSettings) => (settings.bannerMessage ?? '').trim().length > 0;
 
@@ -77,8 +56,24 @@ const hasMessage = (settings: SiteSettings) => (settings.bannerMessage ?? '').tr
 const bannerVisible = (settings: SiteSettings) => Boolean(settings.bannerEnabled) && hasMessage(settings);
 
 export const RuntimeSettingsPage: FC = () => {
+    const { pageSettings } = useContext(MainContext);
     const { data: settings, isLoading: loading, error: loadError } = useSettings();
     const { mutate: saveSettings, isPending: saving } = useUpdateSettings();
+
+    const contributedSections = pageSettings.elements.adminSettingsSections;
+    const sections = useMemo(() => withContributedSections(contributedSections), [contributedSections]);
+    // A section the server cannot honour, such as Analytics where none is configured, is left out
+    // rather than shown with a switch the save would refuse. Until the settings load there is
+    // nothing to judge it by, so it waits for them.
+    const visibleSections = sections.filter(
+        section => !section.available || (settings !== undefined && section.available(settings))
+    );
+    // `bannerDismissId` is not edited: it is stamped into the patch at save time, when the admin
+    // asks for the banner to be shown again to everyone who dismissed it.
+    const settingKeys = useMemo<string[]>(
+        () => [...sections.flatMap(section => section.flags.map(flag => flag.key)), 'maxExtensionSize', ...BANNER_KEYS],
+        [sections]
+    );
 
     const [draftSettings, setDraftSettings] = useState<Settings | null>(null);
     const [showAgain, setShowAgain] = useState(true);
@@ -129,7 +124,7 @@ export const RuntimeSettingsPage: FC = () => {
     };
 
     const handleFlagChange = useCallback(
-        (key: FlagKey) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
+        (key: string) => (_event: ChangeEvent<HTMLInputElement>, checked: boolean) => {
             setDraftSettings(current => (current ? { ...current, [key]: checked } : current));
             clearSaved();
         },
@@ -160,9 +155,10 @@ export const RuntimeSettingsPage: FC = () => {
     );
 
     const edited = draftSettings !== null && settings != null;
-    const flagsChanged = edited && (Object.keys(FLAGS) as FlagKey[]).some(k => draftSettings[k] !== settings[k]);
-    const hasChanges = edited && SETTING_KEYS.some(key => draftSettings[key] !== settings[key]);
-    const bannerChanged = edited && BANNER_KEYS.some(key => draftSettings[key] !== settings[key]);
+    const changed = (key: string) => edited && valueOf(draftSettings, key) !== valueOf(settings, key);
+    const hasChanges = settingKeys.some(changed);
+    const bannerChanged = BANNER_KEYS.some(changed);
+    const sectionChanged = (section: ResolvedSettingsSection) => section.flags.some(flag => changed(flag.key));
     // The server rotates the token itself for a banner that was not there before, and nobody
     // dismisses a banner they cannot see. In between, showing it again is the admin's call.
     const canShowAgain = bannerChanged && bannerVisible(draftSettings ?? {}) && hasMessage(settings ?? {});
@@ -191,10 +187,12 @@ export const RuntimeSettingsPage: FC = () => {
         setConfirmOpen(false);
         // Only the settings this admin changed, so a save doesn't revert what another admin
         // changed while this page was open.
-        const patch = SETTING_KEYS.filter(key => draftSettings[key] !== settings[key]).reduce<Partial<Settings>>(
-            (changed, key) => Object.assign(changed, { [key]: draftSettings[key] }),
-            {}
-        );
+        const patch: Partial<Settings> = {};
+        for (const key of settingKeys) {
+            if (valueOf(draftSettings, key) !== valueOf(settings, key)) {
+                Object.assign(patch, { [key]: valueOf(draftSettings, key) });
+            }
+        }
         // A fresh token is what makes a dismissed banner come back; leaving the key out keeps the
         // stored one, so the banner stays hidden for whoever dismissed it.
         if (canShowAgain && showAgain) {
@@ -208,7 +206,7 @@ export const RuntimeSettingsPage: FC = () => {
                 });
             }
         });
-    }, [draftSettings, settings, canShowAgain, showAgain, saveSettings, addNotification, flashSaved]);
+    }, [draftSettings, settings, settingKeys, canShowAgain, showAgain, saveSettings, addNotification, flashSaved]);
 
     return (
         <>
@@ -228,67 +226,48 @@ export const RuntimeSettingsPage: FC = () => {
                     </Alert>
                 )}
 
-                <SettingsSection
-                    title='Registry'
-                    description='How the registry service behaves for every caller.'
-                    changed={flagsChanged}>
-                    {(Object.entries(FLAGS) as [FlagKey, { title: string; description: string }][]).map(
-                        ([key, flag]) => (
-                            <SettingsItem
-                                key={key}
-                                title={flag.title}
-                                description={flag.description}
-                                checked={draftSettings?.[key] ?? false}
+                {/* The banner and the size limit are more than a switch, so the page puts them into their
+                    sections itself; every other setting is one of the section's switches. */}
+                {visibleSections.map(section => (
+                    <SettingsSection
+                        key={section.id}
+                        title={section.title}
+                        description={section.description}
+                        changed={section.warnOnChange && sectionChanged(section)}>
+                        {section.id === 'site' && (
+                            <SettingsBannerItem
+                                settings={draftSettings ?? {}}
+                                changed={bannerChanged}
+                                canShowAgain={canShowAgain}
+                                showAgain={showAgain}
                                 loading={loading || !draftSettings}
                                 disabled={loading || saving || !draftSettings}
-                                onChange={handleFlagChange(key)}
+                                onChange={handleBannerChange}
+                                onShowAgainChange={setShowAgain}
                             />
-                        )
-                    )}
-                </SettingsSection>
-
-                {/* No change outline here: unlike read-only mode, a banner edit is not worth a warning. */}
-                <SettingsSection title='Site settings' description='What visitors see on the web UI.'>
-                    <SettingsBannerItem
-                        settings={draftSettings ?? {}}
-                        changed={bannerChanged}
-                        canShowAgain={canShowAgain}
-                        showAgain={showAgain}
-                        loading={loading || !draftSettings}
-                        disabled={loading || saving || !draftSettings}
-                        onChange={handleBannerChange}
-                        onShowAgainChange={setShowAgain}
-                    />
-                </SettingsSection>
-
-                <SettingsSection title='Publishing' description='Limits applied when extensions are published.'>
-                    <Box sx={{ p: 3 }}>
-                        <Typography variant='subtitle1' gutterBottom>
-                            Default max extension size
-                        </Typography>
-                        <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                            The largest extension package accepted for publishing when no namespace or extension
-                            override applies.
-                        </Typography>
-                        <TextField
-                            label='Max extension size (MB)'
-                            type='number'
-                            value={sizeInput}
-                            onChange={handleMaxExtensionSizeChange}
-                            disabled={loading || saving || !draftSettings}
-                            error={!maxExtensionSizeValid}
-                            helperText={
-                                maxExtensionSizeValid
-                                    ? undefined
-                                    : `Must be a whole number of bytes, greater than 0 and at most ${formatCeiling(
-                                          draftSettings?.maxOverrideSize ?? 0
-                                      )}`
-                            }
-                            inputProps={{ min: '1' }}
-                            sx={{ maxWidth: 240 }}
-                        />
-                    </Box>
-                </SettingsSection>
+                        )}
+                        {section.id === 'publishing' && (
+                            <SettingsMaxSizeItem
+                                value={sizeInput}
+                                ceiling={draftSettings?.maxOverrideSize ?? 0}
+                                valid={maxExtensionSizeValid}
+                                disabled={loading || saving || !draftSettings}
+                                onChange={handleMaxExtensionSizeChange}
+                            />
+                        )}
+                        {section.flags.map(flag => (
+                            <SettingsItem
+                                key={flag.key}
+                                title={flag.title}
+                                description={flag.description}
+                                checked={draftSettings !== null && valueOf(draftSettings, flag.key) === true}
+                                loading={loading || !draftSettings}
+                                disabled={loading || saving || !draftSettings}
+                                onChange={handleFlagChange(flag.key)}
+                            />
+                        ))}
+                    </SettingsSection>
+                ))}
 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <SaveButton

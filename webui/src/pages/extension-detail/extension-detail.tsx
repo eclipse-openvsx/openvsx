@@ -30,6 +30,7 @@ import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { ExtensionIcon } from '../../components/extension/extension-icon';
 import { HoverPopover } from '../../components/hover-popover';
 import { Extension, UserData } from '../../extension-registry-types';
+import { isNotFound } from '../../server-request';
 import { TextDivider } from '../../components/text-divider';
 import { ExtensionRatingStars } from './extension-rating-stars';
 import { NamespaceDetailRoutes } from '../namespace-detail/namespace-detail-routes';
@@ -301,6 +302,13 @@ export const ExtensionHeaderInfo: FunctionComponent<{
     );
 };
 
+const loadErrorMessage = (error: Error, namespace: string, name: string): string => {
+    if (isNotFound(error)) {
+        return `Extension Not Found: ${namespace}.${name}`;
+    }
+    return error instanceof Error ? error.message : 'Failed to load extension details';
+};
+
 // The luma CSS grayscale() resolves a color to; deprecated bands paint through that filter.
 const grayscaleOf = (color: string): string => {
     const [r, g, b] = decomposeColor(color).values;
@@ -424,7 +432,11 @@ export const ExtensionDetail: FunctionComponent = () => {
     }, [activeTab]);
 
     // React Router v6 returns a possibly undefined type for params, but our route configuration guarantees these will be defined.
-    const { loading, error, extension, reload } = useExtensionDetail(namespace!, name!, target!, effectiveVersion!);
+    const {
+        data: extension,
+        error: extensionError,
+        isLoading: extensionLoading
+    } = useExtensionDetail(namespace!, name!, target, effectiveVersion);
 
     // Tab switches keep the scroll position (the effect above adjusts it).
     const goToTab = useCallback((path: string) => navigate(path, { state: { preserveScroll: true } }), [navigate]);
@@ -482,7 +494,7 @@ export const ExtensionDetail: FunctionComponent = () => {
     return (
         <>
             {HeadTags && <HeadTags extension={extension} pageSettings={pageSettings} />}
-            <DelayedLoadIndicator loading={loading} />
+            <DelayedLoadIndicator loading={extensionLoading} />
             {extension && (
                 <>
                     <ExtensionHeader extension={extension} bandRef={bandRef} />
@@ -528,7 +540,7 @@ export const ExtensionDetail: FunctionComponent = () => {
                             <Routes>
                                 <Route
                                     path={ExtensionTab.REVIEWS}
-                                    element={<ExtensionDetailReviews extension={extension} reviewsDidUpdate={reload} />}
+                                    element={<ExtensionDetailReviews extension={extension} />}
                                 />
                                 <Route
                                     path={ExtensionTab.CHANGES}
@@ -548,9 +560,9 @@ export const ExtensionDetail: FunctionComponent = () => {
                     </PageContainer>
                 </>
             )}
-            {error && (
+            {extensionError && (
                 <Box p={4}>
-                    <Typography variant='h5'>{error.message}</Typography>
+                    <Typography variant='h5'>{loadErrorMessage(extensionError, namespace, name)}</Typography>
                 </Box>
             )}
         </>

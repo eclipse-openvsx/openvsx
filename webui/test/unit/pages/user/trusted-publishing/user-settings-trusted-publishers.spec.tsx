@@ -46,7 +46,7 @@ function serviceStub(
     const getTrustedPublishingStatus = vi.fn().mockResolvedValue(status);
     const getTrustedPublishers = vi
         .fn()
-        .mockImplementation((_controller: AbortController, url: string) =>
+        .mockImplementation((_signal: AbortSignal, url: string) =>
             Promise.resolve(publishersByUrl[url] ?? trustedPublisherList())
         );
     const service = {

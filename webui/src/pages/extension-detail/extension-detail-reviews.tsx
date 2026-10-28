@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { Fragment, FunctionComponent, ReactNode, useContext, useState, useEffect, useRef } from 'react';
+import { Fragment, FunctionComponent, ReactNode, useContext, useState } from 'react';
 import {
     Box,
     Typography,
@@ -23,14 +23,7 @@ import {
 } from '@mui/material';
 import { MainContext } from '../../context';
 import { toLocalTime } from '../../utils';
-import {
-    ExtensionReview,
-    Extension,
-    ExtensionReviewList,
-    isEqualUser,
-    isError,
-    UserData
-} from '../../extension-registry-types';
+import { ExtensionReview, Extension, ExtensionReviewList, isEqualUser, UserData } from '../../extension-registry-types';
 import { TextDivider } from '../../components/text-divider';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { ButtonWithProgress } from '../../components/button-with-progress';
@@ -39,64 +32,21 @@ import { ExtensionRatingStars } from './extension-rating-stars';
 import { ExtensionReviewDialog } from './extension-review-dialog';
 import { LoginComponent } from '../../default/login';
 import { hasPermission } from '../../permissions';
+import { useDeleteReview, useDeleteUserReview, useExtensionReviews } from './use-extension-reviews';
 
 export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsProps> = props => {
-    const [reviewList, setReviewList] = useState<ExtensionReviewList>();
-    const [loading, setLoading] = useState<boolean>(true);
-    const [revoked, setRevoked] = useState<boolean>(false);
     const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
     const [removeCommentFromUser, setRemoveCommentFromUser] = useState<UserData | undefined>(undefined);
-    const [removeReviewSet, setRemoveReviewSet] = useState(new Set<string>());
     const context = useContext(MainContext);
-    const abortController = useRef<AbortController>(new AbortController());
+    const { data: reviewList, isFetching: reviewsLoading } = useExtensionReviews(props.extension);
+    const { mutate: deleteReview, isPending: revoking } = useDeleteReview(props.extension);
+    const {
+        mutate: deleteUserReview,
+        isPending: removingReview,
+        variables: removingReviewOf
+    } = useDeleteUserReview(props.extension);
 
-    const addRemoveReviewRequest = (loginName: string) => {
-        const newSet = new Set<string>(removeReviewSet);
-        newSet.add(loginName);
-        setRemoveReviewSet(newSet);
-    };
-
-    const deleteRemoveReviewRequest = (loginName: string) => {
-        const newSet = new Set<string>(removeReviewSet);
-        newSet.delete(loginName);
-        setRemoveReviewSet(newSet);
-    };
-
-    useEffect(() => {
-        updateReviews();
-        return () => abortController.current.abort();
-    }, []);
-
-    const updateReviews = async () => {
-        try {
-            const reviewList = await context.service.getExtensionReviews(abortController.current, props.extension);
-            setReviewList(reviewList);
-        } catch (err) {
-            context.handleError(err);
-        }
-
-        setLoading(false);
-        setRevoked(false);
-    };
-
-    const saveCompleted = () => {
-        setLoading(true);
-        updateReviews();
-        props.reviewsDidUpdate();
-    };
-
-    const handleRevokeButton = async () => {
-        setRevoked(true);
-        try {
-            const result = await context.service.deleteReview(abortController.current, reviewList!.deleteUrl);
-            if (isError(result)) {
-                throw result;
-            }
-            saveCompleted();
-        } catch (err) {
-            context.handleError(err);
-        }
-    };
+    const handleRevokeButton = () => deleteReview(reviewList!.deleteUrl);
 
     const renderButton = (): ReactNode => {
         // An anonymous visitor gets the login in place of the review button. It doesn't depend on
@@ -128,7 +78,7 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
             const localTime = toLocalTime(existingReview.timestamp);
             return (
                 <ButtonWithProgress
-                    working={revoked}
+                    working={revoking}
                     onClick={handleRevokeButton}
                     title={`Revoke review written by ${context.user.loginName} on ${localTime}`}>
                     Revoke my Review
@@ -137,37 +87,17 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
         } else {
             return (
                 <Box>
-                    <ExtensionReviewDialog
-                        saveCompleted={saveCompleted}
-                        extension={props.extension}
-                        reviewPostUrl={reviewList.postUrl}
-                    />
+                    <ExtensionReviewDialog extension={props.extension} reviewPostUrl={reviewList.postUrl} />
                 </Box>
             );
         }
     };
 
-    const handleAdminRemoveReviewButton = async () => {
+    const handleAdminRemoveReviewButton = () => {
         if (removeCommentFromUser === undefined) {
             return;
         }
-        addRemoveReviewRequest(removeCommentFromUser.loginName);
-        try {
-            const result = await context.service.deleteUserReview(
-                abortController.current,
-                props.extension,
-                removeCommentFromUser
-            );
-            if (isError(result)) {
-                throw result;
-            }
-            saveCompleted();
-            setRemoveDialogOpen(false);
-        } catch (err) {
-            context.handleError(err);
-        } finally {
-            deleteRemoveReviewRequest(removeCommentFromUser.loginName);
-        }
+        deleteUserReview(removeCommentFromUser, { onSuccess: () => setRemoveDialogOpen(false) });
     };
 
     const renderAdminRemoveButton = (r: ExtensionReview): ReactNode => {
@@ -204,7 +134,7 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
                         autoFocus
                         color='error'
                         sx={{ ml: 1 }}
-                        working={removeReviewSet.has(removeCommentFromUser?.loginName ?? '')}
+                        working={removingReview && removingReviewOf?.loginName === removeCommentFromUser?.loginName}
                         onClick={() => handleAdminRemoveReviewButton()}>
                         Remove review
                     </ButtonWithProgress>
@@ -295,7 +225,7 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
             </Box>
             <Divider />
             <Box>
-                <DelayedLoadIndicator loading={loading} />
+                <DelayedLoadIndicator loading={reviewsLoading} />
                 {renderReviewList(reviewList)}
                 {hasPermission(context.user, 'manage_extensions') && renderAdminRemoveDialog()}
             </Box>
@@ -305,5 +235,4 @@ export const ExtensionDetailReviews: FunctionComponent<ExtensionDetailReviewsPro
 
 export interface ExtensionDetailReviewsProps {
     extension: Extension;
-    reviewsDidUpdate: () => void;
 }

@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 const checksQueryKey = ['admin', 'consistency', 'checks'] as const;
 const findingsQueryKey = (checkId: string) => ['admin', 'consistency', 'checks', checkId, 'findings'] as const;
@@ -27,7 +26,7 @@ export const useConsistencyChecks = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: checksQueryKey,
-        queryFn: ({ signal }) => service.admin.getConsistencyChecks(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getConsistencyChecks(signal)
     });
 };
 
@@ -39,7 +38,7 @@ export const useConsistencyFindings = (checkId: string, enabled: boolean) => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: findingsQueryKey(checkId),
-        queryFn: ({ signal }) => service.admin.getConsistencyFindings(controllerFromSignal(signal), checkId),
+        queryFn: ({ signal }) => service.admin.getConsistencyFindings(signal, checkId),
         enabled
     });
 };

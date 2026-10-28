@@ -121,6 +121,8 @@ public class SecurityConfig {
                         registrations -> configurer.authorizationEndpoint(
                                 endpoint -> endpoint.authorizationRequestResolver(
                                         new ReturnToAuthorizationRequestResolver(registrations, returnTo))));
+                configurer.tokenEndpoint(
+                        endpoint -> endpoint.accessTokenResponseClient(TokenResponseClients.authorizationCode()));
                 configurer.failureUrl(redirectUrl + "?auth-error");
                 configurer.userInfoEndpoint(
                         customizer -> customizer.oidcUserService(userServices.getOidc())

@@ -23,8 +23,8 @@ import static org.mockito.Mockito.when;
 
 class ReadOnlySettingTest {
 
-    private final SettingsCache cache = mock(SettingsCache.class);
-    private final ReadOnlySetting readOnly = new ReadOnlySetting(cache);
+    private final SettingsStore store = mock(SettingsStore.class);
+    private final ReadOnlySetting readOnly = new ReadOnlySetting(store);
 
     private static SettingRows rows(Object... keyValues) {
         return keyValues.length == 0
@@ -44,7 +44,7 @@ class ReadOnlySettingTest {
 
     @Test
     void anUpdateWithoutTheFlagLeavesItAlone() {
-        assertThat(readOnly.merge(true, rows(BannerSetting.KEY_MESSAGE, "Maintenance tonight"))).isTrue();
+        assertThat(readOnly.merge(true, rows("some-other-row", "x"))).isTrue();
     }
 
     @Test
@@ -53,9 +53,10 @@ class ReadOnlySettingTest {
     }
 
     @Test
-    void theAccessorReadsThroughTheCache() {
-        when(cache.snapshot()).thenReturn(rows(KEY, true));
+    void theAccessorFollowsTheSnapshot() {
+        when(store.snapshot()).thenReturn(rows(KEY, true), rows());
 
         assertThat(readOnly.isEnabled()).isTrue();
+        assertThat(readOnly.isEnabled()).isFalse();
     }
 }

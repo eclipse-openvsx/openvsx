@@ -12,9 +12,11 @@
  *****************************************************************************/
 
 import { useContext } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../context';
-import { controllerFromSignal } from '../../query-client';
+import { ExtensionRegistryService } from '../../extension-registry-service';
+import { useReportedQuery } from '../../hooks/use-reported-query';
+import { isNotFound } from '../../server-request';
 
 interface ChangeNamespaceRequest {
     oldNamespace: string;
@@ -28,18 +30,26 @@ export const namespaceAdminKeys = {
 };
 
 /**
- * Looks up a single namespace for the admin search view. `staleTime: 0` keeps
- * each lookup fresh and `retry: false` lets a 404 surface immediately as a
- * "not found" result rather than being retried.
+ * The admin lookup of a single namespace, shared by the admin search view and the size-override
+ * form. `staleTime: 0` keeps each lookup fresh and `retry: false` lets a 404 surface immediately
+ * as a "not found" result rather than being retried.
+ */
+export const namespaceAdminQuery = (service: ExtensionRegistryService, name: string) =>
+    queryOptions({
+        queryKey: namespaceAdminKeys.detail(name),
+        queryFn: ({ signal }) => service.admin.getNamespace(signal, name),
+        retry: false,
+        staleTime: 0
+    });
+
+/**
+ * Looks up a single namespace for the admin search view, which shows a 404 as "not found".
  */
 export const useAdminNamespace = (name: string) => {
     const { service } = useContext(MainContext);
-    return useQuery({
-        queryKey: namespaceAdminKeys.detail(name),
-        queryFn: ({ signal }) => service.admin.getNamespace(controllerFromSignal(signal), name),
-        enabled: !!name,
-        retry: false,
-        staleTime: 0
+    return useReportedQuery(useQuery({ ...namespaceAdminQuery(service, name), enabled: !!name }), {
+        action: 'load the namespace',
+        ignore: isNotFound
     });
 };
 
@@ -49,12 +59,15 @@ export const useAdminNamespace = (name: string) => {
 export const useCreateNamespace = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (name: string) => service.admin.createNamespace({ name }),
-        onSuccess: (_result, name) => {
-            queryClient.invalidateQueries({ queryKey: namespaceAdminKeys.detail(name) });
-        }
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (name: string) => service.admin.createNamespace({ name }),
+            onSuccess: (_result, name) => {
+                queryClient.invalidateQueries({ queryKey: namespaceAdminKeys.detail(name) });
+            }
+        }),
+        { action: 'create the namespace' }
+    );
 };
 
 /**
@@ -62,9 +75,12 @@ export const useCreateNamespace = () => {
  */
 export const useChangeNamespace = () => {
     const { service } = useContext(MainContext);
-    return useMutation({
-        mutationFn: (req: ChangeNamespaceRequest) => service.admin.changeNamespace(req)
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (req: ChangeNamespaceRequest) => service.admin.changeNamespace(req)
+        }),
+        { action: 'change the namespace' }
+    );
 };
 
 /**
@@ -72,9 +88,12 @@ export const useChangeNamespace = () => {
  */
 export const useDeleteNamespace = () => {
     const { service } = useContext(MainContext);
-    return useMutation({
-        mutationFn: (name: string) => service.admin.deleteNamespace({ name })
-    });
+    return useReportedQuery(
+        useMutation({
+            mutationFn: (name: string) => service.admin.deleteNamespace({ name })
+        }),
+        { action: 'delete the namespace' }
+    );
 };
 
 /**

@@ -17,6 +17,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useParams } from 'react-router';
 import type { Customer } from '../../../extension-registry-types';
 import { handleError } from '../../../utils';
+import { isNotFound } from '../../../server-request';
 import { useAdminUsageStats } from '../usage-stats/use-usage-stats';
 import { GeneralDetails, UsageStats } from '../../../components/rate-limiting/customer';
 import { CustomerFormDialog } from './customer-form-dialog';
@@ -46,7 +47,7 @@ export const CustomerDetails: FC = () => {
     const { usageStats, dailyP95, error: statsError, startDate, setStartDate } = useAdminUsageStats(customerName);
 
     const error = customerError
-        ? (customerError as { status?: number }).status === 404
+        ? isNotFound(customerError)
             ? `Customer "${customerName}" not found.`
             : handleError(customerError as Error)
         : null;

@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.consistency;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ResultJson;
@@ -33,6 +35,9 @@ import org.eclipse.openvsx.util.NotFoundException;
  * fixes, and the scheduled sweep's auto-fixing. Adding a new kind of check only requires a new
  * {@code @Component implements ConsistencyCheck} bean - it is picked up here automatically and needs no
  * further wiring.
+ * <p>
+ * Sweeps and "fix all" are deliberately not one transaction: each check's {@code check()}/{@code fix()}
+ * commits on its own, so no connection or row lock is held for the length of the whole run.
  * <p>
  * There is no persisted run history: findings are always computed live, and every fix - whether an
  * admin clicked "Fix"/"Fix all" or the scheduled sweep did it unattended - is recorded as a normal admin
@@ -51,17 +56,20 @@ public class ConsistencyCheckService {
     private final EntityManager entityManager;
     private final RepositoryService repositories;
     private final LogService logs;
+    private final TransactionTemplate transactions;
 
     public ConsistencyCheckService(
             List<ConsistencyCheck> checks,
             EntityManager entityManager,
             RepositoryService repositories,
-            LogService logs
+            LogService logs,
+            TransactionTemplate transactions
     ) {
         this.checksById = checks.stream().collect(Collectors.toMap(ConsistencyCheck::getId, c -> c));
         this.entityManager = entityManager;
         this.repositories = repositories;
         this.logs = logs;
+        this.transactions = transactions;
     }
 
     /**
@@ -88,14 +96,9 @@ public class ConsistencyCheckService {
     /**
      * Fixes every entity the check currently finds inconsistent, logging the outcome.
      */
-    @Transactional
     public int fixAll(String checkId) {
         var check = getCheck(checkId);
-        var fixed = fixAll(check);
-        if (fixed > 0) {
-            log("Fixed " + fixed + " finding(s) for consistency check '" + check.getId() + "'.");
-        }
-        return fixed;
+        return fixAll(check, check.check(), "Fixed");
     }
 
     /**
@@ -115,10 +118,10 @@ public class ConsistencyCheckService {
      * dashboard's "Fix all" already covers triggering a fix on demand for a single check, so there is no
      * separate "run all checks now" admin action.
      */
-    @Transactional
     public void runAllChecks() {
         for (var check : checksById.values()) {
-            var count = check.check().size();
+            var findings = check.check();
+            var count = findings.size();
             if (count == 0) {
                 continue;
             }
@@ -131,32 +134,46 @@ public class ConsistencyCheckService {
                     .log();
 
             if (check.autoFixOnSchedule()) {
-                var fixed = fixAll(check);
-                log("Auto-fixed " + fixed + " finding(s) for consistency check '" + check.getId() + "'.");
+                fixAll(check, findings, "Auto-fixed");
             }
         }
     }
 
     /**
-     * Recomputes findings once more after fixing each one, rather than fixing a stale list, in case
-     * fixing one finding incidentally resolves another (not expected for any current check, but not
-     * something to assume never happens either).
+     * Fixes the given findings, then recomputes them rather than trusting a stale list, in case fixing one
+     * finding incidentally resolves another or introduces a new one. A finding that survives its own fix
+     * is not retried, so a fix that cannot resolve it ends the loop. The fixes made are logged even when a
+     * later one throws, since each fix is already committed.
      */
-    private int fixAll(ConsistencyCheck check) {
+    private int fixAll(ConsistencyCheck check, List<ConsistencyFinding> findings, String verb) {
+        var attempted = new HashSet<Long>();
         var fixed = 0;
-        var findings = check.check();
-        while (!findings.isEmpty()) {
-            for (var finding : findings) {
-                check.fix(finding.entityId());
-                fixed++;
+        try {
+            while (!findings.isEmpty()) {
+                for (var finding : findings) {
+                    check.fix(finding.entityId());
+                    attempted.add(finding.entityId());
+                    fixed++;
+                }
+                var remaining = check.check();
+                findings = remaining.stream().filter(f -> !attempted.contains(f.entityId())).toList();
+                if (findings.isEmpty() && !remaining.isEmpty()) {
+                    logger.warn(
+                            "Consistency check '{}' still finds {} entities inconsistent after fixing them",
+                            check.getId(),
+                            remaining.size());
+                }
             }
-            findings = check.check();
+        } finally {
+            if (fixed > 0) {
+                log(verb + " " + fixed + " finding(s) for consistency check '" + check.getId() + "'.");
+            }
         }
         return fixed;
     }
 
     private void log(String message) {
-        logs.logAction(getSystemUser(), ResultJson.success(message));
+        transactions.executeWithoutResult(status -> logs.logAction(getSystemUser(), ResultJson.success(message)));
     }
 
     /**

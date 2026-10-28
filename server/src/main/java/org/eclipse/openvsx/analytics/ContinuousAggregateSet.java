@@ -21,6 +21,6 @@ import java.util.List;
 @FunctionalInterface
 public interface ContinuousAggregateSet {
 
-    /** Continuous aggregate names; trusted identifiers, validated by the refresher. */
+    /** Continuous aggregate names. */
     List<String> aggregateNames();
 }

@@ -28,7 +28,7 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.settings.ReadOnlySetting;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.ExtensionId;
 
@@ -49,7 +49,7 @@ import static org.mockito.Mockito.when;
 class ExtensionControlJobRequestHandlerTest {
 
     @Mock
-    SettingsService settings;
+    ReadOnlySetting readOnly;
 
     @Mock
     AdminService admin;
@@ -64,7 +64,7 @@ class ExtensionControlJobRequestHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ExtensionControlJobRequestHandler(settings, admin, service, repositories);
+        handler = new ExtensionControlJobRequestHandler(readOnly, admin, service, repositories);
         lenient().when(repositories.findAllDeprecatedExtensions()).thenReturn(Streamable.empty());
     }
 

@@ -24,7 +24,7 @@ describe('admin size override requests', () => {
         const fetchMock = stubFetch(jsonResponse({ sizeOverrides: [] }));
         const service = new ExtensionRegistryService('https://registry.test');
 
-        await service.admin.getSizeOverrides(new AbortController());
+        await service.admin.getSizeOverrides(new AbortController().signal);
 
         expect(String(fetchMock.mock.calls[0][0])).toBe('https://registry.test/admin/size-overrides');
     });

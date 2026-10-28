@@ -16,7 +16,6 @@ import { Box, ButtonBase } from '@mui/material';
 import { alpha, styled } from '@mui/material/styles';
 import { DelayedLoadIndicator } from '../../../components/delayed-load-indicator';
 import { accentHover, focusOutline, pillSurface } from '../../../components/page-primitives';
-import { useReportedQuery } from '../../../hooks/use-reported-query';
 import { EmptyPlaceholder } from '../settings/settings-primitives';
 import { SettingsHeader } from '../settings/settings-header';
 import { UserSettingsCustomerDetail } from './user-settings-customer-detail';
@@ -40,7 +39,7 @@ const CustomerPill = styled(ButtonBase, { shouldForwardProp: prop => prop !== 'a
 );
 
 export const UserSettingsCustomers: FunctionComponent = () => {
-    const customersQuery = useReportedQuery(useUserCustomers());
+    const customersQuery = useUserCustomers();
     const [chosenName, setChosenName] = useState<string>();
 
     const customers = customersQuery.data ?? [];

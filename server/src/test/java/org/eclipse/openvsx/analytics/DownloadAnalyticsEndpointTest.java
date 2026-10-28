@@ -13,6 +13,9 @@
 package org.eclipse.openvsx.analytics;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,7 +46,6 @@ import org.eclipse.openvsx.storage.StorageUtilService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,19 +112,23 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
     @Test
     void testDownloadSeriesEndToEnd() throws Exception {
         extension = seedExtension("e2ens", "e2e-ext");
+        var today = LocalDate.now(ZoneOffset.UTC);
+        var twoDaysAgo = today.minusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant();
         repository.save(
                 List.of(
-                        event(Instant.parse("2026-07-01T10:00:00Z"), extension.getId(), 3),
-                        event(Instant.parse("2026-07-01T18:00:00Z"), extension.getId(), 1),
-                        event(Instant.parse("2026-07-03T00:00:00Z"), extension.getId(), 5)));
+                        event(twoDaysAgo.plus(10, ChronoUnit.HOURS), extension.getId(), 3),
+                        event(twoDaysAgo.plus(18, ChronoUnit.HOURS), extension.getId(), 1),
+                        event(today.atStartOfDay(ZoneOffset.UTC).toInstant(), extension.getId(), 5)));
 
-        mockMvc.perform(get("/api/e2ens/e2e-ext/analytics/downloads?from=2026-07-01&to=2026-07-04"))
+        // 52 weeks of days, the last of them today's
+        mockMvc.perform(get("/api/e2ens/e2e-ext/analytics/downloads"))
                 .andExpect(status().isOk())
-                .andExpect(
-                        content().json(
-                                "{\"points\":[{\"t\":\"2026-07-01\",\"count\":4},{\"t\":\"2026-07-02\",\"count\":0},"
-                                        + "{\"t\":\"2026-07-03\",\"count\":5}]}",
-                                true));
+                .andExpect(jsonPath("$.points.length()").value(364))
+                .andExpect(jsonPath("$.points[0].t").value(today.minusDays(363).toString()))
+                .andExpect(jsonPath("$.points[361].count").value(4))
+                .andExpect(jsonPath("$.points[362].count").value(0))
+                .andExpect(jsonPath("$.points[363].t").value(today.toString()))
+                .andExpect(jsonPath("$.points[363].count").value(5));
     }
 
     @Test
@@ -163,11 +169,10 @@ class DownloadAnalyticsEndpointTest extends AbstractTimeseriesContainerTest {
         assertEquals("VSCode 1.90.2 (Microsoft Visual Studio Code)", event.get("user_agent"));
         assertEquals(1, event.get("count"));
 
-        // and the event is visible through the endpoint: the default range ends tomorrow,
-        // so the last of the 30 points is today's (partial) bucket
+        // and the event is visible through the endpoint, in the last point: today's (partial) bucket
         mockMvc.perform(get("/api/e2ereq/e2e-req-ext/analytics/downloads"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.points[29].count").value(1));
+                .andExpect(jsonPath("$.points[363].count").value(1));
     }
 
     private DownloadEvent event(Instant time, long extensionId, int count) {

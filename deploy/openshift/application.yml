@@ -104,15 +104,18 @@ bucket4j:
   enabled: false
 
 ovsx:
+  publisher-agreement:
+    # empty disables the agreement; a version such as 1, 1.0 or 1.0.0 requires signing it (a new major version requires re-signing unless allowed-versions says otherwise)
+    version: ''
+    # versions besides the current one whose signatures stay valid, such as '1.1,1.2' (quote a single one such as '1.10', which YAML reads as 1.1); empty accepts the same or a higher major version
+    allowed-versions: ''
+    # Markdown text of the agreement, served at /api/publisher-agreement; a Spring resource location such as file:/etc/openvsx/agreement.md
+    text: ''
   databasesearch:
     enabled: false
   elasticsearch:
     clear-on-start: true
     host: elasticsearch:9200
-  eclipse:
-    base-url: https://api.eclipse.org
-    publisher-agreement:
-      timezone: US/Eastern
   integrity:
     key-pair: create # create, renew, delete, 'undefined'
   registry:

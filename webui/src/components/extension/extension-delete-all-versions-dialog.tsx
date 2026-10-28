@@ -42,13 +42,14 @@ export const DeleteAllVersionsDialog: FunctionComponent<DeleteAllVersionsDialogP
                 // The underlying data is stale; keep this dialog open behind the error
                 // dialog and only close/refresh once the user acknowledges it.
                 handleError(err, {
+                    title: 'Couldn’t delete the extension',
                     onClose: () => {
                         props.onDeleted();
                         props.onClose();
                     }
                 });
             } else {
-                handleError(err);
+                handleError(err, { title: 'Couldn’t delete the extension' });
             }
         } finally {
             setWorking(false);

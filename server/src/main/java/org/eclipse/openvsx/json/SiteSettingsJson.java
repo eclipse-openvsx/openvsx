@@ -12,19 +12,21 @@
  *****************************************************************************/
 package org.eclipse.openvsx.json;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
-import org.eclipse.openvsx.settings.BannerSetting;
-
 /**
  * The settings served anonymously to every visitor. A type of its own rather than a view of
  * {@link SettingsJson}, so an admin-only setting cannot reach the public endpoint by being added
- * there. Properties are absent while the banner is switched off.
+ * there; {@code SettingsJsonMapper} fills it. The banner properties are absent while the banner is
+ * switched off. A setting a deployment adds appears only through its own public view.
  */
 @Schema(name = "SiteSettings", description = "Settings of the registry meant for visitors")
 @JsonInclude(Include.NON_NULL)
@@ -47,15 +49,11 @@ public class SiteSettingsJson extends ResultJson {
     )
     private @Nullable String bannerDismissId;
 
-    /** Reads the public rows into the payload; anything else is left out. */
-    public static SiteSettingsJson of(Map<String, Object> rows) {
-        var json = new SiteSettingsJson();
-        json.bannerEnabled = rows.get(BannerSetting.KEY_ENABLED) instanceof Boolean value ? value : null;
-        json.bannerMessage = rows.get(BannerSetting.KEY_MESSAGE) instanceof String value ? value : null;
-        json.bannerSeverity = rows.get(BannerSetting.KEY_SEVERITY) instanceof String value ? value : null;
-        json.bannerDismissId = rows.get(BannerSetting.KEY_DISMISS_ID) instanceof String value ? value : null;
-        return json;
-    }
+    @Schema(description = "Whether the web UI shows per-extension download analytics to visitors")
+    private @Nullable Boolean downloadAnalyticsVisible;
+
+    /** Settings a deployment adds outside the registry's own, flattened into the document as camelCase properties. */
+    private final Map<String, Object> additionalSettings = new LinkedHashMap<>();
 
     public @Nullable Boolean getBannerEnabled() {
         return bannerEnabled;
@@ -87,5 +85,24 @@ public class SiteSettingsJson extends ResultJson {
 
     public void setBannerDismissId(@Nullable String bannerDismissId) {
         this.bannerDismissId = bannerDismissId;
+    }
+
+    public @Nullable Boolean getDownloadAnalyticsVisible() {
+        return downloadAnalyticsVisible;
+    }
+
+    public void setDownloadAnalyticsVisible(@Nullable Boolean downloadAnalyticsVisible) {
+        this.downloadAnalyticsVisible = downloadAnalyticsVisible;
+    }
+
+    @JsonAnyGetter
+    @Schema(hidden = true)
+    public Map<String, Object> getAdditionalSettings() {
+        return additionalSettings;
+    }
+
+    @JsonAnySetter
+    public void setAdditionalSetting(String name, Object value) {
+        additionalSettings.put(name, value);
     }
 }

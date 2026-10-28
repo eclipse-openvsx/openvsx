@@ -15,7 +15,6 @@ import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../context';
 import type { Settings, SiteSettings } from '../../extension-registry-types';
-import { controllerFromSignal } from '../../query-client';
 import { siteSettingsQueryKey } from '../../components/use-site-settings';
 
 export const settingsQueryKey = ['admin', 'settings'] as const;
@@ -27,20 +26,25 @@ export const useSettings = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: settingsQueryKey,
-        queryFn: ({ signal }) => service.admin.getSettings(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getSettings(signal)
     });
 };
 
-/** What the public endpoint serves for these settings: nothing at all while the banner is off. */
-const toSiteSettings = (settings: Settings): SiteSettings =>
-    settings.bannerEnabled
+/**
+ * What the public endpoint serves for these settings: the banner only while it is on, and the
+ * download analytics switch as off where the server has no analytics configured, which leaves it out.
+ */
+const toSiteSettings = (settings: Settings): SiteSettings => ({
+    downloadAnalyticsVisible: settings.downloadAnalyticsVisible === true,
+    ...(settings.bannerEnabled
         ? {
               bannerEnabled: settings.bannerEnabled,
               bannerMessage: settings.bannerMessage,
               bannerSeverity: settings.bannerSeverity,
               bannerDismissId: settings.bannerDismissId
           }
-        : {};
+        : {})
+});
 
 /**
  * Persists runtime settings. On success the authoritative response from the

@@ -81,7 +81,7 @@ describe('SizeOverrideFormDialog', () => {
         await screen.findByText(/verified namespace/i);
         await user.click(screen.getByRole('button', { name: /create/i }));
 
-        expect(getNamespace).toHaveBeenCalledWith(expect.anything(), 'foo');
+        expect(getNamespace).toHaveBeenCalledWith(expect.any(AbortSignal), 'foo');
         await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ namespace: 'foo' })));
     });
 
@@ -182,7 +182,7 @@ describe('SizeOverrideFormDialog', () => {
         await enterVerifiedNamespace(user, 'foo');
 
         expect(admin.getNamespace).toHaveBeenCalledTimes(1);
-        expect(admin.getNamespace).toHaveBeenCalledWith(expect.anything(), 'foo');
+        expect(admin.getNamespace).toHaveBeenCalledWith(expect.any(AbortSignal), 'foo');
     });
 
     /**

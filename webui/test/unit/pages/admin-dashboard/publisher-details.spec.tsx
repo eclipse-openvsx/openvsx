@@ -59,6 +59,37 @@ describe('PublisherDetails — publisher agreement chip', () => {
 
         expect(await screen.findByText('Publisher agreement: Not signed')).toBeInTheDocument();
     });
+
+    it.each([
+        ['signed', 'Signed'],
+        ['outdated', 'Outdated'],
+        ['revoked', 'Revoked']
+    ] as const)('renders the "%s" status as "%s"', async (status, label) => {
+        renderWithProviders(<PublisherDetails entry={entry()} />, {
+            mainContext: { service: serviceReturning({ status }) }
+        });
+
+        expect(await screen.findByText(`Publisher agreement: ${label}`)).toBeInTheDocument();
+    });
+});
+
+describe('PublisherDetails — reinstating a revoked agreement', () => {
+    it('offers the reinstatement only for a revoked agreement', async () => {
+        renderWithProviders(<PublisherDetails entry={entry()} />, {
+            mainContext: { service: serviceReturning({ status: 'revoked' }), user: admin }
+        });
+
+        expect(await screen.findByRole('button', { name: 'Reinstate' })).toBeInTheDocument();
+    });
+
+    it.each(['none', 'signed', 'outdated'] as const)('does not offer it for a %s agreement', async status => {
+        renderWithProviders(<PublisherDetails entry={entry()} />, {
+            mainContext: { service: serviceReturning({ status }), user: admin }
+        });
+
+        expect(await screen.findByRole('button', { name: 'Forget user' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Reinstate' })).not.toBeInTheDocument();
+    });
 });
 
 /**

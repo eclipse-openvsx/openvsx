@@ -25,7 +25,9 @@ import org.eclipse.openvsx.util.ErrorResultException;
  * any particular one means.
  * <p>
  * The rows are handed in rather than fetched, so one save reads the store exactly once and no
- * setting sees a store it is halfway through writing.
+ * setting sees a store it is halfway through writing. A setting the server consults at runtime
+ * exposes an accessor over {@link SettingsStore#snapshot()} beside these methods, which never touch
+ * the store themselves.
  */
 public interface WritableSetting<T> {
 

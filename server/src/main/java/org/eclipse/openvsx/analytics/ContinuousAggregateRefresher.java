@@ -19,9 +19,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +34,6 @@ import org.slf4j.LoggerFactory;
  */
 public class ContinuousAggregateRefresher {
 
-    private static final Pattern SAFE_NAME = Pattern.compile("[a-z_][a-z0-9_]*");
-
     private final Logger logger = LoggerFactory.getLogger(ContinuousAggregateRefresher.class);
 
     private final DSLContext dsl;
@@ -45,37 +44,28 @@ public class ContinuousAggregateRefresher {
         this.sets = sets;
     }
 
-    /** Materializes each aggregate over the day-aligned range covering [from, to]; null means all. */
+    /** Materializes each aggregate over the day-aligned range covering [from, to]; a null bound is open. */
     public void refresh(@Nullable Instant from, @Nullable Instant to) {
         var start = from == null ? null : OffsetDateTime.ofInstant(from.truncatedTo(ChronoUnit.DAYS), ZoneOffset.UTC);
         // include the whole day that 'to' falls in
         var end = to == null
                 ? null
                 : OffsetDateTime.ofInstant(to.truncatedTo(ChronoUnit.DAYS).plus(1, ChronoUnit.DAYS), ZoneOffset.UTC);
-        for (var name : aggregateNames()) {
-            if (start == null || end == null) {
-                dsl.execute("call refresh_continuous_aggregate('" + name + "', null, null)");
-            } else {
-                // the window arguments are pseudo-type "any", so Postgres cannot infer the type of a
-                // bare bind parameter and defaults it to varchar; the cast pins it to timestamptz
-                dsl.execute(
-                        "call refresh_continuous_aggregate('" + name + "', ?::timestamptz, ?::timestamptz)",
-                        start,
-                        end);
-            }
-            logger.info("refreshed continuous aggregate {} over [{}, {})", name, start, end);
+        var names = aggregateNames();
+        for (var name : names) {
+            dsl.execute(
+                    "call refresh_continuous_aggregate({0}, {1}, {2})",
+                    DSL.inline(name),
+                    DSL.val(start, SQLDataType.TIMESTAMPWITHTIMEZONE),
+                    DSL.val(end, SQLDataType.TIMESTAMPWITHTIMEZONE));
         }
+        logger.debug("refreshed {} over [{}, {})", names, start, end);
     }
 
     private Set<String> aggregateNames() {
         var names = new LinkedHashSet<String>();
         for (var set : sets) {
-            for (var name : set.aggregateNames()) {
-                if (!SAFE_NAME.matcher(name).matches()) {
-                    throw new IllegalArgumentException("not a valid continuous aggregate name: '" + name + "'");
-                }
-                names.add(name);
-            }
+            names.addAll(set.aggregateNames());
         }
         return names;
     }

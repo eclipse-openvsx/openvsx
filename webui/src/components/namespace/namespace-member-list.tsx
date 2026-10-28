@@ -8,61 +8,37 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useEffect, useState, useContext, useRef } from 'react';
+import { FunctionComponent, useState, useContext } from 'react';
 import { Button, Divider, Paper, Stack } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { NamespaceMemberRow } from './namespace-member-row';
-import { Namespace, NamespaceMembership, MembershipRole, isError } from '../../extension-registry-types';
+import { Namespace, NamespaceMembership, MembershipRole } from '../../extension-registry-types';
 import { AddMemberDialog } from './add-namespace-member-dialog';
 import { MainContext } from '../../context';
+import { useNamespaceMembers, useSetNamespaceMember } from './use-namespace-members';
 import { EmptyPlaceholder, SectionTitleRow, SettingsSectionTitle } from '../../pages/user/settings/settings-primitives';
 
 export const NamespaceMemberList: FunctionComponent<NamespaceMemberListProps> = props => {
-    const { service, user, handleError } = useContext(MainContext);
-    const [members, setMembers] = useState<NamespaceMembership[]>([]);
+    const { user } = useContext(MainContext);
     const [addDialogIsOpen, setAddDialogIsOpen] = useState(false);
-    const abortController = useRef<AbortController>(new AbortController());
+    const { data: membershipList } = useNamespaceMembers(props.namespace);
+    const { mutateAsync: setNamespaceMember } = useSetNamespaceMember();
+    const members = membershipList?.namespaceMemberships ?? [];
 
-    useEffect(() => {
-        fetchMembers();
-    }, [props.namespace]);
-
-    useEffect(() => {
-        return () => {
-            abortController.current.abort();
-        };
-    }, []);
-
-    const handleCloseAddDialog = async () => {
+    const handleCloseAddDialog = () => {
         setAddDialogIsOpen(false);
-        fetchMembers();
     };
     const handleOpenAddDialog = () => {
         setAddDialogIsOpen(true);
     };
 
-    const fetchMembers = async () => {
-        try {
-            const membershipList = await service.getNamespaceMembers(abortController.current, props.namespace);
-            const members = membershipList.namespaceMemberships;
-            setMembers(members);
-        } catch (err) {
-            handleError(err);
-        }
-    };
-
     const changeRole = async (membership: NamespaceMembership, role: MembershipRole | 'remove') => {
         try {
             props.setLoadingState(true);
-            const endpoint = props.namespace.roleUrl;
-            const result = await service.setNamespaceMember(abortController.current, endpoint, membership.user, role);
-            if (isError(result)) {
-                throw result;
-            }
-            await fetchMembers();
-            props.setLoadingState(false);
-        } catch (err) {
-            handleError(err);
+            await setNamespaceMember({ namespace: props.namespace, user: membership.user, role });
+        } catch {
+            // Reported by the hook.
+        } finally {
             props.setLoadingState(false);
         }
     };

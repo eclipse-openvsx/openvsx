@@ -17,6 +17,7 @@ import { ButtonWithProgress } from '../../components/button-with-progress';
 import { MainContext } from '../../context';
 import { hasPermission } from '../../permissions';
 import { createRoute } from '../../utils';
+import { isNotFound } from '../../server-request';
 import { ExtensionDetailRoutes } from '../extension-detail/extension-detail-routes';
 import { StyledInput } from './namespace-input';
 import { SearchListContainer } from './search-list-container';
@@ -26,7 +27,7 @@ import { NamespaceDeleteDialog } from './namespace-delete-dialog';
 import { useAdminNamespace, useClearAdminNamespace, useCreateNamespace } from './use-namespace-admin';
 
 export const NamespaceAdmin: FunctionComponent = () => {
-    const { service, pageSettings, user, handleError } = useContext(MainContext);
+    const { service, pageSettings, user } = useContext(MainContext);
     const { namespace: nsParam } = useParams<{ namespace?: string }>();
     const navigate = useNavigate();
 
@@ -38,18 +39,10 @@ export const NamespaceAdmin: FunctionComponent = () => {
     const [deleteDialogIsOpen, setDeleteDialogIsOpen] = useState(false);
 
     const { data: currentNamespace, isFetching, error, refetch } = useAdminNamespace(searchName);
-    const { mutateAsync: createNamespace, isPending: isCreatingNamespace } = useCreateNamespace();
+    const { mutate: createNamespace, isPending: isCreatingNamespace } = useCreateNamespace();
     const clearNamespace = useClearAdminNamespace();
 
-    const is404 = !!error && (error as { status?: number }).status === 404;
-    const notFound = is404 ? searchName : '';
-
-    // Non-404 lookup failures keep flowing through the global error dialog.
-    useEffect(() => {
-        if (error && !is404) {
-            handleError(error);
-        }
-    }, [error, is404, handleError]);
+    const notFound = isNotFound(error) ? searchName : '';
 
     // Keep the URL in sync with the searched namespace so the view is deep-linkable.
     useEffect(() => {
@@ -77,13 +70,8 @@ export const NamespaceAdmin: FunctionComponent = () => {
         setSearchName('');
     };
 
-    const onCreate = async () => {
-        try {
-            await createNamespace(inputValue);
-            setSearchName(inputValue);
-        } catch (err) {
-            handleError(err);
-        }
+    const onCreate = () => {
+        createNamespace(inputValue, { onSuccess: () => setSearchName(inputValue) });
     };
 
     const loading = isFetching || detailLoading;
@@ -119,10 +107,13 @@ export const NamespaceAdmin: FunctionComponent = () => {
                     namespace={currentNamespace}
                     headerActions={headerActions}
                     extensionRoutePrefix={extensionRoutePrefix}
-                    fetchExtension={
+                    extensionQuery={
                         canManageExtensions
-                            ? (abortController, extension) =>
-                                  service.admin.getExtension(abortController, currentNamespace.name, extension.name)
+                            ? extension => ({
+                                  queryKey: ['admin', 'extension', currentNamespace.name, extension.name],
+                                  queryFn: ({ signal }) =>
+                                      service.admin.getExtension(signal, currentNamespace.name, extension.name)
+                              })
                             : undefined
                     }
                     // This namespace payload names every extension, inactive and soft-deleted ones

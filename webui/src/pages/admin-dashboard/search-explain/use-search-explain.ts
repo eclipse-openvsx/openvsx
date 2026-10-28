@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 /**
  * Runs a search and reports where each result's score came from, a page at a time.
@@ -30,8 +29,7 @@ export const useSearchExplain = (query: string, size: number) => {
     const { service } = useContext(MainContext);
     return useInfiniteQuery({
         queryKey: ['admin', 'search-explain', query, size] as const,
-        queryFn: ({ signal, pageParam }) =>
-            service.admin.explainSearch(controllerFromSignal(signal), query, size, pageParam),
+        queryFn: ({ signal, pageParam }) => service.admin.explainSearch(signal, query, size, pageParam),
         initialPageParam: 0,
         getNextPageParam: (lastPage, pages) => {
             const fetched = pages.reduce((count, page) => count + page.entries.length, 0);

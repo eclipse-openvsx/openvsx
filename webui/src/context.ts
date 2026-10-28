@@ -16,7 +16,8 @@ import { UserData, RegistryVersion } from './extension-registry-types';
 export interface MainContext {
     service: ExtensionRegistryService;
     pageSettings: PageSettings;
-    handleError: (err: unknown, options?: { onClose?: () => void }) => void;
+    /** Opens the error dialog; `title` says what failed, e.g. "Couldn’t load the namespace members". */
+    handleError: (err: unknown, options?: { onClose?: () => void; title?: string }) => void;
     user?: UserData;
     /** The initial user fetch is still in flight, so `user` being undefined doesn't yet mean logged out. */
     userLoading: boolean;

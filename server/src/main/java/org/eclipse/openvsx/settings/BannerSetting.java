@@ -30,13 +30,13 @@ import org.springframework.stereotype.Component;
  * sanitize for itself.
  */
 @Component
-public class BannerSetting implements WritableSetting<BannerSetting.Banner>, PublicSetting {
+class BannerSetting implements WritableSetting<BannerSetting.Banner>, PublicSetting {
 
-    public static final String NAME = "banner";
-    public static final String KEY_ENABLED = "banner-enabled";
-    public static final String KEY_MESSAGE = "banner-message";
-    public static final String KEY_SEVERITY = "banner-severity";
-    public static final String KEY_DISMISS_ID = "banner-dismiss-id";
+    static final String NAME = "banner";
+    static final String KEY_ENABLED = "banner-enabled";
+    static final String KEY_MESSAGE = "banner-message";
+    static final String KEY_SEVERITY = "banner-severity";
+    static final String KEY_DISMISS_ID = "banner-dismiss-id";
 
     static final int MAX_MESSAGE_LENGTH = 1000;
 

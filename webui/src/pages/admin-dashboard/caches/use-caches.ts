@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 const cachesQueryKey = ['admin', 'caches'] as const;
 
@@ -23,7 +22,7 @@ export const useCaches = () => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: cachesQueryKey,
-        queryFn: ({ signal }) => service.admin.getCaches(controllerFromSignal(signal))
+        queryFn: ({ signal }) => service.admin.getCaches(signal)
     });
 };
 

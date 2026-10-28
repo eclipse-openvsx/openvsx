@@ -14,7 +14,6 @@
 import { useContext } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { controllerFromSignal } from '../../../query-client';
 
 /**
  * Loads a page of admin logs. `keepPreviousData` keeps the current rows on
@@ -25,7 +24,7 @@ export const useLogs = (page: number, size: number, period?: string) => {
     const { service } = useContext(MainContext);
     return useQuery({
         queryKey: ['admin', 'logs', page, size, period ?? null] as const,
-        queryFn: ({ signal }) => service.admin.getLogs(controllerFromSignal(signal), page, size, period),
+        queryFn: ({ signal }) => service.admin.getLogs(signal, page, size, period),
         placeholderData: keepPreviousData
     });
 };

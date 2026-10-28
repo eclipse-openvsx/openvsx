@@ -135,12 +135,19 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
 
     @Override
     public List<RawDownloadRecord> read(String name) throws IOException {
-        try (
-                var downloadsTempFile = downloadBlobItem(name);
-                var reader = Files.newBufferedReader(downloadsTempFile.getPath())
-        ) {
-            // records without their own timestamp fall back to the processing time
-            var fallbackTime = Instant.now();
+        try (var downloadsTempFile = new TempFile("azure-downloads-", ".json")) {
+            var properties = getContainerClient().getBlobClient(name)
+                    .downloadToFile(downloadsTempFile.getPath().toAbsolutePath().toString(), true);
+            // Records without their own timestamp fall back to when the blob was last written: unlike
+            // the processing time it is the same when the blob is read again later, for a replay.
+            var lastModified = properties != null ? properties.getLastModified() : null;
+            var fallbackTime = lastModified != null ? lastModified.toInstant() : Instant.now();
+            return readRecords(downloadsTempFile, fallbackTime);
+        }
+    }
+
+    private List<RawDownloadRecord> readRecords(TempFile downloadsTempFile, Instant fallbackTime) throws IOException {
+        try (var reader = Files.newBufferedReader(downloadsTempFile.getPath())) {
             var records = new ArrayList<RawDownloadRecord>();
             var totalLines = 0;
             var lines = reader.lines().iterator();
@@ -191,7 +198,7 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
             try {
                 return Instant.parse(time.asString());
             } catch (DateTimeParseException e) {
-                // fall back to the processing time below
+                // fall back to the blob time below
             }
         }
 
@@ -240,13 +247,6 @@ public class AzureDownloadRecordSource implements DownloadRecordSource {
     private boolean isNotOpenVSXUserAgent(JsonNode node) {
         var userAgentHeader = node.path("properties").path("userAgentHeader").asString();
         return !AZURE_USER_AGENT.equals(userAgentHeader);
-    }
-
-    private TempFile downloadBlobItem(String blobName) throws IOException {
-        var downloadsTempFile = new TempFile("azure-downloads-", ".json");
-        getContainerClient().getBlobClient(blobName)
-                .downloadToFile(downloadsTempFile.getPath().toAbsolutePath().toString(), true);
-        return downloadsTempFile;
     }
 
     private List<String> getBlobNames(List<BlobItem> items) {

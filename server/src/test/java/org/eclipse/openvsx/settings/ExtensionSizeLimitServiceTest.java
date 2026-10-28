@@ -50,6 +50,7 @@ class ExtensionSizeLimitServiceTest {
     private static final long DEFAULT_LIMIT = 512L * 1024 * 1024;
 
     private SettingsService settings;
+    private MaxExtensionSizeSetting maxExtensionSize;
     private ExtensionSizeOverrideRepository overrides;
     private RepositoryService repositories;
     private PublishingConfig publishingConfig;
@@ -61,9 +62,10 @@ class ExtensionSizeLimitServiceTest {
         overrides = Mockito.mock(ExtensionSizeOverrideRepository.class);
         repositories = Mockito.mock(RepositoryService.class);
         publishingConfig = Mockito.mock(PublishingConfig.class);
+        maxExtensionSize = Mockito.mock(MaxExtensionSizeSetting.class);
         // lenient: the write tests below never read the default limit.
-        Mockito.lenient().when(settings.getMaxExtensionSize()).thenReturn(DEFAULT_LIMIT);
-        limits = new ExtensionSizeLimitService(settings, overrides, repositories, publishingConfig);
+        Mockito.lenient().when(maxExtensionSize.getValue()).thenReturn(DEFAULT_LIMIT);
+        limits = new ExtensionSizeLimitService(settings, maxExtensionSize, overrides, repositories, publishingConfig);
     }
 
     @Test

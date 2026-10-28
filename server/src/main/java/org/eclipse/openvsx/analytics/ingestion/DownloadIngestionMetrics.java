@@ -14,9 +14,9 @@ package org.eclipse.openvsx.analytics.ingestion;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
-import com.google.common.base.Suppliers;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -29,7 +29,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 
 /**
  * Operational metrics of the download ingestion pipeline: parse skip rate, load volume,
- * extract lag and dead-letter depth.
+ * extract lag, dead-letter depth and log files pending analytics.
  */
 @Component
 public class DownloadIngestionMetrics {
@@ -41,6 +41,7 @@ public class DownloadIngestionMetrics {
     public static final String FAILED_EVENTS_METRIC = "openvsx_analytics_events_failed_total";
     public static final String EXTRACT_LAG_METRIC = "openvsx_analytics_extract_lag";
     public static final String DEAD_LETTER_METRIC = "openvsx_analytics_dead_letter_depth";
+    public static final String PENDING_FILES_METRIC = "openvsx_analytics_pending_files";
 
     private static final Logger logger = LoggerFactory.getLogger(DownloadIngestionMetrics.class);
 
@@ -65,18 +66,36 @@ public class DownloadIngestionMetrics {
                 .description("Downloads counted by the ingestion pipeline")
                 .register(registry);
         this.failedEvents = Counter.builder(FAILED_EVENTS_METRIC)
-                .description("Aggregated download events lost because the analytics store rejected them")
+                .description("Aggregated download events that could not be written to the analytics store")
                 .register(registry);
         this.extractLag = Timer.builder(EXTRACT_LAG_METRIC)
                 .description("Delay between a download and its ingestion from access logs")
                 .register(registry);
 
         // scraped frequently, so the underlying count query is memoized for a minute
-        Supplier<Long> deadLetterDepth = Suppliers
-                .memoizeWithExpiration(() -> countFailedItems(repositories), 1, TimeUnit.MINUTES)::get;
-        Gauge.builder(DEAD_LETTER_METRIC, deadLetterDepth::get)
+        LoadingCache<Boolean, Long> deadLetterDepth = Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.MINUTES)
+                .build(_ -> countFailedItems(repositories));
+        Gauge.builder(DEAD_LETTER_METRIC, () -> deadLetterDepth.get(Boolean.TRUE))
                 .description("Number of log files that failed processing and await manual attention")
                 .register(registry);
+
+        LoadingCache<Boolean, Long> pendingFiles = Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.MINUTES)
+                .build(_ -> countPendingFiles(repositories));
+        Gauge.builder(PENDING_FILES_METRIC, () -> pendingFiles.get(Boolean.TRUE))
+                .description(
+                        "Number of ingested log files kept until their events can be stored in the analytics store")
+                .register(registry);
+    }
+
+    private long countPendingFiles(RepositoryService repositories) {
+        try {
+            return repositories.countPendingAnalyticsDownloadIngestions();
+        } catch (Exception e) {
+            logger.warn("could not determine the number of log files pending analytics", e);
+            return -1;
+        }
     }
 
     private long countFailedItems(RepositoryService repositories) {

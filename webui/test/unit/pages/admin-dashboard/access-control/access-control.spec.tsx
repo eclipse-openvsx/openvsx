@@ -109,7 +109,7 @@ describe('AccessControl', () => {
     // A short or stale deep link substring-matches nearly every account, so without a cap this
     // walks the entire registry a page at a time, showing an empty placeholder throughout.
     it('gives up after a few pages when a deep link matches no exact login', async () => {
-        const getUsers = vi.fn(async (_abort: AbortController, params?: { page?: number }) => {
+        const getUsers = vi.fn(async (_signal: AbortSignal, params?: { page?: number }) => {
             const number = params?.page ?? 0;
             return {
                 content: [

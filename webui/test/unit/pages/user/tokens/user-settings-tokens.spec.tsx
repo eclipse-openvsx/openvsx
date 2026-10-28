@@ -29,13 +29,18 @@ const token: PersonalAccessToken = {
     deleteTokenUrl: ''
 };
 
-function renderTokens(mainContext: Partial<MainContext> = {}, tokens: PersonalAccessToken[] = [token]) {
-    const deleteAccessToken = vi.fn().mockResolvedValue(undefined);
+function renderTokens(
+    mainContext: Partial<MainContext> = {},
+    tokens: PersonalAccessToken[] = [token],
+    serviceOverrides: Record<string, unknown> = {}
+) {
+    const deleteAccessToken = vi.fn().mockResolvedValue({ success: 'Deleted access token' });
     const getAccessTokens = vi.fn().mockResolvedValue(tokens);
     const service = {
         getAccessTokens,
         deleteAccessToken,
-        getTrustedPublishingStatus: vi.fn().mockResolvedValue({ enabled: false, allowed: false })
+        getTrustedPublishingStatus: vi.fn().mockResolvedValue({ enabled: false, allowed: false }),
+        ...serviceOverrides
     } as unknown as ExtensionRegistryService;
     renderWithProviders(<UserSettingsTokens />, {
         mainContext: { service, user: testUser, pageSettings: {} as PageSettings, ...mainContext }
@@ -78,6 +83,22 @@ describe('UserSettingsTokens — unsigned publisher agreement', () => {
     });
 });
 
+describe('UserSettingsTokens — revoked or outdated publisher agreement', () => {
+    it('explains a revocation without offering to sign again', async () => {
+        renderTokens({ user: { ...testUser, publisherAgreement: { status: 'revoked' as const } } });
+
+        expect(await screen.findByText(/was revoked, so tokens cannot be created/)).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /Sign it on your profile/ })).not.toBeInTheDocument();
+    });
+
+    it('blocks an outdated agreement like an unsigned one and points at the profile', async () => {
+        renderTokens({ user: { ...testUser, publisherAgreement: { status: 'outdated' as const } } });
+
+        expect(await screen.findByRole('link', { name: /Sign it on your profile/ })).toBeInTheDocument();
+        expect(screen.queryByText('Generate new token')).not.toBeInTheDocument();
+    });
+});
+
 describe('UserSettingsTokens', () => {
     it('revokes a token only after the confirmation is accepted', async () => {
         const { deleteAccessToken } = renderTokens();
@@ -88,7 +109,33 @@ describe('UserSettingsTokens', () => {
         expect(deleteAccessToken).not.toHaveBeenCalled();
 
         await userEvent.click(screen.getByText('Revoke'));
-        await waitFor(() => expect(deleteAccessToken).toHaveBeenCalledWith(expect.anything(), token));
+        await waitFor(() => expect(deleteAccessToken).toHaveBeenCalledWith(token));
+    });
+
+    it('refreshes the list once a token is revoked', async () => {
+        const getAccessTokens = vi.fn().mockResolvedValueOnce([token]).mockResolvedValue([]);
+        renderTokens({}, [token], { getAccessTokens });
+
+        await userEvent.click(await screen.findByLabelText('Revoke token publishing token'));
+        await userEvent.click(screen.getByText('Revoke'));
+
+        expect(await screen.findByText('You currently have no tokens.')).toBeInTheDocument();
+        expect(getAccessTokens).toHaveBeenCalledTimes(2);
+    });
+
+    it('lists a token as soon as it is generated', async () => {
+        const getAccessTokens = vi.fn().mockResolvedValueOnce([]).mockResolvedValue([token]);
+        renderTokens({}, [], {
+            getAccessTokens,
+            createAccessToken: vi.fn().mockResolvedValue({ ...token, value: 'the-token' }),
+            getNamespaces: vi.fn().mockResolvedValue([])
+        });
+
+        await screen.findByText('You currently have no tokens.');
+        await userEvent.click(screen.getByRole('button', { name: 'Generate new token' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Generate Token' }));
+
+        expect(await screen.findByText('publishing token')).toBeInTheDocument();
     });
 
     it('keeps the token when the confirmation is dismissed', async () => {

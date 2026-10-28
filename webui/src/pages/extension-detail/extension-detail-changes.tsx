@@ -8,43 +8,19 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useEffect, useState, useRef } from 'react';
+import { FunctionComponent } from 'react';
 import { Box, Divider, Typography } from '@mui/material';
-import { MainContext } from '../../context';
 import { SanitizedMarkdown } from '../../components/sanitized-markdown';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { Extension } from '../../extension-registry-types';
+import { useExtensionChangelog } from './use-extension-details';
 
 export const ExtensionDetailChanges: FunctionComponent<ExtensionDetailChangesProps> = props => {
-    const [changelog, setChangelog] = useState<string>();
-    const [loading, setLoading] = useState<boolean>(true);
-    const context = useContext(MainContext);
-    const abortController = useRef<AbortController>(new AbortController());
-
-    useEffect(() => {
-        setLoading(true);
-        updateChanges();
-        return () => abortController.current.abort();
-    }, [props.extension.namespace, props.extension.name, props.extension.version]);
-
-    const updateChanges = async (): Promise<void> => {
-        if (props.extension.files.changelog) {
-            try {
-                const changelog = await context.service.getExtensionChangelog(abortController.current, props.extension);
-                setChangelog(changelog);
-            } catch (err) {
-                context.handleError(err);
-                setChangelog(undefined);
-            }
-        } else {
-            setChangelog('');
-        }
-
-        setLoading(false);
-    };
+    const { data: changelogContent, isLoading: changelogLoading } = useExtensionChangelog(props.extension);
+    const changelog = props.extension.files.changelog ? changelogContent : '';
 
     if (typeof changelog === 'undefined') {
-        return <DelayedLoadIndicator loading={loading} />;
+        return <DelayedLoadIndicator loading={changelogLoading} />;
     }
     if (changelog.length === 0) {
         return (

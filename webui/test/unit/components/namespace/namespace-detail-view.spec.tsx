@@ -118,15 +118,20 @@ describe('NamespaceDetailView', () => {
         expect(await screen.findByLabelText('bar')).toHaveAttribute('href', '/admin-dashboard/extension/foo/bar');
     });
 
-    it('loads each extension through the endpoint the host injects', async () => {
+    it('loads each extension through the query the host injects', async () => {
         const adminFetch = vi.fn().mockResolvedValue(extension('bar'));
         const { getExtensionDetail } = renderView(
             testNamespace({ extensions: { bar: 'https://registry.test/foo/bar' } }),
-            { fetchExtension: adminFetch }
+            {
+                extensionQuery: entry => ({
+                    queryKey: ['admin', 'extension', 'foo', entry.name],
+                    queryFn: ({ signal }) => adminFetch(signal, entry)
+                })
+            }
         );
 
         await waitFor(() =>
-            expect(adminFetch).toHaveBeenCalledWith(expect.anything(), {
+            expect(adminFetch).toHaveBeenCalledWith(expect.any(AbortSignal), {
                 name: 'bar',
                 url: 'https://registry.test/foo/bar'
             })
@@ -134,13 +139,13 @@ describe('NamespaceDetailView', () => {
         expect(getExtensionDetail).not.toHaveBeenCalled();
     });
 
-    it('falls back to the public registry endpoint when no fetcher is injected', async () => {
+    it('falls back to the public registry endpoint when no query is injected', async () => {
         const { getExtensionDetail } = renderView(
             testNamespace({ extensions: { bar: 'https://registry.test/foo/bar' } })
         );
 
         await waitFor(() =>
-            expect(getExtensionDetail).toHaveBeenCalledWith(expect.anything(), 'https://registry.test/foo/bar')
+            expect(getExtensionDetail).toHaveBeenCalledWith(expect.any(AbortSignal), 'https://registry.test/foo/bar')
         );
     });
 });

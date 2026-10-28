@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.google.common.collect.Lists;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import jakarta.persistence.EntityManager;
@@ -40,14 +39,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import org.eclipse.openvsx.analytics.AnalyticsUnavailableException;
 import org.eclipse.openvsx.analytics.DownloadEvent;
-import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.DownloadIngestion;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.FileResource;
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
+import org.eclipse.openvsx.util.CollectionUtil;
 
 @Component
 public class DownloadIngestionProcessor {
@@ -56,7 +56,6 @@ public class DownloadIngestionProcessor {
 
     private final EntityManager entityManager;
     private final RepositoryService repositories;
-    private final CacheService cache;
     private final SearchUtilService search;
     private final ObservationRegistry observations;
     private final ObjectProvider<DownloadAnalyticsRepository> analyticsRepository;
@@ -70,7 +69,6 @@ public class DownloadIngestionProcessor {
     public DownloadIngestionProcessor(
             EntityManager entityManager,
             RepositoryService repositories,
-            CacheService cache,
             SearchUtilService search,
             ObservationRegistry observations,
             ObjectProvider<DownloadAnalyticsRepository> analyticsRepository,
@@ -78,7 +76,6 @@ public class DownloadIngestionProcessor {
     ) {
         this.entityManager = entityManager;
         this.repositories = repositories;
-        this.cache = cache;
         this.search = search;
         this.observations = observations;
         this.analyticsRepository = analyticsRepository;
@@ -99,7 +96,7 @@ public class DownloadIngestionProcessor {
 
     /**
      * The registry-side outcome of processing one log file: the extensions whose counters changed
-     * (for cache eviction and search updates) and the aggregated events still to be handed to
+     * (for search updates) and the aggregated events still to be handed to
      * analytics.
      */
     public record ProcessedFile(List<Extension> extensions, List<DownloadEvent> events) {}
@@ -128,7 +125,11 @@ public class DownloadIngestionProcessor {
             var extensions = extensionDownloads.isEmpty()
                     ? List.<Extension>of()
                     : increaseDownloadCounts(extensionDownloads);
-            persistIngestion(fileName, storageType, processedOn, executionTime, true);
+            // pending until saveEvents stored them, so that the log file is kept until then
+            var analyticsStatus = !events.isEmpty() && analyticsRepository.getIfAvailable() != null
+                    ? DownloadIngestion.ANALYTICS_PENDING
+                    : DownloadIngestion.ANALYTICS_NONE;
+            persistIngestion(fileName, storageType, processedOn, executionTime, true, analyticsStatus);
 
             records.stream().map(RawDownloadRecord::time).max(Instant::compareTo).ifPresent(
                     latest -> metrics.recordExtractLag(Duration.between(latest, Instant.now())));
@@ -138,27 +139,58 @@ public class DownloadIngestionProcessor {
 
     /**
      * Stores the events of an already-committed {@link #process} call in the analytics database.
-     * Writing analytics after the registry commit under-counts if the analytics database fails -
-     * a visible gap, in a log file already marked processed and never retried - whereas writing it
-     * before would over-count on a registry rollback, with no idempotency key to dedupe on:
-     * silent corruption. Under-counting is the better failure.
+     * Writing analytics after the registry commit means a failure leaves the counters updated and
+     * the events unstored, which the caller records so the log file is kept and the events are
+     * written later; writing it before would over-count on a registry rollback, with no
+     * idempotency key to dedupe on: silent corruption.
+     *
+     * @return whether nothing is left to store: true when the events are stored, were empty, or
+     *         analytics is disabled; false when the write failed or the database is unavailable
      */
-    public void saveEvents(List<DownloadEvent> events) {
+    public boolean saveEvents(List<DownloadEvent> events) {
         if (events.isEmpty()) {
-            return;
+            return true;
         }
 
-        analyticsRepository.ifAvailable(repository -> {
-            try {
-                repository.save(events);
-                // counted here rather than in process(): with analytics disabled or the write
-                // failing, nothing was loaded and the counter must not say otherwise
-                metrics.recordLoaded(events.size(), events.stream().mapToInt(DownloadEvent::count).sum());
-            } catch (Exception e) {
-                logger.error("could not store {} download events for analytics", events.size(), e);
-                metrics.recordFailedEvents(events.size());
-            }
-        });
+        var repository = analyticsRepository.getIfAvailable();
+        if (repository == null) {
+            return true;
+        }
+
+        try {
+            repository.save(events);
+            // counted here rather than in process(): with analytics disabled or the write
+            // failing, nothing was loaded and the counter must not say otherwise
+            metrics.recordLoaded(events.size(), events.stream().mapToInt(DownloadEvent::count).sum());
+            return true;
+        } catch (AnalyticsUnavailableException e) {
+            logger.warn("the analytics database is unavailable, {} download events stay pending", events.size());
+            metrics.recordFailedEvents(events.size());
+        } catch (Exception e) {
+            logger.error("could not store {} download events for analytics", events.size(), e);
+            metrics.recordFailedEvents(events.size());
+        }
+        return false;
+    }
+
+    /** Whether analytics is enabled at all, whether or not its database is reachable right now. */
+    public boolean isAnalyticsEnabled() {
+        return analyticsRepository.getIfAvailable() != null;
+    }
+
+    /** Whether analytics is enabled and its database believed reachable, so a write can be attempted. */
+    public boolean isAnalyticsAvailable() {
+        var repository = analyticsRepository.getIfAvailable();
+        return repository != null && repository.isAvailable();
+    }
+
+    /**
+     * Records that the analytics events of an ingested log file are stored, which releases the file
+     * for cleanup.
+     */
+    @Transactional
+    public void markAnalyticsDone(String storageType, String name) {
+        repositories.markDownloadIngestionAnalyticsDone(storageType, name);
     }
 
     /** What a backfill wrote, and the time span it covers. */
@@ -207,6 +239,11 @@ public class DownloadIngestionProcessor {
      */
     public void captureDownload(FileResource resource) {
         analyticsRepository.ifAvailable(repository -> {
+            if (!repository.isAvailable()) {
+                // a download is not worth waiting on a connection timeout for, nor logging an error each
+                return;
+            }
+
             var extVersion = resource.getExtension();
             if (extVersion == null) {
                 logger.warn("no extension version found for download {}, skipping", resource.getName());
@@ -232,6 +269,8 @@ public class DownloadIngestionProcessor {
             try {
                 repository.save(List.of(event));
                 metrics.recordLoaded(1, 1);
+            } catch (AnalyticsUnavailableException e) {
+                metrics.recordFailedEvents(1);
             } catch (Exception e) {
                 // the caller is serving a download; an analytics outage must not fail it
                 logger.error("could not record the download of {} for analytics", resource.getName(), e);
@@ -356,6 +395,18 @@ public class DownloadIngestionProcessor {
             int executionTime,
             boolean success
     ) {
+        persistIngestion(name, storageType, processedOn, executionTime, success, DownloadIngestion.ANALYTICS_NONE);
+    }
+
+    @Transactional
+    public void persistIngestion(
+            String name,
+            String storageType,
+            LocalDateTime processedOn,
+            int executionTime,
+            boolean success,
+            String analyticsStatus
+    ) {
         Observation.createNotStarted("DownloadIngestionProcessor#persistIngestion", observations).observe(() -> {
             var processedItem = new DownloadIngestion();
             processedItem.setName(name);
@@ -363,6 +414,7 @@ public class DownloadIngestionProcessor {
             processedItem.setProcessedOn(processedOn);
             processedItem.setExecutionTime(executionTime);
             processedItem.setSuccess(success);
+            processedItem.setAnalyticsStatus(analyticsStatus);
             entityManager.persist(processedItem);
         });
     }
@@ -381,22 +433,6 @@ public class DownloadIngestionProcessor {
                 });
     }
 
-    @Transactional // needs transaction for lazy-loading versions
-    public void evictCaches(Extension extension) {
-        Observation.createNotStarted("DownloadIngestionProcessor#evictCaches", observations).observe(() -> {
-            // find, not merge: this only needs a managed entity so the lazy version collections
-            // can be loaded for eviction, and nothing here updates the extension. merge wrote the
-            // whole (already mutated, possibly stale) row back, which is how a concurrent update
-            // could be silently reverted - the failure mode behind #989.
-            var managedExtension = entityManager.find(Extension.class, extension.getId());
-            if (managedExtension == null) {
-                return;
-            }
-            cache.evictExtensionJsons(managedExtension);
-            cache.evictLatestExtensionVersion(managedExtension);
-        });
-    }
-
     public void updateSearchEntries(List<Extension> extensions) {
         Observation.createNotStarted("DownloadIngestionProcessor#updateSearchEntries", observations).observe(() -> {
             logger.info("[DownloadIngestionProcessor] >> updateSearchEntries");
@@ -405,7 +441,7 @@ public class DownloadIngestionProcessor {
                     .collect(Collectors.toList());
 
             logger.info("[DownloadIngestionProcessor] total active extensions: {}", activeExtensions.size());
-            var parts = Lists.partition(activeExtensions, 100);
+            var parts = CollectionUtil.partition(activeExtensions, 100);
             logger.info("[DownloadIngestionProcessor] partitions: {} | partition size: 100", parts.size());
 
             parts.forEach(search::updateSearchEntriesAsync);
@@ -417,6 +453,11 @@ public class DownloadIngestionProcessor {
         return Observation.createNotStarted("DownloadIngestionProcessor#succeededIngestions", observations).observe(
                 () -> repositories
                         .findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(storageType, blobNames));
+    }
+
+    /** Ingested items whose counters are updated but whose analytics events are not stored yet. */
+    public List<String> pendingAnalyticsIngestions(String storageType, List<String> blobNames) {
+        return repositories.findAllPendingAnalyticsDownloadIngestionsByStorageTypeAndNameIn(storageType, blobNames);
     }
 
     public List<String> failedIngestions(String storageType, List<String> blobNames) {

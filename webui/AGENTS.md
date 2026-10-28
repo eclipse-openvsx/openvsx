@@ -32,12 +32,11 @@ workflow lives in the `write-code` skill and test guidance in the
   `styled` component over inline `sx` once the styling is more than trivial — a
   named styled component reads better than a long `sx` block, even for a single
   use; reserve `sx` for a one-off prop or two.
-- **Data fetching** (mid-migration to TanStack Query): wrap the API client in a
-  hook rather than calling the service straight from a component. Create a new
-  hook in the enclosing folder of the feature that uses it; move it to
-  `src/hooks/` only once a second place needs it. Follow the
-  `tanstack-query-conventions` skill; migrate an existing endpoint only when the
-  user asks, via the `migrate-to-tanstack` skill.
+- **Data fetching** goes through TanStack Query: wrap the API client in a hook
+  rather than calling the service straight from a component. Create a new hook
+  in the enclosing folder of the feature that uses it; move it to `src/hooks/`
+  only once a second place needs it. Follow the `tanstack-query-conventions`
+  skill.
 - **Shared state:** cross-component state goes in a context under `src/context/`.
 - **Public API:** this package is published — anything consumers should use must
   be re-exported from `src/index.ts`. Keep that surface intentional.
@@ -72,24 +71,10 @@ Follow the `write-code` skill: understand → implement → test → changelog �
 
 ## Changelog
 
-Location: `CHANGELOG.md`.
+`CHANGELOG.md`, following the rules in the root `AGENTS.md`. Entries say why a
+change matters to a consumer of the package.
 
-Sections under `## [next]`: `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Dependencies`.
-
-Rules:
-
-- **Keep entries short — one line per change.** State what changed and why it
-  matters to a consumer of the package; link the issue/PR for detail instead
-  of writing the detail out.
-- All new entries go under `## [next]`. Read the full section first and append to existing subsections; never duplicate them; if subsection does not exist yet add it.
-- Released version sections (e.g. `## [0.5.0]`) are immutable; never modify them.
-- **Never describe a change against something that is itself unreleased.** If your
-  work modifies behaviour introduced by an entry already under `## [next]`, edit
-  that entry to describe the final state instead of adding a second one. Readers
-  of the released notes never saw the intermediate version, so "replaced X with
-  Y" is noise when X never shipped. Adding a genuinely new behaviour still earns
-  its own entry — just phrase it as the end state, not as a delta.
-- The same test applies to public API: a signature introduced under `## [next]`
-  and changed again before release is one entry describing the final signature,
-  not a change entry. Only a signature that has actually shipped is a breaking
-  change worth calling out.
+- The final-state rule applies to public API too: a signature introduced under
+  `[next]` and changed again before release is one entry describing the final
+  signature, not a change entry. Only a signature that has actually shipped is
+  a breaking change worth calling out.

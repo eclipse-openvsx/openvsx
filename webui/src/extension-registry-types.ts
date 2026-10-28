@@ -216,8 +216,12 @@ export interface UserData {
     /** Admin capabilities individually granted to this user, independent of role (see AdminPermission). */
     permissions?: AdminPermission[];
     publisherAgreement?: {
-        status: 'none' | 'signed' | 'outdated';
+        status: 'none' | 'signed' | 'outdated' | 'revoked';
         timestamp?: TimestampString;
+        /** Provider of the additional login needed to sign or revoke the agreement; none if absent. */
+        loginProvider?: string;
+        /** Display name of the login provider; the provider id is shown if absent. */
+        loginProviderName?: string;
     };
     additionalLogins?: UserData[];
 }
@@ -401,7 +405,6 @@ export interface RegistryVersion {
     maxExtensionSize?: number;
     /** Largest package the registry accepts from any namespace: the default raised by the highest override. */
     maxExtensionSizeCeiling?: number;
-    analyticsEnabled?: boolean;
 }
 
 /** One bucket of the download time series: `t` is the UTC bucket start (yyyy-MM-dd). */
@@ -413,8 +416,6 @@ export interface DownloadSeriesPoint {
 export interface DownloadSeries {
     points: DownloadSeriesPoint[];
 }
-
-export type DownloadSeriesInterval = 'day' | 'week' | 'month';
 
 export interface LoginProviders {
     loginProviders: Record<string, string>;
@@ -688,6 +689,8 @@ export interface SiteSettings {
     bannerMessage?: string;
     bannerSeverity?: BannerSeverity;
     bannerDismissId?: string;
+    /** Whether the weekly downloads card is shown: configured on the server and switched on by an admin. */
+    downloadAnalyticsVisible?: boolean;
 }
 
 /** Runtime settings as an admin reads them. A save sends a `Partial` of this, only what changed. */
@@ -697,6 +700,11 @@ export interface Settings extends SiteSettings {
     maxExtensionSize: number;
     /** Read-only: neither maxExtensionSize nor a size override can be raised past this ceiling. */
     maxOverrideSize: number;
+    /**
+     * Shows the weekly downloads card on extension pages. Off until an admin switches it on, and
+     * absent where the server has no download analytics configured, since it cannot be switched on then.
+     */
+    downloadAnalyticsVisible?: boolean;
 }
 
 export interface SearchIndex {
@@ -739,6 +747,24 @@ export interface CacheList {
      */
     statisticsEnabled: boolean;
     caches: CacheInfo[];
+}
+
+/** The state of download analytics, for the admin dashboard. */
+export interface AnalyticsStatus {
+    /** Whether analytics is turned on; when false only the file counts are present. */
+    enabled: boolean;
+    /** Whether the time-series database is reachable right now. */
+    available?: boolean;
+    /** ISO 8601 UTC time since which the database has been reachable, or unreachable. */
+    since?: string;
+    /** ISO 8601 UTC time of the last probe of the database. */
+    lastProbe?: string;
+    /** Why the last probe failed; absent once a probe succeeded. */
+    lastError?: string;
+    /** Ingested log files kept until their events can be stored. */
+    pendingFiles: number;
+    /** Log files that failed ingestion and await manual attention. */
+    failedFiles: number;
 }
 
 /** Why a search returned what it returned, in the order it returned it. */

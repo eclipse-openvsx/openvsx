@@ -26,7 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import org.eclipse.openvsx.entities.MigrationItem;
 import org.eclipse.openvsx.repositories.RepositoryService;
-import org.eclipse.openvsx.settings.SettingsService;
+import org.eclipse.openvsx.settings.ReadOnlySetting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 class MigrationItemJobRequestHandlerTest {
 
     @Mock
-    SettingsService settings;
+    ReadOnlySetting readOnly;
     @Mock
     RepositoryService repositories;
     @Mock
@@ -48,7 +48,7 @@ class MigrationItemJobRequestHandlerTest {
 
     @Test
     void run_doesNothingWhenReadOnly() throws Exception {
-        when(settings.isReadOnly()).thenReturn(true);
+        when(readOnly.isEnabled()).thenReturn(true);
 
         newHandler(200).run(new HandlerJobRequest<>(MigrationItemJobRequestHandler.class));
 
@@ -57,7 +57,7 @@ class MigrationItemJobRequestHandlerTest {
 
     @Test
     void validateBatchSize_clampsNonPositiveValuesToOne() {
-        var handler = new MigrationItemJobRequestHandler(settings, repositories, migrations, scheduler);
+        var handler = new MigrationItemJobRequestHandler(readOnly, repositories, migrations, scheduler);
         ReflectionTestUtils.setField(handler, "batchSize", 0);
 
         handler.validateBatchSize();
@@ -144,7 +144,7 @@ class MigrationItemJobRequestHandlerTest {
     }
 
     private MigrationItemJobRequestHandler newHandler(int batchSize) {
-        var handler = new MigrationItemJobRequestHandler(settings, repositories, migrations, scheduler);
+        var handler = new MigrationItemJobRequestHandler(readOnly, repositories, migrations, scheduler);
         ReflectionTestUtils.setField(handler, "batchSize", batchSize);
         return handler;
     }

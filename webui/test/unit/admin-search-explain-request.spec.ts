@@ -35,7 +35,7 @@ describe('admin.explainSearch', () => {
         const fetchMock = stubFetch(jsonResponse(empty));
         const service = new ExtensionRegistryService('https://registry.test');
 
-        await service.admin.explainSearch(new AbortController(), 'markdown', 25, 50);
+        await service.admin.explainSearch(new AbortController().signal, 'markdown', 25, 50);
 
         const url = new URL(String(fetchMock.mock.calls[0][0]));
         expect(url.searchParams.get('query')).toBe('markdown');

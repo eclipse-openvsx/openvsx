@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.mockito.Mockito;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotWritableException;
@@ -40,6 +41,8 @@ import static org.mockito.Mockito.when;
  * went unlogged. The rate of clients disconnecting mid-response hasn't changed - only Jackson 3
  * made that same, ordinary event newly visible as a per-occurrence WARN.
  */
+// Mutates the global logback logger, which concurrent Spring context startup can reset.
+@Isolated
 class ServerExceptionResolverTest {
 
     private final ServerExceptionResolver resolver = new ServerExceptionResolver();

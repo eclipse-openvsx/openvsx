@@ -52,7 +52,7 @@ function renderNamespaceAdmin(
 ) {
     const getExtension = vi.fn().mockResolvedValue(barExtension);
     // Resolves whatever the public API would have: anything else is an extension it cannot see.
-    const getExtensionDetail = vi.fn(async (_abort: AbortController, url: string) =>
+    const getExtensionDetail = vi.fn(async (_signal: AbortSignal, url: string) =>
         url === '/api/foo/bar' ? barExtension : Promise.reject(rejection)
     );
     const handleError = vi.fn();

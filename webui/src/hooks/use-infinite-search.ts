@@ -16,7 +16,6 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { MainContext } from '../context';
 import { SearchResult } from '../extension-registry-types';
 import { ExtensionFilter } from '../extension-registry-service';
-import { controllerFromSignal } from '../query-client';
 
 /** The filter fields that identify a result set; `offset` is driven by the pages. */
 export type SearchQuery = Omit<ExtensionFilter, 'offset'>;
@@ -38,7 +37,7 @@ export const useInfiniteSearch = (filter: ExtensionFilter) => {
     return useInfiniteQuery({
         queryKey: searchKeys.list({ query, category, size, sortBy, sortOrder }),
         queryFn: ({ pageParam, signal }): Promise<SearchResult> =>
-            service.search(controllerFromSignal(signal), {
+            service.search(signal, {
                 query,
                 category,
                 size,

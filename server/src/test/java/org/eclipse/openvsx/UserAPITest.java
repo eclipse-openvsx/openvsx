@@ -34,6 +34,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.util.Streamable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -48,13 +49,12 @@ import org.eclipse.openvsx.accesstoken.AccessTokenConfig;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
-import org.eclipse.openvsx.eclipse.EclipseService;
-import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.json.*;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.publish.PublishExtensionVersionHandler;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.ExtensionScanPersistenceService;
 import org.eclipse.openvsx.scanning.ExtensionScanService;
@@ -69,6 +69,7 @@ import org.eclipse.openvsx.security.OAuth2UserServices;
 import org.eclipse.openvsx.security.SecurityConfig;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.LogService;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.TargetPlatformVersion;
@@ -91,7 +92,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @MockitoBean(
     types = {
         DSLContext.class,
-        EclipseService.class,
         RestTemplate.class,
         ClientRegistrationRepository.class,
         StorageUtilService.class,
@@ -123,6 +123,9 @@ class UserAPITest {
     @MockitoSpyBean
     UserService users;
 
+    @MockitoBean
+    PublisherAgreementService publisherAgreements;
+
     @MockitoSpyBean
     AccessTokenService tokens;
 
@@ -145,7 +148,7 @@ class UserAPITest {
 
     @Test
     void testLoggedIn() throws Exception {
-        mockUserData();
+        var userData = mockUserData();
         mockMvc.perform(get("/user"))
                 .andExpect(status().isOk())
                 .andExpect(content().json(userJson(u -> {
@@ -153,6 +156,36 @@ class UserAPITest {
                     u.setFullName("Test User");
                     u.setHomepage("http://example.com/test");
                 })));
+
+        // the agreement is added to what the user sees by the service
+        Mockito.verify(publisherAgreements).enrichUserJson(any(), eq(userData));
+    }
+
+    // What signing does besides answering, such as reactivating extensions, is the service's, tested there.
+    @Test
+    void testSignPublisherAgreement() throws Exception {
+        var userData = mockUserData();
+
+        mockMvc.perform(
+                post("/user/publisher-agreement")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk());
+
+        Mockito.verify(publisherAgreements).sign(eq(userData), any());
+    }
+
+    @Test
+    void testSignPublisherAgreementRefusalIsReported() throws Exception {
+        var userData = mockUserData();
+        Mockito.doThrow(new ErrorResultException("nope", HttpStatus.BAD_REQUEST))
+                .when(publisherAgreements).sign(eq(userData), any());
+
+        mockMvc.perform(
+                post("/user/publisher-agreement")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -650,6 +683,45 @@ class UserAPITest {
                         .with(user("test_user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.namespaceOwnershipConflict").value(true));
+    }
+
+    // The scan's threat stays recorded after the namespace gains an owner, which resolves the conflict.
+    @Test
+    void testGetOwnExtensionNamespaceOwnershipConflictResolvedByOwner() throws Exception {
+        var userData = mockUserData();
+        var versions = mockExtension(userData, 2, 0, 0);
+        var latest = versions.getLast();
+        latest.setId(42L);
+        var extension = latest.getExtension();
+        Mockito.when(repositories.isNamespaceOwner(any(UserData.class), any(Namespace.class))).thenReturn(true);
+        Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(false)))
+                .thenReturn(latest);
+        Mockito.when(repositories.findTargetPlatformsGroupedByVersion(extension)).thenReturn(List.of());
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(42L, java.util.List.of()));
+
+        var scan = new ExtensionScan();
+        scan.setStatus(ScanStatus.QUARANTINED);
+        Mockito.when(repositories.findLatestExtensionScan(latest)).thenReturn(scan);
+        Mockito.when(repositories.findExtensionThreats(scan, NamespaceOwnershipCheckScanner.TYPE))
+                .thenReturn(
+                        Streamable.of(
+                                ExtensionThreat.create(
+                                        null,
+                                        null,
+                                        null,
+                                        NamespaceOwnershipCheckScanner.TYPE,
+                                        NamespaceOwnershipCheckScanner.TYPE + "-conflict",
+                                        "Namespace 'foobar' exists in the referenced gallery, but is not verified.",
+                                        "high")));
+
+        Mockito.when(repositories.isVerified(extension.getNamespace())).thenReturn(true);
+
+        mockMvc.perform(
+                get("/user/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("test_user")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.namespaceOwnershipConflict").value(false));
     }
 
     @Test
@@ -1338,22 +1410,9 @@ class UserAPITest {
         @Bean
         OAuth2UserServices oauth2UserServices(
                 UserService users,
-                EclipseTokenService eclipseTokenService,
-                EntityManager entityManager,
-                EclipseService eclipse,
                 OAuth2AttributesConfig attributesConfig
         ) {
-            return new OAuth2UserServices(users, eclipseTokenService, entityManager, eclipse, attributesConfig);
-        }
-
-        @Bean
-        EclipseTokenService eclipseTokenService(
-                TransactionTemplate transactions,
-                EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository,
-                RestTemplate restTemplate
-        ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
+            return new OAuth2UserServices(users, List.of(), attributesConfig);
         }
 
         @Bean
@@ -1372,7 +1431,7 @@ class UserAPITest {
                 SearchUtilService search,
                 ExtensionValidator validator,
                 StorageUtilService storageUtil,
-                EclipseService eclipse,
+                PublisherAgreementService eclipse,
                 CacheService cache,
                 ExtensionVersionIntegrityService integrityService,
                 SimilarityCheckService similarityCheckService

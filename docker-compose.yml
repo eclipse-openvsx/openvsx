@@ -262,7 +262,7 @@ services:
       - backend
 
   webui:
-    image: node:22
+    image: node:24
     working_dir: /app
     command: sh -c 'yarn install --immutable && yarn dev'
     volumes:
@@ -279,7 +279,7 @@ services:
       - frontend
 
   cli:
-    image: node:22
+    image: node:24
     working_dir: /app
     command: sh -c 'yarn && yarn watch'
     volumes:

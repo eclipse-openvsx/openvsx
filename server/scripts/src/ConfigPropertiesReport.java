@@ -26,7 +26,7 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-// Scans src/main/java for `@Value("${...}")` and `@ConfigurationProperties(...)` usages and prints
+// Scans src/main/java for `@Value("${...}")`, `@ConfigurationProperties(...)` and `Binder.bind("key", ...)` usages and prints
 // every Spring config property key it finds, with its default (if any) and source location. There
 // is no spring-configuration-metadata.json in this project (no annotationProcessor configured), so
 // this is a regex-based stand-in - keys/defaults are discovered fresh each run, nothing here is a
@@ -49,6 +49,7 @@ void main(String[] args) throws IOException {
             scanValueAnnotations(raw, blanked, file, entries);
             scanConfigurationProperties(raw, blanked, file, entries, configPropsClasses);
             scanConditionalOnProperty(raw, blanked, file, entries);
+            scanBinderCalls(raw, blanked, file, entries);
         }
     }
 
@@ -107,6 +108,22 @@ String formatSources(Set<String> sources) {
 
 String mdEscape(String text) {
     return text.replace("|", "\\|");
+}
+
+// ---- Binder.bind("key", ...) ----
+
+// A list that has to be read from a YAML list or an indexed key cannot be an @Value placeholder, which
+// does not see either; it is bound by name instead.
+Pattern BINDER_CALL = Pattern.compile("\\.bind\\(\\s*\"([^\"\\n]+)\"");
+
+void scanBinderCalls(String raw, String blanked, String file, TreeMap<String, PropertyEntry> entries) {
+    var matcher = BINDER_CALL.matcher(raw);
+    while (matcher.find()) {
+        // in code, not in a comment: the same text is blanked there
+        if (blanked.startsWith(".bind(", matcher.start())) {
+            addEntry(entries, matcher.group(1), null, file + ":" + lineNumber(raw, matcher.start()), null);
+        }
+    }
 }
 
 // ---- @Value("${key:default}") ----

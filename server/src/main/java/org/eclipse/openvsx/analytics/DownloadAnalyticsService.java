@@ -77,9 +77,19 @@ public class DownloadAnalyticsService {
      * reason a deployment can turn it off.
      */
     private List<DownloadSeriesRow> settledRows(DownloadSeriesRequest request) {
-        return settledCache == null
-                ? repository.findSeries(request)
-                : settledCache.get(request, () -> repository.findSeries(request));
+        if (settledCache == null) {
+            return repository.findSeries(request);
+        }
+
+        try {
+            return settledCache.get(request, () -> repository.findSeries(request));
+        } catch (Cache.ValueRetrievalException e) {
+            // some cache implementations wrap what the loader threw
+            if (e.getCause() instanceof AnalyticsUnavailableException unavailable) {
+                throw unavailable;
+            }
+            throw e;
+        }
     }
 
     /**

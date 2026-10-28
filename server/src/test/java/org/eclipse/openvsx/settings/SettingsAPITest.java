@@ -35,6 +35,7 @@ class SettingsAPITest {
         site.setBannerEnabled(true);
         site.setBannerMessage("Maintenance tonight");
         site.setBannerSeverity("warning");
+        site.setDownloadAnalyticsVisible(true);
         Mockito.when(settings.getSiteSettings()).thenReturn(site);
 
         MockMvcBuilders.standaloneSetup(new SettingsAPI(settings))
@@ -46,7 +47,7 @@ class SettingsAPITest {
                 .andExpect(jsonPath("$.bannerMessage").value("Maintenance tonight"))
                 .andExpect(jsonPath("$.bannerSeverity").value("warning"))
                 .andExpect(jsonPath("$.bannerDismissId").doesNotExist())
-                // only banner properties are public, whatever else the admin payload carries
-                .andExpect(jsonPath("$.length()").value(3));
+                .andExpect(jsonPath("$.downloadAnalyticsVisible").value(true))
+                .andExpect(jsonPath("$.length()").value(4));
     }
 }

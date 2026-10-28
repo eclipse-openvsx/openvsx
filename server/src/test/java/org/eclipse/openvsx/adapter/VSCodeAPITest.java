@@ -55,11 +55,10 @@ import org.eclipse.openvsx.analytics.ingestion.DownloadRecordSource;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.FilesCacheKeyGenerator;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
-import org.eclipse.openvsx.eclipse.EclipseService;
-import org.eclipse.openvsx.eclipse.EclipseTokenService;
 import org.eclipse.openvsx.entities.*;
 import org.eclipse.openvsx.metrics.ExtensionDownloadMetrics;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.*;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
@@ -94,7 +93,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         CacheService.class,
         UpstreamVSCodeService.class,
         VSCodeIdService.class,
-        EclipseService.class,
+        PublisherAgreementService.class,
         RestTemplate.class,
         ExtensionValidator.class,
         SimpleMeterRegistry.class,
@@ -1651,22 +1650,9 @@ class VSCodeAPITest {
         @Bean
         OAuth2UserServices oauth2UserServices(
                 UserService users,
-                EclipseTokenService eclipseTokenService,
-                EntityManager entityManager,
-                EclipseService eclipse,
                 OAuth2AttributesConfig attributesConfig
         ) {
-            return new OAuth2UserServices(users, eclipseTokenService, entityManager, eclipse, attributesConfig);
-        }
-
-        @Bean
-        EclipseTokenService eclipseTokenService(
-                TransactionTemplate transactions,
-                EntityManager entityManager,
-                ClientRegistrationRepository clientRegistrationRepository,
-                RestTemplate restTemplate
-        ) {
-            return new EclipseTokenService(transactions, entityManager, clientRegistrationRepository, restTemplate);
+            return new OAuth2UserServices(users, List.of(), attributesConfig);
         }
 
         @Bean

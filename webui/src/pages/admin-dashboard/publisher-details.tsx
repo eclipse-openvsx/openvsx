@@ -30,11 +30,13 @@ import { AdminDashboardRoutes } from './admin-dashboard-routes';
 import { PublisherForgetUserButton } from './publisher-forget-user-button';
 import { PublisherRevokeContributionsButton } from './publisher-revoke-dialog';
 import { PublisherRevokeTokensButton } from './publisher-revoke-tokens-button';
+import { PublisherReinstateAgreementButton } from './publisher-reinstate-agreement-button';
 import { publisherMutationKey, usePublisherInfo } from './use-publisher-admin';
 
 const AGREEMENT_META = {
     signed: { label: 'Signed', color: 'success' as const },
     outdated: { label: 'Outdated', color: 'warning' as const },
+    revoked: { label: 'Revoked', color: 'error' as const },
     none: { label: 'Not signed', color: 'default' as const }
 };
 
@@ -78,6 +80,24 @@ const DangerZone: FunctionComponent<{ publisherInfo: PublisherInfo }> = ({ publi
                         </Box>
                         <Box sx={{ flexShrink: 0, ml: 2 }}>
                             <PublisherRevokeTokensButton publisherInfo={publisherInfo} />
+                        </Box>
+                    </Stack>
+                    <Divider />
+                </>
+            )}
+            {publisherInfo.user.publisherAgreement?.status === 'revoked' && (
+                <>
+                    <Stack direction='row' alignItems='center' justifyContent='space-between' sx={{ px: 2, py: 1.5 }}>
+                        <Box>
+                            <Typography variant='body2' fontWeight={600}>
+                                Reinstate publisher agreement
+                            </Typography>
+                            <Typography variant='body2' color='text.secondary'>
+                                Let {loginName} sign the publisher agreement again.
+                            </Typography>
+                        </Box>
+                        <Box sx={{ flexShrink: 0, ml: 2 }}>
+                            <PublisherReinstateAgreementButton publisherInfo={publisherInfo} />
                         </Box>
                     </Stack>
                     <Divider />

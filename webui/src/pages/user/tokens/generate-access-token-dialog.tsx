@@ -8,18 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext, useRef, useState } from 'react';
+import { FunctionComponent, useContext, useState } from 'react';
 import { Autocomplete, Box, Button, Checkbox, FormControlLabel, FormHelperText, TextField } from '@mui/material';
 import { GenerateTokenDialog } from '../../../components/generate-token-dialog';
-import { isError } from '../../../extension-registry-types';
 import { MainContext } from '../../../context';
 import { useUserNamespaces } from '../namespaces/use-user-namespaces';
 import { useNamespaceExtensions } from './use-namespace-extensions';
+import { useCreateAccessToken } from './use-access-tokens';
 
-export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogProps> = props => {
-    const context = useContext(MainContext);
+export const GenerateAccessTokenDialog: FunctionComponent = () => {
+    const { user } = useContext(MainContext);
     const { data: namespaces = [], isLoading } = useUserNamespaces();
-    const abortController = useRef<AbortController>(new AbortController());
+    const { mutateAsync: createAccessToken } = useCreateAccessToken();
     const [open, setOpen] = useState(false);
     const [namespace, setNamespace] = useState('');
     const [extension, setExtension] = useState('');
@@ -32,20 +32,14 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
     const extensionInvalid = extensionInput !== extension;
 
     const handleGenerate = async (description: string): Promise<string> => {
-        if (!context.user) {
+        if (!user) {
             throw new Error('Not logged in');
         }
-        const token = await context.service.createAccessToken(abortController.current, context.user, description, {
-            namespace: namespace || undefined,
-            extension: extension || undefined,
-            publishingOnly
+        const token = await createAccessToken({
+            user,
+            description,
+            scope: { namespace: namespace || undefined, extension: extension || undefined, publishingOnly }
         });
-        if (isError(token)) {
-            throw token;
-        }
-
-        props.handleTokenGenerated();
-
         return token.value!;
     };
 
@@ -65,8 +59,7 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
                     setPublishingOnly(false);
                 }}
                 canGenerate={!namespaceInvalid && !extensionInvalid}
-                onGenerate={handleGenerate}
-                onError={context.handleError}>
+                onGenerate={handleGenerate}>
                 <Box mt={2} display='flex' flexDirection='column' gap={2}>
                     <Autocomplete
                         fullWidth
@@ -139,7 +132,3 @@ export const GenerateAccessTokenDialog: FunctionComponent<GenerateTokenDialogPro
         </>
     );
 };
-
-export interface GenerateTokenDialogProps {
-    handleTokenGenerated: () => void;
-}

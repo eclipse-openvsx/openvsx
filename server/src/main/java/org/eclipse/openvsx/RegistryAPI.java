@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.Iterables;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -1007,14 +1006,16 @@ public class RegistryAPI {
     }
 
     private int mergeSearchResults(List<SearchEntryJson> extensions, List<SearchEntryJson> entries, int limit) {
-        var previousResult = Iterables.limit(extensions, extensions.size());
+        var previousSize = extensions.size();
         var entriesIter = entries.iterator();
         int mergedEntries = 0;
         while (entriesIter.hasNext() && extensions.size() < limit) {
             var next = entriesIter.next();
-            if (!Iterables.any(
-                    previousResult,
-                    ext -> ext.getNamespace().equals(next.getNamespace()) && ext.getName().equals(next.getName()))) {
+            if (extensions.stream()
+                    .limit(previousSize)
+                    .noneMatch(
+                            ext -> ext.getNamespace().equals(next.getNamespace())
+                                    && ext.getName().equals(next.getName()))) {
                 extensions.add(next);
                 mergedEntries++;
             }
@@ -1287,14 +1288,16 @@ public class RegistryAPI {
     }
 
     private int mergeQueryResults(List<ExtensionJson> extensions, List<ExtensionJson> entries, int limit) {
-        var previousResult = Iterables.limit(extensions, extensions.size());
+        var previousSize = extensions.size();
         var entriesIter = entries.iterator();
         int mergedEntries = 0;
         while (entriesIter.hasNext() && extensions.size() < limit) {
             var next = entriesIter.next();
-            if (!Iterables.any(
-                    previousResult,
-                    ext -> ext.getNamespace().equals(next.getNamespace()) && ext.getName().equals(next.getName()))) {
+            if (extensions.stream()
+                    .limit(previousSize)
+                    .noneMatch(
+                            ext -> ext.getNamespace().equals(next.getNamespace())
+                                    && ext.getName().equals(next.getName()))) {
                 extensions.add(next);
                 mergedEntries++;
             }

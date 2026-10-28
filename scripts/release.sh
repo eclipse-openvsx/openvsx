@@ -46,6 +46,7 @@ fi
 
 case "${COMPONENT}" in
     "cli")
+        CHANGELOG="cli/CHANGELOG.md"
         PROJECT_VERSION=$(jq -r .version cli/package.json)
         if [[ "${VERSION}" != "${PROJECT_VERSION}" ]]; then
           echo "cli version '${PROJECT_VERSION}' does not match version from tag '${VERSION}'."
@@ -54,6 +55,7 @@ case "${COMPONENT}" in
         ;;
 
     "webui")
+        CHANGELOG="webui/CHANGELOG.md"
         PROJECT_VERSION=$(jq -r .version webui/package.json)
         if [[ "${VERSION}" != "${PROJECT_VERSION}" ]]; then
           echo "webui version '${PROJECT_VERSION}' does not match version from tag '${VERSION}'."
@@ -62,13 +64,27 @@ case "${COMPONENT}" in
         ;;
 
     "openvsx")
+        CHANGELOG="server/CHANGELOG.md"
         # TODO: the server component currently does not have a version indicator in the build.gradle
         if ! ./server/scripts/dependency-override-check.sh; then
           echo "openvsx server has dependency overrides behind the Spring Boot BOM; review them first."
           exit 1
         fi
+        UNRELEASED=$(awk '/^\| Property / { property = $4 } /^\| Compatibility +\| Unreleased/ { print "  " property }' doc/configuration.md)
+        if [ -n "${UNRELEASED}" ]; then
+          echo "doc/configuration.md still marks these properties as Unreleased; date them to ${VERSION} first:"
+          echo "${UNRELEASED}"
+          exit 1
+        fi
         ;;
 esac
+
+# The newest changelog entry must be this release, not the "[next]" placeholder.
+LATEST_ENTRY=$(grep -m1 -E '^#{2,3} \[' "${PROJECT_ROOT}/${CHANGELOG}" || true)
+if [[ -z "${LATEST_ENTRY}" || "${LATEST_ENTRY}" == *"[next]"* ]]; then
+  echo "${CHANGELOG}: latest entry is '${LATEST_ENTRY:-missing}'; replace [next] with the release version and date first."
+  exit 1
+fi
 
 echo "Releasing component ${COMPONENT}@${VERSION}..."
 

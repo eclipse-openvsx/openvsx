@@ -137,9 +137,9 @@ export function handleError(debug?: boolean, additionalMessage?: string, exit: b
 }
 
 /**
- * Formats a byte count for display, e.g. `1536` -> `1.5 KB`. Mirrors the registry's own
- * `FileUtils.byteCountToDisplaySize` formatting so client- and server-side size limit messages read
- * the same way.
+ * Formats a byte count for display, rounding down, e.g. `1536` -> `1 KB` and `1048577` -> `1 MB`.
+ * Mirrors the registry's own `FileUtils.byteCountToDisplaySize` formatting so client- and
+ * server-side size limit messages read the same way.
  */
 export function formatBytes(bytes: number): string {
     const units = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'];

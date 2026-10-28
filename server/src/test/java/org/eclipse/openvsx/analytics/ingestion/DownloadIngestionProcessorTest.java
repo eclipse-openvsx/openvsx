@@ -31,6 +31,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
+import org.eclipse.openvsx.analytics.AnalyticsUnavailableException;
 import org.eclipse.openvsx.analytics.DownloadEvent;
 import org.eclipse.openvsx.analytics.DownloadSeriesRequest;
 import org.eclipse.openvsx.analytics.DownloadSeriesRow;
@@ -76,6 +77,7 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
     @AfterEach
     void cleanUp() {
         analyticsRepository.failing = false;
+        analyticsRepository.unavailable = false;
         analyticsRepository.saved.clear();
         runInTransaction(() -> {
             seededEntities.reversed().forEach(entity -> {
@@ -112,7 +114,7 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         // the events are handed back rather than stored, so the analytics write happens after
         // the registry transaction committed
         assertTrue(analyticsRepository.saved.isEmpty());
-        processor.saveEvents(processed.events());
+        assertTrue(processor.saveEvents(processed.events()));
 
         // micro-batch aggregation by (hour, extension-version, country, ip, user agent)
         assertEquals(3, analyticsRepository.saved.size());
@@ -134,12 +136,29 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         // the download counter is incremented by the total record count
         assertEquals(4, freshDownloadCount(extension.getId()));
 
-        // and the ingestion entry is written
+        // and the ingestion entry is written, pending until the events are marked stored
+        var names = List.of("analytics-test-1.gz");
+        assertTrue(
+                repositories.findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(FileResource.STORAGE_AWS, names)
+                        .isEmpty());
         assertEquals(
-                List.of("analytics-test-1.gz"),
-                repositories.findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(
-                        FileResource.STORAGE_AWS,
-                        List.of("analytics-test-1.gz")));
+                names,
+                repositories
+                        .findAllPendingAnalyticsDownloadIngestionsByStorageTypeAndNameIn(
+                                FileResource.STORAGE_AWS,
+                                names));
+
+        processor.markAnalyticsDone(FileResource.STORAGE_AWS, "analytics-test-1.gz");
+
+        assertEquals(
+                names,
+                repositories.findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(FileResource.STORAGE_AWS, names));
+        assertTrue(
+                repositories
+                        .findAllPendingAnalyticsDownloadIngestionsByStorageTypeAndNameIn(
+                                FileResource.STORAGE_AWS,
+                                names)
+                        .isEmpty());
     }
 
     @Test
@@ -218,16 +237,41 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         var processed = processor
                 .process(FileResource.STORAGE_AWS, "analytics-test-5.gz", PROCESSED_ON, 5, records);
 
-        // the analytics store is a separate database; losing it under-counts, nothing more
+        // the analytics store is a separate database; the counters stay right and the file stays pending
         analyticsRepository.failing = true;
-        assertDoesNotThrow(() -> processor.saveEvents(processed.events()));
+        assertFalse(processor.saveEvents(processed.events()));
 
         assertEquals(1, freshDownloadCount(extension.getId()));
+        var names = List.of("analytics-test-5.gz");
         assertEquals(
-                List.of("analytics-test-5.gz"),
-                repositories.findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(
-                        FileResource.STORAGE_AWS,
-                        List.of("analytics-test-5.gz")));
+                names,
+                repositories
+                        .findAllPendingAnalyticsDownloadIngestionsByStorageTypeAndNameIn(
+                                FileResource.STORAGE_AWS,
+                                names));
+        assertTrue(
+                repositories.findAllSucceededDownloadIngestionsByStorageTypeAndNameIn(FileResource.STORAGE_AWS, names)
+                        .isEmpty());
+    }
+
+    @Test
+    void testUnavailableAnalyticsKeepsEventsPending() {
+        seedExtension("proc7", "proc7.ext-1.0.0.vsix");
+
+        var records = List.of(
+                new RawDownloadRecord(Instant.parse("2026-07-01T14:00:00Z"), "PROC7.EXT-1.0.0.VSIX", null, null, null));
+        var processed = processor
+                .process(FileResource.STORAGE_AWS, "analytics-test-7.gz", PROCESSED_ON, 5, records);
+
+        analyticsRepository.unavailable = true;
+        assertFalse(processor.isAnalyticsAvailable());
+        assertFalse(processor.saveEvents(processed.events()));
+
+        // and the replay stores them once the database is back, without touching the counters again
+        analyticsRepository.unavailable = false;
+        assertTrue(processor.isAnalyticsAvailable());
+        processor.backfill(FileResource.STORAGE_AWS, records);
+        assertEquals(1, analyticsRepository.saved.size());
     }
 
     @Test
@@ -362,15 +406,25 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
     /** Overrides everything the processor calls, so the inherited DSLContext is never touched. */
     static class RecordingAnalyticsRepository extends DownloadAnalyticsRepository {
         RecordingAnalyticsRepository() {
-            super(null);
+            super(null, null);
         }
 
         final List<DownloadEvent> saved = new CopyOnWriteArrayList<>();
 
         volatile boolean failing;
 
+        volatile boolean unavailable;
+
+        @Override
+        public boolean isAvailable() {
+            return !unavailable;
+        }
+
         @Override
         public void save(List<DownloadEvent> events) {
+            if (unavailable) {
+                throw new AnalyticsUnavailableException();
+            }
             if (failing) {
                 throw new IllegalStateException("analytics database is unreachable");
             }

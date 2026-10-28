@@ -101,8 +101,8 @@ public class RestTemplateConfig {
                 })
                 .messageConverters(
                         new StringHttpMessageConverter(),
-                        // Needed for EclipseTokenService's application/x-www-form-urlencoded token
-                        // refresh request; the other consumers of this bean only ever post/receive JSON.
+                        // Needed for application/x-www-form-urlencoded requests such as OAuth2 token refreshes;
+                        // the other consumers of this bean only ever post/receive JSON.
                         new FormHttpMessageConverter(),
                         new JacksonJsonHttpMessageConverter())
                 .build();

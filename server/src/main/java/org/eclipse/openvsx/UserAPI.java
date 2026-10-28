@@ -38,7 +38,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
@@ -61,6 +60,7 @@ import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
 import org.eclipse.openvsx.json.UsageStatsListJson;
 import org.eclipse.openvsx.json.UserJson;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.NamespaceOwnershipCheckScanner;
 import org.eclipse.openvsx.security.CodedAuthException;
@@ -91,7 +91,7 @@ public class UserAPI {
     private final RepositoryService repositories;
     private final UserService users;
     private final AccessTokenService tokens;
-    private final EclipseService eclipse;
+    private final PublisherAgreementService publisherAgreements;
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
     private final ExtensionService extensions;
@@ -100,7 +100,7 @@ public class UserAPI {
             RepositoryService repositories,
             UserService users,
             AccessTokenService tokens,
-            EclipseService eclipse,
+            PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             LocalRegistryService local,
             ExtensionService extensions
@@ -108,7 +108,7 @@ public class UserAPI {
         this.repositories = repositories;
         this.users = users;
         this.tokens = tokens;
-        this.eclipse = eclipse;
+        this.publisherAgreements = publisherAgreements;
         this.storageUtil = storageUtil;
         this.local = local;
         this.extensions = extensions;
@@ -168,7 +168,7 @@ public class UserAPI {
         json.setPermissions(user.getPermissionsAsStrings());
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
-        eclipse.enrichUserJsonWithPublisherAgreement(json, user);
+        publisherAgreements.enrichUserJson(json, user);
         return json;
     }
 
@@ -336,10 +336,12 @@ public class UserAPI {
     /**
      * Whether {@code scanResult} recorded a threat from the {@link NamespaceOwnershipCheckScanner}:
      * the version's namespace already exists in a referenced external gallery and needs to be verified
-     * (claimed) before the version can be activated here.
+     * (claimed) before the version can be activated here. The threat stays recorded once the namespace
+     * gains an owner, so it only counts while the namespace is still unverified.
      */
-    private boolean hasNamespaceOwnershipConflict(ExtensionScan scanResult) {
+    private boolean hasNamespaceOwnershipConflict(ExtensionVersion extVersion, ExtensionScan scanResult) {
         return scanResult != null
+                && !repositories.isVerified(extVersion.getExtension().getNamespace())
                 && repositories.findExtensionThreats(scanResult, NamespaceOwnershipCheckScanner.TYPE)
                         .stream()
                         .findAny()
@@ -358,7 +360,7 @@ public class UserAPI {
      */
     private void enrichWithReviewStatus(ExtensionJson json, ExtensionVersion extVersion) {
         var scanResult = findLatestScan(extVersion);
-        json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(scanResult));
+        json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(extVersion, scanResult));
 
         if (Boolean.TRUE.equals(json.getActive())) {
             // Only mark published if scan result indicates PASSED or no scan result exists (scanning disabled / manual
@@ -496,7 +498,7 @@ public class UserAPI {
                 json.setAllTargetPlatformVersions(users.getVersionsWithDeletePermission(user, extension, isOwner));
                 json.setActive(extension.isActive());
                 json.setRemoved(latest.isExtensionRemoved());
-                json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(findLatestScan(latest)));
+                json.setNamespaceOwnershipConflict(hasNamespaceOwnershipConflict(latest, findLatestScan(latest)));
             } else {
                 var error = "Extension not found: " + NamingUtil.toExtensionId(namespaceName, extensionName);
                 throw new ErrorResultException(error, HttpStatus.NOT_FOUND);
@@ -732,25 +734,24 @@ public class UserAPI {
         path = "/user/publisher-agreement",
         produces = MediaType.APPLICATION_JSON_VALUE
     )
+    @MutatingOperation
     public ResponseEntity<UserJson> signPublisherAgreement() {
         var user = users.findLoggedInUser();
         if (user == null) {
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
         try {
-            var agreement = eclipse.signPublisherAgreement(user);
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
             json.setPermissions(user.getPermissionsAsStrings());
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
-            eclipse.enrichUserJson(json, user, agreement);
+            publisherAgreements.sign(user, json);
 
             return ResponseEntity.ok(json);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(UserJson.class);
         }
     }
-
 }

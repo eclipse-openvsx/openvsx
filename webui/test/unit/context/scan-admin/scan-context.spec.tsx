@@ -72,9 +72,7 @@ function setup(service: unknown) {
     return renderHook(() => useScanContext(), {
         wrapper: ({ children }) => (
             <TestProviders mainContext={{ service: service as never }}>
-                <ScanProvider service={service} handleError={() => {}}>
-                    {children}
-                </ScanProvider>
+                <ScanProvider service={service}>{children}</ScanProvider>
             </TestProviders>
         )
     });

@@ -22,6 +22,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
+import InsightsIcon from '@mui/icons-material/Insights';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import SearchIcon from '@mui/icons-material/Search';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -60,6 +61,9 @@ const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ defau
 const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 const DataConsistency = lazy(() => import('./consistency/consistency').then(m => ({ default: m.DataConsistency })));
 const CachesAdmin = lazy(() => import('./caches/caches').then(m => ({ default: m.CachesAdmin })));
+const AnalyticsStatusPage = lazy(() =>
+    import('./analytics-status/analytics-status').then(m => ({ default: m.AnalyticsStatusPage }))
+);
 const SearchIndexAdmin = lazy(() => import('./search-index/search-index').then(m => ({ default: m.SearchIndexAdmin })));
 const SearchExplainAdmin = lazy(() =>
     import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
@@ -146,6 +150,13 @@ const navConfig: NavEntry[] = [
                 icon: <FactCheckIcon />,
                 description: 'Check the database for known inconsistencies and fix them',
                 permission: 'manage_consistency'
+            },
+            {
+                path: AdminDashboardRoutes.ANALYTICS_STATUS,
+                name: 'Download Analytics',
+                icon: <InsightsIcon />,
+                description: 'See whether download analytics is reachable and what waits for it',
+                permission: 'view_reports'
             }
         ]
     },
@@ -242,9 +253,8 @@ const toRouteEntry = (page: AdminPage): RouteEntry => ({
 });
 
 /**
- * A contributed page is admin-only unless it declares a permission. The dashboard itself used to
- * require the admin role, so that was every contributed page's audience; opening the dashboard to
- * permission holders must not hand them someone else's page along with it.
+ * A contributed page is admin-only unless it declares a permission, so a permission holder
+ * reaching the dashboard is not handed someone else's page along with it.
  */
 const pageAccess = (page: AdminPage): Access => ({ permission: page.permission, adminOnly: !page.permission });
 
@@ -542,6 +552,14 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                         element={
                                             <Guard user={user} permission='manage_caches'>
                                                 <CachesAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/analytics-status'
+                                        element={
+                                            <Guard user={user} permission='view_reports'>
+                                                <AnalyticsStatusPage />
                                             </Guard>
                                         }
                                     />

@@ -11,15 +11,15 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { FunctionComponent, useContext, useEffect } from 'react';
+import { FunctionComponent, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Box } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { BackButton } from '../settings/settings-primitives';
-import { MainContext } from '../../../context';
 import { DelayedLoadIndicator } from '../../../components/delayed-load-indicator';
 import { ExtensionDetailView } from '../../../components/extension/extension-detail-view';
 import { UserSettingsRoutes } from '../user-settings-routes';
+import { isNotFound } from '../../../server-request';
 import { useDeleteUserExtensionVersions, useUserExtension } from './use-user-extension';
 
 /** Navigation target the manage page returns to; set by the card that linked here. */
@@ -29,7 +29,6 @@ export interface ExtensionSettingsBackState {
 }
 
 export const ExtensionSettings: FunctionComponent<ExtensionSettingsProps> = props => {
-    const { handleError } = useContext(MainContext);
     const navigate = useNavigate();
     const backState = (useLocation().state ?? {}) as ExtensionSettingsBackState;
     const backTo = backState.backTo ?? UserSettingsRoutes.EXTENSIONS;
@@ -43,16 +42,12 @@ export const ExtensionSettings: FunctionComponent<ExtensionSettingsProps> = prop
     } = useUserExtension({ namespace: props.namespace, extension: props.extension });
     const { mutateAsync: deleteVersions } = useDeleteUserExtensionVersions();
 
+    // The extension doesn't exist (or isn't yours) — don't stay on a dead page.
     useEffect(() => {
-        if (!error) {
-            return;
-        }
-        handleError(error);
-        // The extension doesn't exist (or isn't yours) — don't stay on a dead page.
-        if ((error as { status?: number }).status === 404) {
+        if (isNotFound(error)) {
             navigate(UserSettingsRoutes.EXTENSIONS);
         }
-    }, [error, navigate, handleError]);
+    }, [error, navigate]);
 
     if (loading) {
         return <DelayedLoadIndicator loading={true} />;

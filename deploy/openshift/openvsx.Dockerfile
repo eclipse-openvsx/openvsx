@@ -16,16 +16,14 @@ RUN curl -fsSL https://rpm.nodesource.com/setup_20.x -o nodesource_setup.sh \
   && node -v \
   && rm -rf nodesource_setup.sh
 
-RUN npm install -g corepack \
-    && corepack enable \
-    && corepack prepare yarn@stable --activate
-
 ARG OPENVSX_VERSION
 ENV VERSION=$OPENVSX_VERSION
 
 RUN git clone --branch ${VERSION} --depth 1 https://github.com/eclipse/openvsx.git /workdir
 
+# Run the committed Yarn release directly; no global Yarn is installed.
 RUN cd webui \
+  && yarn() { node .yarn/releases/yarn-4.18.1.cjs "$@"; } \
   && yarn --version \
   && yarn install --immutable \
   && yarn build:default

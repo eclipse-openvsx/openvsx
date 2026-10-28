@@ -1,38 +1,56 @@
-## Eclipse Open VSX Change Log
+# Eclipse Open VSX Change Log
 
 This change log covers only the command line interface (CLI) of Open VSX.
 
-### [next] (unreleased)
+## [next] (unreleased)
 
-#### Changed
+### Fixed
 
-- `publish` checks a package against the size limit that applies to its own namespace, which a size override can raise above the registry default, and refuses an oversized upload before sending it. Against a registry older than 1.3.0, which cannot report that limit, it warns against the default and publishes anyway; if a registry that should be able to report it does not answer, it says the check did not happen rather than passing silently ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
-
-#### Fixed
-
-- `--version` reads the version from `package.json` at runtime instead of a generated `src/version.ts`, so it can no longer report a stale version
-- `publish` now deletes the `.vsix` it packages into the temp directory once publishing finishes or fails, instead of leaving one behind per package and target
-- Drop the `X-OpenVSX-Token` header, which carries the personal access token when `--username`/`--password` are set, on a redirect to another origin, as is done for `Authorization`
-- A request with a body that is redirected with 301/302/303 now fails with an error naming the redirect target, instead of being resent as a GET without its body
-- Trusted publishing's OIDC ID token request now uses the registry client's request handling: it follows redirects (dropping the runner token on a redirect to another origin) and reports the token service's error message instead of only its status
-- An HTML page in a successful response (any `<!doctype html>` casing, or a `text/html` Content-Type) now fails with an error naming the status, instead of printing the raw HTML or a JSON `SyntaxError`
-- An error response whose JSON body starts with whitespace now reports the server's message instead of only its status
+- `publish -i ext.vsix` now warns about the packaging options it ignores, as `publish ext.vsix` does, naming the file, and publishes the package once instead of once per `--target` (#2351)
+- `get` and `verify` ignore a timeout or connection reset while draining the error body of a rejected download, instead of cleaning up a partial file that was never written (#2386)
+- `publish` prints the exact byte counts next to the friendly sizes of a size limit, so a package one byte over its limit no longer reads as "1 MB exceeds the size limit of 1 MB" (#2392)
+- `publish --trusted-publishing` asks the registry which audience its ID token must carry, so trusted publishing works on a registry whose configured audience is not its URL (#2391)
+- `publish --trusted-publishing` only sends its ID token to a registry reached over https, apart from a loopback address, and a failed registry version lookup is no longer remembered (#2391)
 
 ### Dependencies
 
-- Bump commander from 6.2.1 to 14.0.3; a command given more arguments than it takes now fails instead of ignoring the extras
-- Bump @vscode/vsce from 3.7.1 to 4.0.0
-- Bump vitest from 4.1.11 to 5.0.3, adding `vite` as a direct dev dependency - vitest 5 no longer bundles it, only requires it as a peer
-- Remove `leven`; the command-suggestion distance check now uses a vendored Levenshtein implementation, the same way `@vscode/vsce` itself replaced its own `leven` dependency in 4.0.0
-- Remove `tmp`; temporary file names are now generated with `crypto.randomUUID`
-- Remove `follow-redirects`; requests use `node:http`/`node:https` and the registry client follows redirects itself
-- Bump ip-address from 10.4.0 to 10.7.2
+- Bump vite from 8.3.2 to 8.3.5 (#2357)
+- Replace `is-ci` with `ci-info` 4.4.0 (#2377)
+- Bump undici from 8.11.2 to 8.12.3 (#2387)
+- Resolve `@azure/msal-node` to 7.1.1 (#2388)
+- Upgrade `yarn` from 4.9.1 to 4.18.1 and set `npmMinimalAgeGate` to 7 days, so versions published in the last 7 days are not picked for new resolutions (#2393)
+
+## [1.3.0] - 2026-10-16
+
+### Changed
+
+- `publish` checks a package against the size limit that applies to its own namespace, which a size override can raise above the registry default, and refuses an oversized upload before sending it. Against a registry older than 1.3.0, which cannot report that limit, it warns against the default and publishes anyway; if a registry that should be able to report it does not answer, it says the check did not happen rather than passing silently ([#2129](https://github.com/eclipse-openvsx/openvsx/issues/2129))
+
+### Fixed
+
+- `--version` reads the version from `package.json` at runtime instead of a generated `src/version.ts`, so it can no longer report a stale version (#2295)
+- `publish` now deletes the `.vsix` it packages into the temp directory once publishing finishes or fails, instead of leaving one behind per package and target (#2286)
+- Drop the `X-OpenVSX-Token` header, which carries the personal access token when `--username`/`--password` are set, on a redirect to another origin, as is done for `Authorization` (#2309)
+- A request with a body that is redirected with 301/302/303 now fails with an error naming the redirect target, instead of being resent as a GET without its body (#2309)
+- Trusted publishing's OIDC ID token request now uses the registry client's request handling: it follows redirects (dropping the runner token on a redirect to another origin) and reports the token service's error message instead of only its status (#2322)
+- An HTML page in a successful response (any `<!doctype html>` casing, or a `text/html` Content-Type) now fails with an error naming the status, instead of printing the raw HTML or a JSON `SyntaxError` (#2326)
+- An error response whose JSON body starts with whitespace now reports the server's message instead of only its status (#2326)
+
+### Dependencies
+
+- Bump commander from 6.2.1 to 14.0.3; a command given more arguments than it takes now fails instead of ignoring the extras (#2294)
+- Bump @vscode/vsce from 3.7.1 to 4.0.0 (#2288)
+- Bump vitest from 4.1.11 to 5.0.3, adding `vite` as a direct dev dependency - vitest 5 no longer bundles it, only requires it as a peer (#2291)
+- Remove `leven`; the command-suggestion distance check now uses a vendored Levenshtein implementation, the same way `@vscode/vsce` itself replaced its own `leven` dependency in 4.0.0 (#2290)
+- Remove `tmp`; temporary file names are now generated with `crypto.randomUUID` (#2284)
+- Remove `follow-redirects`; requests use `node:http`/`node:https` and the registry client follows redirects itself (#2309)
+- Bump ip-address from 10.4.0 to 10.7.2 (#2264)
 - Bump brace-expansion to 1.1.21, 2.1.7, 5.0.12
-- Bump markdown-it from 14.2.0 to 14.3.2
+- Bump markdown-it from 14.2.0 to 14.3.2 (#2281)
 
-### [v1.2.0] (10/09/2026)
+## [v1.2.0] - 2026-09-10
 
-#### Added
+### Added
 
 - Add `--follow-symlinks` to `publish`, forwarding `vsce`'s option of the same name so that the file walk recurses into symlinked directories instead of packing each symlink as a file. Needed for a `node_modules` assembled out of symlinks, as pnpm's is ([#368](https://github.com/eclipse-openvsx/openvsx/issues/368))
 - Add `search` command to search the registry for extensions, mirroring the web UI's search: `--category`, `--target`, `--sort-by` and `--sort-order` narrow the query, `--size` and `--offset` page through the results, and `--json` prints the registry's raw response ([#2154](https://github.com/eclipse-openvsx/openvsx/pull/2154))
@@ -43,7 +61,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Add `verify` command to check a downloaded `.vsix` package's signature against the registry's public key, mirroring `vsce verify-signature` ([#993](https://github.com/eclipse-openvsx/openvsx/issues/993))
 - Add `verify-signature` command, verifying an already-extracted package/manifest/signature file trio entirely offline (no registry involved), matching `vsce verify-signature`'s own command shape ([#993](https://github.com/eclipse-openvsx/openvsx/issues/993))
 
-#### Fixed
+### Fixed
 
 - Error messages naming a URL no longer include its query string, which for `createNamespace`, `verifyPat`, `publish` and `delete` carried the personal access token straight to stderr and into CI logs ([#2186](https://github.com/eclipse-openvsx/openvsx/pull/2186))
 - A connection lost after a JSON response has started no longer leaves the command waiting on a body that is not coming: the response's own error is now what settles the request, so it fails with the reset rather than hanging ([#2186](https://github.com/eclipse-openvsx/openvsx/pull/2186))
@@ -51,7 +69,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 - Fix downloads that could be read before they were written. `download` resolved when the response ended rather than when the file was closed, and a write stream opens and flushes asynchronously, so a caller reading the path immediately afterwards could find the file empty or absent - which `verify` did, intermittently failing to read the public key it had just fetched. A failed download no longer touches the target path: the body is written beside it and renamed into place only once it has arrived whole, so a 404 or a dropped connection leaves what was there alone. A connection dropped mid-download now rejects rather than leaving the caller waiting forever ([#2185](https://github.com/eclipse-openvsx/openvsx/pull/2185))
 
-#### Changed
+### Changed
 
 - `createNamespace`, `verifyPat`, `publish` and `delete` now send the personal access token primarily via an `Authorization: Bearer` header (or, when `OVSX_USERNAME`/`OVSX_PASSWORD` are set, an `X-OpenVSX-Token` header, since `Authorization` is then already in use for Basic auth to a fronting proxy), moving away from a `token` query parameter that gets recorded in server and reverse-proxy access logs. The CLI checks the registry's reported version (`/api/version`) and only still sends the token as a query parameter, alongside the header, when talking to a registry older than 1.3.0, i.e. one that predates header support - including one whose version can't be determined at all, which is treated as too old rather than assumed to be caught up; on 1.3.0 and later the header is all it sends ([#1344](https://github.com/eclipse-openvsx/openvsx/issues/1344))
 - `publish --trusted-publishing` retries the token exchange when the registry answers that it could not verify the ID token (502, 503, 504), rather than failing the build on a blip reaching the identity provider. A refusal is never retried
@@ -66,7 +84,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump js-yaml from 4.3.1 to 4.3.2
 - Bump nanoid from 3.3.16 to 3.3.18
 
-### [v1.1.1] (09/08/2026)
+## [v1.1.1] - 2026-08-09
 
 ### Dependencies
 
@@ -74,28 +92,28 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump fast-uri from `3.1.4` to `3.1.5`
 - Bump js-yaml from `4.3.0` to `4.3.1`
 
-### [v1.1.0] (02/08/2026)
+## [v1.1.0] - 2026-08-02
 
-#### Added
+### Added
 
 - Add an encrypted filestore as fallback to the system keychain if it cant be accessed ([#1950](https://github.com/eclipse/openvsx/pull/1950))
 - Add `--allow-missing-repository` option to the `publish` command, passed on to `vsce` to package an extension whose `package.json` has no `repository` field without asking for confirmation ([#1735](https://github.com/eclipse-openvsx/openvsx/issues/1735))
 - Support trusted publishing: `publish` can exchange an OIDC ID token for a short-lived publishing token, via `--trusted-publishing`, `--idToken` and `--oidcAudience`
 
-#### Changed
+### Changed
 
 - Replace `keytar` with `cross-keychain` to store credentials in the system keychain ([#1950](https://github.com/eclipse/openvsx/pull/1950))
 - Mask token input when using `login` command ([#1966](https://github.com/eclipse-openvsx/openvsx/pull/1966)
 
-#### Dependencies
+### Dependencies
 
 - Bump js-yaml from `4.2.0` to `4.3.0` ([#1976](https://github.com/eclipse/openvsx/pull/1976))
 - Bump tar from `7.5.16` to `7.5.21` ([#1987](https://github.com/eclipse/openvsx/pull/1987))
 - Bump brace-expansion from `1.1.16` to `1.1.18` ([#2031](https://github.com/eclipse/openvsx/pull/2031))
 
-### [v1.0.2] (23/06/2026)
+## [v1.0.2] - 2026-06-23
 
-#### Dependencies
+### Dependencies
 
 - Bump tmp from `0.2.6` to `0.2.7` ([#1903](https://github.com/eclipse/openvsx/pull/1903))
 - Bump tar from `7.5.11` to `7.5.16` ([#1911](https://github.com/eclipse/openvsx/pull/1911))
@@ -103,31 +121,31 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump js-yaml from `4.1.1` to `4.2.0` ([#1912](https://github.com/eclipse/openvsx/pull/1912))
 - Bump markdown-it from `14.1.1` to `14.2.0` ([#1913](https://github.com/eclipse/openvsx/pull/1913))
 
-### [v1.0.1] (11/06/2026)
+## [v1.0.1] - 2026-06-11
 
 ### Fixes
 
 - Properly encode path segments in `getUrl` method ([#1893](https://github.com/eclipse/openvsx/pull/1893))
 
-### [v1.0.0] (28/05/2026)
+## [v1.0.0] - 2026-05-28
 
-#### Dependencies
+### Dependencies
 
 - Bump fast-uri from `3.1.0` to `3.1.2` ([#1829](https://github.com/eclipse/openvsx/pull/1829))
 - Bump brace-expansion from `5.0.5` to `5.0.6` ([#1846](https://github.com/eclipse/openvsx/pull/1846))
 - Bump qs from `6.15.0` to `6.15.2` ([#1869](https://github.com/eclipse/openvsx/pull/1869))
 - Bump tmp from `0.2.4` to `0.2.6` ([#1877](https://github.com/eclipse/openvsx/pull/1877))
 
-### [v0.10.12] (08/05/2026)
+## [v0.10.12] - 2026-05-08
 
-#### Dependencies
+### Dependencies
 
 - Bump follow-redirects from `1.15.6` to `1.16.0` ([#1759](https://github.com/eclipse/openvsx/pull/1759))
 - Bump ip-address from `10.1.0` to `10.2.0` ([#1820](https://github.com/eclipse/openvsx/pull/1820))
 
-### [v0.10.11] (13/04/2026)
+## [v0.10.11] - 2026-04-13
 
-#### Dependencies
+### Dependencies
 
 - Bump picomatch from `2.3.1` to `2.3.2` ([#1719](https://github.com/eclipse/openvsx/pull/1719))
 - Bump picomatch from `4.0.3` to `4.0.4`
@@ -136,9 +154,9 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump brace-expansion from `5.0.4` to `5.0.5`
 - Bump lodash from `4.17.23` to `4.18.1` ([#1745](https://github.com/eclipse/openvsx/pull/1745))
 
-### [v0.10.10] (Mar. 2026)
+## [v0.10.10] - 2026-03-25
 
-#### Dependencies
+### Dependencies
 
 - Bump ajv from `6.12.6` to `6.14.0` ([#1632](https://github.com/eclipse/openvsx/pull/1632))
 - Bump ajv from `8.17.1` to `8.18.0`
@@ -147,60 +165,60 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump underscore from `1.13.6` to `1.13.8` ([#1656](https://github.com/eclipse/openvsx/pull/1656))
 - Bump flatted from `3.3.1` to `3.4.2` ([#1703](https://github.com/eclipse/openvsx/pull/1703))
 
-### [v0.10.9] (Feb. 2026)
+## [v0.10.9] - 2026-02-05
 
-#### Fixes
+### Fixes
 
 - Support custom registry url including a subpath ([#1542](https://github.com/eclipse/openvsx/pull/1542))
 
-#### Changes
+### Changes
 
 - Move `ovsx` script to `bin` directory ([#1538](https://github.com/eclipse/openvsx/pull/1538))
 - Disable the automatic execution of lifecycle scripts by yarn ([#1546](https://github.com/eclipse/openvsx/pull/1546))
 
-#### Dependencies
+### Dependencies
 
 - Bump lodash from 4.17.21 to 4.17.23 ([#1567](https://github.com/eclipse/openvsx/pull/1567))
 - Bump tar from 6.2.1 to 7.5.7
 
-### [v0.10.8] (Jan. 2026)
+## [v0.10.8] - 2026-01-06
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `jws` from `3.2.2` to `4.0.1` ([#1482](https://github.com/eclipse/openvsx/pull/1482))
 - Upgrade `@vscode/vsce` from `3.2.1` to `3.7.1` ([#1482](https://github.com/eclipse/openvsx/pull/1482))
 
-### [v0.10.7] (Nov. 2025)
+## [v0.10.7] - 2025-11-21
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `glob` from `10.3.10` to `10.5.0` ([#1423](https://github.com/eclipse/openvsx/pull/1423))
 - Upgrade `js-yaml` from `4.1.0` to `4.1.1` ([#1417](https://github.com/eclipse/openvsx/pull/1417))
 
-### [v0.10.6] (Sep. 2025)
+## [v0.10.6] - 2025-09-30
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `tar-fs` from `2.1.3` to `2.1.4` ([#1353](https://github.com/eclipse/openvsx/pull/1353))
 - Upgrade `tmp` from `0.2.3` to `0.2.4` ([#1304](https://github.com/eclipse/openvsx/pull/1304))
 - Upgrade `form-data` from `4.0.0` to `4.0.4` ([#1291](https://github.com/eclipse/openvsx/pull/1291))
 
-### v0.10.5 (Jul. 2025)
+## [v0.10.5] - 2025-07-08
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `brace-expansion` from `2.0.1` to `2.0.2` ([#1273](https://github.com/eclipse/openvsx/pull/1273))
 - Upgrade `brace-expansion` from `1.1.11` to `1.1.12` ([#1261](https://github.com/eclipse/openvsx/pull/1261))
 
-### v0.10.4 (Jun. 2025)
+## [v0.10.4] - 2025-06-03
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `tar-fs` from `2.1.2` to `2.1.3` ([#1252](https://github.com/eclipse/openvsx/pull/1252))
 
-### v0.10.3 (Jun. 2025)
+## [v0.10.3] - 2025-06-01
 
-#### Bug Fixes
+### Bug Fixes
 
 - Use nullish coalescing ([#1233](https://github.com/eclipse/openvsx/pull/#1233))
 - Move personal access token functionality to `pat.ts` ([#1225](https://github.com/eclipse/openvsx/pull/#1225))
@@ -209,195 +227,195 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Move PAT functionality from `util.ts` to `login.ts` ([#1220](https://github.com/eclipse/openvsx/pull/#1220))
 - Expected the Promise rejection reason to be an Error ([#1197](https://github.com/eclipse/openvsx/pull/1197))
 
-#### Dependencies
+### Dependencies
 
 - Replace `yauzl` with `yauzl-promise` ([#1226](https://github.com/eclipse/openvsx/pull/1226))
 - Upgrade `yarn` from `4.5.1` to `4.9.1` ([#1190](https://github.com/eclipse/openvsx/pull/1190))
 
-### v0.10.2 (Apr. 2025)
+## [v0.10.2] - 2025-04-14
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `tar-fs` from `2.1.1` to `2.1.2` ([#1163](https://github.com/eclipse/openvsx/pull/1163))
 
-### v0.10.1 (Nov. 2024)
+## [v0.10.1] - 2024-11-20
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `@vscode/vsce` from `3.1.0` to `3.2.1` ([#1047](https://github.com/eclipse/openvsx/pull/1047))
 
-### v0.10.0 (Oct. 2024)
+## [v0.10.0] - 2024-10-08
 
-#### New Features
+### New Features
 
 - Added `login` command to add a namespace to the list of known namespaces ([#1012](https://github.com/eclipse/openvsx/pull/1012))
 - Added `logout` command to remove a namespace from the list of known namespaces ([#1012](https://github.com/eclipse/openvsx/pull/1012))
 - Added CLI parameter `--packageVersion` to set the version of the provided VSIX packages ([#1013](https://github.com/eclipse/openvsx/pull/1013))
 
-#### Dependencies
+### Dependencies
 
 - Added dependency to `yauzl` ([#1012](https://github.com/eclipse/openvsx/pull/1012))
 
-### [v0.9.5] (Sep. 2024)
+## [v0.9.5] - 2024-09-25
 
-#### Breaking Changes
+### Breaking Changes
 
 - The minimum version of Node.js required is now `20` because of the newer `@vscode/vsce`
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `@vscode/vsce` from `2.25.0` to `3.1.0` ([#994](https://github.com/eclipse/openvsx/pull/994))
 - Upgrade `commander` from `6.1.0` to `6.2.1` ([#994](https://github.com/eclipse/openvsx/pull/994))
 - Upgrade `tmp` from `0.2.1` to `0.2.3` ([#994](https://github.com/eclipse/openvsx/pull/994))
 
-### [v0.9.4] (Sep. 2024)
+## [v0.9.4] - 2024-09-11
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `micromatch` from `4.0.5` to `4.0.8` ([#978](https://github.com/eclipse/openvsx/pull/978))
 
-### [v0.9.2] (July 2024)
+## [v0.9.2] - 2024-07-23
 
-#### Bug Fixes
+### Bug Fixes
 
 - Remove default universal for get operation ([#944](https://github.com/eclipse/openvsx/pull/944))
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `braces` from `3.0.2` to `3.0.3` ([#953](https://github.com/eclipse/openvsx/pull/953))
 
-### [v0.9.1] (Apr. 2024)
+## [v0.9.1] - 2024-04-17
 
-#### Bug Fixes
+### Bug Fixes
 
 - Add `BufferEncoding` type to parameter ([#896](https://github.com/eclipse/openvsx/pull/896))
 - Lower the minimum version of Node.js required from `18` to `16` ([microsoft/vscode-vsce#944](https://github.com/microsoft/vscode-vsce/issues/944))
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `@vscode/vsce` from `2.24.0` to `2.25.0` ([#896](https://github.com/eclipse/openvsx/pull/896))
 - Upgrade `tar` from `6.2.0` to `6.2.1` ([#893](https://github.com/eclipse/openvsx/pull/893))
 
-### [v0.9.0] (Mar. 2024)
+## [v0.9.0] - 2024-03-28
 
-#### Breaking Changes
+### Breaking Changes
 
 - The minimum version of Node.js required is now `18` because of the newer `@vscode/vsce`
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `@vscode/vsce` from `2.19.0` to `2.24.0` ([#878](https://github.com/eclipse/openvsx/pull/878))
 - Upgrade `semver` from `7.5.2` to `7.6.0` ([#878](https://github.com/eclipse/openvsx/pull/878))
 
-### [v0.8.4] (Mar. 2024)
+## [v0.8.4] - 2024-03-20
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `follow-redirects` from `1.14.8` to `1.15.6` ([#869](https://github.com/eclipse/openvsx/pull/869))
 - Upgrade `ip` from `2.0.0` to `2.0.1` ([#858](https://github.com/eclipse/openvsx/pull/858))
 
-### [v0.8.3] (Aug. 2023)
+## [v0.8.3] - 2023-08-08
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `yarn` from `1.22.19` to `3.6.1` ([#793](https://github.com/eclipse/openvsx/pull/793))
 - Upgrade `word-wrap` from `1.2.3` to `1.2.4` ([#787](https://github.com/eclipse/openvsx/pull/787))
 
-### [v0.8.2] (July 2023)
+## [v0.8.2] - 2023-07-05
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `vcse` from `2.15.0` to `2.19.0` ([#775](https://github.com/eclipse/openvsx/pull/775))
 - Upgrade `semver` from `5.7.1` to `7.5.2` ([#763](https://github.com/eclipse/openvsx/pull/763))
 
-### [v0.8.1] (May. 2023)
+## [v0.8.1] - 2023-05-05
 
-#### Dependencies
+### Dependencies
 
 - Added explicit dependency to `semver` ([#733](https://github.com/eclipse/openvsx/pull/733))
 
-### [v0.8.0] (Jan. 2023)
+## [v0.8.0] - 2023-01-07
 
-#### New Features
+### New Features
 
 - Added CLI parameter `--skip-duplicate` to  fail silently if version already exists on the marketplace ([#646](https://github.com/eclipse/openvsx/pull/646))
 
-### [v0.7.1] (Dec. 2022)
+## [v0.7.1] - 2022-12-09
 
-#### Dependencies
+### Dependencies
 
 - Migrated from deprecated `vcse` to `@vscode/vsce` ([#637](https://github.com/eclipse/openvsx/pull/637))
 
-### [v0.7.0] (Dec. 2022)
+## [v0.7.0] - 2022-12-08
 
-#### New Features
+### New Features
 
 - Added CLI parameter `--no-dependencies` to disable dependency detection ([#635](https://github.com/eclipse/openvsx/pull/635))
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `vcse` from `2.7.0` to `2.15.0` ([#635](https://github.com/eclipse/openvsx/pull/635))
 
-### [v0.6.0] (Nov. 2022)
+## [v0.6.0] - 2022-11-30
 
-#### New Features
+### New Features
 
 - Added verify-pat command ([#624](https://github.com/eclipse/openvsx/pull/624))
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `vcse` from `2.6.3` to `2.7.0` ([#621](https://github.com/eclipse/openvsx/pull/621))
 
-### [v0.5.0] (Mar. 2022)
+## [v0.5.0] - 2022-05-31
 
-#### New Features
+### New Features
 
 - Added CLI parameter `--target` to support target platforms ([#406](https://github.com/eclipse/openvsx/pull/406))
 
-### [v0.4.0] (Feb. 2022)
+## [v0.4.0] - 2022-05-31
 
-#### New Features
+### New Features
 
 - Added CLI parameter `--pre-release` to support pre-releases ([#410](https://github.com/eclipse/openvsx/pull/410))
 
-### [v0.3.0] (Jan. 2022)
+## [v0.3.0] - 2022-01-21
 
-#### Breaking Changes
+### Breaking Changes
 
 - The minimum version of Node.js required is now `14` because of the newer `vsce`
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `vsce` from `1.97.0` to `2.6.3` ([#403](https://github.com/eclipse/openvsx/pull/403))
 - Upgrade `follow-redirects`
 - Upgrade `nth-check`
 
-### [v0.2.1] (Sep. 2021)
+## [v0.2.1] - 2021-09-10
 
-#### New Features
+### New Features
 
 - Also accept `LICENCE` files (alternative spelling to `LICENSE`) ([#307](https://github.com/eclipse/openvsx/pull/307))
 - Remove `--web` option (it will now be inferred from the `package.json` file)
 
-#### Dependencies
+### Dependencies
 
 - Upgrade `vsce` from `1.93.0` to `1.97.0`
 
-### [v0.2.0] (Jun. 2021)
+## [v0.2.0] - 2021-06-17
 
-#### New Features
+### New Features
 
 - Added CLI parameter `--web` for web extensions ([#262](https://github.com/eclipse/openvsx/pull/262))
 
-#### Bug Fixes
+### Bug Fixes
 
 - Fixed handling of unknown commands ([#302](https://github.com/eclipse/openvsx/issues/302))
 
-#### Dependencies
+### Dependencies
 
 - Updated the `vsce` dependency from 1.84.0 to 1.93.0 ([#300](https://github.com/eclipse/openvsx/issues/300))
 - Added explicit dependency to `tmp` ([#254](https://github.com/eclipse/openvsx/issues/254))
 
-### [v0.1.0] (Apr. 2021)
+## [v0.1.0] - 2021-04-13
 
 First release of Open VSX with the Eclipse Foundation.

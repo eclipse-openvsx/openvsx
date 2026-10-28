@@ -1,70 +1,121 @@
-## Eclipse Open VSX Change Log
+# Eclipse Open VSX Change Log
 
 This change log covers only the server of Open VSX.
 
 Releases up to and including v1.2.0 were backfilled from the GitHub release notes. Those list every pull request of the repository, so they also contain web UI and CLI changes.
 
-### [next] (unreleased)
+## [next] (unreleased)
 
-#### Added
+### Added
+
+- Publisher agreements without an external service: set `ovsx.publisher-agreement.version` (such as `1`, `1.0` or `1.0.0`) and `ovsx.publisher-agreement.text` to make users sign before publishing; a new major version makes signatures outdated, unless `ovsx.publisher-agreement.allowed-versions` names the versions whose signatures stay valid ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- An outdated agreement stops publishing until it is signed again, while a revoked or missing one also takes extensions offline on the startup compliance check ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+
+### Changed
+
+- The Eclipse publisher agreement and OAuth login moved behind the `PublisherAgreementProvider` and `ExternalLoginProvider` extension points, and `UserJson.publisherAgreement` gains `loginProvider` and `loginProviderName` ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- A login of any provider returns to the page that started it, when that page is passed as `redirect`, instead of the `eclipse` login always going to the profile page ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- Signing an agreement that is already signed answers 200 instead of 400, and `additionalLogins[].loginName` of a user is no longer set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- **Upgrade:** the `ovsx.eclipse.*` properties, their deployment descriptor entries and the Eclipse handling of `generate-properties.sh` (`ECLIPSE_CLIENT_*`, and the `ovsx.publishing.require-license=true` it set) are removed without a fallback, so `ovsx.eclipse.check-compliance-on-start` becomes `ovsx.publisher-agreement.check-compliance-on-start`; a deployment that needs Eclipse supplies a `@Primary` `PublisherAgreementProvider`, otherwise everyone may publish unless `ovsx.publisher-agreement.version` is set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- `ovsx.data.mirror.requests-per-second` now spaces upstream requests evenly instead of allowing a burst of up to one second of requests after an idle period ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
+- A failed namespace change is retried once, instead of ten times as JobRunr does by default ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
+
+### Removed
+
+- `CodedAuthException.ECLIPSE_MISSING_GITHUB_ID` and `ECLIPSE_MISMATCH_GITHUB_ID` are removed; a login provider that needs such codes defines them itself ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- The columns `user_data.eclipse_token` and `user_data.eclipse_person_id` are dropped, with `UserData.eclipseToken`/`eclipsePersonId`, `AuthToken` and `AuthTokenConverter` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- **Upgrade:** migration `V1_83` fails, and so does the startup, while either column still holds data; a deployment that uses them copies the rows to its own table and sets both columns to `NULL` first, in a migration that sorts before `V1_83` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- `AdminService.forgetUser` publishes a `UserForgottenEvent(userId)` in the erasure's transaction, whether the row is deleted or anonymized, for a deployment that keeps personal data of a user elsewhere to clear it ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+
+### Fixed
+
+- Moving extensions into an existing namespace no longer reverts edits made to that namespace while its files were being copied ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
+- Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
+
+### Dependencies
+
+- Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
+- Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
+
+## [1.3.2] - 2026-10-27
+
+### Fixed
+
+- Stop evicting the extension caches per extension after download ingestion, which ran one Redis keyspace scan each and overloaded the cache; cached download counts now refresh on the cache TTL ([#2404](https://github.com/eclipse-openvsx/openvsx/pull/2404))
+
+## [1.3.1] - 2026-10-24
+
+### Fixed
+
+- `namespaceOwnershipConflict` on the admin and own-extension endpoints is no longer reported once the namespace has an owner, which left a stale "Namespace not verified" notice on extensions whose scan had recorded the conflict ([#2380](https://github.com/eclipse-openvsx/openvsx/pull/2380))
+- Accept OAuth token responses with long headers, which GitHub now sends and httpcore5 5.4.3+ rejected with `Maximum line length limit exceeded`, breaking login ([#2381](https://github.com/eclipse-openvsx/openvsx/pull/2381))
+
+## [1.3.0] - 2026-10-16
+
+### Added
 
 - Add fine-grained admin permissions ([#2269](https://github.com/eclipse-openvsx/openvsx/pull/2269))
-- Configurable extension size limits with namespace overrides ([#2287](https://github.com/eclipse-openvsx/openvsx/pull/2287))
-- Optimize extensionQuery ([#2161](https://github.com/eclipse-openvsx/openvsx/pull/2161))
-- Harmonize license headers in the formatting pipeline ([#2265](https://github.com/eclipse-openvsx/openvsx/pull/2265))
-- Allow generate-download-logs.sh to query a remote postgres ([#2239](https://github.com/eclipse-openvsx/openvsx/pull/2239))
+- Configurable extension size limits with namespace overrides, bounded by `ovsx.publishing.max-override-size` ([#2287](https://github.com/eclipse-openvsx/openvsx/pull/2287), [#2303](https://github.com/eclipse-openvsx/openvsx/pull/2303))
 - Backfill download events from access logs ([#2228](https://github.com/eclipse-openvsx/openvsx/pull/2228))
 - Prompt anonymous visitors to log in on the reviews tab ([#2148](https://github.com/eclipse-openvsx/openvsx/pull/2148))
 - Add a Caches page to the admin dashboard ([#2203](https://github.com/eclipse-openvsx/openvsx/pull/2203))
-- Time-series download analytics ([#2134](https://github.com/eclipse-openvsx/openvsx/pull/2134))
-- Give download analytics its own time-series database ([#2133](https://github.com/eclipse-openvsx/openvsx/pull/2133))
+- Time-series download analytics, kept off extension pages until an admin switches them on, so a registry can backfill its download history first ([#2134](https://github.com/eclipse-openvsx/openvsx/pull/2134), [#2340](https://github.com/eclipse-openvsx/openvsx/pull/2340))
+- Give download analytics its own time-series database; the registry starts and keeps serving while it is unreachable, and log files are kept until their events are stored ([#2133](https://github.com/eclipse-openvsx/openvsx/pull/2133), [#2336](https://github.com/eclipse-openvsx/openvsx/pull/2336))
 - Scope personal access tokens to a namespace or an extension, and add publishing-only tokens ([#2296](https://github.com/eclipse-openvsx/openvsx/pull/2296))
 - Publish a `SettingsChangedEvent` after the site settings change ([#2316](https://github.com/eclipse-openvsx/openvsx/pull/2316))
+- Serve runtime settings a deployment registers as its own `WritableSetting` beans on `/admin/settings`, and on `/api/-/settings` when they are a `PublicSetting`, as camelCase properties named after their row keys ([#2340](https://github.com/eclipse-openvsx/openvsx/pull/2340))
 - Expose the download size of each target platform as `downloadSizes` on the extension API response ([#2168](https://github.com/eclipse-openvsx/openvsx/pull/2168))
 - Add a consistency check that finds and repairs extensions whose stored average rating or review count differs from their active reviews, see #2327 ([#2328](https://github.com/eclipse-openvsx/openvsx/pull/2328))
 - Add a `DISPLAY_NAME_CONFLICT` publish check that rejects a new extension, or a rename, onto the exact display name of another publisher's active extension; configured under `ovsx.scanning.display-name-conflict` and only run when scanning is enabled
 - Migrations `V1_81` (expression index on `extension_version` display names) and `V1_82` (`extension_scan.declared_display_name`); `V1_81` briefly blocks writes to `extension_version` and can be created `CONCURRENTLY` beforehand, see the migration file
+- Add `GET /admin/analytics/status`, which reports whether download analytics is enabled and reachable and how many log files wait for it, for the admin dashboard ([#2337](https://github.com/eclipse-openvsx/openvsx/pull/2337))
+- Record the CI run behind a trusted-publishing upload when the token carries it: GitHub's `job_workflow_ref`, `run_id` and `workflow_sha`, GitLab's `pipeline_id`, `job_id` and `sha` ([#2283](https://github.com/eclipse-openvsx/openvsx/pull/2283))
 
-#### Changed
+### Changed
 
+- **Upgrade:** migration `V1_78` makes `extension_version.published_by_id` `NOT NULL` and stops the server from starting if a row is still `NULL`. Versions published before 1.2.0 without a recorded token have no publisher to backfill, so check `SELECT count(*) FROM extension_version WHERE published_by_id IS NULL` returns 0 before upgrading ([#2276](https://github.com/eclipse-openvsx/openvsx/pull/2276))
+- `/vscode/gallery/extensionquery` loads only the versions it returns instead of every active version of each matched extension, pre-releases included ([#2161](https://github.com/eclipse-openvsx/openvsx/pull/2161))
 - Accept the personal access token via an Authorization: Bearer header ([#2209](https://github.com/eclipse-openvsx/openvsx/pull/2209))
 
-#### Fixed
+### Fixed
 
+- Stop the scheduled consistency check and the admin "Fix all" holding one transaction and database connection for the whole run, which triggered connection leak warnings and kept row locks open ([#2373](https://github.com/eclipse-openvsx/openvsx/pull/2373))
+- Refuse the trusted publishing endpoints that create or delete a trusted publisher or issue a publish token while the registry is read-only ([#2339](https://github.com/eclipse-openvsx/openvsx/pull/2339))
 - Match secret detection rules case-sensitively unless the rule has an inline `(?i)`, which stops mixed-case words such as `Asiakasdokumentaatio` being flagged as AWS keys, see #2329 ([#2330](https://github.com/eclipse-openvsx/openvsx/pull/2330))
 - Keep polling async scanners through transient errors, confirm an error status on a second poll before failing a scan, and treat every non-2xx scanner response as an error ([#2307](https://github.com/eclipse-openvsx/openvsx/pull/2307))
-- Remove the max-override-size ceiling on extension size overrides ([#2297](https://github.com/eclipse-openvsx/openvsx/pull/2297))
-- TP: store extra information ([#2283](https://github.com/eclipse-openvsx/openvsx/pull/2283))
-- Lax the claim validation ([#2282](https://github.com/eclipse-openvsx/openvsx/pull/2282))
-- Make extension_version.published_by_id NOT NULL ([#2276](https://github.com/eclipse-openvsx/openvsx/pull/2276))
+- Compare trusted-publishing claims case-insensitively, like the rest of its checks ([#2282](https://github.com/eclipse-openvsx/openvsx/pull/2282))
 - Un-deprecate extensions removed from the extension-control file ([#2261](https://github.com/eclipse-openvsx/openvsx/pull/2261))
-- The listDependencies task fails with config cache ([#2254](https://github.com/eclipse-openvsx/openvsx/pull/2254))
 - Report a namespace rename on the registry changes feed ([#2246](https://github.com/eclipse-openvsx/openvsx/pull/2246))
 - Resolve extension resources for the target platform VS Code asks for ([#2183](https://github.com/eclipse-openvsx/openvsx/pull/2183))
 - Scope the legacy token lookup to version-0 rows ([#2247](https://github.com/eclipse-openvsx/openvsx/pull/2247))
 - Prevent duplicate active reviews from concurrent requests ([#2245](https://github.com/eclipse-openvsx/openvsx/pull/2245))
 - Make extension control fail-safe and bound its HTTP timeouts ([#2242](https://github.com/eclipse-openvsx/openvsx/pull/2242))
 - Delete upstream-proxied spool file even if the client aborts ([#2241](https://github.com/eclipse-openvsx/openvsx/pull/2241))
-- Back the download analytics settled-cache with the shared cache infra ([#2235](https://github.com/eclipse-openvsx/openvsx/pull/2235))
-- Sync Spotless and jbang-fmt on org.eclipse.jdt.core 3.47.0 ([#2233](https://github.com/eclipse-openvsx/openvsx/pull/2233))
 - Repair and stop re-corrupting extensions' stale last-updated date ([#2231](https://github.com/eclipse-openvsx/openvsx/pull/2231))
 - Evict the local caches by key prefix too, instead of guessing ([#2222](https://github.com/eclipse-openvsx/openvsx/pull/2222))
 - Evict caches once the transaction has committed ([#2220](https://github.com/eclipse-openvsx/openvsx/pull/2220))
 - Clear extension caches by pattern where Redis can, as intended ([#2219](https://github.com/eclipse-openvsx/openvsx/pull/2219))
-- Bind the analytics durations so the reference can see them ([#2204](https://github.com/eclipse-openvsx/openvsx/pull/2204))
-- Point the download log generator at the silo service ([#2207](https://github.com/eclipse-openvsx/openvsx/pull/2207))
-- Code review bugs ([#2189](https://github.com/eclipse-openvsx/openvsx/pull/2189))
+- Fix infinite recursion in entity `equals`/`hashCode`, namespace logo uploads to local storage, a malformed customer CIDR aborting the IP address cache rebuild, and the missing-files job on versions without a download file ([#2189](https://github.com/eclipse-openvsx/openvsx/pull/2189))
 
-#### Dependencies
+### Dependencies
 
-- Slight updates ([#2255](https://github.com/eclipse-openvsx/openvsx/pull/2255))
-- Bump jOOQ 3.19.38 ([#2187](https://github.com/eclipse-openvsx/openvsx/pull/2187))
+- Bump jOOQ from 3.19.37 to 3.19.39 ([#2187](https://github.com/eclipse-openvsx/openvsx/pull/2187), [#2255](https://github.com/eclipse-openvsx/openvsx/pull/2255))
+- Update other dependencies to newer patch versions ([#2255](https://github.com/eclipse-openvsx/openvsx/pull/2255))
 - Bump tika to 3.3.2 ([#2240](https://github.com/eclipse-openvsx/openvsx/pull/2240))
 - Remove unused `jaxb-api` and `jaxb-impl` dependencies ([#2317](https://github.com/eclipse-openvsx/openvsx/pull/2317))
 
-### [v1.2.0] (10/09/2026)
+## [1.2.1] - 2026-10-23
 
-#### Added
+### Fixed
+
+- `namespaceOwnershipConflict` on the admin and own-extension endpoints is no longer reported once the namespace has an owner, which left a stale "Namespace not verified" notice on extensions whose scan had recorded the conflict ([#2380](https://github.com/eclipse-openvsx/openvsx/pull/2380))
+- Accept OAuth token responses with long headers, which GitHub now sends and httpcore5 5.4.3+ rejected with `Maximum line length limit exceeded`, breaking login ([#2381](https://github.com/eclipse-openvsx/openvsx/pull/2381))
+
+## [v1.2.0] - 2026-09-10
+
+### Added
 
 - Trusted Publishing support (#1980) ([#2000](https://github.com/eclipse-openvsx/openvsx/pull/2000))
 - Add a Data Consistency admin page (#1622) ([#2086](https://github.com/eclipse-openvsx/openvsx/pull/2086))
@@ -88,7 +139,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Show what a search result's score is made of in the admin dashboard ([#2179](https://github.com/eclipse-openvsx/openvsx/pull/2179))
 - Keep access tokens valid across a pepper change ([#2162](https://github.com/eclipse-openvsx/openvsx/pull/2162))
 
-#### Changed
+### Changed
 
 - Delete migration_item rows once their job completes ([#2092](https://github.com/eclipse-openvsx/openvsx/pull/2092))
 - Tolerate missing storage objects in the file-size backfill ([#2094](https://github.com/eclipse-openvsx/openvsx/pull/2094))
@@ -122,7 +173,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Document the configuration properties outside ovsx.scanning ([#2195](https://github.com/eclipse-openvsx/openvsx/pull/2195))
 - Date the unreleased properties to 1.2.0 ([#2199](https://github.com/eclipse-openvsx/openvsx/pull/2199))
 
-#### Fixed
+### Fixed
 
 - Configure /openvsx context path for OpenShift deployment and fix test extension publish paths ([#2080](https://github.com/eclipse-openvsx/openvsx/pull/2080))
 - Get rid of most build warnings ([#2085](https://github.com/eclipse-openvsx/openvsx/pull/2085))
@@ -151,7 +202,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Stop deriving the base URL from untrusted X-Forwarded-* headers ([#2196](https://github.com/eclipse-openvsx/openvsx/pull/2196))
 - Add fixed height to footer rating ([#2198](https://github.com/eclipse-openvsx/openvsx/pull/2198))
 
-#### Dependencies
+### Dependencies
 
 - Bump js-yaml from 4.3.1 to 4.3.2 ([#2160](https://github.com/eclipse-openvsx/openvsx/pull/2160))
 - Bump the github-actions group with 6 updates ([#2088](https://github.com/eclipse-openvsx/openvsx/pull/2088))
@@ -163,32 +214,32 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Bump the github-actions group with 2 updates ([#2172](https://github.com/eclipse-openvsx/openvsx/pull/2172))
 - Bump nanoid from 3.3.16 to 3.3.18 in /cli ([#2197](https://github.com/eclipse-openvsx/openvsx/pull/2197))
 
-### [v1.1.2] (20/08/2026)
+## [v1.1.2] - 2026-08-20
 
-#### Added
+### Added
 
 - Removing extension overview sidebar intermediate state ([#2072](https://github.com/eclipse-openvsx/openvsx/pull/2072))
 - Add GDPR endpoint to openvsx admin API ([#1982](https://github.com/eclipse-openvsx/openvsx/pull/1982))
 
-#### Changed
+### Changed
 
 - Update check script ([#2046](https://github.com/eclipse-openvsx/openvsx/pull/2046))
 - Add SBOM generation workflows for docker, gradle and yarn ([#1999](https://github.com/eclipse-openvsx/openvsx/pull/1999))
 
-#### Fixed
+### Fixed
 
 - Smoke tests broken by search UI redesign ([#2069](https://github.com/eclipse-openvsx/openvsx/pull/2069))
 - Restore response compression for VS Code Gallery API JSON responses ([#2073](https://github.com/eclipse-openvsx/openvsx/pull/2073))
 - Consume request body before sending response ([#2066](https://github.com/eclipse-openvsx/openvsx/pull/2066))
 - Handle non-absolute URLs in ExtensionValidator ([#2077](https://github.com/eclipse-openvsx/openvsx/pull/2077))
 
-#### Dependencies
+### Dependencies
 
 - Bump the github-actions group with 6 updates ([#2063](https://github.com/eclipse-openvsx/openvsx/pull/2063))
 
-### [v1.1.1] (09/08/2026)
+## [v1.1.1] - 2026-08-09
 
-#### Fixed
+### Fixed
 
 - Add validation for file resource name collisions ([#2036](https://github.com/eclipse-openvsx/openvsx/pull/2036))
 - Use non-generic jackson serializers for various caches ([#2037](https://github.com/eclipse-openvsx/openvsx/pull/2037))
@@ -201,7 +252,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Use jackson 2 compatible mapper for extensionquery ([#2061](https://github.com/eclipse-openvsx/openvsx/pull/2061))
 - Cap pre-release versions returned by extensionQuery ([#2062](https://github.com/eclipse-openvsx/openvsx/pull/2062))
 
-#### Dependencies
+### Dependencies
 
 - Bump jOOQ to 3.19.37 ([#2040](https://github.com/eclipse-openvsx/openvsx/pull/2040))
 - Bump Jetty to 12.1.12 ([#2043](https://github.com/eclipse-openvsx/openvsx/pull/2043))
@@ -212,13 +263,13 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Bump dompurify from 3.4.12 to 3.4.13 in /webui ([#2055](https://github.com/eclipse-openvsx/openvsx/pull/2055))
 - Bump js-yaml from 4.3.0 to 4.3.1 in /cli ([#2056](https://github.com/eclipse-openvsx/openvsx/pull/2056))
 
-### [v1.1.0] (02/08/2026)
+## [v1.1.0] - 2026-08-02
 
 Upgrade note: Spring Boot 4 bumps Elasticsearch to `9.2.8`, and there is no direct upgrade from the previous version. Either recreate the Elasticsearch PVC from scratch (the index is rebuilt on first start), or first upgrade the existing Elasticsearch image to `8.9.x`, which then upgrades itself to `9.2.8`.
 
 Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, immutable extension versions, and a feed of extension changes at `/api/-/version-changes`.
 
-#### Added
+### Added
 
 - Migrate admin pages to TanStack Query ([#1917](https://github.com/eclipse-openvsx/openvsx/pull/1917))
 - Improve user management page  ([#1847](https://github.com/eclipse-openvsx/openvsx/pull/1847))
@@ -236,7 +287,7 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Quarantine based on scanner malicious verdict ([#1991](https://github.com/eclipse-openvsx/openvsx/pull/1991))
 - Adding changes feed api ([#1859](https://github.com/eclipse-openvsx/openvsx/pull/1859))
 
-#### Changed
+### Changed
 
 - Adding prettier ([#1916](https://github.com/eclipse-openvsx/openvsx/pull/1916))
 - Add OpenAPI annotations for all endpoints in AdminAPI ([#1931](https://github.com/eclipse-openvsx/openvsx/pull/1931))
@@ -260,7 +311,7 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Ignore generated tags with __ prefix tag limit ([#2018](https://github.com/eclipse-openvsx/openvsx/pull/2018))
 - Remove deprecated fields in ExtensionJson ([#2024](https://github.com/eclipse-openvsx/openvsx/pull/2024))
 
-#### Fixed
+### Fixed
 
 - Add lower casing to namespace + extension name in cache keys ([#1924](https://github.com/eclipse-openvsx/openvsx/pull/1924))
 - Honor path-style-access parameter in S3Presigner ([#1928](https://github.com/eclipse-openvsx/openvsx/pull/1928))
@@ -279,7 +330,7 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Correctly encode + chars in storage location URLs in case of AWS ([#2011](https://github.com/eclipse-openvsx/openvsx/pull/2011))
 - Run MockMvc async handling inline to fix flaky StreamingResponseBody tests ([#2028](https://github.com/eclipse-openvsx/openvsx/pull/2028))
 
-#### Dependencies
+### Dependencies
 
 - Update tar to 7.5.19 to address CVE-2026-59874 ([#1959](https://github.com/eclipse-openvsx/openvsx/pull/1959))
 - Patch updates ([#1972](https://github.com/eclipse-openvsx/openvsx/pull/1972))
@@ -294,18 +345,18 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump tar from 7.5.19 to 7.5.22 in /webui ([#1994](https://github.com/eclipse-openvsx/openvsx/pull/1994))
 - Bump brace-expansion from 1.1.16 to 1.1.18 in /cli ([#2031](https://github.com/eclipse-openvsx/openvsx/pull/2031))
 
-### [v1.0.2] (23/06/2026)
+## [v1.0.2] - 2026-06-23
 
-#### Changed
+### Changed
 
 - Switch from mocha to vitest ([#1914](https://github.com/eclipse-openvsx/openvsx/pull/1914))
 - Add check for unsafe paths to MaliciousZipCheckService ([#1915](https://github.com/eclipse-openvsx/openvsx/pull/1915))
 
-#### Fixed
+### Fixed
 
 - Add consistent and strict http headers when serving files inside extensions ([#1922](https://github.com/eclipse-openvsx/openvsx/pull/1922))
 
-#### Dependencies
+### Dependencies
 
 - Bump tmp from 0.2.6 to 0.2.7 in /cli ([#1903](https://github.com/eclipse-openvsx/openvsx/pull/1903))
 - Bump the github-actions group with 2 updates ([#1902](https://github.com/eclipse-openvsx/openvsx/pull/1902))
@@ -322,37 +373,37 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump dompurify from 3.4.10 to 3.4.11 in /webui ([#1920](https://github.com/eclipse-openvsx/openvsx/pull/1920))
 - Bump the github-actions group with 2 updates ([#1921](https://github.com/eclipse-openvsx/openvsx/pull/1921))
 
-### [v1.0.1] (11/06/2026)
+## [v1.0.1] - 2026-06-11
 
-#### Changed
+### Changed
 
 - Update to Gradle 9.5.1 ([#1894](https://github.com/eclipse-openvsx/openvsx/pull/1894))
 
-#### Fixed
+### Fixed
 
 - Evict all relevant caches when deleting an extension ([#1890](https://github.com/eclipse-openvsx/openvsx/pull/1890))
 - Add validation for size/offset parameters for various endpoints ([#1892](https://github.com/eclipse-openvsx/openvsx/pull/1892))
 - Properly encode path segments in getUrl ([#1893](https://github.com/eclipse-openvsx/openvsx/pull/1893))
 
-#### Dependencies
+### Dependencies
 
 - Bump qs and react-router ([#1897](https://github.com/eclipse-openvsx/openvsx/pull/1897))
 - Bump the github-actions group across 1 directory with 5 updates ([#1888](https://github.com/eclipse-openvsx/openvsx/pull/1888))
 - Pin opentelemetry version to 1.63.0 ([#1899](https://github.com/eclipse-openvsx/openvsx/pull/1899))
 - Bump netty to 4.1.135.Final ([#1900](https://github.com/eclipse-openvsx/openvsx/pull/1900))
 
-### [v1.0.0] (28/05/2026)
+## [v1.0.0] - 2026-05-28
 
-#### Added
+### Added
 
 - Add read only mode ([#1835](https://github.com/eclipse-openvsx/openvsx/pull/1835))
 - Support TLS for redis connectons ([#1879](https://github.com/eclipse-openvsx/openvsx/pull/1879))
 
-#### Changed
+### Changed
 
 - Remove pull request CodeQL trigger ([#1881](https://github.com/eclipse-openvsx/openvsx/pull/1881))
 
-#### Fixed
+### Fixed
 
 - Cache S3Presigner as singleton to prevent IRSA credential refresh failure ([#1856](https://github.com/eclipse-openvsx/openvsx/pull/1856))
 - Protect sitemap parsing from possible XXE attacks ([#1876](https://github.com/eclipse-openvsx/openvsx/pull/1876))
@@ -361,68 +412,68 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Fine-tune cache control for public endpoints ([#1883](https://github.com/eclipse-openvsx/openvsx/pull/1883))
 - Ensure sequential execution of database insert commands ([#1885](https://github.com/eclipse-openvsx/openvsx/pull/1885))
 
-#### Dependencies
+### Dependencies
 
 - Bump qs from 6.15.0 to 6.15.2 in /cli ([#1869](https://github.com/eclipse-openvsx/openvsx/pull/1869))
 - Bump tmp from 0.2.4 to 0.2.6 in /cli ([#1877](https://github.com/eclipse-openvsx/openvsx/pull/1877))
 
-### [v0.34.6] (22/05/2026)
+## [v0.34.6] - 2026-05-22
 
-#### Added
+### Added
 
 - Adds retry for failed scanner jobs ([#1832](https://github.com/eclipse-openvsx/openvsx/pull/1832))
 - Expose scanner job lifecycle in scan json ([#1836](https://github.com/eclipse-openvsx/openvsx/pull/1836))
 - Support GET as method for the extensionquery endpoint ([#1867](https://github.com/eclipse-openvsx/openvsx/pull/1867))
 
-#### Changed
+### Changed
 
 - Schedule recurring jobs for scanning only when necessary ([#1840](https://github.com/eclipse-openvsx/openvsx/pull/1840))
 - Exclude jobrunr tables from jooq ([#1842](https://github.com/eclipse-openvsx/openvsx/pull/1842))
 
-#### Fixed
+### Fixed
 
 - Make Gatling simulations runnable again ([#1838](https://github.com/eclipse-openvsx/openvsx/pull/1838))
 - Add proper cache control headers for all public endpoints ([#1863](https://github.com/eclipse-openvsx/openvsx/pull/1863))
 - Correctly sort versions returned by latest endpoint in semantic order ([#1865](https://github.com/eclipse-openvsx/openvsx/pull/1865))
 
-#### Dependencies
+### Dependencies
 
 - Bump brace-expansion from 5.0.5 to 5.0.6 in /cli ([#1846](https://github.com/eclipse-openvsx/openvsx/pull/1846))
 
-### [v0.34.5] (11/05/2026)
+## [v0.34.5] - 2026-05-11
 
-#### Changed
+### Changed
 
 - Continue mirror extension versions even if one fails ([#942](https://github.com/eclipse-openvsx/openvsx/pull/942))
 
-#### Fixed
+### Fixed
 
 - Exclude displayName check in package.json validation ([#1833](https://github.com/eclipse-openvsx/openvsx/pull/1833))
 
-#### Dependencies
+### Dependencies
 
 - Bump the github-actions group with 2 updates ([#1830](https://github.com/eclipse-openvsx/openvsx/pull/1830))
 - Bump fast-uri from 3.1.0 to 3.1.2 in /cli ([#1829](https://github.com/eclipse-openvsx/openvsx/pull/1829))
 
-### [v0.34.4] (08/05/2026)
+## [v0.34.4] - 2026-05-08
 
-#### Added
+### Added
 
 - Adding duplicate zip entries after normalization check ([#1807](https://github.com/eclipse-openvsx/openvsx/pull/1807))
 
-#### Changed
+### Changed
 
 - Remove max-width setting for admin dashboard ([#1809](https://github.com/eclipse-openvsx/openvsx/pull/1809))
 - Check authId when logging in via an oauth2 provider ([#1819](https://github.com/eclipse-openvsx/openvsx/pull/1819))
 
-#### Fixed
+### Fixed
 
 - Url decode breadcrumbs ([#1806](https://github.com/eclipse-openvsx/openvsx/pull/1806))
 - Validate that metadata in package.json matches manifest ([#1825](https://github.com/eclipse-openvsx/openvsx/pull/1825))
 - Correctly calculate available and remaining rate limit tokens ([#1826](https://github.com/eclipse-openvsx/openvsx/pull/1826))
 - Using servlet decoded path over request URI ([#1822](https://github.com/eclipse-openvsx/openvsx/pull/1822))
 
-#### Dependencies
+### Dependencies
 
 - Bump thymeleaf to 3.1.5.RELEASE ([#1814](https://github.com/eclipse-openvsx/openvsx/pull/1814))
 - Bump spring boot to 3.5.14 ([#1817](https://github.com/eclipse-openvsx/openvsx/pull/1817))
@@ -430,21 +481,21 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump netty to 4.1.133.Final ([#1821](https://github.com/eclipse-openvsx/openvsx/pull/1821))
 - Update follow-redirects version in package.json ([#1823](https://github.com/eclipse-openvsx/openvsx/pull/1823))
 
-### [v0.34.3] (29/04/2026)
+## [v0.34.3] - 2026-04-29
 
-#### Fixed
+### Fixed
 
 - Latest version cache deserialization ([#1800](https://github.com/eclipse-openvsx/openvsx/pull/1800))
 
-### [v0.34.2] (28/04/2026)
+## [v0.34.2] - 2026-04-28
 
-#### Added
+### Added
 
 - Add option for admins to delete empty namespaces ([#1773](https://github.com/eclipse-openvsx/openvsx/pull/1773))
 - Add config to permit additional routes ([#1785](https://github.com/eclipse-openvsx/openvsx/pull/1785))
 - Add Kubernetes deployment manifests for self-hosted OpenVSX ([#1792](https://github.com/eclipse-openvsx/openvsx/pull/1792))
 
-#### Changed
+### Changed
 
 - Add namespace to all OpenShift deployment resources ([#1783](https://github.com/eclipse-openvsx/openvsx/pull/1783))
 - Add yarn workspaces ([#1788](https://github.com/eclipse-openvsx/openvsx/pull/1788))
@@ -452,36 +503,36 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Updating admin dashboard sidepanel implementation ([#1782](https://github.com/eclipse-openvsx/openvsx/pull/1782))
 - Remove deprecated logo_byes column in Namespace entity ([#1784](https://github.com/eclipse-openvsx/openvsx/pull/1784))
 
-#### Fixed
+### Fixed
 
 - Dashboard breadcrumbs are not decoded ([#1781](https://github.com/eclipse-openvsx/openvsx/pull/1781))
 - Ensure that `/vscode/gallery/<namespace>/<extension>/latest` only returns the latest versions ([#1791](https://github.com/eclipse-openvsx/openvsx/pull/1791))
 
-#### Dependencies
+### Dependencies
 
 - Bump postcss from 8.5.6 to 8.5.10 in /webui ([#1793](https://github.com/eclipse-openvsx/openvsx/pull/1793))
 - Bump the github-actions group with 4 updates ([#1795](https://github.com/eclipse-openvsx/openvsx/pull/1795))
 - Bump spring-security to 6.5.10 ([#1797](https://github.com/eclipse-openvsx/openvsx/pull/1797))
 - Bump react-avatar-editor to 15.1.0 ([#1787](https://github.com/eclipse-openvsx/openvsx/pull/1787))
 
-### [v0.34.1] (20/04/2026)
+## [v0.34.1] - 2026-04-20
 
-#### Added
+### Added
 
 - Add useExtensionDetail hook for managing extension details state ([#1760](https://github.com/eclipse-openvsx/openvsx/pull/1760))
 - Add icon validation to publish event ([#1766](https://github.com/eclipse-openvsx/openvsx/pull/1766))
 
-#### Changed
+### Changed
 
 - Using dynamic imports for admin and extension pages ([#1750](https://github.com/eclipse-openvsx/openvsx/pull/1750))
 
-#### Fixed
+### Fixed
 
 - Published by label text wraps ([#1765](https://github.com/eclipse-openvsx/openvsx/pull/1765))
 - Validate that all file resources are available ([#1776](https://github.com/eclipse-openvsx/openvsx/pull/1776))
 - Add download url for errroed extension scans ([#1778](https://github.com/eclipse-openvsx/openvsx/pull/1778))
 
-#### Dependencies
+### Dependencies
 
 - Bump thymeleaf to 3.1.4.RELEASE ([#1774](https://github.com/eclipse-openvsx/openvsx/pull/1774))
 - Bump follow-redirects from 1.15.6 to 1.16.0 in /cli ([#1759](https://github.com/eclipse-openvsx/openvsx/pull/1759))
@@ -489,35 +540,35 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump org.bouncycastle:bcpkix-jdk18on from 1.80 to 1.84 in /server ([#1770](https://github.com/eclipse-openvsx/openvsx/pull/1770))
 - Bump the github-actions group with 2 updates ([#1775](https://github.com/eclipse-openvsx/openvsx/pull/1775))
 
-### [v0.34.0] (13/04/2026)
+## [v0.34.0] - 2026-04-13
 
-#### Changed
+### Changed
 
 - Rate Limiting Phase 2 ([#1698](https://github.com/eclipse-openvsx/openvsx/pull/1698))
 - Improve usage stats collection with a local cache ([#1755](https://github.com/eclipse-openvsx/openvsx/pull/1755))
 
-#### Fixed
+### Fixed
 
 - Make toSearchEntry fail-safe ([#1751](https://github.com/eclipse-openvsx/openvsx/pull/1751))
 - Avoid loading extension data multiple times ([#1756](https://github.com/eclipse-openvsx/openvsx/pull/1756))
 
-#### Dependencies
+### Dependencies
 
 - Bump the github-actions group with 3 updates ([#1754](https://github.com/eclipse-openvsx/openvsx/pull/1754))
 
-### [v0.33.1] (07/04/2026)
+## [v0.33.1] - 2026-04-07
 
-#### Changed
+### Changed
 
 - Update devfile commands to use OpenVSX v0.33.0 ([#1722](https://github.com/eclipse-openvsx/openvsx/pull/1722))
 - Make malicious zip file checks a synchronous PublishCheck ([#1721](https://github.com/eclipse-openvsx/openvsx/pull/1721))
 - Fix dispatcher race condition when multiple scan jobs are dispatched in one go ([#1740](https://github.com/eclipse-openvsx/openvsx/pull/1740))
 
-#### Fixed
+### Fixed
 
 - Display usage stats in UTC timezone ([#1747](https://github.com/eclipse-openvsx/openvsx/pull/1747))
 
-#### Dependencies
+### Dependencies
 
 - Bump spring boot to 3.5.13 ([#1739](https://github.com/eclipse-openvsx/openvsx/pull/1739))
 - Bump picomatch from 4.0.3 to 4.0.4 in /webui ([#1720](https://github.com/eclipse-openvsx/openvsx/pull/1720))
@@ -531,15 +582,15 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump the github-actions group across 1 directory with 2 updates ([#1743](https://github.com/eclipse-openvsx/openvsx/pull/1743))
 - Bump lodash from 4.17.23 to 4.18.1 in /cli ([#1745](https://github.com/eclipse-openvsx/openvsx/pull/1745))
 
-### [v0.33.0] (25/03/2026)
+## [v0.33.0] - 2026-03-25
 
-#### Added
+### Added
 
 - Adding platform to scan card + some refactoring ([#1650](https://github.com/eclipse-openvsx/openvsx/pull/1650))
 - Add support for positron engine ([#1689](https://github.com/eclipse-openvsx/openvsx/pull/1689))
 - Improve access token expiry by supporting sending an email when tokens have expired ([#1701](https://github.com/eclipse-openvsx/openvsx/pull/1701))
 
-#### Changed
+### Changed
 
 - Migrate to vite for webui ([#1399](https://github.com/eclipse-openvsx/openvsx/pull/1399))
 - Check for Retry-After reposonse header when receiving 429 responses from the server ([#1637](https://github.com/eclipse-openvsx/openvsx/pull/1637))
@@ -561,7 +612,7 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Chore[devfile]: revert postgresql image in devfile ([#1699](https://github.com/eclipse-openvsx/openvsx/pull/1699))
 - Bump spring boot to 3.5.12 ([#1714](https://github.com/eclipse-openvsx/openvsx/pull/1714))
 
-#### Fixed
+### Fixed
 
 - Improve mobile menu item link styling for better usability ([#1598](https://github.com/eclipse-openvsx/openvsx/pull/1598))
 - Handle empty fullName / email of users when sending emails ([#1648](https://github.com/eclipse-openvsx/openvsx/pull/1648))
@@ -573,7 +624,7 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Make error dialog link visible on white background ([#1712](https://github.com/eclipse-openvsx/openvsx/pull/1712))
 - Display an accurate number of total hits for search ([#1716](https://github.com/eclipse-openvsx/openvsx/pull/1716))
 
-#### Dependencies
+### Dependencies
 
 - Bump ajv from 6.12.6 to 6.14.0 in /cli ([#1632](https://github.com/eclipse-openvsx/openvsx/pull/1632))
 - Bump tar from 7.5.7 to 7.5.9 in /cli ([#1624](https://github.com/eclipse-openvsx/openvsx/pull/1624))
@@ -590,35 +641,35 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump flatted from 3.3.1 to 3.4.2 in /cli ([#1703](https://github.com/eclipse-openvsx/openvsx/pull/1703))
 - Bump flatted from 3.3.1 to 3.4.2 in /webui ([#1702](https://github.com/eclipse-openvsx/openvsx/pull/1702))
 
-### [v0.32.3] (18/02/2026)
+## [v0.32.3] - 2026-02-18
 
-#### Changed
+### Changed
 
 - Improve error handling in VSCodeAPI wrt file resources ([#1625](https://github.com/eclipse-openvsx/openvsx/pull/1625))
 - Check if the IP address string can be resolved to an IPv4 address ([#1627](https://github.com/eclipse-openvsx/openvsx/pull/1627))
 - Ensure temporary extension files are deleted during publication ([#1628](https://github.com/eclipse-openvsx/openvsx/pull/1628))
 
-### [v0.32.2] (18/02/2026)
+## [v0.32.2] - 2026-02-18
 
-#### Changed
+### Changed
 
 - Fix dynamic rate limiting for customers in state evaluation ([#1623](https://github.com/eclipse-openvsx/openvsx/pull/1623))
 
-### [v0.32.1] (17/02/2026)
+## [v0.32.1] - 2026-02-17
 
-#### Changed
+### Changed
 
 - Add `ovsx.logs.aws.max-keys` config parameter ([#1619](https://github.com/eclipse-openvsx/openvsx/pull/1619))
 
-### [v0.32.0] (17/02/2026)
+## [v0.32.0] - 2026-02-17
 
-#### Added
+### Added
 
 - Support customizing the publisher agreement name and contact email ([#1550](https://github.com/eclipse-openvsx/openvsx/pull/1550))
 - Display extension unique identifier ([#1590](https://github.com/eclipse-openvsx/openvsx/pull/1590))
 - Adding admin logs to the backoffice ([#1582](https://github.com/eclipse-openvsx/openvsx/pull/1582))
 
-#### Changed
+### Changed
 
 - Support removing arbitrary reviews for admins ([#1403](https://github.com/eclipse-openvsx/openvsx/pull/1403))
 - Cleanup cli script ([#1538](https://github.com/eclipse-openvsx/openvsx/pull/1538))
@@ -644,7 +695,7 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Log if a user deletes an extension ([#1616](https://github.com/eclipse-openvsx/openvsx/pull/1616))
 - Implement dynamic tier-based rate limiting ([#1569](https://github.com/eclipse-openvsx/openvsx/pull/1569))
 
-#### Dependencies
+### Dependencies
 
 - Bump lodash from 4.17.21 to 4.17.23 in /webui ([#1557](https://github.com/eclipse-openvsx/openvsx/pull/1557))
 - Bump react-router from 6.23.1 to 6.30.2 in /webui ([#1532](https://github.com/eclipse-openvsx/openvsx/pull/1532))
@@ -652,9 +703,9 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump @isaacs/brace-expansion from 5.0.0 to 5.0.1 in /cli ([#1583](https://github.com/eclipse-openvsx/openvsx/pull/1583))
 - Bump webpack from 5.94.0 to 5.104.1 in /webui ([#1593](https://github.com/eclipse-openvsx/openvsx/pull/1593))
 
-### [v0.31.0] (06/01/2026)
+## [v0.31.0] - 2026-01-06
 
-#### Changed
+### Changed
 
 - Upgrade to Java 25 ([#1446](https://github.com/eclipse-openvsx/openvsx/pull/1446))
 - Cli 0.10.8 unreleased ([#1465](https://github.com/eclipse-openvsx/openvsx/pull/1465))
@@ -684,11 +735,11 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Add publishing workflow for frontend library ([#1526](https://github.com/eclipse-openvsx/openvsx/pull/1526))
 - Improve release workflow ([#1528](https://github.com/eclipse-openvsx/openvsx/pull/1528))
 
-#### Fixed
+### Fixed
 
 - Coalesce the max download count in case the database is empty ([#1444](https://github.com/eclipse-openvsx/openvsx/pull/1444))
 
-#### Dependencies
+### Dependencies
 
 - Bump apache:tika to 3.2.2 version ([#1462](https://github.com/eclipse-openvsx/openvsx/pull/1462))
 - Bump jws from 3.2.2 to 3.2.3 in /cli ([#1460](https://github.com/eclipse-openvsx/openvsx/pull/1460))
@@ -697,15 +748,15 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Bump qs from 6.12.0 to 6.14.1 in /cli ([#1516](https://github.com/eclipse-openvsx/openvsx/pull/1516))
 - Bump the github-actions group across 1 directory with 4 updates ([#1512](https://github.com/eclipse-openvsx/openvsx/pull/1512))
 
-### [v0.30.0] (21/11/2025)
+## [v0.30.0] - 2025-11-21
 
-#### Added
+### Added
 
 - Update OpenVSX Publisher agreement to v1.1 for dev document ([#1364](https://github.com/eclipse-openvsx/openvsx/pull/1364))
 - Add IRSA and session token support to AWS Storage Service ([#1327](https://github.com/eclipse-openvsx/openvsx/pull/1327))
 - Centering banner button ([#1405](https://github.com/eclipse-openvsx/openvsx/pull/1405))
 
-#### Changed
+### Changed
 
 - Allow admins to revoke a user's Personal Access Token ([#1415](https://github.com/eclipse-openvsx/openvsx/pull/1415))
 - Fix refreshing eclipse oauth2 token ([#1388](https://github.com/eclipse-openvsx/openvsx/pull/1388))
@@ -713,34 +764,34 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Add configuration setting to disable automatic storage migration ([#1425](https://github.com/eclipse-openvsx/openvsx/pull/1425))
 - Publisher remove extension ([#1366](https://github.com/eclipse-openvsx/openvsx/pull/1366))
 
-#### Fixed
+### Fixed
 
 - Correctly reference the request body class for the `/api/user/namespace/create` operation ([#1414](https://github.com/eclipse-openvsx/openvsx/pull/1414))
 - Handle duplicate extensions included in search results ([#1408](https://github.com/eclipse-openvsx/openvsx/pull/1408))
 
-#### Dependencies
+### Dependencies
 
 - Bump js-yaml from 4.1.0 to 4.1.1 in /cli ([#1417](https://github.com/eclipse-openvsx/openvsx/pull/1417))
 - Bump glob from 10.3.10 to 10.5.0 in /cli ([#1423](https://github.com/eclipse-openvsx/openvsx/pull/1423))
 - Bump js-yaml from 4.1.0 to 4.1.1 in /webui ([#1424](https://github.com/eclipse-openvsx/openvsx/pull/1424))
 - Bump cli version ([#1431](https://github.com/eclipse-openvsx/openvsx/pull/1431))
 
-### [v0.29.1] (30/10/2025)
+## [v0.29.1] - 2025-10-30
 
-#### Changed
+### Changed
 
 - Update springdoc ([#1381](https://github.com/eclipse-openvsx/openvsx/pull/1381))
 
-### [v0.29.0] (16/10/2025)
+## [v0.29.0] - 2025-10-16
 
-#### Changed
+### Changed
 
 - Caffeine cache fallback ([#1361](https://github.com/eclipse-openvsx/openvsx/pull/1361))
 - Add logging to CacheConfig ([#1367](https://github.com/eclipse-openvsx/openvsx/pull/1367))
 
-### [v0.28.0] (30/09/2025)
+## [v0.28.0] - 2025-09-30
 
-#### Changed
+### Changed
 
 - Update Spring Boot to 3.5.3 ([#1288](https://github.com/eclipse-openvsx/openvsx/pull/1288))
 - Update the deployment instructions for OpenShift ([#1312](https://github.com/eclipse-openvsx/openvsx/pull/1312))
@@ -754,15 +805,15 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Cli v0.10.6 ([#1352](https://github.com/eclipse-openvsx/openvsx/pull/1352))
 - Add tar-fs upgrade to CHANGELOG ([#1354](https://github.com/eclipse-openvsx/openvsx/pull/1354))
 
-#### Dependencies
+### Dependencies
 
 - Bump form-data from 4.0.0 to 4.0.4 in /cli ([#1291](https://github.com/eclipse-openvsx/openvsx/pull/1291))
 - Bump tmp from 0.2.3 to 0.2.4 in /cli ([#1304](https://github.com/eclipse-openvsx/openvsx/pull/1304))
 - Bump tar-fs from 2.1.3 to 2.1.4 in /cli ([#1353](https://github.com/eclipse-openvsx/openvsx/pull/1353))
 
-### [v0.27.0] (08/07/2025)
+## [v0.27.0] - 2025-07-08
 
-#### Changed
+### Changed
 
 - Find latest active extension version for search ([#1256](https://github.com/eclipse-openvsx/openvsx/pull/1256))
 - Make configurable whether migrations only run once per version. ([#1266](https://github.com/eclipse-openvsx/openvsx/pull/1266))
@@ -774,25 +825,25 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Cli CHANGELOG for v0.10.5 ([#1278](https://github.com/eclipse-openvsx/openvsx/pull/1278))
 - Don't assume ErrorResult in tryResolveNamespaceError ([#1281](https://github.com/eclipse-openvsx/openvsx/pull/1281))
 
-#### Dependencies
+### Dependencies
 
 - Bump brace-expansion from 1.1.11 to 1.1.12 in /cli ([#1261](https://github.com/eclipse-openvsx/openvsx/pull/1261))
 
-### [v0.26.0] (03/06/2025)
+## [v0.26.0] - 2025-06-03
 
-#### Changed
+### Changed
 
 - Add BlockHostFilter ([#1253](https://github.com/eclipse-openvsx/openvsx/pull/1253))
 - Fix CVE-2025-22235 by upgrading org.springframework.boot to 3.3.11 ([#1245](https://github.com/eclipse-openvsx/openvsx/pull/1245))
 - Cli 0.10.4 ([#1254](https://github.com/eclipse-openvsx/openvsx/pull/1254))
 
-#### Dependencies
+### Dependencies
 
 - Bump tar-fs from 2.1.2 to 2.1.3 in /cli ([#1252](https://github.com/eclipse-openvsx/openvsx/pull/1252))
 
-### [v0.25.0] (01/06/2025)
+## [v0.25.0] - 2025-06-01
 
-#### Changed
+### Changed
 
 - Use publisher agreement after signing ([#1178](https://github.com/eclipse-openvsx/openvsx/pull/1178))
 - Automate namespace claim process ([#1179](https://github.com/eclipse-openvsx/openvsx/pull/1179))
@@ -849,11 +900,11 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - V0.25.0-rc.1 changes ([#1249](https://github.com/eclipse-openvsx/openvsx/pull/1249))
 - Improve FixMissingFilesJobRequestHandler ([#1250](https://github.com/eclipse-openvsx/openvsx/pull/1250))
 
-### [v0.24.0] (14/04/2025)
+## [v0.24.0] - 2025-04-14
 
 **This release empties the `migration_item` table. Make sure all migrations have finished before deploying it.**
 
-#### Changed
+### Changed
 
 - Added a new Github tag badge ([#1157](https://github.com/eclipse-openvsx/openvsx/pull/1157))
 - Add unit tests for extensionquery flags ([#1160](https://github.com/eclipse-openvsx/openvsx/pull/1160))
@@ -864,55 +915,55 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Fix CVE-2025-22228 ([#1172](https://github.com/eclipse-openvsx/openvsx/pull/1172))
 - Cli v0.10.2 ([#1173](https://github.com/eclipse-openvsx/openvsx/pull/1173))
 
-#### Dependencies
+### Dependencies
 
 - Bump @babel/runtime from 7.24.6 to 7.26.10 in /webui ([#1153](https://github.com/eclipse-openvsx/openvsx/pull/1153))
 - Bump tar-fs from 2.1.1 to 2.1.2 in /cli ([#1163](https://github.com/eclipse-openvsx/openvsx/pull/1163))
 - Bump webui to v0.16.2 ([#1174](https://github.com/eclipse-openvsx/openvsx/pull/1174))
 
-### [v0.23.5] (19/03/2025)
+## [v0.23.5] - 2025-03-19
 
-#### Changed
+### Changed
 
 - Add delete all confirmation dialog ([#1148](https://github.com/eclipse-openvsx/openvsx/pull/1148))
 - Deactivate one time use publish token after extension publish ([#1149](https://github.com/eclipse-openvsx/openvsx/pull/1149))
 - [Bug] Emoji is invalid ([#1150](https://github.com/eclipse-openvsx/openvsx/pull/1150))
 - Remove jobs for file resources that still exist ([#1151](https://github.com/eclipse-openvsx/openvsx/pull/1151))
 
-#### Dependencies
+### Dependencies
 
 - Bump version ([#1152](https://github.com/eclipse-openvsx/openvsx/pull/1152))
 
-### [v0.23.4] (18/03/2025)
+## [v0.23.4] - 2025-03-18
 
-#### Changed
+### Changed
 
 - Async remove file resource jobs ([#1147](https://github.com/eclipse-openvsx/openvsx/pull/1147))
 
-### [v0.23.3] (17/03/2025)
+## [v0.23.3] - 2025-03-17
 
-#### Changed
+### Changed
 
 - Delete queued file resource jobs ([#1144](https://github.com/eclipse-openvsx/openvsx/pull/1144))
 - Fix JobNotFoundException ([#1145](https://github.com/eclipse-openvsx/openvsx/pull/1145))
 
-### [v0.23.2] (17/03/2025)
+## [v0.23.2] - 2025-03-17
 
-#### Changed
+### Changed
 
 - Delete old migration items ([#1143](https://github.com/eclipse-openvsx/openvsx/pull/1143))
 
-### [v0.23.1] (17/03/2025)
+## [v0.23.1] - 2025-03-17
 
-#### Changed
+### Changed
 
 - Chunked migrations ([#1140](https://github.com/eclipse-openvsx/openvsx/pull/1140))
 - Delete malicious extension and its dependencies ([#1141](https://github.com/eclipse-openvsx/openvsx/pull/1141))
 - Remove file resource job rescheduling ([#1142](https://github.com/eclipse-openvsx/openvsx/pull/1142))
 
-### [v0.23.0] (11/03/2025)
+## [v0.23.0] - 2025-03-11
 
-#### Changed
+### Changed
 
 - Readme ([#1118](https://github.com/eclipse-openvsx/openvsx/pull/1118))
 - Added Develocity setup ([#1091](https://github.com/eclipse-openvsx/openvsx/pull/1091))
@@ -925,13 +976,13 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Refactor: introduce `AuthUser` interface ([#838](https://github.com/eclipse-openvsx/openvsx/pull/838))
 - DOMPurify default import ([#1137](https://github.com/eclipse-openvsx/openvsx/pull/1137))
 
-#### Dependencies
+### Dependencies
 
 - Bump dompurify from 3.1.5 to 3.2.4 in /webui ([#1123](https://github.com/eclipse-openvsx/openvsx/pull/1123))
 
-### [v0.22.2] (20/02/2025)
+## [v0.22.2] - 2025-02-20
 
-#### Changed
+### Changed
 
 - (Java) Parentheses should be removed ([#1111](https://github.com/eclipse-openvsx/openvsx/pull/1111))
 - Nested ternary operations ([#1112](https://github.com/eclipse-openvsx/openvsx/pull/1112))
@@ -942,23 +993,23 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Move replacement JSON to own method ([#1117](https://github.com/eclipse-openvsx/openvsx/pull/1117))
 - Add docker deployment ([#1120](https://github.com/eclipse-openvsx/openvsx/pull/1120))
 
-#### Dependencies
+### Dependencies
 
 - Bump version to 0.15.1 ([#1122](https://github.com/eclipse-openvsx/openvsx/pull/1122))
 
-### [v0.22.1] (13/02/2025)
+## [v0.22.1] - 2025-02-13
 
-#### Changed
+### Changed
 
 - Process migrations in chunks ([#1109](https://github.com/eclipse-openvsx/openvsx/pull/1109))
 
-### [v0.22.0] (13/02/2025)
+## [v0.22.0] - 2025-02-13
 
-#### Added
+### Added
 
 - Make OAuth2 configuration optional ([#1057](https://github.com/eclipse-openvsx/openvsx/pull/1057))
 
-#### Changed
+### Changed
 
 - Improve file cache key ([#1099](https://github.com/eclipse-openvsx/openvsx/pull/1099))
 - Create new StreamingResponseBody ([#1101](https://github.com/eclipse-openvsx/openvsx/pull/1101))
@@ -971,9 +1022,9 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Check that userAgentHeader is set ([#1107](https://github.com/eclipse-openvsx/openvsx/pull/1107))
 - Webui v0.15.0 release ([#1108](https://github.com/eclipse-openvsx/openvsx/pull/1108))
 
-### [v0.21.1] (03/02/2025)
+## [v0.21.1] - 2025-02-03
 
-#### Changed
+### Changed
 
 - Webui v0.14.0 ([#1093](https://github.com/eclipse-openvsx/openvsx/pull/1093))
 - Replace links to Gitter with link to Slack workspace ([#1094](https://github.com/eclipse-openvsx/openvsx/pull/1094))
@@ -981,13 +1032,13 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Debug AzureDownloadCount userAgentHeader ([#1096](https://github.com/eclipse-openvsx/openvsx/pull/1096))
 - Synchronize resource file writing ([#1097](https://github.com/eclipse-openvsx/openvsx/pull/1097))
 
-### [v0.21.0] (28/01/2025)
+## [v0.21.0] - 2025-01-28
 
-#### Added
+### Added
 
 - Add configuration for OpenShift deployment and Eclipse Che development ([#1011](https://github.com/eclipse-openvsx/openvsx/pull/1011))
 
-#### Changed
+### Changed
 
 - Check that file exists ([#1054](https://github.com/eclipse-openvsx/openvsx/pull/1054))
 - Document empty method body ([#1060](https://github.com/eclipse-openvsx/openvsx/pull/1060))
@@ -1006,20 +1057,20 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Make unresolved dependency query case insensitive. ([#1089](https://github.com/eclipse-openvsx/openvsx/pull/1089))
 - Update express to update path-to-regexp ([#1090](https://github.com/eclipse-openvsx/openvsx/pull/1090))
 
-#### Dependencies
+### Dependencies
 
 - Bump dawidd6/action-download-artifact from 2 to 6 in /.github/workflows ([#1055](https://github.com/eclipse-openvsx/openvsx/pull/1055))
 - Bump nanoid from 3.3.7 to 3.3.8 in /webui ([#1069](https://github.com/eclipse-openvsx/openvsx/pull/1069))
 
-### [v0.19.1] (22/01/2025)
+## [v0.19.1] - 2025-01-22
 
-#### Changed
+### Changed
 
 - Fix included in this release: https://github.com/eclipse/openvsx/commit/217c6230dcd5da680fd988e17c21e2db925dc294
 
-### [v0.20.0] (20/11/2024)
+## [v0.20.0] - 2024-11-20
 
-#### Changed
+### Changed
 
 - Serve resource files on demand ([#1045](https://github.com/eclipse-openvsx/openvsx/pull/1045))
 - Remove this empty statement. ([#1046](https://github.com/eclipse-openvsx/openvsx/pull/1046))
@@ -1031,26 +1082,26 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Remove unused imports ([#1053](https://github.com/eclipse-openvsx/openvsx/pull/1053))
 - Fix cli 0.10.1 ([#1052](https://github.com/eclipse-openvsx/openvsx/pull/1052))
 
-### [v0.19.0] (14/11/2024)
+## [v0.19.0] - 2024-11-14
 
-#### Changed
+### Changed
 
 - Add system provider for users ([#1038](https://github.com/eclipse-openvsx/openvsx/pull/1038))
 - Add getLatest endpoint ([#1037](https://github.com/eclipse-openvsx/openvsx/pull/1037))
 - Rate limit requests in load-test-extensions ([#1040](https://github.com/eclipse-openvsx/openvsx/pull/1040))
 
-### [v0.18.1] (08/11/2024)
+## [v0.18.1] - 2024-11-08
 
-#### Changed
+### Changed
 
 - VSCodeAPI documentation ([#1031](https://github.com/eclipse-openvsx/openvsx/pull/1031))
 - Always set PublisherAgreement ([#1033](https://github.com/eclipse-openvsx/openvsx/pull/1033))
 - Call VS Code adapter a compatibility layer ([#1034](https://github.com/eclipse-openvsx/openvsx/pull/1034))
 - Add ServerErrorController ([#1035](https://github.com/eclipse-openvsx/openvsx/pull/1035))
 
-### [v0.18.0] (25/10/2024)
+## [v0.18.0] - 2024-10-25
 
-#### Changed
+### Changed
 
 - Add counter to unpkg endpoint ([#1001](https://github.com/eclipse-openvsx/openvsx/pull/1001))
 - Remove deprecated search configuration properties ([#1002](https://github.com/eclipse-openvsx/openvsx/pull/1002))
@@ -1076,9 +1127,9 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Update README.md ([#1000](https://github.com/eclipse-openvsx/openvsx/pull/1000))
 - Webui 0.13.0 ([#1028](https://github.com/eclipse-openvsx/openvsx/pull/1028))
 
-### [v0.17.0] (25/09/2024)
+## [v0.17.0] - 2024-09-25
 
-#### Changed
+### Changed
 
 - Update to express 4.21.0 ([#987](https://github.com/eclipse-openvsx/openvsx/pull/987))
 - Ovsx 0.9.5 ([#994](https://github.com/eclipse-openvsx/openvsx/pull/994))
@@ -1086,52 +1137,52 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Remove unused observations ([#995](https://github.com/eclipse-openvsx/openvsx/pull/995))
 - FileResource usage metrics ([#997](https://github.com/eclipse-openvsx/openvsx/pull/997))
 
-#### Dependencies
+### Dependencies
 
 - Bump express from 4.19.2 to 4.20.0 in /webui ([#985](https://github.com/eclipse-openvsx/openvsx/pull/985))
 
-### [v0.16.4] (11/09/2024)
+## [v0.16.4] - 2024-09-11
 
-#### Changed
+### Changed
 
 - Optimize database queries ([#976](https://github.com/eclipse-openvsx/openvsx/pull/976))
 - Enable blob deletion ([#982](https://github.com/eclipse-openvsx/openvsx/pull/982))
 - Release v0.16.4 ([#984](https://github.com/eclipse-openvsx/openvsx/pull/984))
 
-#### Dependencies
+### Dependencies
 
 - Bump micromatch from 4.0.5 to 4.0.8 in /cli ([#978](https://github.com/eclipse-openvsx/openvsx/pull/978))
 - Bump webpack from 5.91.0 to 5.94.0 in /webui ([#977](https://github.com/eclipse-openvsx/openvsx/pull/977))
 - Bump micromatch from 4.0.7 to 4.0.8 in /webui ([#981](https://github.com/eclipse-openvsx/openvsx/pull/981))
 - Bump version, published 0.93 as next ([#986](https://github.com/eclipse-openvsx/openvsx/pull/986))
 
-### [v0.16.3] (13/08/2024)
+## [v0.16.3] - 2024-08-13
 
-#### Changed
+### Changed
 
 - Update bucket4j ([#974](https://github.com/eclipse-openvsx/openvsx/pull/974))
 
-### [v0.16.2] (12/08/2024)
+## [v0.16.2] - 2024-08-12
 
-#### Changed
+### Changed
 
 - Update Spring Boot to v3.2.4 ([#969](https://github.com/eclipse-openvsx/openvsx/pull/969))
 - Update yarn to 4.3.1 ([#970](https://github.com/eclipse-openvsx/openvsx/pull/970))
 - Missing express-rate-limit in Docker image ([#971](https://github.com/eclipse-openvsx/openvsx/pull/971))
 
-### [v0.16.1] (31/07/2024)
+## [v0.16.1] - 2024-07-31
 
-#### Changed
+### Changed
 
 - Update to Spring Boot 3.2.2 ([#967](https://github.com/eclipse-openvsx/openvsx/pull/967))
 
-### [v0.16.0] (23/07/2024)
+## [v0.16.0] - 2024-07-23
 
-#### Added
+### Added
 
 - Add publisher agreement compliance check ([#954](https://github.com/eclipse-openvsx/openvsx/pull/954))
 
-#### Changed
+### Changed
 
 - Only use refresh token ([#958](https://github.com/eclipse-openvsx/openvsx/pull/958))
 - Remove default universal for get operation ([#944](https://github.com/eclipse-openvsx/openvsx/pull/944))
@@ -1139,13 +1190,13 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Use Jetty Server ([#960](https://github.com/eclipse-openvsx/openvsx/pull/960))
 - Cli 0.9.2 ([#961](https://github.com/eclipse-openvsx/openvsx/pull/961))
 
-#### Dependencies
+### Dependencies
 
 - Bump braces from 3.0.2 to 3.0.3 in /cli ([#953](https://github.com/eclipse-openvsx/openvsx/pull/953))
 
-### [v0.15.8] (24/06/2024)
+## [v0.15.8] - 2024-06-24
 
-#### Changed
+### Changed
 
 - Generate .signature.manifest ([#937](https://github.com/eclipse-openvsx/openvsx/pull/937))
 - Fix banner double button ([#940](https://github.com/eclipse-openvsx/openvsx/pull/940))
@@ -1153,17 +1204,17 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Fix Internal Server Error on publish ([#946](https://github.com/eclipse-openvsx/openvsx/pull/946))
 - Use streams to limit memory usage ([#951](https://github.com/eclipse-openvsx/openvsx/pull/951))
 
-### [v0.15.7] (05/06/2024)
+## [v0.15.7] - 2024-06-05
 
-#### Changed
+### Changed
 
 - Fix extension list debounce ([#932](https://github.com/eclipse-openvsx/openvsx/pull/932))
 - Don't use nullish coalescing everywhere ([#933](https://github.com/eclipse-openvsx/openvsx/pull/933))
 - Webui 0.11.9 ([#934](https://github.com/eclipse-openvsx/openvsx/pull/934))
 
-### [v0.15.6] (04/06/2024)
+## [v0.15.6] - 2024-06-04
 
-#### Changed
+### Changed
 
 - Create signature ZIP archive ([#928](https://github.com/eclipse-openvsx/openvsx/pull/928))
 - Debounce webui search ([#924](https://github.com/eclipse-openvsx/openvsx/pull/924))
@@ -1171,50 +1222,50 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Add smoke tests ([#867](https://github.com/eclipse-openvsx/openvsx/pull/867))
 - Fix ip SSRF improper categorization in isPublic ([#930](https://github.com/eclipse-openvsx/openvsx/pull/930))
 
-#### Dependencies
+### Dependencies
 
 - Bump webui version ([#931](https://github.com/eclipse-openvsx/openvsx/pull/931))
 
-### [v0.15.5] (17/05/2024)
+## [v0.15.5] - 2024-05-17
 
-#### Changed
+### Changed
 
 - Trim quotes from eclipse_person_id ([#919](https://github.com/eclipse-openvsx/openvsx/pull/919))
 
-### [v0.15.4] (16/05/2024)
+## [v0.15.4] - 2024-05-16
 
-#### Changed
+### Changed
 
 - Use optional chain expression ([#915](https://github.com/eclipse-openvsx/openvsx/pull/915))
 - Use nullish coalescing ([#916](https://github.com/eclipse-openvsx/openvsx/pull/916))
 - Use public profile ([#917](https://github.com/eclipse-openvsx/openvsx/pull/917))
 
-### [v0.15.3] (15/05/2024)
+## [v0.15.3] - 2024-05-15
 
-#### Changed
+### Changed
 
 - Hande Eclipse API expired token ([#914](https://github.com/eclipse-openvsx/openvsx/pull/914))
 
-### [v0.15.2] (15/05/2024)
+## [v0.15.2] - 2024-05-15
 
-#### Changed
+### Changed
 
 - Use constructor injection ([#906](https://github.com/eclipse-openvsx/openvsx/pull/906))
 - Observe publish endpoint ([#910](https://github.com/eclipse-openvsx/openvsx/pull/910))
 - Simplify publisher agreement ([#911](https://github.com/eclipse-openvsx/openvsx/pull/911))
 
-### [v0.15.1] (22/04/2024)
+## [v0.15.1] - 2024-04-22
 
-#### Changed
+### Changed
 
 - Optimize namespace details endpoint ([#900](https://github.com/eclipse-openvsx/openvsx/pull/900))
 - Add verified field to search results ([#901](https://github.com/eclipse-openvsx/openvsx/pull/901))
 - Get file urls in one query ([#904](https://github.com/eclipse-openvsx/openvsx/pull/904))
 - Add missing fields ([#905](https://github.com/eclipse-openvsx/openvsx/pull/905))
 
-### [v0.15.0] (17/04/2024)
+## [v0.15.0] - 2024-04-17
 
-#### Changed
+### Changed
 
 - Display ordered list of extension versions in admin dashboard ([#886](https://github.com/eclipse-openvsx/openvsx/pull/886))
 - Expose version of the registry service via API endpoint ([#860](https://github.com/eclipse-openvsx/openvsx/pull/860))
@@ -1223,20 +1274,20 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Update cli ([#896](https://github.com/eclipse-openvsx/openvsx/pull/896))
 - Remove unused ([#899](https://github.com/eclipse-openvsx/openvsx/pull/899))
 
-#### Fixed
+### Fixed
 
 - Case-sensitive urls ([#890](https://github.com/eclipse-openvsx/openvsx/pull/890))
 
-#### Dependencies
+### Dependencies
 
 - Bump tar from 6.2.0 to 6.2.1 in /cli ([#893](https://github.com/eclipse-openvsx/openvsx/pull/893))
 - Bump tar from 6.1.15 to 6.2.1 in /webui ([#892](https://github.com/eclipse-openvsx/openvsx/pull/892))
 - Bump express from 4.18.2 to 4.19.2 in /webui ([#885](https://github.com/eclipse-openvsx/openvsx/pull/885))
 - Bump webui ([#898](https://github.com/eclipse-openvsx/openvsx/pull/898))
 
-### [v0.14.6] (28/03/2024)
+## [v0.14.6] - 2024-03-28
 
-#### Changed
+### Changed
 
 - Fix expression injection in head_branch ([#876](https://github.com/eclipse-openvsx/openvsx/pull/876))
 - Provide rate limit feature to prevent DOS attack ([#877](https://github.com/eclipse-openvsx/openvsx/pull/877))
@@ -1246,13 +1297,13 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Use database query instead of VersionService ([#882](https://github.com/eclipse-openvsx/openvsx/pull/882))
 - Update cli CHANGELOG ([#883](https://github.com/eclipse-openvsx/openvsx/pull/883))
 
-#### Dependencies
+### Dependencies
 
 - Bump version ([#884](https://github.com/eclipse-openvsx/openvsx/pull/884))
 
-### [v0.14.5] (20/03/2024)
+## [v0.14.5] - 2024-03-20
 
-#### Changed
+### Changed
 
 - Docker compose file and extended documentation ([#854](https://github.com/eclipse-openvsx/openvsx/pull/854))
 - Fix `sortBy` and `sortOrder` ([#861](https://github.com/eclipse-openvsx/openvsx/pull/861))
@@ -1261,29 +1312,29 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Optimize Sitemap ([#873](https://github.com/eclipse-openvsx/openvsx/pull/873))
 - Change observed endpoints ([#874](https://github.com/eclipse-openvsx/openvsx/pull/874))
 
-#### Dependencies
+### Dependencies
 
 - Bump ip from 2.0.0 to 2.0.1 in /webui ([#859](https://github.com/eclipse-openvsx/openvsx/pull/859))
 - Bump ip from 2.0.0 to 2.0.1 in /cli ([#858](https://github.com/eclipse-openvsx/openvsx/pull/858))
 - Bump follow-redirects from 1.14.8 to 1.15.6 in /cli ([#869](https://github.com/eclipse-openvsx/openvsx/pull/869))
 
-### [v0.14.4] (18/03/2024)
+## [v0.14.4] - 2024-03-18
 
-#### Changed
+### Changed
 
 - Make versions endpoint case insensitive ([#852](https://github.com/eclipse-openvsx/openvsx/pull/852))
 - Add application tag for monitoring ([#853](https://github.com/eclipse-openvsx/openvsx/pull/853))
 - Configure tracing ([#857](https://github.com/eclipse-openvsx/openvsx/pull/857))
 
-### [v0.14.3] (29/01/2024)
+## [v0.14.3] - 2024-01-29
 
-#### Changed
+### Changed
 
 - Review public id updates ([#851](https://github.com/eclipse-openvsx/openvsx/pull/851))
 
-### [v0.14.2] (11/12/2023)
+## [v0.14.2] - 2023-12-11
 
-#### Changed
+### Changed
 
 - Fix "unique_extension_public_id" unique constraint violation ([#822](https://github.com/eclipse-openvsx/openvsx/pull/822))
 - Sonar config ([#829](https://github.com/eclipse-openvsx/openvsx/pull/829))
@@ -1296,13 +1347,13 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Copy libraries after running gradle ([#836](https://github.com/eclipse-openvsx/openvsx/pull/836))
 - Add unittests for admin stats job to find negative downloads bug ([#843](https://github.com/eclipse-openvsx/openvsx/pull/843))
 
-#### Dependencies
+### Dependencies
 
 - Bump webui to version 0.11.2 ([#821](https://github.com/eclipse-openvsx/openvsx/pull/821))
 
-### [v0.14.1] (26/10/2023)
+## [v0.14.1] - 2023-10-26
 
-#### Changed
+### Changed
 
 - Fix yarn publish commands ([#800](https://github.com/eclipse-openvsx/openvsx/pull/800))
 - Fix gitpod workspace ([#806](https://github.com/eclipse-openvsx/openvsx/pull/806))
@@ -1310,15 +1361,15 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Simplify admin statistics ([#814](https://github.com/eclipse-openvsx/openvsx/pull/814))
 - Update cli to yarn 4.0.0 ([#820](https://github.com/eclipse-openvsx/openvsx/pull/820))
 
-#### Dependencies
+### Dependencies
 
 - Bump webui to 0.11.1 ([#801](https://github.com/eclipse-openvsx/openvsx/pull/801))
 - Bump get-func-name from 2.0.0 to 2.0.2 in /webui ([#812](https://github.com/eclipse-openvsx/openvsx/pull/812))
 - Bump postcss from 8.4.24 to 8.4.31 in /webui ([#815](https://github.com/eclipse-openvsx/openvsx/pull/815))
 
-### [v0.14.0] (08/08/2023)
+## [v0.14.0] - 2023-08-08
 
-#### Changed
+### Changed
 
 - Exclude gatling-charts-highcharts ([#790](https://github.com/eclipse-openvsx/openvsx/pull/790))
 - Add recommended files to the repo ([#794](https://github.com/eclipse-openvsx/openvsx/pull/794))
@@ -1327,28 +1378,28 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - React version upgrade? ([#793](https://github.com/eclipse-openvsx/openvsx/pull/793))
 - Update development documentation for elastic search ([#791](https://github.com/eclipse-openvsx/openvsx/pull/791))
 
-#### Dependencies
+### Dependencies
 
 - Bump word-wrap from 1.2.3 to 1.2.4 in /cli ([#787](https://github.com/eclipse-openvsx/openvsx/pull/787))
 - Bump word-wrap from 1.2.3 to 1.2.4 in /webui ([#788](https://github.com/eclipse-openvsx/openvsx/pull/788))
 - Bump semver from 6.3.0 to 6.3.1 in /webui ([#798](https://github.com/eclipse-openvsx/openvsx/pull/798))
 - Bump cli to 0.8.3 ([#799](https://github.com/eclipse-openvsx/openvsx/pull/799))
 
-### [v0.13.4] (18/07/2023)
+## [v0.13.4] - 2023-07-18
 
-#### Changed
+### Changed
 
 - Fix v0.13.1 ([#786](https://github.com/eclipse-openvsx/openvsx/pull/786))
 
-### [v0.13.3] (18/07/2023)
+## [v0.13.3] - 2023-07-18
 
-#### Changed
+### Changed
 
 - Use job instead of @Async ([#785](https://github.com/eclipse-openvsx/openvsx/pull/785))
 
-### [v0.13.2] (15/07/2023)
+## [v0.13.2] - 2023-07-15
 
-#### Changed
+### Changed
 
 - Update review list right after user posting/revoking ([#761](https://github.com/eclipse-openvsx/openvsx/pull/761))
 - Showing download count of extensions, make empty rating stars less attractive ([#742](https://github.com/eclipse-openvsx/openvsx/pull/742))
@@ -1360,20 +1411,20 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Update @vscode/vsce to 2.19.0 ([#775](https://github.com/eclipse-openvsx/openvsx/pull/775))
 - Error when publish the second version of the same extension ([#774](https://github.com/eclipse-openvsx/openvsx/pull/774))
 
-#### Dependencies
+### Dependencies
 
 - Bump semver from 5.7.1 to 7.5.2 in /cli ([#763](https://github.com/eclipse-openvsx/openvsx/pull/763))
 - Bump semver from 6.3.0 to 6.3.1 in /webui ([#778](https://github.com/eclipse-openvsx/openvsx/pull/778))
 
-### [v0.13.1] (20/06/2023)
+## [v0.13.1] - 2023-06-20
 
-#### Changed
+### Changed
 
 - Remove unique review constraint ([#760](https://github.com/eclipse-openvsx/openvsx/pull/760))
 
-### [v0.13.0] (20/06/2023)
+## [v0.13.0] - 2023-06-20
 
-#### Changed
+### Changed
 
 - Updated jOOQ classes ([#748](https://github.com/eclipse-openvsx/openvsx/pull/748))
 - Add paging to query endpoints ([#754](https://github.com/eclipse-openvsx/openvsx/pull/754))
@@ -1381,13 +1432,13 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Cleanup admin statistics endpoints ([#757](https://github.com/eclipse-openvsx/openvsx/pull/757))
 - Upgrade to Java 17 ([#759](https://github.com/eclipse-openvsx/openvsx/pull/759))
 
-#### Dependencies
+### Dependencies
 
 - Bump webui to 0.9.6 ([#747](https://github.com/eclipse-openvsx/openvsx/pull/747))
 
-### [v0.12.0] (29/05/2023)
+## [v0.12.0] - 2023-05-29
 
-#### Changed
+### Changed
 
 - Add `semver` dependency to the `ovsx` package ([#733](https://github.com/eclipse-openvsx/openvsx/pull/733))
 - Evict all latest extension versions ([#734](https://github.com/eclipse-openvsx/openvsx/pull/734))
@@ -1396,26 +1447,26 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Deprecate allVersions map ([#746](https://github.com/eclipse-openvsx/openvsx/pull/746))
 - //open-vsx.org/admin/report API returning 500 ([#737](https://github.com/eclipse-openvsx/openvsx/pull/737))
 
-#### Dependencies
+### Dependencies
 
 - Bump ovsx to 0.8.1 ([#735](https://github.com/eclipse-openvsx/openvsx/pull/735))
 
-### [v0.11.1] (18/04/2023)
+## [v0.11.1] - 2023-04-18
 
-#### Changed
+### Changed
 
 - Release v0.11.0 fixes ([#728](https://github.com/eclipse-openvsx/openvsx/pull/728))
 
-### [v0.11.0] (18/04/2023)
+## [v0.11.0] - 2023-04-18
 
-#### Changed
+### Changed
 
 - Use AutoCloseable TempFile ([#725](https://github.com/eclipse-openvsx/openvsx/pull/725))
 - Extension repository signing ([#673](https://github.com/eclipse-openvsx/openvsx/pull/673))
 
-### [v0.10.0] (06/04/2023)
+## [v0.10.0] - 2023-04-06
 
-#### Changed
+### Changed
 
 - Replace `@Scheduled` with JobRunr recurring job ([#721](https://github.com/eclipse-openvsx/openvsx/pull/721))
 - [Feature] Get the checksum of the VSIX file from the API ([#678](https://github.com/eclipse-openvsx/openvsx/pull/678))
@@ -1423,22 +1474,22 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Inefficient delete extension code?  ([#723](https://github.com/eclipse-openvsx/openvsx/pull/723))
 - Also rename checksum file on namespace change ([#724](https://github.com/eclipse-openvsx/openvsx/pull/724))
 
-### [v0.9.7] (01/04/2023)
+## [v0.9.7] - 2023-04-01
 
-#### Changed
+### Changed
 
 - Merge ExtensionVersion before persisting FileResource ([#719](https://github.com/eclipse-openvsx/openvsx/pull/719))
 
-### [v0.9.6] (29/03/2023)
+## [v0.9.6] - 2023-03-29
 
-#### Changed
+### Changed
 
 - Add set up guide for MacOS ([#671](https://github.com/eclipse-openvsx/openvsx/pull/671))
 - Need to deal with collisions when renaming and merging namespaces ([#717](https://github.com/eclipse-openvsx/openvsx/pull/717))
 
-### [v0.9.5] (22/03/2023)
+## [v0.9.5] - 2023-03-22
 
-#### Changed
+### Changed
 
 - Delete temp file after use ([#701](https://github.com/eclipse-openvsx/openvsx/pull/701))
 - Deprecate `/api/-/query` POST endpoint ([#700](https://github.com/eclipse-openvsx/openvsx/pull/700))
@@ -1450,36 +1501,36 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Fix 'Statement inside of curly braces should be on next line' ([#714](https://github.com/eclipse-openvsx/openvsx/pull/714))
 - Remove trailing space ([#715](https://github.com/eclipse-openvsx/openvsx/pull/715))
 
-### [v0.9.4] (14/03/2023)
+## [v0.9.4] - 2023-03-14
 
-#### Changed
+### Changed
 
 - Unable to delete namespace logo ([#696](https://github.com/eclipse-openvsx/openvsx/pull/696))
 
-### [v0.9.3] (09/03/2023)
+## [v0.9.3] - 2023-03-09
 
-#### Changed
+### Changed
 
 - Create new StringBuilder ([#692](https://github.com/eclipse-openvsx/openvsx/pull/692))
 - Log query string too ([#693](https://github.com/eclipse-openvsx/openvsx/pull/693))
 - Corrupted metadata extension in some extensions regarding targetPlatform ([#687](https://github.com/eclipse-openvsx/openvsx/pull/687))
 - Unable to update namespace details ([#694](https://github.com/eclipse-openvsx/openvsx/pull/694))
 
-### [v0.9.1] (06/03/2023)
+## [v0.9.1] - 2023-03-06
 
-#### Changed
+### Changed
 
 - Use explicit joins to improve query performance ([#683](https://github.com/eclipse-openvsx/openvsx/pull/683))
 - Use IN clauses instead of JOIN for FileResource jOOQ queries ([#685](https://github.com/eclipse-openvsx/openvsx/pull/685))
 - Delay running migrations ([#686](https://github.com/eclipse-openvsx/openvsx/pull/686))
 
-### [v0.9.0] (26/02/2023)
+## [v0.9.0] - 2023-02-26
 
-#### Added
+### Added
 
 - OVSX - Support skip if already published ([#646](https://github.com/eclipse-openvsx/openvsx/pull/646))
 
-#### Changed
+### Changed
 
 - Migrate from deprecated `vsce` to `@vscode/vsce` ([#637](https://github.com/eclipse-openvsx/openvsx/pull/637))
 - Update cli CHANGELOG ([#638](https://github.com/eclipse-openvsx/openvsx/pull/638))
@@ -1511,26 +1562,26 @@ Highlights: Spring Boot 4, Vite 8 for the frontend build, a redesigned web UI, i
 - Merge entity before calling remove ([#681](https://github.com/eclipse-openvsx/openvsx/pull/681))
 - Read input stream before try to get VSIX manifest from zip file ([#682](https://github.com/eclipse-openvsx/openvsx/pull/682))
 
-#### Dependencies
+### Dependencies
 
 - Bump express from 4.17.1 to 4.17.3 in /webui ([#636](https://github.com/eclipse-openvsx/openvsx/pull/636))
 - Bump json5 from 1.0.1 to 1.0.2 in /webui ([#648](https://github.com/eclipse-openvsx/openvsx/pull/648))
 - Bump webui version to 0.7.1 ([#654](https://github.com/eclipse-openvsx/openvsx/pull/654))
 
-### [v0.7.0] (08/12/2022)
+## [v0.7.0] - 2022-12-08
 
-#### Changed
+### Changed
 
 - Improve search in VS Code ([#611](https://github.com/eclipse-openvsx/openvsx/pull/611))
 - Another round of optimizing transactions. ([#633](https://github.com/eclipse-openvsx/openvsx/pull/633))
 - Unknown option '--no-dependencies' ([#635](https://github.com/eclipse-openvsx/openvsx/pull/635))
 
-#### Dependencies
+### Dependencies
 
 - Bump minimatch from 3.0.4 to 3.1.2 in /webui ([#630](https://github.com/eclipse-openvsx/openvsx/pull/630))
 
-### [v0.6.0] (30/11/2022)
+## [v0.6.0] - 2022-11-30
 
-### [v0.1.0] (13/04/2021)
+## [v0.1.0] - 2021-04-13
 
 First release of Open VSX with the Eclipse Foundation.

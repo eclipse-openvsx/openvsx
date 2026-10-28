@@ -65,7 +65,7 @@ export const CreateNamespaceDialog: FunctionComponent<CreateNamespaceDialogProps
             props.onClose();
             props.namespaceCreated(name);
         } catch (err) {
-            context.handleError(err);
+            context.handleError(err, { title: 'Couldn’t create the namespace' });
         } finally {
             submitting.current = false;
         }

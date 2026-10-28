@@ -23,11 +23,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.caffeine.CaffeineCache;
+import org.springframework.cache.concurrent.ConcurrentMapCache;
 
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DownloadAnalyticsServiceTest {
@@ -57,6 +59,33 @@ class DownloadAnalyticsServiceTest {
         service.getSeries(request);
 
         assertEquals(2, repository.calls.get());
+    }
+
+    @Test
+    void testUnavailableDatabaseSurfacesAsUnavailable() {
+        repository.unavailable = true;
+
+        assertThrows(
+                AnalyticsUnavailableException.class,
+                () -> service.getSeries(dayRequest("2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z")));
+        assertThrows(
+                AnalyticsUnavailableException.class,
+                () -> service.getSeries(dayRequest("2026-07-10T00:00:00Z", "2026-07-16T00:00:00Z")));
+    }
+
+    @Test
+    void testUnavailableDatabaseIsNotHiddenByACacheThatWrapsTheLoaderFailure() {
+        repository.unavailable = true;
+        // ConcurrentMapCache wraps whatever the loader throws in a ValueRetrievalException
+        var service = new DownloadAnalyticsService(
+                repository,
+                SETTLING_MARGIN,
+                new ConcurrentMapCache(DownloadAnalyticsService.CACHE_SERIES),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThrows(
+                AnalyticsUnavailableException.class,
+                () -> service.getSeries(dayRequest("2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z")));
     }
 
     @Test
@@ -216,10 +245,16 @@ class DownloadAnalyticsServiceTest {
     /** Overrides everything the service calls, so the inherited DSLContext is never touched. */
     private static class FakeRepository extends DownloadAnalyticsRepository {
         FakeRepository() {
-            super(null);
+            super(null, null);
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
         }
 
         List<DownloadSeriesRow> rows = List.of();
+        boolean unavailable;
         final AtomicInteger calls = new AtomicInteger();
         final List<DownloadSeriesRequest> requests = new ArrayList<>();
 
@@ -229,6 +264,9 @@ class DownloadAnalyticsServiceTest {
 
         @Override
         public List<DownloadSeriesRow> findSeries(DownloadSeriesRequest request) {
+            if (unavailable) {
+                throw new AnalyticsUnavailableException();
+            }
             calls.incrementAndGet();
             requests.add(request);
             return rows.stream()

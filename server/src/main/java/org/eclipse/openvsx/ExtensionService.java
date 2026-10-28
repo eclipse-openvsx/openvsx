@@ -12,7 +12,6 @@
  *****************************************************************************/
 package org.eclipse.openvsx;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import com.google.common.io.ByteStreams;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import jakarta.transaction.Transactional.TxType;
@@ -118,14 +116,19 @@ public class ExtensionService {
     public TempFile createExtensionFile(InputStream content) {
         requireNonNull(content);
         long maxContentSize = getMaxContentSize();
-        // Saturating: the ceiling is an unrestricted positive long, and at Long.MAX_VALUE the extra
-        // byte wraps negative, which ByteStreams.limit rejects - failing every publish.
+        // Saturating: the ceiling is an unrestricted positive long, so +1 must not overflow.
         var readLimit = maxContentSize == Long.MAX_VALUE ? Long.MAX_VALUE : maxContentSize + 1;
-        try (var input = ByteStreams.limit(new BufferedInputStream(content), readLimit)) {
-            long size;
+        try (var input = content) {
+            long size = 0;
             var extensionFile = new TempFile("extension_", ".vsix");
             try (var out = Files.newOutputStream(extensionFile.getPath())) {
-                size = input.transferTo(out);
+                var buffer = new byte[8192];
+                int n;
+                while (size < readLimit
+                        && (n = input.read(buffer, 0, (int) Math.min(buffer.length, readLimit - size))) != -1) {
+                    out.write(buffer, 0, n);
+                    size += n;
+                }
             }
 
             if (size > maxContentSize) {

@@ -35,6 +35,7 @@ import org.jobrunr.scheduling.cron.Cron;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -47,7 +48,6 @@ import org.eclipse.openvsx.UserService;
 import org.eclipse.openvsx.accesstoken.AccessTokenAction;
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
 import org.eclipse.openvsx.cache.CacheService;
-import org.eclipse.openvsx.eclipse.EclipseService;
 import org.eclipse.openvsx.entities.AdminStatistics;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionReview;
@@ -60,12 +60,14 @@ import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.ChangeNamespaceJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
+import org.eclipse.openvsx.json.PublisherAgreementEntryJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.UserAccessJson;
 import org.eclipse.openvsx.json.UserPublishInfoJson;
 import org.eclipse.openvsx.json.UserRelationshipsJson;
 import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
+import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.settings.ExtensionSizeLimitService;
@@ -99,7 +101,7 @@ public class AdminService {
     private final AccessTokenService tokens;
     private final ExtensionValidator validator;
     private final SearchUtilService search;
-    private final EclipseService eclipse;
+    private final PublisherAgreementService publisherAgreements;
     private final StorageUtilService storageUtil;
     private final CacheService cache;
     private final JobRequestScheduler scheduler;
@@ -107,6 +109,7 @@ public class AdminService {
     private final ExtensionSizeLimitService sizeLimits;
     private final LogService logs;
     private final AdminStatisticsService statistics;
+    private final ApplicationEventPublisher events;
 
     public AdminService(
             RepositoryService repositories,
@@ -116,14 +119,15 @@ public class AdminService {
             AccessTokenService tokens,
             ExtensionValidator validator,
             SearchUtilService search,
-            EclipseService eclipse,
+            PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             CacheService cache,
             JobRequestScheduler scheduler,
             MailService mail,
             ExtensionSizeLimitService sizeLimits,
             LogService logs,
-            AdminStatisticsService statistics
+            AdminStatisticsService statistics,
+            ApplicationEventPublisher events
     ) {
         this.repositories = repositories;
         this.extensions = extensions;
@@ -132,7 +136,7 @@ public class AdminService {
         this.tokens = tokens;
         this.validator = validator;
         this.search = search;
-        this.eclipse = eclipse;
+        this.publisherAgreements = publisherAgreements;
         this.storageUtil = storageUtil;
         this.cache = cache;
         this.scheduler = scheduler;
@@ -140,6 +144,7 @@ public class AdminService {
         this.sizeLimits = sizeLimits;
         this.logs = logs;
         this.statistics = statistics;
+        this.events = events;
     }
 
     @EventListener
@@ -428,7 +433,7 @@ public class AdminService {
         var userJson = user.toUserJson();
         userJson.setRole(user.getRoleAsString());
         userPublishInfo.setUser(userJson);
-        eclipse.adminEnrichUserJson(userPublishInfo.getUser(), user);
+        publisherAgreements.enrichUserJsonForAdmin(userPublishInfo.getUser(), user);
         userPublishInfo.setActiveAccessTokenNum(
                 (int) repositories.countActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED));
         var extVersions = repositories.findLatestVersions(user);
@@ -573,6 +578,33 @@ public class AdminService {
         return permissions.stream().map(Permission::toString).collect(Collectors.joining(", "));
     }
 
+    @Transactional
+    public List<PublisherAgreementEntryJson> getPublisherAgreementHistory(String provider, String loginName) {
+        var user = repositories.findUserByLoginName(provider, loginName);
+        if (user == null) {
+            throw new ErrorResultException(userNotFoundMessage(loginName), HttpStatus.NOT_FOUND);
+        }
+        return publisherAgreements.history(user);
+    }
+
+    @Transactional(rollbackOn = ErrorResultException.class)
+    public ResultJson reinstatePublisherAgreement(String provider, String loginName, UserData admin) {
+        var user = repositories.findUserByLoginName(provider, loginName);
+        if (user == null) {
+            throw new ErrorResultException(userNotFoundMessage(loginName), HttpStatus.NOT_FOUND);
+        }
+        // The same rule as for revoking: whoever may revoke a user with a role or permissions must lift it. Only
+        // an admin may lift their own revocation: anyone else could otherwise undo what an admin did to them.
+        checkMayStripAccessOf(user, admin);
+        if (user.getId() == admin.getId() && !UserData.Role.ADMIN.equals(admin.getRole())) {
+            throw new ErrorResultException(
+                    "You cannot reinstate your own publisher agreement.",
+                    HttpStatus.FORBIDDEN);
+        }
+        publisherAgreements.reinstate(user, admin);
+        return ResultJson.success("Reinstated the publisher agreement of " + loginName + ".");
+    }
+
     @Transactional(rollbackOn = ErrorResultException.class)
     public ResultJson revokePublisherContributions(String provider, String loginName, UserData admin) {
         return revokePublisherContributions(provider, loginName, admin, null);
@@ -587,24 +619,13 @@ public class AdminService {
         checkMayStripAccessOf(user, admin);
 
         String revokeFailure = null;
-        if (eclipse.isActive()) {
-            // Only send a DELETE request to the publisher agreement API when we have
-            // reliably determined that one exists ('signed' or 'outdated') - not when the status
-            // is 'none' or could not be determined at all, since in that case there is nothing
-            // confirmed to revoke and calling the Eclipse API would be a guess. Whatever the DELETE
-            // call itself throws must still not abort the rest of the revoke below - tokens,
-            // extensions and namespace memberships are unrelated to Eclipse and should still be
-            // revoked; that failure is reported back as part of the result instead.
-
-            var agreementStatus = eclipse.determinePublisherAgreementStatus(user);
-            if ("signed".equals(agreementStatus) || "outdated".equals(agreementStatus)) {
-                try {
-                    eclipse.revokePublisherAgreement(user, admin);
-                } catch (RuntimeException exc) {
-                    logger.error("Failed to revoke publisher agreement for user {}/{}", provider, loginName, exc);
-                    revokeFailure = exc.getMessage();
-                }
-            }
+        try {
+            publisherAgreements.revoke(user, admin);
+        } catch (RuntimeException exc) {
+            // A failed revoke must not abort the rest: tokens, extensions and namespace memberships
+            // are still revoked, and the failure is reported in the result.
+            logger.error("Failed to revoke publisher agreement for user {}/{}", provider, loginName, exc);
+            revokeFailure = exc.getMessage();
         }
 
         var accessTokens = repositories.findPersonalAccessTokens(user);
@@ -774,13 +795,12 @@ public class AdminService {
             user.setAuthId(null);
             user.setProvider(null);
             user.setProviderUrl(null);
-            user.setEclipsePersonId(null);
-            user.setEclipseToken(null);
             user.setRole(null);
             // Alongside the role for the same reason: a tombstone must not keep admin access of any
             // kind, or it shows up as a "no role" account that still holds capabilities.
             user.getPermissions().clear();
         }
+        events.publishEvent(new UserForgottenEvent(user.getId()));
 
         // The success message deliberately contains no personal data, only the tombstone id and counts.
         var result = ResultJson.success(

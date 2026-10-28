@@ -15,9 +15,7 @@ package org.eclipse.openvsx.util;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-
-import com.google.common.io.ByteStreams;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * InputStream wrapper whose close() drains whatever's left of a {@code maxBytes} budget that
@@ -46,6 +44,7 @@ public class DrainOnCloseInputStream extends FilterInputStream {
 
     private final long maxBytes;
     private long bytesRead = 0;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public DrainOnCloseInputStream(InputStream in, long maxBytes) {
         super(in);
@@ -72,15 +71,16 @@ public class DrainOnCloseInputStream extends FilterInputStream {
 
     @Override
     public void close() throws IOException {
-        try {
-            long remaining = maxBytes - bytesRead;
-            if (remaining > 0) {
-                ByteStreams.limit(this, remaining).transferTo(OutputStream.nullOutputStream());
+        // Both the publishing entry point and the size-capped reader close this stream.
+        if (closed.compareAndSet(false, true)) {
+            try {
+                // skipNBytes throws EOFException when the stream ends early, which is fine here
+                skipNBytes(Math.max(0, maxBytes - bytesRead));
+            } catch (IOException ignored) {
+                // best-effort drain; connection state doesn't matter once we're closing this stream
+            } finally {
+                super.close();
             }
-        } catch (IOException ignored) {
-            // best-effort drain; connection state doesn't matter once we're closing this stream
-        } finally {
-            super.close();
         }
     }
 }

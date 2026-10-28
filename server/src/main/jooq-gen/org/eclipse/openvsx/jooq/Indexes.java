@@ -19,6 +19,7 @@ import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
+import org.eclipse.openvsx.jooq.tables.PublisherAgreementEvent;
 import org.eclipse.openvsx.jooq.tables.RateLimitToken;
 import org.eclipse.openvsx.jooq.tables.ScanCheckResult;
 import org.eclipse.openvsx.jooq.tables.ScanJob;
@@ -85,6 +86,7 @@ public class Indexes {
     public static final Index NAMESPACE_MEMBERSHIP__NAMESPACE__IDX = Internal.createIndex(DSL.name("namespace_membership__namespace__idx"), NamespaceMembership.NAMESPACE_MEMBERSHIP, new OrderField[] { NamespaceMembership.NAMESPACE_MEMBERSHIP.NAMESPACE }, false);
     public static final Index NAMESPACE_MEMBERSHIP__USER_DATA__IDX = Internal.createIndex(DSL.name("namespace_membership__user_data__idx"), NamespaceMembership.NAMESPACE_MEMBERSHIP, new OrderField[] { NamespaceMembership.NAMESPACE_MEMBERSHIP.USER_DATA }, false);
     public static final Index PERSISTED_LOG__USER_DATA__IDX = Internal.createIndex(DSL.name("persisted_log__user_data__idx"), PersistedLog.PERSISTED_LOG, new OrderField[] { PersistedLog.PERSISTED_LOG.USER_DATA }, false);
+    public static final Index PUBLISHER_AGREEMENT_EVENT__USER_DATA_ID__IDX = Internal.createIndex(DSL.name("publisher_agreement_event__user_data_id__idx"), PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT, new OrderField[] { PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT.USER_DATA_ID, PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT.ID }, false);
     public static final Index RATE_LIMIT_TOKEN_CUSTOMER_IDX = Internal.createIndex(DSL.name("rate_limit_token_customer_idx"), RateLimitToken.RATE_LIMIT_TOKEN, new OrderField[] { RateLimitToken.RATE_LIMIT_TOKEN.CUSTOMER }, false);
     public static final Index RATE_LIMIT_TOKEN_VALUE_IDX = Internal.createIndex(DSL.name("rate_limit_token_value_idx"), RateLimitToken.RATE_LIMIT_TOKEN, new OrderField[] { RateLimitToken.RATE_LIMIT_TOKEN.VALUE }, false);
     public static final Index SCAN_CHECK_RESULT_CHECK_TYPE_IDX = Internal.createIndex(DSL.name("scan_check_result_check_type_idx"), ScanCheckResult.SCAN_CHECK_RESULT, new OrderField[] { ScanCheckResult.SCAN_CHECK_RESULT.CHECK_TYPE }, false);

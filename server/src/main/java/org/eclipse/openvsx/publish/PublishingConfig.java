@@ -38,7 +38,7 @@ public class PublishingConfig {
 
     /**
      * Write-time ceiling on any publish-accepted size: both the admin-adjustable default
-     * ({@code SettingsService#updateFromJson}) and every {@code ExtensionSizeOverride}
+     * ({@code SettingsService#update}) and every {@code ExtensionSizeOverride}
      * ({@code ExtensionSizeLimitService#requireValidSize}) are refused above this when created or
      * updated. Lowering this property afterwards does not reach a default or override already stored
      * above it - those stay enforced until an admin edits them down.

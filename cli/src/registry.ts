@@ -107,12 +107,23 @@ export class Registry {
     }
 
     /**
-     * Cached per `Registry` instance - callers like `tokenQuery` and `unpublish`'s own version check
+     * Cached per `Registry` instance once it has succeeded - callers like `tokenQuery` and `unpublish`'s own version check
      * would otherwise each fetch it separately, doubling the round trip for a single command.
      */
     getRegistryVersion(): Promise<RegistryVersion> {
         try {
-            return this.registryVersion ??= this.getJson(this.getUrl(['api', 'version']));
+            if (this.registryVersion) {
+                return this.registryVersion;
+            }
+            const pending: Promise<RegistryVersion> = this.getJson(this.getUrl(['api', 'version']));
+            this.registryVersion = pending;
+            // A failure is not remembered, so a later caller asks again rather than inheriting it.
+            pending.catch(() => {
+                if (this.registryVersion === pending) {
+                    this.registryVersion = undefined;
+                }
+            });
+            return pending;
         } catch (err) {
             return rejectError(err);
         }
@@ -291,6 +302,9 @@ export class Registry {
             send(url, this.getRequestOptions(), undefined, response => {
                 if (response.statusCode !== undefined && (response.statusCode < 200 || response.statusCode > 299)) {
                     response.resume();
+                    // Claimed here so a timeout or reset while the error body drains does not run fail().
+                    // Nothing was written yet, so there is nothing to clean up.
+                    failed = true;
                     reject(statusError(response));
                     return;
                 }

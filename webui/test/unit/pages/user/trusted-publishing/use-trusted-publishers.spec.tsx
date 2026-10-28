@@ -71,7 +71,7 @@ describe('useTrustedPublishers', () => {
 describe('useAllTrustedPublishers', () => {
     it('flattens the lists of all namespaces and skips failed ones', async () => {
         const fooPublisher = trustedPublisher({ id: 1, namespace: 'foo' });
-        const getTrustedPublishers = vi.fn().mockImplementation((_controller: AbortController, url: string) =>
+        const getTrustedPublishers = vi.fn().mockImplementation((_signal: AbortSignal, url: string) =>
             url === URL_FOO
                 ? Promise.resolve(
                       trustedPublisherList({
