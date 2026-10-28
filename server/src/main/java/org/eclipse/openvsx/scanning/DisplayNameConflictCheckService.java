@@ -87,7 +87,7 @@ public class DisplayNameConflictCheckService implements PublishCheck {
 
         var namespaceName = scan.getNamespaceName();
         var latestVersion = repositories
-                .findLatestVersion(namespaceName, scan.getExtensionName(), null, false, true);
+                .findLatestVersion(namespaceName, scan.getExtensionName(), scan.getTargetPlatform(), false, true);
         if (!adoptsDisplayName(latestVersion, displayName)) {
             return Result.pass();
         }
