@@ -33,6 +33,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 - Moving extensions into an existing namespace no longer reverts edits made to that namespace while its files were being copied ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
 - Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
+- `bucket4j.filters` rate limits apply again: bucket4j-spring-boot-starter 0.12.10 silently skipped its servlet filter on Spring Boot 4, so it is bumped to 0.14.0, with bucket4j 8.15.0 (now the `bucket4j_jdk17-*` artifacts)
 
 ### Dependencies
 
