@@ -12,9 +12,9 @@
  ********************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '../../support/test-providers';
+import { createTestQueryClient, renderWithProviders } from '../../support/test-providers';
 import { CuratedSections } from '../../../../src/pages/home/curated-sections';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
 import { SearchEntry, SearchResult } from '../../../../src/extension-registry-types';
@@ -29,8 +29,9 @@ const entry = {
 
 const result = (extensions: SearchEntry[]): SearchResult => ({ offset: 0, totalSize: extensions.length, extensions });
 
-function renderSections(search: ExtensionRegistryService['search']) {
+function renderSections(search: ExtensionRegistryService['search'], queryClient = createTestQueryClient()) {
     renderWithProviders(<CuratedSections sections={[{ title: 'Most downloaded', sortBy: 'downloadCount' }]} />, {
+        queryClient,
         mainContext: { service: { search } as unknown as ExtensionRegistryService }
     });
 }
@@ -49,6 +50,47 @@ describe('CuratedSections', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
         expect(await screen.findByText('Foo Bar')).toBeInTheDocument();
+        expect(screen.queryByText('We couldn’t load extensions at this time.')).not.toBeInTheDocument();
+        expect(search).toHaveBeenCalledTimes(2);
+    });
+
+    it('shows the row loading, not failed, while its retry is in flight', async () => {
+        let resolveRetry: (value: SearchResult) => void = () => {};
+        const search = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('load failed'))
+            .mockReturnValueOnce(new Promise<SearchResult>(resolve => (resolveRetry = resolve)));
+        renderSections(search);
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+
+        // Still shown, but neither failed (no notice or stand-ins) nor loaded (no cards): skeleton slots.
+        expect(screen.getByText('Most downloaded')).toBeInTheDocument();
+        expect(screen.queryByText('We couldn’t load extensions at this time.')).not.toBeInTheDocument();
+        expect(screen.queryByText('Language Support')).not.toBeInTheDocument();
+        expect(screen.queryAllByRole('link', { hidden: true })).toHaveLength(0);
+
+        await act(async () => resolveRetry(result([entry])));
+        expect(await screen.findByText('Foo Bar')).toBeInTheDocument();
+    });
+
+    it('keeps the extensions a row already had when a refetch fails', async () => {
+        const queryClient = createTestQueryClient();
+        const search = vi
+            .fn()
+            .mockResolvedValueOnce(result([entry]))
+            .mockRejectedValueOnce(new Error('load failed'));
+        renderSections(search, queryClient);
+        expect(await screen.findByText('Foo Bar')).toBeInTheDocument();
+
+        // The query client notifies observers on a later tick; flush it so the row renders its error.
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: ['home-curated'] });
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
+
+        expect(queryClient.getQueryState(['home-curated', 'downloadCount'])?.status).toBe('error');
+        expect(screen.getByText('Foo Bar')).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t load extensions at this time.')).not.toBeInTheDocument();
         expect(search).toHaveBeenCalledTimes(2);
     });
