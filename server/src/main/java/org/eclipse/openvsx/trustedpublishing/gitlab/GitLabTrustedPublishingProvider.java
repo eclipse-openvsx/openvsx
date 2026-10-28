@@ -68,11 +68,15 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
     private static final String REG_PROJECT = "project";
     private static final String REG_WORKFLOW = "workflow";
     private static final String REG_ENVIRONMENT = "environment";
+    private static final String REG_PROJECT_ID = "project_id";
+    private static final String REG_NAMESPACE_ID = "namespace_id";
     private static final List<TrustedPublisherInputJson> REGISTRATION_INPUTS = List.of(
             TrustedPublisherInputJson.create(REG_NAMESPACE, "Namespace", false),
             TrustedPublisherInputJson.create(REG_PROJECT, "Project name", false),
             TrustedPublisherInputJson.create(REG_WORKFLOW, "Top-level CI filename", false),
-            TrustedPublisherInputJson.create(REG_ENVIRONMENT, "Environment name (optional)", true));
+            TrustedPublisherInputJson.create(REG_ENVIRONMENT, "Environment name (optional)", true),
+            TrustedPublisherInputJson.create(REG_PROJECT_ID, "Project ID (optional, for private projects)", true),
+            TrustedPublisherInputJson.create(REG_NAMESPACE_ID, "Namespace ID (optional, for private projects)", true));
 
     /**
      * The instance part of the {@code ci_config_ref_uri} claim: the host of the instance, plus the path
@@ -134,17 +138,33 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
         final String environment = registration.get(REG_ENVIRONMENT);
         final String projectPath = namespace + "/" + project;
 
-        Map<String, Object> response = resolve(projectPath);
-        if (response == null || !(response.get("id") instanceof Number projectId)
-                || !(response.get("namespace") instanceof Map<?, ?> namespaceMap)
-                || !(namespaceMap.get("id") instanceof Number namespaceId)) {
-            throw new ErrorResultException("Unexpected GitLab response for project " + projectPath);
+        final String projectId;
+        final String namespaceId;
+        final String givenProjectId = blankToNull(registration.get(REG_PROJECT_ID));
+        final String givenNamespaceId = blankToNull(registration.get(REG_NAMESPACE_ID));
+        if (givenProjectId != null || givenNamespaceId != null) {
+            // Explicit IDs skip the unauthenticated lookup, which cannot see private projects.
+            // A wrong ID never matches an OIDC token, so it fails closed.
+            projectId = normalizeId(givenProjectId);
+            namespaceId = normalizeId(givenNamespaceId);
+            if (projectId == null || namespaceId == null) {
+                throw new ErrorResultException("Malformed registration request");
+            }
+        } else {
+            Map<String, Object> response = resolve(projectPath);
+            if (response == null || !(response.get("id") instanceof Number resolvedProjectId)
+                    || !(response.get("namespace") instanceof Map<?, ?> namespaceMap)
+                    || !(namespaceMap.get("id") instanceof Number resolvedNamespaceId)) {
+                throw new ErrorResultException("Unexpected GitLab response for project " + projectPath);
+            }
+            projectId = String.valueOf(resolvedProjectId.longValue());
+            namespaceId = String.valueOf(resolvedNamespaceId.longValue());
         }
 
         HashMap<String, String> result = new HashMap<>();
-        result.put(CLAIM_NAMESPACE_ID, String.valueOf(namespaceId.longValue()));
+        result.put(CLAIM_NAMESPACE_ID, namespaceId);
         result.put(CLAIM_NAMESPACE_PATH, namespace);
-        result.put(CLAIM_PROJECT_ID, String.valueOf(projectId.longValue()));
+        result.put(CLAIM_PROJECT_ID, projectId);
         result.put(CLAIM_PROJECT_PATH, projectPath);
         // registered without the "@<ref>" part: publishing is trusted regardless of branch or tag
         result.put(CLAIM_CI_CONFIG_REF_URI, instanceLocation + "/" + projectPath + "//" + workflow);

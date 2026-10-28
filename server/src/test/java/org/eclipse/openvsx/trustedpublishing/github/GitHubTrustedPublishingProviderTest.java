@@ -25,9 +25,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
@@ -131,6 +133,68 @@ class GitHubTrustedPublishingProviderTest {
         assertEquals("eclipse-openvsx/openvsx/.github/workflows/release.yml", data.get("workflow_ref"));
         assertEquals("prod", data.get("environment"));
         assertEquals(6, data.size());
+    }
+
+    private static GitHubTrustedPublishingProvider failingResolveProvider(TrustedPublishingConfig config) {
+        return new GitHubTrustedPublishingProvider(config) {
+            @Override
+            protected Map<String, Object> resolve(String owner, String repo) {
+                throw new AssertionError("must not call GitHub");
+            }
+        };
+    }
+
+    @Test
+    void trustRequestWithExplicitIdsSkipsResolve() throws Exception {
+        Map<String, String> data = failingResolveProvider(config).extractRequest(
+                Map.of(
+                        "owner",
+                        "acme",
+                        "repo",
+                        "private",
+                        "workflow",
+                        "release.yml",
+                        "repository_id",
+                        "42",
+                        "owner_id",
+                        "7"));
+        assertEquals("42", data.get("repository_id"));
+        assertEquals("7", data.get("repository_owner_id"));
+        assertEquals("acme/private", data.get("repository"));
+        assertEquals(5, data.size());
+    }
+
+    @Test
+    void trustRequestNormalizesLeadingZerosInIds() throws Exception {
+        Map<String, String> data = failingResolveProvider(config).extractRequest(
+                Map.of(
+                        "owner",
+                        "acme",
+                        "repo",
+                        "private",
+                        "workflow",
+                        "release.yml",
+                        "repository_id",
+                        "042",
+                        "owner_id",
+                        "007"));
+        assertEquals("42", data.get("repository_id"));
+        assertEquals("7", data.get("repository_owner_id"));
+    }
+
+    @Test
+    void trustRequestWithIncompleteOrMalformedIdsIsRejected() {
+        var gh = failingResolveProvider(config);
+        var base = Map.of("owner", "acme", "repo", "private", "workflow", "release.yml");
+        for (var extra : java.util.List.of(
+                Map.of("repository_id", "42"),
+                Map.of("owner_id", "7"),
+                Map.of("repository_id", "abc", "owner_id", "7"),
+                Map.of("repository_id", "42", "owner_id", "-1"))) {
+            var request = new HashMap<>(base);
+            request.putAll(extra);
+            assertThrows(ErrorResultException.class, () -> gh.extractRequest(request));
+        }
     }
 
     @Test

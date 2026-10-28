@@ -25,6 +25,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -143,6 +144,73 @@ class GitLabTrustedPublishingProviderTest {
         assertEquals("gitlab.com/gitlab-org/gitlab//.gitlab-ci.yml", data.get("ci_config_ref_uri"));
         assertEquals("prod", data.get("environment"));
         assertEquals(6, data.size());
+    }
+
+    private static GitLabTrustedPublishingProvider failingResolveProvider(TrustedPublishingConfig config) {
+        return new GitLabTrustedPublishingProvider(
+                config,
+                GitLabTrustedPublishingProvider.PROVIDER_ID,
+                "GitLab",
+                GitLabTrustedPublishingProvider.PROVIDER_URL,
+                GitLabTrustedPublishingProvider.PROVIDER_URL) {
+            @Override
+            protected Map<String, Object> resolve(String projectPath) {
+                throw new AssertionError("must not call GitLab");
+            }
+        };
+    }
+
+    @Test
+    void trustRequestWithExplicitIdsSkipsResolve() throws Exception {
+        Map<String, String> data = failingResolveProvider(config).extractRequest(
+                Map.of(
+                        "namespace",
+                        "acme",
+                        "project",
+                        "private",
+                        "workflow",
+                        ".gitlab-ci.yml",
+                        "project_id",
+                        "42",
+                        "namespace_id",
+                        "7"));
+        assertEquals("42", data.get("project_id"));
+        assertEquals("7", data.get("namespace_id"));
+        assertEquals("acme/private", data.get("project_path"));
+        assertEquals(5, data.size());
+    }
+
+    @Test
+    void trustRequestNormalizesLeadingZerosInIds() throws Exception {
+        Map<String, String> data = failingResolveProvider(config).extractRequest(
+                Map.of(
+                        "namespace",
+                        "acme",
+                        "project",
+                        "private",
+                        "workflow",
+                        ".gitlab-ci.yml",
+                        "project_id",
+                        "042",
+                        "namespace_id",
+                        "007"));
+        assertEquals("42", data.get("project_id"));
+        assertEquals("7", data.get("namespace_id"));
+    }
+
+    @Test
+    void trustRequestWithIncompleteOrMalformedIdsIsRejected() {
+        var gl = failingResolveProvider(config);
+        var base = Map.of("namespace", "acme", "project", "private", "workflow", ".gitlab-ci.yml");
+        for (var extra : java.util.List.of(
+                Map.of("project_id", "42"),
+                Map.of("namespace_id", "7"),
+                Map.of("project_id", "abc", "namespace_id", "7"),
+                Map.of("project_id", "42", "namespace_id", "-1"))) {
+            var request = new HashMap<>(base);
+            request.putAll(extra);
+            assertThrows(ErrorResultException.class, () -> gl.extractRequest(request));
+        }
     }
 
     @Test

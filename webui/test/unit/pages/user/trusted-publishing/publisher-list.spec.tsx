@@ -42,6 +42,26 @@ describe('PublisherList', () => {
         expect(screen.getByText('octo/vsx · workflow: release.yml · environment: prod')).toBeInTheDocument();
     });
 
+    it('shows explicit provider IDs next to the path', () => {
+        const publishers = [
+            trustedPublisher({
+                id: 1,
+                registration: { owner: 'acme', repo: 'private', workflow: 'r.yml', repository_id: '42', owner_id: '7' }
+            }),
+            trustedPublisher({
+                id: 2,
+                provider: 'gitlab',
+                registration: { namespace: 'acme', project: 'priv', workflow: 'ci', project_id: '5', namespace_id: '6' }
+            })
+        ];
+        renderWithProviders(
+            <PublisherList publishers={publishers} providers={providers} loading={false} onDelete={vi.fn()} />
+        );
+
+        expect(screen.getByText('acme/private (id 42, owner id 7) · workflow: r.yml')).toBeInTheDocument();
+        expect(screen.getByText('acme/priv (id 5, owner id 6) · workflow: ci')).toBeInTheDocument();
+    });
+
     it('labels rows according to rowDetail', () => {
         const publisher = trustedPublisher();
         const { rerender } = renderWithProviders(

@@ -219,6 +219,18 @@ public abstract class TrustedPublishingProviderSupport {
         return value;
     }
 
+    protected static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /**
+     * Normalizes a numeric provider ID given in a registration, so it compares equal to the token's claim
+     * (no leading zeros). Returns {@code null} if the value is not an ID.
+     */
+    protected static String normalizeId(String value) {
+        return value != null && value.matches("[0-9]{1,18}") ? String.valueOf(Long.parseLong(value)) : null;
+    }
+
     /**
      * Helper to require a claim from the JWT, throwing {@link MissingRequiredClaimException} if not present or blank.
      */

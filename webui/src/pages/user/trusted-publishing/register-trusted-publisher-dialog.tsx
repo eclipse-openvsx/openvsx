@@ -52,6 +52,8 @@ export const TrustedPublishingDocsLink: FunctionComponent = () => {
 const FIELD_HELP: Partial<Record<ProviderKind, Record<string, ReactNode>>> = {
     github: {
         workflow: 'Filename only (e.g. release.yml). Must exist in .github/workflows/ in your repository.',
+        repository_id: 'Only for private repositories. Run: gh api repos/OWNER/REPO --jq .id',
+        owner_id: 'Only for private repositories. Run: gh api repos/OWNER/REPO --jq .owner.id',
         environment: (
             <>
                 The name of the{' '}
@@ -69,6 +71,8 @@ const FIELD_HELP: Partial<Record<ProviderKind, Record<string, ReactNode>>> = {
     },
     gitlab: {
         workflow: 'CI config file name (e.g. .gitlab-ci.yml).',
+        project_id: 'Only for private projects. Shown under Settings > General of the project.',
+        namespace_id: 'Only for private projects. Shown under Settings > General of the group.',
         environment: (
             <>
                 The name of the{' '}

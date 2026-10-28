@@ -51,11 +51,16 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
     private static final String REG_REPO = "repo";
     private static final String REG_WORKFLOW = "workflow";
     private static final String REG_ENVIRONMENT = "environment";
+    private static final String REG_REPOSITORY_ID = "repository_id";
+    private static final String REG_OWNER_ID = "owner_id";
     private static final List<TrustedPublisherInputJson> REGISTRATION_INPUTS = List.of(
             TrustedPublisherInputJson.create(REG_OWNER, "Organization or User name", false),
             TrustedPublisherInputJson.create(REG_REPO, "Repository name", false),
             TrustedPublisherInputJson.create(REG_WORKFLOW, "Workflow filename", false),
-            TrustedPublisherInputJson.create(REG_ENVIRONMENT, "Environment name (optional)", true));
+            TrustedPublisherInputJson.create(REG_ENVIRONMENT, "Environment name (optional)", true),
+            TrustedPublisherInputJson
+                    .create(REG_REPOSITORY_ID, "Repository ID (optional, for private repositories)", true),
+            TrustedPublisherInputJson.create(REG_OWNER_ID, "Owner ID (optional, for private repositories)", true));
 
     private final String apiResolveRequest;
 
@@ -100,20 +105,36 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
         final String workflow = mustRegister(registration, REG_WORKFLOW);
         final String environment = registration.get(REG_ENVIRONMENT);
 
-        Map<String, Object> response = resolve(owner, repo);
-        if (response == null || !(response.get("id") instanceof Number repositoryId)
-                || !(response.get("owner") instanceof Map<?, ?> ownerMap)
-                || !(ownerMap.get("id") instanceof Number ownerId)) {
-            throw new ErrorResultException(
-                    "Unexpected GitHub response for repository "
-                            + owner + "/" + repo);
+        final String repositoryId;
+        final String ownerId;
+        final String givenRepositoryId = blankToNull(registration.get(REG_REPOSITORY_ID));
+        final String givenOwnerId = blankToNull(registration.get(REG_OWNER_ID));
+        if (givenRepositoryId != null || givenOwnerId != null) {
+            // Explicit IDs skip the unauthenticated lookup, which cannot see private repositories.
+            // A wrong ID never matches an OIDC token, so it fails closed.
+            repositoryId = normalizeId(givenRepositoryId);
+            ownerId = normalizeId(givenOwnerId);
+            if (repositoryId == null || ownerId == null) {
+                throw new ErrorResultException("Malformed registration request");
+            }
+        } else {
+            Map<String, Object> response = resolve(owner, repo);
+            if (response == null || !(response.get("id") instanceof Number resolvedRepositoryId)
+                    || !(response.get("owner") instanceof Map<?, ?> ownerMap)
+                    || !(ownerMap.get("id") instanceof Number resolvedOwnerId)) {
+                throw new ErrorResultException(
+                        "Unexpected GitHub response for repository "
+                                + owner + "/" + repo);
+            }
+            repositoryId = String.valueOf(resolvedRepositoryId.longValue());
+            ownerId = String.valueOf(resolvedOwnerId.longValue());
         }
 
         HashMap<String, String> result = new HashMap<>();
         result.put(CLAIM_REPOSITORY, owner + "/" + repo);
-        result.put(CLAIM_REPOSITORY_ID, String.valueOf(repositoryId.longValue()));
+        result.put(CLAIM_REPOSITORY_ID, repositoryId);
         result.put(CLAIM_REPOSITORY_OWNER, owner);
-        result.put(CLAIM_REPOSITORY_OWNER_ID, String.valueOf(ownerId.longValue()));
+        result.put(CLAIM_REPOSITORY_OWNER_ID, ownerId);
         // registered without the "@<ref>" part: publishing is trusted regardless of branch or tag
         result.put(
                 CLAIM_WORKFLOW_REF,
