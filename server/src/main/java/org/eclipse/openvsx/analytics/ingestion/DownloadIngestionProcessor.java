@@ -31,6 +31,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
+import org.hibernate.Session;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -423,10 +424,13 @@ public class DownloadIngestionProcessor {
     public List<Extension> increaseDownloadCounts(Map<Long, Integer> extensionDownloads) {
         return Observation.createNotStarted("DownloadIngestionProcessor#increaseDownloadCounts", observations)
                 .observe(() -> {
-                    var extensions = repositories.findExtensions(extensionDownloads.keySet()).toList();
+                    var extensions = repositories.findExtensionsForUpdate(extensionDownloads.keySet());
+                    var counts = repositories.increaseDownloadCounts(extensionDownloads);
+                    var session = entityManager.unwrap(Session.class);
                     extensions.forEach(extension -> {
-                        var downloads = extensionDownloads.get(extension.getId());
-                        extension.setDownloadCount(extension.getDownloadCount() + downloads);
+                        // read-only, so the new count reaches the search index without being flushed back
+                        session.setReadOnly(extension, true);
+                        extension.setDownloadCount(counts.get(extension.getId()));
                     });
 
                     return extensions;
