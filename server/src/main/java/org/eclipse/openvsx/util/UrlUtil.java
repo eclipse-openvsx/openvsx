@@ -22,6 +22,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.util.Pair;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -34,7 +35,18 @@ import org.eclipse.openvsx.json.ExtensionJson;
 
 public final class UrlUtil {
 
+    // ponytail: static state set by ServerUrlConfig, so the ~40 static callers stay as they are;
+    // replace with an injected base URL bean if a second source of the URL ever appears.
+    private static volatile @Nullable String configuredBaseUrl;
+
     private UrlUtil() {
+    }
+
+    /**
+     * The base URL used outside a web request, {@code ovsx.server.url}; {@code null} when it is unset.
+     */
+    public static void setConfiguredBaseUrl(@Nullable String baseUrl) {
+        configuredBaseUrl = baseUrl;
     }
 
     public static String createApiFileUrl(String baseUrl, ExtensionVersion extVersion, String fileName) {
@@ -237,8 +249,9 @@ public final class UrlUtil {
             var requestAttrs = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
             return getBaseUrl(requestAttrs.getRequest());
         } catch (IllegalStateException e) {
-            // method is called outside of web request context
-            return "";
+            // Outside a web request, e.g. a background job.
+            var baseUrl = configuredBaseUrl;
+            return baseUrl != null ? baseUrl : "";
         }
     }
 
