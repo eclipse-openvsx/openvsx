@@ -35,3 +35,41 @@ jobs:
           name: playwright-report
           path: webui/playwright-report/
           retention-days: 30
+
+  vscode:
+    permissions:
+      contents: none
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    env:
+      # scheduled runs have no inputs, so they test production
+      CODE_SERVER_GALLERY_URL: ${{ inputs.environment == 'staging' && 'https://staging.open-vsx.org' || 'https://open-vsx.org' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Start code-server
+        run: |
+          docker compose --profile vscode up --detach --wait
+          curl --silent --fail --retry 30 --retry-connrefused --retry-delay 2 http://localhost:8085/healthz
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24.x
+      - name: Install dependencies
+        working-directory: ./webui
+        run: yarn
+      - name: Install Playwright Browsers
+        working-directory: ./webui
+        run: yarn playwright install --with-deps chromium
+      - name: Run VS Code tests
+        working-directory: ./webui
+        run: yarn vscode-tests
+      - name: Show code-server logs
+        if: failure()
+        run: docker compose --profile vscode logs code-server
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: vscode-playwright-report
+          path: webui/playwright-report/
+          retention-days: 30
