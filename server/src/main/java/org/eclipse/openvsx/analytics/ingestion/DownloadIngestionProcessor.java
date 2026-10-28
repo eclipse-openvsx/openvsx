@@ -41,7 +41,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import org.eclipse.openvsx.analytics.AnalyticsUnavailableException;
 import org.eclipse.openvsx.analytics.DownloadEvent;
-import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.entities.DownloadIngestion;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.FileResource;
@@ -57,7 +56,6 @@ public class DownloadIngestionProcessor {
 
     private final EntityManager entityManager;
     private final RepositoryService repositories;
-    private final CacheService cache;
     private final SearchUtilService search;
     private final ObservationRegistry observations;
     private final ObjectProvider<DownloadAnalyticsRepository> analyticsRepository;
@@ -71,7 +69,6 @@ public class DownloadIngestionProcessor {
     public DownloadIngestionProcessor(
             EntityManager entityManager,
             RepositoryService repositories,
-            CacheService cache,
             SearchUtilService search,
             ObservationRegistry observations,
             ObjectProvider<DownloadAnalyticsRepository> analyticsRepository,
@@ -79,7 +76,6 @@ public class DownloadIngestionProcessor {
     ) {
         this.entityManager = entityManager;
         this.repositories = repositories;
-        this.cache = cache;
         this.search = search;
         this.observations = observations;
         this.analyticsRepository = analyticsRepository;
@@ -100,7 +96,7 @@ public class DownloadIngestionProcessor {
 
     /**
      * The registry-side outcome of processing one log file: the extensions whose counters changed
-     * (for cache eviction and search updates) and the aggregated events still to be handed to
+     * (for search updates) and the aggregated events still to be handed to
      * analytics.
      */
     public record ProcessedFile(List<Extension> extensions, List<DownloadEvent> events) {}
@@ -435,22 +431,6 @@ public class DownloadIngestionProcessor {
 
                     return extensions;
                 });
-    }
-
-    @Transactional // needs transaction for lazy-loading versions
-    public void evictCaches(Extension extension) {
-        Observation.createNotStarted("DownloadIngestionProcessor#evictCaches", observations).observe(() -> {
-            // find, not merge: this only needs a managed entity so the lazy version collections
-            // can be loaded for eviction, and nothing here updates the extension. merge wrote the
-            // whole (already mutated, possibly stale) row back, which is how a concurrent update
-            // could be silently reverted - the failure mode behind #989.
-            var managedExtension = entityManager.find(Extension.class, extension.getId());
-            if (managedExtension == null) {
-                return;
-            }
-            cache.evictExtensionJsons(managedExtension);
-            cache.evictLatestExtensionVersion(managedExtension);
-        });
     }
 
     public void updateSearchEntries(List<Extension> extensions) {
