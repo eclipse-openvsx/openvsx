@@ -3,7 +3,7 @@
 The OpenVSX Smoke Tests are designed to ensure that the most critical functionalities of an OpenVSX instance are operational.
 
 The tests in [`smoke-test.spec.ts`](smoke-test.spec.ts) are designed to be executed against a local instance, a staging instance or the production instance at open-vsx.org.
-For now, it just contains one configuration in [`playwright.config.ts`](../../configs/playwright.config.ts), which is configured to run against open-vsx.org directly.
+By default, [`playwright.config.ts`](../../configs/playwright.config.ts) is configured to run against open-vsx.org directly.
 
 ## Setup
 
@@ -26,45 +26,20 @@ More detailed information on running tests can be found in the [Playwright docum
 
 ## Customizing Test Execution
 
-To test a specific deployment of OpenVSX, you can override the `baseURL` as well as the options defined in `smoke-test.options.ts` by [parameterizing test configurations](https://playwright.dev/docs/test-parameterize) or by adding additional [test projects](https://playwright.dev/docs/test-projects).
+`OVSX_E2E_ENV` selects the registry the tests run against:
 
-For instance, you can create a file `staging.playwright.config.ts` with a content similar to the code below in order to change the `baseURL`, specify HTTP auth parameters from the environment (`dotenv`), and modify the test options for a particular deployment, such as staging:
-
-```ts
-import { defineConfig } from '@playwright/test';
-import baseConfig from './playwright.config';
-import { SmokeTestOptions } from './smoke-test.options';
-import dotenv from 'dotenv';
-
-// Read from default ".env" file.
-dotenv.config();
-
-// Alternatively, read from "../my.env" file.
-dotenv.config({ path: path.resolve(__dirname, '..', 'my.env') });
-
-export default defineConfig<SmokeTestOptions>({
-    ...baseConfig,
-    use: {
-        ...baseConfig.use,
-        // Override the baseURL for the staging environment
-        baseURL: 'https://staging.open-vsx.org',
-        httpCredentials: {
-            username: process.env.USERNAME!,
-            password: process.env.PASSWORD!
-        },
-        // customize the values from `smoke-test.options.ts` if necessary
-        minNumberOfExtensions: 10,
-        extensionToOpen: {
-            searchTerm: 'java',
-            heading: 'Language Support for Java'
-        }
-    }
-});
-```
-
-To execute the tests with the custom configuration above, use the following command:
+| `OVSX_E2E_ENV`         | Registry                     |
+| ---------------------- | ---------------------------- |
+| `production` (default) | https://open-vsx.org         |
+| `staging`              | https://staging.open-vsx.org |
+| `local`                | http://localhost:3000        |
 
 ```bash
-npx playwright test --config=staging.playwright.dev.config.ts
-
+OVSX_E2E_ENV=local yarn smoke-tests
 ```
+
+`OVSX_E2E_BASE_URL` points the tests at any other deployment, and `OVSX_E2E_HTTP_USERNAME` and `OVSX_E2E_HTTP_PASSWORD` set HTTP basic auth credentials. They can also go in `webui/.env`, which is git-ignored.
+
+To run against a local registry, start it from the repository root with `make dev-env`, `make server` and `make webui`, each in its own terminal, and publish the test extensions to it.
+
+To add an environment, or to change the test data from [`smoke-test.options.ts`](../../configs/smoke-test.options.ts) for one, edit `environments` in [`playwright.config.ts`](../../configs/playwright.config.ts).

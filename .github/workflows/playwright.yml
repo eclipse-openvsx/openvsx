@@ -1,6 +1,14 @@
 name: Playwright Tests against open-vsx.org
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Registry to test
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
   schedule:
     - cron: "0 18 * * *" # run every day at 6pm
   # push:
@@ -28,6 +36,9 @@ jobs:
         run: yarn playwright install --with-deps
       - name: Run Playwright tests
         working-directory: ./webui
+        env:
+          # empty on scheduled runs, which means production
+          OVSX_E2E_ENV: ${{ inputs.environment }}
         run: yarn smoke-tests
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()

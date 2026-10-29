@@ -11,6 +11,7 @@
 /static/*-report.html
 node_modules/
 yarn-error.log
+.env
 /test-results/
 /playwright-report/
 /blob-report/
