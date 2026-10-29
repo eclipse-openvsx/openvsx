@@ -1168,6 +1168,10 @@ public class RepositoryService {
         return extensionVersionJooqRepo.isDeleteAllActiveVersions(namespaceName, extensionName, targetVersions);
     }
 
+    public Extension findActiveExtensionByDisplayName(String displayName, Collection<String> excludeNamespaces) {
+        return extensionJooqRepo.findActiveExtensionByDisplayName(displayName, excludeNamespaces);
+    }
+
     public List<Extension> findSimilarExtensionsByLevenshtein(
             String extensionName,
             String namespaceName,

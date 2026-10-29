@@ -68,6 +68,8 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Serve runtime settings a deployment registers as its own `WritableSetting` beans on `/admin/settings`, and on `/api/-/settings` when they are a `PublicSetting`, as camelCase properties named after their row keys ([#2340](https://github.com/eclipse-openvsx/openvsx/pull/2340))
 - Expose the download size of each target platform as `downloadSizes` on the extension API response ([#2168](https://github.com/eclipse-openvsx/openvsx/pull/2168))
 - Add a consistency check that finds and repairs extensions whose stored average rating or review count differs from their active reviews, see #2327 ([#2328](https://github.com/eclipse-openvsx/openvsx/pull/2328))
+- Add a `DISPLAY_NAME_CONFLICT` publish check that rejects a new extension, or a rename, onto the exact display name of another publisher's active extension; configured under `ovsx.scanning.display-name-conflict` and only run when scanning is enabled
+- Migrations `V1_81` (expression index on `extension_version` display names) and `V1_82` (`extension_scan.declared_display_name`); `V1_81` briefly blocks writes to `extension_version` and can be created `CONCURRENTLY` beforehand, see the migration file
 - Add `GET /admin/analytics/status`, which reports whether download analytics is enabled and reachable and how many log files wait for it, for the admin dashboard ([#2337](https://github.com/eclipse-openvsx/openvsx/pull/2337))
 - Record the CI run behind a trusted-publishing upload when the token carries it: GitHub's `job_workflow_ref`, `run_id` and `workflow_sha`, GitLab's `pipeline_id`, `job_id` and `sha` ([#2283](https://github.com/eclipse-openvsx/openvsx/pull/2283))
 
