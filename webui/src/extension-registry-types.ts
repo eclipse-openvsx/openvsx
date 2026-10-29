@@ -148,6 +148,7 @@ export interface Extension {
     // absent where the registry does not know the size, and this is the download size, not the installed one.
     downloadSizes?: { [targetPlatform: string]: number };
     allTargetPlatformVersions?: VersionTargetPlatforms[];
+    publishedLatestVersion?: string;
 
     deprecated: boolean;
     replacement?: {

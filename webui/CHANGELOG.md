@@ -23,6 +23,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Fixed
 
+- Management pages show the public latest version and distinguish upstream versions from local history ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
+
 - A query reported through `useReportedQuery` (or a page's own error effect) no longer reopens the error dialog in a loop that cannot be closed while the query stays failed (#2348)
 - A failed review post or removal, token revocation or user search no longer leaves its spinner running
 

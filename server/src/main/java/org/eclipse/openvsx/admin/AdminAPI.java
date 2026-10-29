@@ -54,6 +54,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.LocalRegistryService;
+import org.eclipse.openvsx.PublishedLatestService;
 import org.eclipse.openvsx.cache.CacheInfo;
 import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.entities.AdminStatistics;
@@ -108,6 +109,7 @@ public class AdminAPI {
     private final SettingsService settings;
     private final LogService logs;
     private final LocalRegistryService local;
+    private final PublishedLatestService publishedLatest;
     private final SearchUtilService search;
     private final SearchExplainService searchExplainService;
     private final CacheInfoService caches;
@@ -119,6 +121,7 @@ public class AdminAPI {
             SettingsService settings,
             LogService logs,
             LocalRegistryService local,
+            PublishedLatestService publishedLatest,
             SearchUtilService search,
             SearchExplainService searchExplainService,
             CacheInfoService caches
@@ -129,6 +132,7 @@ public class AdminAPI {
         this.settings = settings;
         this.logs = logs;
         this.local = local;
+        this.publishedLatest = publishedLatest;
         this.search = search;
         this.searchExplainService = searchExplainService;
         this.caches = caches;
@@ -714,6 +718,7 @@ public class AdminAPI {
                 json.setDeprecated(extension.isDeprecated());
                 json.setActive(extension.isActive());
             }
+            json.setPublishedLatestVersion(publishedLatest.findVersion(namespaceName, extensionName));
             return ResponseEntity.ok(json);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(ExtensionJson.class);

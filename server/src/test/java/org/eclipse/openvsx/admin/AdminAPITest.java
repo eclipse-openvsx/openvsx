@@ -155,6 +155,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminAPI.class)
+@org.springframework.context.annotation.Import(org.eclipse.openvsx.PublishedLatestService.class)
 @MockitoBean(
     types = {
         DSLContext.class,
@@ -193,6 +194,9 @@ class AdminAPITest {
         Mockito.when(repositories.findTrustedPublishersByNamespaceAndCreatedBy(any(), any()))
                 .thenReturn(Streamable.empty());
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    UpstreamRegistryService upstreamService;
 
     @MockitoSpyBean
     UserService users;
@@ -604,6 +608,21 @@ class AdminAPITest {
                     e.setVersion("2.0.0");
                     e.setActive(true);
                 })));
+    }
+
+    @Test
+    void testGetExtensionIncludesUpstreamLatest() throws Exception {
+        mockAdminUser();
+        mockExtension(2, 0, 0);
+        var remote = new ExtensionJson();
+        remote.setVersion("4.0.0");
+        when(upstreamService.isValid()).thenReturn(true);
+        when(upstreamService.getExtension("foobar", "baz", null)).thenReturn(remote);
+        mockMvc.perform(
+                get("/admin/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.publishedLatestVersion").value("4.0.0"));
     }
 
     @Test

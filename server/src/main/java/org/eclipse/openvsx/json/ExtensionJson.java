@@ -232,6 +232,9 @@ public class ExtensionJson extends ResultJson {
     )
     private Map<String, Long> downloadSizes;
 
+    @Schema(description = "Public latest version for management views, absent when no version is available")
+    private String publishedLatestVersion;
+
     @Schema(description = "Map of target platforms by extension version")
     private List<VersionTargetPlatformsJson> allTargetPlatformVersions;
 
@@ -615,6 +618,14 @@ public class ExtensionJson extends ResultJson {
         this.downloadSizes = downloadSizes;
     }
 
+    public String getPublishedLatestVersion() {
+        return publishedLatestVersion;
+    }
+
+    public void setPublishedLatestVersion(String publishedLatestVersion) {
+        this.publishedLatestVersion = publishedLatestVersion;
+    }
+
     public List<VersionTargetPlatformsJson> getAllTargetPlatformVersions() {
         return allTargetPlatformVersions;
     }
@@ -706,6 +717,7 @@ public class ExtensionJson extends ResultJson {
                 && Objects.equals(bundledExtensions, that.bundledExtensions)
                 && Objects.equals(downloads, that.downloads)
                 && Objects.equals(downloadSizes, that.downloadSizes)
+                && Objects.equals(publishedLatestVersion, that.publishedLatestVersion)
                 && Objects.equals(allTargetPlatformVersions, that.allTargetPlatformVersions)
                 && Objects.equals(url, that.url)
                 && Objects.equals(deprecated, that.deprecated)
@@ -758,6 +770,7 @@ public class ExtensionJson extends ResultJson {
                 bundledExtensions,
                 downloads,
                 downloadSizes,
+                publishedLatestVersion,
                 allTargetPlatformVersions,
                 url,
                 deprecated,

@@ -94,6 +94,7 @@ public class UserAPI {
     private final PublisherAgreementService publisherAgreements;
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
+    private final PublishedLatestService publishedLatest;
     private final ExtensionService extensions;
 
     public UserAPI(
@@ -103,6 +104,7 @@ public class UserAPI {
             PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             LocalRegistryService local,
+            PublishedLatestService publishedLatest,
             ExtensionService extensions
     ) {
         this.repositories = repositories;
@@ -111,6 +113,7 @@ public class UserAPI {
         this.publisherAgreements = publisherAgreements;
         this.storageUtil = storageUtil;
         this.local = local;
+        this.publishedLatest = publishedLatest;
         this.extensions = extensions;
     }
 
@@ -503,6 +506,7 @@ public class UserAPI {
                 var error = "Extension not found: " + NamingUtil.toExtensionId(namespaceName, extensionName);
                 throw new ErrorResultException(error, HttpStatus.NOT_FOUND);
             }
+            json.setPublishedLatestVersion(publishedLatest.findVersion(namespaceName, extensionName));
             return ResponseEntity.ok(json);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(ExtensionJson.class);
