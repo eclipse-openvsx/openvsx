@@ -1,0 +1,12 @@
+-- Why a version that never became active did not.
+--
+-- Storing files, signing and checksumming a published package happen after the upload request has been
+-- answered - deliberately, they are slow - so a failure there cannot be reported in the response. Until
+-- now it was not reported anywhere else either: the row simply kept active = false, and the only account
+-- of what went wrong was a stack trace in the server log naming the async method rather than the version
+-- it was working on. An operator finding an inactive version had nothing to read (see #1450).
+--
+-- Null means no failed attempt is on record, which is the state of every row that published normally and
+-- of every row that existed before this column. It is cleared when a version is activated, so it always
+-- describes the most recent attempt rather than accumulating history; the log keeps the full account.
+ALTER TABLE extension_version ADD COLUMN IF NOT EXISTS publish_error TEXT;
