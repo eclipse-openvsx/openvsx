@@ -141,7 +141,11 @@ public class ScanAPI {
                 style = ParameterStyle.FORM,
                 explode = Explode.FALSE,
                 array = @ArraySchema(schema = @Schema(type = "string", example = "ClamAV"))
-            ) List<String> threatScannerName
+            ) List<String> threatScannerName,
+            @RequestParam(defaultValue = "false")
+            @Parameter(
+                description = "Also return quarantined scans with an enforced validation failure, alongside the threat scanner filter. A check that fails when a version is activated quarantines it without a threat."
+            ) boolean includeCheckQuarantines
     ) {
         try {
             admins.checkPermission(Permission.MANAGE_SCANS);
@@ -160,7 +164,7 @@ public class ScanAPI {
             boolean hasCheckTypesFilter = checkTypes != null && !checkTypes.isEmpty();
             boolean hasScannerNamesFilter = scannerNames != null && !scannerNames.isEmpty();
             boolean hasAnyFilter = hasDateFilter || hasEnforcementFilter || hasCheckTypesFilter
-                    || hasScannerNamesFilter;
+                    || hasScannerNamesFilter || includeCheckQuarantines;
 
             if (!hasAnyFilter) {
                 // Fast path: simple DB counts when no filtering is requested
@@ -189,6 +193,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setVALIDATING(
                         (int) repositories.countScansForStatistics(
@@ -197,6 +202,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setSCANNING(
                         (int) repositories.countScansForStatistics(
@@ -205,6 +211,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setPASSED(
                         (int) repositories.countScansForStatistics(
@@ -213,6 +220,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setQUARANTINED(
                         (int) repositories.countScansForStatistics(
@@ -221,6 +229,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setAUTO_REJECTED(
                         (int) repositories.countScansForStatistics(
@@ -229,6 +238,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setERROR(
                         (int) repositories.countScansForStatistics(
@@ -237,6 +247,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
 
                 // Admin decision counts with all filters applied
@@ -247,6 +258,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
                 stats.setBLOCKED(
                         (int) repositories.countAdminDecisionsForStatistics(
@@ -255,6 +267,7 @@ public class ScanAPI {
                                 startedTo,
                                 checkTypes,
                                 scannerNames,
+                                includeCheckQuarantines,
                                 enforcedOnly));
             }
 
@@ -413,7 +426,11 @@ public class ScanAPI {
             @RequestParam(defaultValue = "false")
             @Parameter(
                 description = "Match the status filter exactly. Without it, filtering by ERROR also returns scans in other statuses that have an errored check result."
-            ) boolean exactStatus
+            ) boolean exactStatus,
+            @RequestParam(defaultValue = "false")
+            @Parameter(
+                description = "Also return quarantined scans with an enforced validation failure, alongside the threat scanner filter. A check that fails when a version is activated quarantines it without a threat."
+            ) boolean includeCheckQuarantines
     ) {
         try {
             admins.checkPermission(Permission.MANAGE_SCANS);
@@ -458,6 +475,7 @@ public class ScanAPI {
                     enforcedOnly,
                     adminDecisionFilter,
                     includeCheckErrors,
+                    includeCheckQuarantines,
                     pageable);
 
             var result = new ScanResultListJson();

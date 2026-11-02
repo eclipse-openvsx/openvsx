@@ -400,6 +400,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories
                         .updateExpiresTimeForLegacyPersonalAccessTokens(NOW, PersonalAccessTokenType.LONG_LIVED),
                 () -> repositories.findActiveExtensionByDisplayName("displayName", List.of("namespaceName")),
+                () -> repositories.lockDisplayName("displayName"),
                 () -> repositories.findSimilarExtensionsByLevenshtein(
                         "extensionName",
                         "namespaceName",
@@ -431,6 +432,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         true,
                         null,
                         false,
+                        true,
                         page),
                 // Statistics queries with full filter support
                 () -> repositories.countScansForStatistics(
@@ -439,6 +441,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         NOW,
                         List.of("checkType"),
                         List.of("scanner"),
+                        true,
                         true),
                 () -> repositories.countAdminDecisionsForStatistics(
                         "ALLOWED",
@@ -446,6 +449,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         NOW,
                         List.of("checkType"),
                         List.of("scanner"),
+                        true,
                         true),
                 // Admin scan decision methods
                 () -> repositories.findAdminScanDecision(scan),

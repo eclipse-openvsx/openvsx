@@ -34,7 +34,7 @@ function scanFixture(id: string, extensionName: string) {
  * settles; every other admin endpoint resolves immediately since only the scans
  * loading flag is under test here.
  */
-function createMockService() {
+function createMockService(threatScannerNames: string[] = ['ClamAV']) {
     const scansCalls: Array<ReturnType<typeof deferred<{ scans: unknown[]; totalSize: number }>>> = [];
     const getAllScans = vi.fn(() => {
         const call = deferred<{ scans: unknown[]; totalSize: number }>();
@@ -45,9 +45,7 @@ function createMockService() {
     const service = {
         admin: {
             getAllScans,
-            getScanFilterOptions: vi
-                .fn()
-                .mockResolvedValue({ validationTypes: ['Malware'], threatScannerNames: ['ClamAV'] }),
+            getScanFilterOptions: vi.fn().mockResolvedValue({ validationTypes: ['Malware'], threatScannerNames }),
             getScanCounts: vi.fn().mockResolvedValue({
                 STARTED: 0,
                 VALIDATING: 0,
@@ -120,6 +118,25 @@ describe('ScanProvider — tab routing', () => {
         expect(params.status).toEqual(['ERROR']);
         expect(params.exactStatus).toBe(true);
         expect(params.enforcement).toBe('all');
+    });
+
+    it('lists the scans a check quarantined on the Quarantined tab, even without threat scanners', async () => {
+        const { service, scansCalls, getAllScans } = createMockService([]);
+        const { result } = setup(service);
+
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(1));
+        act(() => scansCalls[0].resolve({ scans: [], totalSize: 0 }));
+
+        act(() => result.current.actions.setTab(1));
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(2));
+
+        expect((getAllScans.mock.calls[1] as unknown[])[1]).toMatchObject({ includeCheckQuarantines: true });
+        await waitFor(() =>
+            expect(service.admin.getScanCounts).toHaveBeenLastCalledWith(
+                expect.anything(),
+                expect.objectContaining({ includeCheckQuarantines: true })
+            )
+        );
     });
 
     it('serves file decisions from tab 4 (allowed) and 5 (blocked), not the scan list', async () => {

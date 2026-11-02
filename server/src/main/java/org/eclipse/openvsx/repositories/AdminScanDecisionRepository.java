@@ -64,11 +64,17 @@ public interface AdminScanDecisionRepository extends Repository<AdminScanDecisio
                        WHERE f.scan_id = d.scan_id
                          AND f.validation_type IN (:checkTypes)
                          AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR f.enforced = :enforcedOnly)))
-                  AND (:applyScannerNamesFilter = false OR EXISTS (
-                       SELECT 1 FROM extension_threat t
-                       WHERE t.scan_id = d.scan_id
-                         AND t.scanner_type IN (:scannerNames)
-                         AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR t.enforced = :enforcedOnly)))
+                  AND ((:applyScannerNamesFilter = false AND :includeCheckQuarantines = false)
+                       OR (:applyScannerNamesFilter = true AND EXISTS (
+                           SELECT 1 FROM extension_threat t
+                           WHERE t.scan_id = d.scan_id
+                             AND t.scanner_type IN (:scannerNames)
+                             AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR t.enforced = :enforcedOnly)))
+                       OR (:includeCheckQuarantines = true
+                           AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR CAST(:enforcedOnly AS BOOLEAN) = true)
+                           AND EXISTS (
+                               SELECT 1 FROM extension_validation_failure f
+                               WHERE f.scan_id = d.scan_id AND f.enforced = true)))
                   AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL
                        OR :applyCheckTypesFilter = true
                        OR :applyScannerNamesFilter = true
@@ -87,6 +93,7 @@ public interface AdminScanDecisionRepository extends Repository<AdminScanDecisio
             @Param("applyCheckTypesFilter") boolean applyCheckTypesFilter,
             @Param("scannerNames") Collection<String> scannerNames,
             @Param("applyScannerNamesFilter") boolean applyScannerNamesFilter,
+            @Param("includeCheckQuarantines") boolean includeCheckQuarantines,
             @Nullable
             @Param("enforcedOnly") Boolean enforcedOnly
     );

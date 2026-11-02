@@ -12,10 +12,18 @@
  ********************************************************************************/
 
 import { useCallback, useMemo } from 'react';
-import { useScanContext } from '../../context/scan-admin';
+import { ScanResult, useScanContext } from '../../context/scan-admin';
 import { useScanFilters } from './use-scan-filters';
 import { usePagination } from './use-pagination';
 import { useSearch } from './use-search';
+
+/**
+ * A quarantined scan needs review while it has no admin decision and an enforced threat or validation
+ * failure holds it; a check that fails at activation quarantines a version without any threat.
+ */
+export const needsQuarantineReview = (scan: ScanResult): boolean =>
+    !scan.adminDecision?.decision &&
+    (scan.threats.some(t => t.enforcedFlag) || scan.validationFailures.some(f => f.enforcedFlag));
 
 /**
  * Hook for the Quarantined tab (tab index 1).
@@ -30,14 +38,7 @@ export const useQuarantinedTab = () => {
     // Scans are already filtered server-side by threatScannerName parameter
     const quarantinedScans = state.scans;
 
-    // Determine which scans are selectable (need review)
-    // A scan needs review if: no admin decision AND has at least one enforced threat
-    const selectableScans = useMemo(() => {
-        return quarantinedScans.filter(scan => {
-            const hasEnforcedThreat = scan.threats.some(t => t.enforcedFlag);
-            return !scan.adminDecision?.decision && hasEnforcedThreat;
-        });
-    }, [quarantinedScans]);
+    const selectableScans = useMemo(() => quarantinedScans.filter(needsQuarantineReview), [quarantinedScans]);
 
     // Selection state
     const selection = useMemo(() => {
@@ -96,9 +97,6 @@ export const useQuarantinedTab = () => {
         (state.scanCounts?.AUTO_REJECTED ?? 0) +
         (state.scanCounts?.ERROR ?? 0);
 
-    // Check if there are any threat scanners available to filter by
-    const hasThreatScanners = state.availableThreatScanners.length > 0;
-
     return useMemo(
         () => ({
             tabIndex: 1,
@@ -109,7 +107,6 @@ export const useQuarantinedTab = () => {
             autoRefresh: state.autoRefresh,
             onAutoRefreshChange: actions.setAutoRefresh,
             totalCount,
-            hasThreatScanners,
             search,
             globalFilters,
             quarantineFilters,
@@ -129,7 +126,6 @@ export const useQuarantinedTab = () => {
             state.autoRefresh,
             actions.setAutoRefresh,
             totalCount,
-            hasThreatScanners,
             search,
             globalFilters,
             quarantineFilters,

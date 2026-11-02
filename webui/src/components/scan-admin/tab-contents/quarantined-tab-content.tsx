@@ -16,7 +16,7 @@ import { Box, Typography, Pagination, CircularProgress } from '@mui/material';
 import { ScanCard } from '../scan-card';
 import { SearchToolbar, CountsToolbar } from '../toolbars';
 import { AutoRefresh } from '../common';
-import { useQuarantinedTab } from '../../../hooks/scan-admin';
+import { useQuarantinedTab, needsQuarantineReview } from '../../../hooks/scan-admin';
 import { useScanContext } from '../../../context/scan-admin';
 import { useTheme } from '@mui/material/styles';
 
@@ -43,8 +43,7 @@ export const QuarantinedTabContent: FunctionComponent = () => {
         selectAll,
         deselectAll,
         isAllSelected,
-        bulkActions,
-        hasThreatScanners
+        bulkActions
     } = useQuarantinedTab();
 
     // Calculate allowed/blocked/needs review counts from scanCounts
@@ -137,7 +136,7 @@ export const QuarantinedTabContent: FunctionComponent = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
                     <CircularProgress color='secondary' />
                 </Box>
-            ) : !hasThreatScanners || scans.length === 0 ? (
+            ) : scans.length === 0 ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
                     <Typography variant='h6' color='text.secondary'>
                         No quarantined extensions
@@ -147,22 +146,15 @@ export const QuarantinedTabContent: FunctionComponent = () => {
                     </Typography>
                 </Box>
             ) : (
-                scans.map(scan => {
-                    // Only show checkbox for scans that need review:
-                    // - No admin decision yet AND
-                    // - Has at least one enforced threat (unenforced threats don't require review)
-                    const hasEnforcedThreat = scan.threats.some(t => t.enforcedFlag);
-                    const needsReview = !scan.adminDecision?.decision && hasEnforcedThreat;
-                    return (
-                        <ScanCard
-                            key={scan.id}
-                            scan={scan}
-                            showCheckbox={needsReview}
-                            checked={selection.checked[scan.id] || false}
-                            onCheckboxChange={toggleCheck}
-                        />
-                    );
-                })
+                scans.map(scan => (
+                    <ScanCard
+                        key={scan.id}
+                        scan={scan}
+                        showCheckbox={needsQuarantineReview(scan)}
+                        checked={selection.checked[scan.id] || false}
+                        onCheckboxChange={toggleCheck}
+                    />
+                ))
             )}
             {pagination.totalPages > 1 && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, mb: 2 }}>

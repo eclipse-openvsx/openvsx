@@ -1172,6 +1172,10 @@ public class RepositoryService {
         return extensionJooqRepo.findActiveExtensionByDisplayName(displayName, excludeNamespaces);
     }
 
+    public void lockDisplayName(String displayName) {
+        extensionJooqRepo.lockDisplayName(displayName);
+    }
+
     public List<Extension> findSimilarExtensionsByLevenshtein(
             String extensionName,
             String namespaceName,
@@ -1260,6 +1264,7 @@ public class RepositoryService {
             @Nullable Boolean enforcedOnly,
             org.eclipse.openvsx.admin.ScanAPI.@Nullable AdminDecisionFilterValues adminDecisionFilter,
             boolean includeCheckErrors,
+            boolean includeCheckQuarantines,
             org.springframework.data.domain.Pageable pageable
     ) {
         // Convert enums to strings for native query
@@ -1293,6 +1298,7 @@ public class RepositoryService {
                 applyCheckTypesFilter,
                 scannerNamesParam,
                 applyScannerNamesFilter,
+                includeCheckQuarantines,
                 enforcedOnly,
                 applyAdminDecisionFilter,
                 filterAllowed,
@@ -1308,6 +1314,7 @@ public class RepositoryService {
             @Nullable LocalDateTime startedTo,
             @Nullable Collection<String> checkTypes,
             @Nullable Collection<String> scannerNames,
+            boolean includeCheckQuarantines,
             @Nullable Boolean enforcedOnly
     ) {
         // PostgreSQL doesn't allow empty IN clauses. When filter is disabled, we pass a
@@ -1325,6 +1332,7 @@ public class RepositoryService {
                 applyCheckTypesFilter,
                 scannerNamesParam,
                 applyScannerNamesFilter,
+                includeCheckQuarantines,
                 enforcedOnly);
     }
 
@@ -1334,6 +1342,7 @@ public class RepositoryService {
             @Nullable LocalDateTime startedTo,
             @Nullable Collection<String> checkTypes,
             @Nullable Collection<String> scannerNames,
+            boolean includeCheckQuarantines,
             @Nullable Boolean enforcedOnly
     ) {
         // PostgreSQL doesn't allow empty IN clauses. When filter is disabled, we pass a
@@ -1351,6 +1360,7 @@ public class RepositoryService {
                 applyCheckTypesFilter,
                 scannerNamesParam,
                 applyScannerNamesFilter,
+                includeCheckQuarantines,
                 enforcedOnly);
     }
 

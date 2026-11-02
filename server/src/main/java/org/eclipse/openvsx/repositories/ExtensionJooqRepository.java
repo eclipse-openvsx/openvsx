@@ -39,6 +39,9 @@ import static org.eclipse.openvsx.jooq.Tables.NAMESPACE_MEMBERSHIP;
 @Component
 public class ExtensionJooqRepository {
 
+    /** The first key of the advisory locks {@link #lockDisplayName} takes. */
+    private static final int DISPLAY_NAME_LOCK_CLASS = 0x4f56_4e44;
+
     private final DSLContext dsl;
     private final ExtensionVersionJooqRepository extensionVersionRepo;
 
@@ -528,6 +531,18 @@ public class ExtensionJooqRepository {
         // rejection message is arbitrary, and not worth that.
         query.addLimit(1);
         return query;
+    }
+
+    /**
+     * Locks the display name, compared as {@link #findActiveExtensionByDisplayName} compares it, until the
+     * current transaction ends, waiting while another transaction holds it.
+     */
+    public void lockDisplayName(String displayName) {
+        // Hashed into the two-key form, whose key space is separate from the one-key locks Flyway takes. A
+        // hash collision only makes two unrelated names wait on each other.
+        var key = DSL.function("hashtext", SQLDataType.INTEGER, normalizeDisplayName(DSL.val(displayName)));
+        dsl.select(DSL.function("pg_advisory_xact_lock", SQLDataType.OTHER, DSL.inline(DISPLAY_NAME_LOCK_CLASS), key))
+                .fetch();
     }
 
     private Field<String> normalizeDisplayName(Field<String> displayName) {

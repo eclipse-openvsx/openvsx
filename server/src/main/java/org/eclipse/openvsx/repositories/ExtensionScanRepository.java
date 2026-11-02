@@ -76,6 +76,9 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
      * - When checkTypes is specified: enforcement modifies that filter (AND logic)
      * - When scannerNames is specified: enforcement modifies that filter (AND logic)
      * - When neither is specified: enforcement filters on ANY validation failure or threat
+     *
+     * includeCheckQuarantines adds, alongside the scannerNames filter, the quarantined scans with an enforced
+     * validation failure: a check that failed at activation quarantines a version without any threat.
      */
     @Query(
         value = """
@@ -88,11 +91,17 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
                        WHERE f.scan_id = s.id
                          AND f.validation_type IN (:checkTypes)
                          AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR f.enforced = :enforcedOnly)))
-                  AND (:applyScannerNamesFilter = false OR EXISTS (
-                       SELECT 1 FROM extension_threat t
-                       WHERE t.scan_id = s.id
-                         AND t.scanner_type IN (:scannerNames)
-                         AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR t.enforced = :enforcedOnly)))
+                  AND ((:applyScannerNamesFilter = false AND :includeCheckQuarantines = false)
+                       OR (:applyScannerNamesFilter = true AND EXISTS (
+                           SELECT 1 FROM extension_threat t
+                           WHERE t.scan_id = s.id
+                             AND t.scanner_type IN (:scannerNames)
+                             AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR t.enforced = :enforcedOnly)))
+                       OR (:includeCheckQuarantines = true AND s.status = 'QUARANTINED'
+                           AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR CAST(:enforcedOnly AS BOOLEAN) = true)
+                           AND EXISTS (
+                               SELECT 1 FROM extension_validation_failure f
+                               WHERE f.scan_id = s.id AND f.enforced = true)))
                   AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL
                        OR :applyCheckTypesFilter = true
                        OR :applyScannerNamesFilter = true
@@ -111,6 +120,7 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
             @Param("applyCheckTypesFilter") boolean applyCheckTypesFilter,
             @Param("scannerNames") Collection<String> scannerNames,
             @Param("applyScannerNamesFilter") boolean applyScannerNamesFilter,
+            @Param("includeCheckQuarantines") boolean includeCheckQuarantines,
             @Nullable
             @Param("enforcedOnly") Boolean enforcedOnly
     );
@@ -122,6 +132,9 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
      * - When validationType is specified: enforcement modifies that filter (AND logic)
      * - When threatScannerName is specified: enforcement modifies that filter (AND logic)
      * - When neither is specified: enforcement filters on ANY validation failure or threat
+     *
+     * includeCheckQuarantines adds, alongside the scannerNames filter, the quarantined scans with an enforced
+     * validation failure: a check that failed at activation quarantines a version without any threat.
      */
     @Query(
         value = """
@@ -140,11 +153,17 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
                        WHERE f.scan_id = s.id
                          AND f.validation_type IN (:checkTypes)
                          AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR f.enforced = :enforcedOnly)))
-                  AND (:applyScannerNamesFilter = false OR EXISTS (
-                       SELECT 1 FROM extension_threat t
-                       WHERE t.scan_id = s.id
-                         AND t.scanner_type IN (:scannerNames)
-                         AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR t.enforced = :enforcedOnly)))
+                  AND ((:applyScannerNamesFilter = false AND :includeCheckQuarantines = false)
+                       OR (:applyScannerNamesFilter = true AND EXISTS (
+                           SELECT 1 FROM extension_threat t
+                           WHERE t.scan_id = s.id
+                             AND t.scanner_type IN (:scannerNames)
+                             AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR t.enforced = :enforcedOnly)))
+                       OR (:includeCheckQuarantines = true AND s.status = 'QUARANTINED'
+                           AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL OR CAST(:enforcedOnly AS BOOLEAN) = true)
+                           AND EXISTS (
+                               SELECT 1 FROM extension_validation_failure f
+                               WHERE f.scan_id = s.id AND f.enforced = true)))
                   AND (CAST(:enforcedOnly AS BOOLEAN) IS NULL
                        OR :applyCheckTypesFilter = true
                        OR :applyScannerNamesFilter = true
@@ -174,6 +193,7 @@ public interface ExtensionScanRepository extends Repository<ExtensionScan, Long>
             @Param("applyCheckTypesFilter") boolean applyCheckTypesFilter,
             @Param("scannerNames") Collection<String> scannerNames,
             @Param("applyScannerNamesFilter") boolean applyScannerNamesFilter,
+            @Param("includeCheckQuarantines") boolean includeCheckQuarantines,
             @Nullable
             @Param("enforcedOnly") Boolean enforcedOnly,
             @Param("applyAdminDecisionFilter") boolean applyAdminDecisionFilter,

@@ -142,11 +142,10 @@ export const useFilterOptionsEffect = (service: any, state: ScanState, dispatch:
  * Hook to fetch scans from API (tabs 0-3: Scans, Quarantined, Auto Rejected, Errors)
  */
 export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
-    // For the Quarantined/Auto Rejected tabs there is nothing to show when no
-    // threat scanners / validation types exist, so we skip the request entirely.
-    const noQuarantineData = state.selectedTab === 1 && state.availableThreatScanners.length === 0;
+    // For the Auto Rejected tab there is nothing to show when no validation types
+    // exist, so we skip the request entirely.
     const noAutoRejectedData = state.selectedTab === 2 && state.availableValidationTypes.length === 0;
-    const enabled = state.selectedTab <= 3 && state.filterOptionsLoaded && !noQuarantineData && !noAutoRejectedData;
+    const enabled = state.selectedTab <= 3 && state.filterOptionsLoaded && !noAutoRejectedData;
 
     const dateParams = getDateRangeParams(state.dateRange);
 
@@ -182,6 +181,7 @@ export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatc
                 let threatScannerParam: string[] | undefined;
                 let adminDecisionParam: string[] | undefined;
                 let exactStatusParam: boolean | undefined;
+                let includeCheckQuarantines: boolean | undefined;
 
                 if (state.selectedTab === 0) {
                     // Scans tab - use statusFilters, expanding 'running' to explicit statuses
@@ -192,11 +192,13 @@ export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatc
                         return [...result, status];
                     }, [] as string[]);
                 } else if (state.selectedTab === 1) {
-                    // Quarantined tab - show scans with threats
+                    // Quarantined tab - show scans with threats, and those a check quarantined
+                    // unless the admin narrowed it to some scanners
                     if (state.threatScannerFilters.size > 0) {
                         threatScannerParam = Array.from(state.threatScannerFilters);
                     } else {
                         threatScannerParam = state.availableThreatScanners;
+                        includeCheckQuarantines = true;
                     }
                     if (state.quarantineFilters.size > 0) {
                         adminDecisionParam = Array.from(state.quarantineFilters);
@@ -228,6 +230,7 @@ export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatc
                     threatScannerName: threatScannerParam,
                     adminDecision: adminDecisionParam,
                     exactStatus: exactStatusParam,
+                    includeCheckQuarantines,
                     dateStartedFrom: dateParams.dateStartedFrom,
                     dateStartedTo: dateParams.dateStartedTo,
                     enforcement: state.enforcement
@@ -241,11 +244,11 @@ export const useScansEffect = (service: any, state: ScanState, dispatch: Dispatc
 
     useEffect(() => {
         // When there is nothing to fetch for the current tab, reflect an empty list.
-        if (state.filterOptionsLoaded && (noQuarantineData || noAutoRejectedData)) {
+        if (state.filterOptionsLoaded && noAutoRejectedData) {
             dispatch({ type: 'SET_SCANS', payload: { scans: [], totalScans: 0 } });
             dispatch({ type: 'SET_LOADING_SCANS', payload: false });
         }
-    }, [state.filterOptionsLoaded, noQuarantineData, noAutoRejectedData, dispatch]);
+    }, [state.filterOptionsLoaded, noAutoRejectedData, dispatch]);
 
     useEffect(() => {
         if (enabled) {
@@ -303,12 +306,14 @@ export const useScanCountsEffect = (service: any, state: ScanState, dispatch: Di
                 // Determine filters based on selected tab (same logic as scans fetch)
                 let validationTypeParam: string[] | undefined;
                 let threatScannerParam: string[] | undefined;
+                let includeCheckQuarantines: boolean | undefined;
 
                 if (state.selectedTab === 1) {
                     if (state.threatScannerFilters.size > 0) {
                         threatScannerParam = Array.from(state.threatScannerFilters);
                     } else {
                         threatScannerParam = state.availableThreatScanners;
+                        includeCheckQuarantines = true;
                     }
                 } else if (state.selectedTab === 2) {
                     if (state.validationTypeFilters.size > 0) {
@@ -322,7 +327,8 @@ export const useScanCountsEffect = (service: any, state: ScanState, dispatch: Di
                     ...dateParams,
                     enforcement: state.enforcement,
                     threatScannerName: threatScannerParam,
-                    validationType: validationTypeParam
+                    validationType: validationTypeParam,
+                    includeCheckQuarantines
                 });
             }
         }),

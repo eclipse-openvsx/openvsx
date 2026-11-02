@@ -17,8 +17,12 @@ import java.util.ArrayList;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.DisplayNameUtil;
 import org.eclipse.openvsx.util.NamingUtil;
@@ -33,6 +37,10 @@ import org.eclipse.openvsx.util.NamingUtil;
  * <p>
  * Extensions in namespaces the publisher belongs to are not conflicts: a publisher shipping two
  * extensions under one name is not impersonating anyone.
+ * <p>
+ * The check only sees active extensions, so it is repeated when a version is activated after its scan
+ * (see {@link #checkActivation}): two publications adopting one name while both wait on their scans
+ * would otherwise both pass it.
  * <p>
  * Mirroring does not run publish checks, so a mirror still receives every extension its upstream has.
  */
@@ -77,7 +85,23 @@ public class DisplayNameConflictCheckService implements PublishCheck {
 
     @Override
     public Result check(Context context) {
-        var scan = context.scan();
+        return check(context.scan(), context.user(), false);
+    }
+
+    /**
+     * Repeats the check for the version a scan belongs to, as it is about to be activated.
+     * <p>
+     * Activations adopting the same name serialise on a lock held until the caller's transaction commits,
+     * so whichever activates second sees the first as a conflict.
+     *
+     * @param publisher the user who published the version
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Result checkActivation(ExtensionScan scan, UserData publisher) {
+        return check(scan, publisher, true);
+    }
+
+    private Result check(ExtensionScan scan, UserData user, boolean lockDisplayName) {
         // The declared name, not the scan's label: a package declaring none must not be compared under
         // the extension name the label falls back to.
         var displayName = scan.getDeclaredDisplayName();
@@ -92,10 +116,14 @@ public class DisplayNameConflictCheckService implements PublishCheck {
             return Result.pass();
         }
 
+        if (lockDisplayName) {
+            repositories.lockDisplayName(displayName);
+        }
+
         var excludedNamespaces = new ArrayList<String>();
         // A privileged user may publish into a namespace they are not a member of.
         excludedNamespaces.add(namespaceName);
-        repositories.findMemberships(context.user())
+        repositories.findMemberships(user)
                 .forEach(membership -> excludedNamespaces.add(membership.getNamespace().getName()));
 
         var conflict = repositories.findActiveExtensionByDisplayName(displayName, excludedNamespaces);

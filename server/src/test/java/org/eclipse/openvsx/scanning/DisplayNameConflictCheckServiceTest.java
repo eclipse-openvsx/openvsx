@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -181,6 +182,55 @@ class DisplayNameConflictCheckServiceTest {
 
         assertThat(result.passed()).isTrue();
         verify(repositories, never()).findActiveExtensionByDisplayName(anyString(), any());
+    }
+
+    @Test
+    void shouldLockTheNameBeforeLookingForAConflictAtActivation() {
+        when(repositories.findActiveExtensionByDisplayName(eq("Demo OK"), any()))
+                .thenReturn(buildExtension("otherpublisher", "other-demo"));
+
+        var result = check.checkActivation(context("Demo OK").scan(), user);
+
+        assertThat(result.passed()).isFalse();
+        var inOrder = inOrder(repositories);
+        inOrder.verify(repositories).lockDisplayName("Demo OK");
+        inOrder.verify(repositories).findActiveExtensionByDisplayName(eq("Demo OK"), any());
+    }
+
+    @Test
+    void shouldExcludeTheNamespacesOfThePublisherOfTheVersionAtActivation() {
+        var publisher = new UserData();
+        publisher.setLoginName("publisher-user");
+        var membership = new NamespaceMembership();
+        membership.setUser(publisher);
+        membership.setNamespace(buildNamespace("other-namespace-of-the-publisher"));
+        membership.setRole(NamespaceMembership.ROLE_CONTRIBUTOR);
+        when(repositories.findMemberships(publisher)).thenReturn(Streamable.of(membership));
+
+        check.checkActivation(context("Demo OK").scan(), publisher);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<String>> excluded = ArgumentCaptor.forClass(Collection.class);
+        verify(repositories).findActiveExtensionByDisplayName(eq("Demo OK"), excluded.capture());
+        assertThat(excluded.getValue()).containsExactlyInAnyOrder("publisher", "other-namespace-of-the-publisher");
+    }
+
+    @Test
+    void shouldNotLockAtActivationForAVersionKeepingTheNameTheExtensionAlreadyShows() {
+        when(repositories.findLatestVersion("publisher", "demo", null, false, true))
+                .thenReturn(buildVersionShowing("Demo OK"));
+
+        var result = check.checkActivation(context("Demo OK").scan(), user);
+
+        assertThat(result.passed()).isTrue();
+        verify(repositories, never()).lockDisplayName(anyString());
+    }
+
+    @Test
+    void shouldNotLockAtPublication() {
+        check.check(context("Demo OK"));
+
+        verify(repositories, never()).lockDisplayName(anyString());
     }
 
     private PublishCheck.Context context(String declaredDisplayName) {

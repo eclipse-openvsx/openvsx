@@ -645,6 +645,7 @@ export interface AdminService {
             enforcement?: 'enforced' | 'notEnforced' | 'all';
             adminDecision?: string[];
             exactStatus?: boolean;
+            includeCheckQuarantines?: boolean;
         }
     ): Promise<Readonly<ScanResultsResponse>>;
     getScan(signal: AbortSignal, scanId: string): Promise<Readonly<ScanResultJson>>;
@@ -657,6 +658,7 @@ export interface AdminService {
             enforcement?: 'enforced' | 'notEnforced' | 'all';
             threatScannerName?: string[];
             validationType?: string[];
+            includeCheckQuarantines?: boolean;
         }
     ): Promise<Readonly<ScanCounts>>;
     getScanFilterOptions(signal: AbortSignal): Promise<Readonly<ScanFilterOptions>>;
@@ -978,6 +980,7 @@ export class AdminServiceImpl implements AdminService {
             enforcement?: 'enforced' | 'notEnforced' | 'all';
             adminDecision?: string[];
             exactStatus?: boolean;
+            includeCheckQuarantines?: boolean;
         }
     ): Promise<Readonly<ScanResultsResponse>> {
         const query: { key: string; value: string | number }[] = [];
@@ -1001,6 +1004,7 @@ export class AdminServiceImpl implements AdminService {
             if (params.adminDecision && params.adminDecision.length > 0)
                 query.push({ key: 'adminDecision', value: params.adminDecision.join(',') });
             if (params.exactStatus) query.push({ key: 'exactStatus', value: 'true' });
+            if (params.includeCheckQuarantines) query.push({ key: 'includeCheckQuarantines', value: 'true' });
         }
         const endpoint = createAbsoluteURL([this.registry.serverUrl, 'admin', 'scans'], query);
         return sendRequest({
@@ -1039,6 +1043,7 @@ export class AdminServiceImpl implements AdminService {
             enforcement?: 'enforced' | 'notEnforced' | 'all';
             threatScannerName?: string[];
             validationType?: string[];
+            includeCheckQuarantines?: boolean;
         }
     ): Promise<Readonly<ScanCounts>> {
         const query: { key: string; value: string | number }[] = [];
@@ -1052,6 +1057,7 @@ export class AdminServiceImpl implements AdminService {
             if (params.validationType && params.validationType.length > 0) {
                 query.push({ key: 'validationType', value: params.validationType.join(',') });
             }
+            if (params.includeCheckQuarantines) query.push({ key: 'includeCheckQuarantines', value: 'true' });
         }
         const endpoint = createAbsoluteURL([this.registry.serverUrl, 'admin', 'scans', 'counts'], query);
         return sendRequest({

@@ -577,8 +577,7 @@ public class PublishExtensionVersionHandler {
                         logger.warn(
                                 "No scanners available, activating extension immediately: {}",
                                 NamingUtil.toLogFormat(extVersion));
-                        scanService.markScanPassed(scan);
-                        service.activateExtension(extVersion, extensionService);
+                        scanService.activateScannedVersion(scan, extVersion, extensionService);
                     }
                     // If submission succeeded, extension remains inactive
                     // AsyncScanCompletionService will activate after scans complete
@@ -596,9 +595,10 @@ public class PublishExtensionVersionHandler {
                         NamingUtil.toLogFormat(extVersion));
                 // If scanning is disabled or no scan record, activate the extension immediately
                 if (scan != null) {
-                    scanService.markScanPassed(scan);
+                    scanService.activateScannedVersion(scan, extVersion, extensionService);
+                } else {
+                    service.activateExtension(extVersion, extensionService);
                 }
-                service.activateExtension(extVersion, extensionService);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
