@@ -21,6 +21,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - **Upgrade:** the `ovsx.eclipse.*` properties, their deployment descriptor entries and the Eclipse handling of `generate-properties.sh` (`ECLIPSE_CLIENT_*`, and the `ovsx.publishing.require-license=true` it set) are removed without a fallback, so `ovsx.eclipse.check-compliance-on-start` becomes `ovsx.publisher-agreement.check-compliance-on-start`; a deployment that needs Eclipse supplies a `@Primary` `PublisherAgreementProvider`, otherwise everyone may publish unless `ovsx.publisher-agreement.version` is set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.data.mirror.requests-per-second` now spaces upstream requests evenly instead of allowing a burst of up to one second of requests after an idle period ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - A failed namespace change is retried once, instead of ten times as JobRunr does by default ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
+- **Upgrade:** the Redis cache connects with Jedis, the client rate limiting and pub/sub already use, instead of Lettuce, so `spring.data.redis.lettuce.*` properties no longer apply; pool settings move to `spring.data.redis.jedis.pool.*`
 
 ### Removed
 
