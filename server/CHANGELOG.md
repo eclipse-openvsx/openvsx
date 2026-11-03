@@ -12,7 +12,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - An outdated agreement stops publishing until it is signed again, while a revoked or missing one also takes extensions offline on the startup compliance check ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
-- Add `GET /admin/api/permissions` listing the permissions a deployment registers
+- `GET /admin/api/permissions` lists the permissions a deployment registers
 
 ### Changed
 
@@ -30,7 +30,8 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - The columns `user_data.eclipse_token` and `user_data.eclipse_person_id` are dropped, with `UserData.eclipseToken`/`eclipsePersonId`, `AuthToken` and `AuthTokenConverter` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - **Upgrade:** migration `V1_83` fails, and so does the startup, while either column still holds data; a deployment that uses them copies the rows to its own table and sets both columns to `NULL` first, in a migration that sorts before `V1_83` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `AdminService.forgetUser` publishes a `UserForgottenEvent(userId)` in the erasure's transaction, whether the row is deleted or anonymized, for a deployment that keeps personal data of a user elsewhere to clear it ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
-- **Upgrade:** tier-based rate limiting, its admin and `/user/customers` endpoints and the `ovsx.rate-limit.*` settings (with `ovsx.caching.{customer,tier,rate-limit-token,usage}.*`) are removed; migration `V1_84` drops the tier, customer, customer membership, rate limit token and usage stats tables and refuses to run while they hold rows, so a deployment that needs the data moves it out first and stops writing to those tables, or rows written after the move make the upgrade fail; a deployment that got its Redis cluster client only through `ovsx.rate-limit.enabled=true` loses cross-node settings and gitleaks rules sync unless it supplies its own `RedisClusterClient` bean or enables bucket4j's `redis-cluster-jedis` cache; a deployment that adds its own admin controllers should keep an every-admin-handler-authorizes check like `AdminEndpointPermissionCheckTest`
+- Tier-based rate limiting, its admin and `/user/customers` endpoints, and the `ovsx.rate-limit.*` and `ovsx.caching.{customer,tier,rate-limit-token,usage}.*` settings are removed
+- **Upgrade:** migration `V1_84` drops the six rate limit tables and refuses to run while they hold rows, so move the data out and stop writing to them first; supply a `RedisClusterClient` bean (or enable bucket4j's `redis-cluster-jedis` cache) if rate limiting provided it; stored `manage_rate_limits` grants stop counting, and are dropped on the next access save, unless a `PermissionProvider` registers that name; delete the JobRunr recurring jobs `collect-usage-stats` and `calculate-daily-usage-stats` unless your deployment reschedules them under those ids; keep an every-admin-handler-authorizes check like `AdminEndpointPermissionCheckTest` in your own admin controllers
 
 ### Fixed
 
