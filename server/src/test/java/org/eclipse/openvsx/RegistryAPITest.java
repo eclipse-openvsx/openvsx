@@ -2645,7 +2645,7 @@ class RegistryAPITest {
                         .content(reviewJson(r -> {
                             r.setRating(3);
                         })).with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -2726,7 +2726,7 @@ class RegistryAPITest {
     @Test
     void testDeleteReviewNotLoggedIn() throws Exception {
         mockMvc.perform(post("/api/{namespace}/{extension}/review/delete", "foo", "bar").with(csrf()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

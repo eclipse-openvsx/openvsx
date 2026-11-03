@@ -223,10 +223,17 @@ class UserAPITest {
     }
 
     @Test
+    void testCsrfTokenNotLoggedIn() throws Exception {
+        // not a handler's own answer: the security filter chain refuses it
+        mockMvc.perform(get("/user/csrf"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void testAccessTokensNotLoggedIn() throws Exception {
         mockAccessTokens();
         mockMvc.perform(get("/user/tokens"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -371,7 +378,7 @@ class UserAPITest {
         mockMvc.perform(
                 post("/user/token/create?description={description}", "This is my token")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -398,7 +405,7 @@ class UserAPITest {
         mockMvc.perform(
                 post("/user/token/delete/{id}", 100)
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -463,7 +470,7 @@ class UserAPITest {
     void testOwnNamespacesNotLoggedIn() throws Exception {
         mockOwnMemberships();
         mockMvc.perform(get("/user/namespaces"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -508,7 +515,7 @@ class UserAPITest {
         var userData = mockUserData();
         mockExtension(userData, 1, 0, 0);
         mockMvc.perform(get("/user/extensions"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -743,7 +750,7 @@ class UserAPITest {
     @Test
     void testGetOwnExtensionNotLoggedIn() throws Exception {
         mockMvc.perform(get("/user/extension/{namespace}/{extension}", "foobar", "baz"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -769,7 +776,7 @@ class UserAPITest {
     void testNamespaceMembersNotLoggedIn() throws Exception {
         mockNamespaceMemberships(NamespaceMembership.ROLE_OWNER);
         mockMvc.perform(get("/user/namespace/{name}/members", "foobar"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -824,7 +831,7 @@ class UserAPITest {
                         "other_user",
                         "contributor")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -973,7 +980,7 @@ class UserAPITest {
         mockMvc.perform(
                 post("/user/extension/{namespace}/{extension}/delete", "foobar", "baz")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
