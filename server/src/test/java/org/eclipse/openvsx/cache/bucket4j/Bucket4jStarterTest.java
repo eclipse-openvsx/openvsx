@@ -24,18 +24,19 @@ import com.giffing.bucket4j.spring.boot.starter.config.filter.servlet.Bucket4JAu
 import com.github.benmanes.caffeine.jcache.CacheManagerImpl;
 import com.github.benmanes.caffeine.jcache.spi.CaffeineCachingProvider;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.cache.autoconfigure.CacheAutoConfiguration;
 import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.jetty.autoconfigure.servlet.JettyServletWebServerAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.context.TestComponent;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.webmvc.autoconfigure.DispatcherServletAutoConfiguration;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.cache.jcache.JCacheCacheManager;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * auto-configuration is skipped silently when it does not match the Boot version.
  */
 @SpringBootTest(
-    classes = Bucket4jStarterTest.Config.class,
+    classes = Bucket4jStarterTest.TestConfig.class,
     webEnvironment = WebEnvironment.RANDOM_PORT,
     properties = {
         "bucket4j.enabled=true",
@@ -77,7 +78,8 @@ class Bucket4jStarterTest {
         }
     }
 
-    @SpringBootConfiguration
+    @Configuration
+    @TestComponent
     @ImportAutoConfiguration(
         {
             JettyServletWebServerAutoConfiguration.class,
@@ -90,7 +92,7 @@ class Bucket4jStarterTest {
         }
     )
     @Import({ JCacheBucket4jConfiguration.class, PingController.class })
-    static class Config {
+    static class TestConfig {
 
         @Bean
         JCacheCacheManager jCacheCacheManager() {
@@ -105,6 +107,7 @@ class Bucket4jStarterTest {
         }
     }
 
+    @TestComponent
     @RestController
     static class PingController {
 
