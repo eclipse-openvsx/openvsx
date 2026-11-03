@@ -219,7 +219,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.empty());
-        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
 
         adminService.forgetUser("github", "amy", admin);
@@ -252,7 +251,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.of(extVersion));
-        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
 
         adminService.forgetUser("github", "amy", admin);
@@ -281,7 +279,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.of(extVersion));
-        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
 
         adminService.forgetUser("github", "amy", admin);
@@ -599,7 +596,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(target)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(target, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(target, false)).thenReturn(Streamable.empty());
-        when(repositories.findCustomerMemberships(target)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(target)).thenReturn(Streamable.empty());
 
         assertThatCode(() -> adminService.forgetUser("github", "root", caller)).doesNotThrowAnyException();

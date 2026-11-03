@@ -29,7 +29,6 @@ public class BuiltInPermissions implements PermissionProvider {
                 new PermissionInfo(Permission.MANAGE_PUBLISHERS, "Manage publishers"),
                 new PermissionInfo(Permission.MANAGE_SCANS, "Manage scans"),
                 new PermissionInfo(Permission.MANAGE_CONSISTENCY, "Manage data consistency"),
-                new PermissionInfo(Permission.MANAGE_RATE_LIMITS, "Manage rate limiting"),
                 new PermissionInfo(Permission.MANAGE_CACHES, "Manage caches"),
                 new PermissionInfo(Permission.MANAGE_SEARCH_INDEX, "Manage search index"),
                 new PermissionInfo(Permission.MANAGE_SETTINGS, "Manage settings"),

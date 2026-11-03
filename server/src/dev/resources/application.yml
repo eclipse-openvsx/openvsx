@@ -173,28 +173,6 @@ ovsx:
     notification: 0
   mail:
     from: no-reply@example.com
-  # dynamic tier-based rate limiting configuration
-  rate-limit:
-    enabled: false
-    token-prefix: dev_ovsxrl_ # use a token prefix that clearly indicates that it's for development
-    ip-address-function: '(getHeader("X-Forwarded-For")?: getRemoteAddr()).split(",")[0].trim()'
-    usage-stats:
-      job-schedule: '*/30 * * * *'
-    filters:
-      - url: '/(api|vscode)/.*'
-        http-response-headers:
-          Access-Control-Allow-Origin: '*'
-          Access-Control-Expose-Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After
-    default-http-content-type: application/json
-    default-http-response-body: >
-      {
-        "type": "https://open-vsx.org/probs/rate-limit-exceeded",
-        "title": "Too Many Requests",
-        "status": 429,
-        "detail": "A request rate limit has been exceeded for your current usage tier. Open VSX enforces tier-based limits to ensure reliable service. If this is unexpected for your use case, please contact us.",
-        "documentation": "https://github.com/EclipseFdn/open-vsx.org/wiki/Rate-Limiting",
-        "contact": "infrastructure@eclipse-foundation.org"
-      }
   scanning:
     enabled: true
     # Shared archive limits for all scanning checks (secret detection, blocklist, etc.)

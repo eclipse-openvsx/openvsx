@@ -749,14 +749,6 @@ public class AdminService {
             removedExtensionCount++;
         }
 
-        // Remove customer memberships. The customer and its rate-limit tokens are organisation-level
-        // and shared, so they are retained.
-        var removedCustomerMembershipCount = 0;
-        for (var customerMembership : repositories.findCustomerMemberships(user)) {
-            entityManager.remove(customerMembership);
-            removedCustomerMembershipCount++;
-        }
-
         // Personal access tokens are no longer referenced by extension versions, so they can
         // always be deleted outright.
         var deletedTokenCount = 0;
@@ -765,7 +757,7 @@ public class AdminService {
             deletedTokenCount++;
         }
 
-        // Namespace and customer memberships are already fully removed above. If nothing else in
+        // Namespace memberships are already fully removed above. If nothing else in
         // the database still refers to this user either, delete the row outright instead of
         // anonymizing it.
         //
@@ -806,8 +798,7 @@ public class AdminService {
                 "Forgot user " + tombstoneLogin
                         + (canDeleteUser ? ": deleted user record, deleted " : ": deleted ")
                         + removedExtensionCount + " extensions, removed "
-                        + removedMembershipCount + " namespace memberships, removed "
-                        + removedCustomerMembershipCount + " customer memberships, deleted "
+                        + removedMembershipCount + " namespace memberships, deleted "
                         + deletedTokenCount + " tokens.");
         logs.logAction(admin, result);
         return result;

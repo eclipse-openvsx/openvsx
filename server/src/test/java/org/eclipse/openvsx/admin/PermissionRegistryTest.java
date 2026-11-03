@@ -59,7 +59,6 @@ class PermissionRegistryTest {
                 Permission.MANAGE_PUBLISHERS,
                 Permission.MANAGE_SCANS,
                 Permission.MANAGE_CONSISTENCY,
-                Permission.MANAGE_RATE_LIMITS,
                 Permission.MANAGE_CACHES,
                 Permission.MANAGE_SEARCH_INDEX,
                 Permission.MANAGE_SETTINGS,

@@ -27,7 +27,6 @@ public record Permission(String name) {
     public static final Permission MANAGE_PUBLISHERS = of("manage_publishers");
     public static final Permission MANAGE_SCANS = of("manage_scans");
     public static final Permission MANAGE_CONSISTENCY = of("manage_consistency");
-    public static final Permission MANAGE_RATE_LIMITS = of("manage_rate_limits");
     public static final Permission MANAGE_CACHES = of("manage_caches");
     public static final Permission MANAGE_SEARCH_INDEX = of("manage_search_index");
     public static final Permission MANAGE_SETTINGS = of("manage_settings");
