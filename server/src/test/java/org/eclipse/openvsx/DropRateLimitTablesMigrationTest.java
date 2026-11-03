@@ -33,22 +33,37 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DropRateLimitTablesMigrationTest extends AbstractPostgresContainerTest {
 
     private static final List<String> TABLES = List.of(
-            "daily_usage_stats", "usage_stats", "rate_limit_token", "customer_membership", "customer", "tier");
+            "daily_usage_stats",
+            "usage_stats",
+            "rate_limit_token",
+            "customer_membership",
+            "customer",
+            "tier");
 
     private static final Map<String, String> ROWS = Map.of(
-            "daily_usage_stats", "INSERT INTO daily_usage_stats (date, total_requests, p95_requests) VALUES (now(), 1, 1)",
-            "usage_stats", "INSERT INTO usage_stats (id, window_start, duration, count) VALUES (1, now(), 1, 1)",
-            "rate_limit_token", "INSERT INTO rate_limit_token (active) VALUES (true)",
-            "customer_membership", "INSERT INTO customer_membership DEFAULT VALUES",
-            "customer", "INSERT INTO customer (id, name, state) VALUES (1, 'c', 'NORMAL')",
-            "tier", "INSERT INTO tier (id, name, tier_type, capacity, duration, refill_strategy) VALUES (1, 't', 'FREE', 1, 1, 'GREEDY')");
+            "daily_usage_stats",
+            "INSERT INTO daily_usage_stats (date, total_requests, p95_requests) VALUES (now(), 1, 1)",
+            "usage_stats",
+            "INSERT INTO usage_stats (id, window_start, duration, count) VALUES (1, now(), 1, 1)",
+            "rate_limit_token",
+            "INSERT INTO rate_limit_token (active) VALUES (true)",
+            "customer_membership",
+            "INSERT INTO customer_membership DEFAULT VALUES",
+            "customer",
+            "INSERT INTO customer (id, name, state) VALUES (1, 'c', 'NORMAL')",
+            "tier",
+            "INSERT INTO tier (id, name, tier_type, capacity, duration, refill_strategy) VALUES (1, 't', 'FREE', 1, 1, 'GREEDY')");
 
     @ParameterizedTest
-    @ValueSource(strings = {"daily_usage_stats", "usage_stats", "rate_limit_token", "customer_membership", "customer", "tier"})
+    @ValueSource(
+        strings = { "daily_usage_stats", "usage_stats", "rate_limit_token", "customer_membership", "customer", "tier" }
+    )
     void refusesToDropWhileATableHoldsARow(String table) throws SQLException {
         var url = createDatabase("drop_rate_limit_" + table);
-        try (var connection = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
-             var statement = connection.createStatement()) {
+        try (
+                var connection = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+                var statement = connection.createStatement()
+        ) {
             statement.execute(ROWS.get(table));
 
             assertThatThrownBy(latest(url)::migrate)
@@ -62,8 +77,10 @@ class DropRateLimitTablesMigrationTest extends AbstractPostgresContainerTest {
     @Test
     void dropsTablesAndSequencesWhenEmpty() throws SQLException {
         var url = createDatabase("drop_rate_limit_empty");
-        try (var connection = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
-             var statement = connection.createStatement()) {
+        try (
+                var connection = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+                var statement = connection.createStatement()
+        ) {
             var sequences = TABLES.stream().map(t -> t + "_seq").toList();
             assertThat(count(statement, "pg_sequences WHERE schemaname = 'public' AND sequencename", sequences))
                     .isEqualTo(TABLES.size());
@@ -71,7 +88,8 @@ class DropRateLimitTablesMigrationTest extends AbstractPostgresContainerTest {
             latest(url).migrate();
 
             assertThat(count(statement, "pg_tables WHERE schemaname = 'public' AND tablename", TABLES)).isZero();
-            assertThat(count(statement, "pg_sequences WHERE schemaname = 'public' AND sequencename", sequences)).isZero();
+            assertThat(count(statement, "pg_sequences WHERE schemaname = 'public' AND sequencename", sequences))
+                    .isZero();
         }
     }
 
@@ -82,9 +100,13 @@ class DropRateLimitTablesMigrationTest extends AbstractPostgresContainerTest {
 
     /** Creates a database migrated up to V1_83 and returns its URL. */
     private static String createDatabase(String name) throws SQLException {
-        try (var admin = DriverManager.getConnection(
-                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-             var statement = admin.createStatement()) {
+        try (
+                var admin = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(),
+                        POSTGRES.getUsername(),
+                        POSTGRES.getPassword());
+                var statement = admin.createStatement()
+        ) {
             statement.execute("DROP DATABASE IF EXISTS " + name);
             statement.execute("CREATE DATABASE " + name);
         }
@@ -95,8 +117,11 @@ class DropRateLimitTablesMigrationTest extends AbstractPostgresContainerTest {
     }
 
     private static int count(Statement statement, String catalogFilter, List<String> names) throws SQLException {
-        try (var rows = statement.executeQuery("SELECT count(*) FROM " + catalogFilter
-                + " IN ('" + String.join("','", names) + "')")) {
+        try (
+                var rows = statement.executeQuery(
+                        "SELECT count(*) FROM " + catalogFilter
+                                + " IN ('" + String.join("','", names) + "')")
+        ) {
             rows.next();
             return rows.getInt(1);
         }
