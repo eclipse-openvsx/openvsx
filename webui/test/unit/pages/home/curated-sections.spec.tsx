@@ -67,6 +67,7 @@ describe('CuratedSections', () => {
         // Still shown and busy, but neither failed (no notice or stand-ins) nor loaded (no cards).
         const row = screen.getByRole('region', { name: 'Most downloaded' });
         expect(row).toHaveAttribute('aria-busy', 'true');
+        expect(row.querySelector('.MuiSkeleton-root')).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t load extensions at this time.')).not.toBeInTheDocument();
         expect(screen.queryByText('Language Support')).not.toBeInTheDocument();
         expect(screen.queryAllByRole('link', { hidden: true })).toHaveLength(0);
