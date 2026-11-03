@@ -12,7 +12,7 @@
  ********************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createTestQueryClient, renderWithProviders } from '../../support/test-providers';
 import { CuratedSections } from '../../../../src/pages/home/curated-sections';
@@ -67,6 +67,7 @@ describe('CuratedSections', () => {
         // Still shown and busy, but neither failed (no notice or stand-ins) nor loaded (no cards).
         const row = screen.getByRole('region', { name: 'Most downloaded' });
         expect(row).toHaveAttribute('aria-busy', 'true');
+        expect(within(row).getAllByTestId('extension-card-skeleton').length).toBeGreaterThan(0);
         expect(screen.queryByText('We couldn’t load extensions at this time.')).not.toBeInTheDocument();
         expect(screen.queryByText('Language Support')).not.toBeInTheDocument();
         expect(screen.queryAllByRole('link', { hidden: true })).toHaveLength(0);
