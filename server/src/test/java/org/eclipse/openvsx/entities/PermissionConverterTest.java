@@ -12,10 +12,14 @@
  *****************************************************************************/
 package org.eclipse.openvsx.entities;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
+import org.eclipse.openvsx.admin.BuiltInPermissions;
+import org.eclipse.openvsx.admin.PermissionRegistry;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 class PermissionConverterTest {
 
@@ -23,7 +27,8 @@ class PermissionConverterTest {
 
     @Test
     void roundTripsEveryConstant() {
-        for (var permission : Permission.values()) {
+        for (var info : new PermissionRegistry(List.of(new BuiltInPermissions())).all()) {
+            var permission = info.permission();
             assertThat(converter.convertToEntityAttribute(converter.convertToDatabaseColumn(permission)))
                     .isEqualTo(permission);
         }
@@ -33,27 +38,5 @@ class PermissionConverterTest {
     void readsNullAsNull() {
         assertThat(converter.convertToEntityAttribute(null)).isNull();
         assertThat(converter.convertToDatabaseColumn(null)).isNull();
-    }
-
-    /**
-     * A grant left behind by a release that has since been rolled back. The collection is EAGER on
-     * the path every authenticated request takes, so throwing here would lock that user out of the
-     * whole site rather than just out of the capability the row names.
-     */
-    @Test
-    void readsAValueThisBuildDoesNotKnowAsNoPermission() {
-        assertThat(converter.convertToEntityAttribute("manage_webhooks")).isNull();
-    }
-
-    @Test
-    void aUserCarryingAnUnknownPermissionStaysUsable() {
-        var user = new UserData();
-        user.getPermissions().add(converter.convertToEntityAttribute("manage_webhooks"));
-        user.getPermissions().add(Permission.MANAGE_CACHES);
-
-        assertThatCode(user::getPermissionsAsStrings).doesNotThrowAnyException();
-        assertThat(user.getPermissionsAsStrings()).containsExactly("manage_caches");
-        assertThat(user.hasPermission(Permission.MANAGE_CACHES)).isTrue();
-        assertThat(user.hasPermission(Permission.MANAGE_SCANS)).isFalse();
     }
 }

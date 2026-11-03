@@ -21,11 +21,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
+import org.springframework.http.HttpStatus;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.UserService;
@@ -86,6 +88,12 @@ class AdminServiceTest {
 
     @Mock
     ApplicationEventPublisher events;
+
+    @Spy
+    PermissionRegistry permissionRegistry = new PermissionRegistry(
+            List.of(
+                    new BuiltInPermissions(),
+                    () -> List.of(new PermissionInfo(Permission.of("manage_widgets"), "Manage widgets"))));
 
     @InjectMocks
     AdminService adminService;
@@ -453,10 +461,8 @@ class AdminServiceTest {
         verify(repositories, never()).findUserByLoginName(any(), any());
     }
 
-    // Permission.valueOfIgnoreCase answers null for a null name, which EnumSet.add would turn into
-    // an NPE - a 500 for input that belongs in the same 400 as any other unknown permission.
     @Test
-    void updateUserAccessRejectsANullPermissionEntry() {
+    void updateUserAccessRejectsNullPermissionWith400() {
         var user = new UserData();
         user.setLoginName("amy");
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
@@ -464,7 +470,38 @@ class AdminServiceTest {
         var access = new UserAccessJson("none", Collections.singletonList(null));
         assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
                 .isInstanceOf(ErrorResultException.class)
-                .hasMessageContaining("Invalid permission");
+                .hasMessageContaining("Invalid permission")
+                .extracting(e -> ((ErrorResultException) e).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateUserAccessRejectsUnregisteredPermissionWith400() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        for (var name : List.of("manage_webhooks", " ", "")) {
+            var access = new UserAccessJson("none", List.of(name));
+            assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Invalid permission")
+                    .extracting(e -> ((ErrorResultException) e).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(user.getPermissions()).isEmpty();
+    }
+
+    @Test
+    void updateUserAccessAcceptsPermissionFromAnotherProvider() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var access = new UserAccessJson("none", List.of("Manage_Widgets", "manage_caches"));
+        var result = adminService.updateUserAccess("github", "amy", access, admin);
+
+        assertThat(user.getPermissions())
+                .containsExactlyInAnyOrder(Permission.of("manage_widgets"), Permission.MANAGE_CACHES);
+        assertThat(result.getSuccess()).contains("granted manage_caches, manage_widgets");
     }
 
     @Test

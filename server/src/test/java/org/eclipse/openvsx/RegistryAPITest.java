@@ -3915,6 +3915,12 @@ class RegistryAPITest {
     @Import({ SecurityConfig.class, MockMvcAsyncConfig.class })
     static class TestConfig {
         @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
+        @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();
         }

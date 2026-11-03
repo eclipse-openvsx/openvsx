@@ -3322,6 +3322,11 @@ class AdminAPITest {
     @Import(SecurityConfig.class)
     static class TestConfig {
         @Bean
+        PermissionRegistry permissionRegistry() {
+            return new PermissionRegistry(List.of(new BuiltInPermissions()));
+        }
+
+        @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();
         }
@@ -3392,7 +3397,8 @@ class AdminAPITest {
                 ExtensionSizeLimitService sizeLimits,
                 LogService logs,
                 AdminStatisticsService statistics,
-                ApplicationEventPublisher events
+                ApplicationEventPublisher events,
+                PermissionRegistry permissionRegistry
         ) {
             return new AdminService(
                     repositories,
@@ -3410,7 +3416,8 @@ class AdminAPITest {
                     sizeLimits,
                     logs,
                     statistics,
-                    events);
+                    events,
+                    permissionRegistry);
         }
 
         @Bean
