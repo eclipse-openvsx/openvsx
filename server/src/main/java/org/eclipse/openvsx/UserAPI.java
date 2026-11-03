@@ -487,7 +487,11 @@ public class UserAPI {
                 throw new ErrorResultException(error, HttpStatus.NOT_FOUND);
             }
 
-            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            // The version the registry serves as latest, or else the newest of the removed or inactive ones.
+            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, true);
+            if (latest == null) {
+                latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            }
 
             ExtensionJson json;
             if (latest != null) {

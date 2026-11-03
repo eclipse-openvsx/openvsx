@@ -688,7 +688,11 @@ public class AdminAPI {
         try {
             admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             ExtensionJson json;
-            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            // The version the registry serves as latest, or else the newest of the removed or inactive ones.
+            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, true);
+            if (latest == null) {
+                latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            }
             if (latest != null) {
                 json = local.toExtensionVersionJson(latest, null, false);
                 json.setAllTargetPlatformVersions(

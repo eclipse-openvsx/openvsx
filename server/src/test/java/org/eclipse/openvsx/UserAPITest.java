@@ -603,6 +603,30 @@ class UserAPITest {
     }
 
     @Test
+    void testGetOwnExtensionShowsTheServedLatestVersionOverARemovedHigherOne() throws Exception {
+        var userData = mockUserData();
+        var versions = mockExtension(userData, 2, 0, 0);
+        var served = versions.getFirst();
+        var removed = versions.getLast();
+        served.setId(41L);
+        removed.setId(42L);
+        removed.setActive(false);
+        removed.setRemoved(true);
+        Mockito.when(repositories.isNamespaceOwner(any(UserData.class), any(Namespace.class))).thenReturn(true);
+        Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(true)))
+                .thenReturn(served);
+        Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(false)))
+                .thenReturn(removed);
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(41L, java.util.List.of()));
+        mockMvc.perform(
+                get("/user/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("test_user")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value("1.0.0"));
+    }
+
+    @Test
     void testGetOwnExtensionAsNamespaceMember() throws Exception {
         var userData = mockUserData();
         var versions = mockExtension(userData, 2, 0, 0);

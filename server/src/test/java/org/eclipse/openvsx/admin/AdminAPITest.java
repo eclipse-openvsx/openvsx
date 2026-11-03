@@ -634,6 +634,23 @@ class AdminAPITest {
     }
 
     @Test
+    void testGetExtensionShowsTheServedLatestVersionOverARemovedHigherOne() throws Exception {
+        mockAdminUser();
+        var versions = mockExtension(2, 0, 0);
+        var removed = versions.getLast();
+        removed.setActive(false);
+        removed.setRemoved(true);
+        when(repositories.findLatestVersion("foobar", "baz", null, false, true)).thenReturn(versions.getFirst());
+
+        mockMvc.perform(
+                get("/admin/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority(("ROLE_ADMIN"))))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value("1.0.0"));
+    }
+
+    @Test
     void testGetExtensionNamespaceOwnershipConflict() throws Exception {
         mockAdminUser();
         var latest = mockExtension(2, 0, 0).getLast();
