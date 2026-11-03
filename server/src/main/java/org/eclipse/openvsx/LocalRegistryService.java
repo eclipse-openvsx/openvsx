@@ -1004,7 +1004,7 @@ public class LocalRegistryService implements IExtensionRegistry {
     public ResultJson postReview(ReviewJson review, String namespace, String extensionName) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         var extension = repositories.findExtension(extensionName, namespace);
         if (extension == null || !extension.isActive()) {
@@ -1036,7 +1036,7 @@ public class LocalRegistryService implements IExtensionRegistry {
     public ResultJson deleteReview(String namespace, String extensionName) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         var extension = repositories.findExtension(extensionName, namespace);
         if (extension == null || !extension.isActive()) {

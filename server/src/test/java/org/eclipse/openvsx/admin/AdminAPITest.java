@@ -441,6 +441,12 @@ class AdminAPITest {
     }
 
     @Test
+    void testSearchExplainNotLoggedIn() throws Exception {
+        mockMvc.perform(get("/admin/search-explain").param("query", "markdown"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void testGetSearchIndexNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
@@ -575,7 +581,7 @@ class AdminAPITest {
         mockMvc.perform(
                 get("/admin/extension/{namespace}/{extension}", "foobar", "baz")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -666,7 +672,7 @@ class AdminAPITest {
                         "other_user",
                         "owner")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -832,7 +838,7 @@ class AdminAPITest {
         mockMvc.perform(
                 post("/admin/extension/{namespace}/{extension}/delete", "foobar", "baz")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -976,7 +982,7 @@ class AdminAPITest {
         mockMvc.perform(
                 get("/admin/namespace/{namespace}", "foobar")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1053,7 +1059,7 @@ class AdminAPITest {
         mockMvc.perform(
                 get("/admin/namespace/{namespace}/members", "foobar")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1134,7 +1140,7 @@ class AdminAPITest {
                             n.setName("foobar");
                         }))
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1190,7 +1196,7 @@ class AdminAPITest {
         mockMvc.perform(
                 delete("/admin/namespace/test-namespace")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1257,7 +1263,7 @@ class AdminAPITest {
         mockMvc.perform(
                 get("/admin/users")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1280,7 +1286,7 @@ class AdminAPITest {
     @Test
     void testUpdateUserAccessNotLoggedIn() throws Exception {
         mockMvc.perform(updateAccess("test", "{\"role\":\"admin\",\"permissions\":[]}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1461,7 +1467,7 @@ class AdminAPITest {
         mockMvc.perform(
                 get("/admin/publisher/{provider}/{loginName}", "github", "test")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1581,7 +1587,7 @@ class AdminAPITest {
         mockMvc.perform(
                 post("/admin/publisher/{provider}/{loginName}/revoke", "github", "test")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1638,7 +1644,7 @@ class AdminAPITest {
         mockMvc.perform(
                 post("/admin/publisher/{provider}/{loginName}/tokens/revoke", "github", "test")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1674,7 +1680,7 @@ class AdminAPITest {
         mockMvc.perform(
                 post("/admin/publisher/{provider}/{authId}/delete", "github", "12345")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -2727,7 +2733,7 @@ class AdminAPITest {
                         "github",
                         "user1")
                         .with(csrf()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
