@@ -92,9 +92,9 @@ class TrustedPublishingAPITest {
     // ---------------------------------------------------------------------------------------
 
     @Test
-    void createTrustedPublisher_returns403_whenNotLoggedIn() throws Exception {
+    void createTrustedPublisher_returns401_whenNotLoggedIn() throws Exception {
         mockMvc.perform(createRequest(NAMESPACE, registrationBody(NAMESPACE, EXTENSION, PROVIDER, REGISTRATION)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(trustedPublishing);
     }
@@ -214,9 +214,9 @@ class TrustedPublishingAPITest {
     // ---------------------------------------------------------------------------------------
 
     @Test
-    void getTrustedPublishers_returns403_whenNotLoggedIn() throws Exception {
+    void getTrustedPublishers_returns401_whenNotLoggedIn() throws Exception {
         mockMvc.perform(get("/user/namespace/{namespace}/trusted-publishing", NAMESPACE))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(trustedPublishing);
     }
@@ -289,9 +289,9 @@ class TrustedPublishingAPITest {
     // ---------------------------------------------------------------------------------------
 
     @Test
-    void deleteTrustedPublisher_returns403_whenNotLoggedIn() throws Exception {
+    void deleteTrustedPublisher_returns401_whenNotLoggedIn() throws Exception {
         mockMvc.perform(post("/user/namespace/{namespace}/trusted-publishing/delete/{id}", NAMESPACE, 7))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(trustedPublishing);
     }
@@ -410,8 +410,8 @@ class TrustedPublishingAPITest {
     // ---------------------------------------------------------------------------------------
 
     @Test
-    void getTrustedPublishingStatus_returns403_whenNotLoggedIn() throws Exception {
-        mockMvc.perform(get("/api/-/trusted-publishing/status")).andExpect(status().isForbidden());
+    void getTrustedPublishingStatus_returns401_whenNotLoggedIn() throws Exception {
+        mockMvc.perform(get("/api/-/trusted-publishing/status")).andExpect(status().isUnauthorized());
 
         verifyNoInteractions(trustedPublishing);
     }

@@ -12,6 +12,10 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - `publish --trusted-publishing` asks the registry which audience its ID token must carry, so trusted publishing works on a registry whose configured audience is not its URL (#2391)
 - `publish --trusted-publishing` only sends its ID token to a registry reached over https, apart from a loopback address, and a failed registry version lookup is no longer remembered (#2391)
 
+### Removed
+
+- `LoginOptions` is no longer exported from the package entry point; it was the options type of `login`, which the entry point never actually exported
+
 ### Dependencies
 
 - Bump vite from 8.3.2 to 8.3.5 (#2357)
@@ -19,6 +23,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Bump undici from 8.11.2 to 8.12.3 (#2387)
 - Resolve `@azure/msal-node` to 7.1.1 (#2388)
 - Upgrade `yarn` from 4.9.1 to 4.18.1 and set `npmMinimalAgeGate` to 7 days, so versions published in the last 7 days are not picked for new resolutions (#2393)
+- Bump qs from 6.16.0 to 6.16.1 (#2415)
 
 ## [1.3.0] - 2026-10-16
 
