@@ -88,6 +88,7 @@ public class ExtensionScanPersistenceService {
             @NonNull String version,
             @Nullable String targetPlatform,
             @Nullable String displayName,
+            @Nullable String declaredDisplayName,
             @NonNull UserData user
     ) {
         var isUniversal = targetPlatform == null || "universal".equals(targetPlatform);
@@ -102,6 +103,7 @@ public class ExtensionScanPersistenceService {
                 targetPlatform,
                 isUniversal,
                 displayName,
+                declaredDisplayName,
                 user);
     }
 
@@ -115,6 +117,7 @@ public class ExtensionScanPersistenceService {
             String targetPlatform,
             boolean isUniversal,
             String displayName,
+            String declaredDisplayName,
             UserData user
     ) {
         try {
@@ -126,6 +129,7 @@ public class ExtensionScanPersistenceService {
             scan.setTargetPlatform(targetPlatform);
             scan.setUniversalTargetPlatform(isUniversal);
             scan.setExtensionDisplayName(displayName);
+            scan.setDeclaredDisplayName(declaredDisplayName);
 
             var publisherLoginName = user.getLoginName() != null ? user.getLoginName() : "unknown";
             var publisherUrl = user.getProviderUrl();

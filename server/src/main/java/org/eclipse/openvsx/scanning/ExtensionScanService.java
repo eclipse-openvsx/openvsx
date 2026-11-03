@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.scanning;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -22,9 +23,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.eclipse.openvsx.ExtensionProcessor;
+import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.entities.*;
+import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NamingUtil;
@@ -48,6 +52,8 @@ public class ExtensionScanService {
     private final ScannerRegistry scannerRegistry;
     private final JobRequestScheduler jobScheduler;
     private final ScannerJobRepository scanJobRepository;
+    private final PublishExtensionVersionService publishService;
+    private final Optional<DisplayNameConflictCheckService> displayNameConflictCheck;
 
     public ExtensionScanService(
             ExtensionScanConfig config,
@@ -55,7 +61,9 @@ public class ExtensionScanService {
             ExtensionScanPersistenceService persistenceService,
             ScannerRegistry scannerRegistry,
             JobRequestScheduler jobScheduler,
-            ScannerJobRepository scanJobRepository
+            ScannerJobRepository scanJobRepository,
+            PublishExtensionVersionService publishService,
+            Optional<DisplayNameConflictCheckService> displayNameConflictCheck
     ) {
         this.config = config;
         this.checkRunner = checkRunner;
@@ -63,6 +71,8 @@ public class ExtensionScanService {
         this.scannerRegistry = scannerRegistry;
         this.jobScheduler = jobScheduler;
         this.scanJobRepository = scanJobRepository;
+        this.publishService = publishService;
+        this.displayNameConflictCheck = displayNameConflictCheck;
     }
 
     /**
@@ -84,7 +94,8 @@ public class ExtensionScanService {
                 processor.getExtensionName(),
                 processor.getVersion(),
                 processor.getTargetPlatform(),
-                processor.getDisplayName(),
+                processor.getDisplayNameOrExtensionName(),
+                processor.getDeclaredDisplayName(),
                 user);
     }
 
@@ -94,6 +105,7 @@ public class ExtensionScanService {
             String version,
             String targetPlatform,
             String displayName,
+            String declaredDisplayName,
             UserData user
     ) {
         logger.debug("Starting publish scan for {}.{} v{}", namespaceName, extensionName, version);
@@ -104,6 +116,7 @@ public class ExtensionScanService {
                 version,
                 targetPlatform,
                 displayName,
+                declaredDisplayName,
                 user);
     }
 
@@ -371,6 +384,48 @@ public class ExtensionScanService {
      */
     public boolean hasRegisteredScanners() {
         return !scannerRegistry.getAllScanners().isEmpty();
+    }
+
+    /**
+     * Activates the version a scan has cleared and marks the scan passed.
+     * <p>
+     * The version is quarantined instead when, while it waited on its scan, another publisher's extension
+     * was activated under the display name it adopts. The other extension may be the impersonator, so
+     * this one is kept for an admin to allow rather than rejected.
+     *
+     * @return whether the version was activated
+     */
+    @Transactional
+    public boolean activateScannedVersion(
+            @NonNull ExtensionScan scan,
+            @NonNull ExtensionVersion extVersion,
+            @NonNull ExtensionService extensions
+    ) {
+        var check = displayNameConflictCheck.filter(DisplayNameConflictCheckService::isEnabled);
+        if (check.isPresent()) {
+            var result = check.get().checkActivation(scan, extVersion.getPublishedBy());
+            var enforced = check.get().isEnforced();
+            for (var failure : result.failures()) {
+                persistenceService.recordValidationFailure(
+                        scan,
+                        check.get().getCheckType(),
+                        failure.ruleName(),
+                        failure.reason(),
+                        enforced);
+            }
+            if (!result.passed() && enforced) {
+                logger.warn(
+                        "Display name conflict at activation, quarantining: {} scanId={}",
+                        NamingUtil.toLogFormat(extVersion),
+                        scan.getId());
+                quarantineScan(scan);
+                return false;
+            }
+        }
+
+        publishService.activateExtension(extVersion, extensions);
+        markScanPassed(scan);
+        return true;
     }
 
     public void markScanPassed(@Nullable ExtensionScan scan) {

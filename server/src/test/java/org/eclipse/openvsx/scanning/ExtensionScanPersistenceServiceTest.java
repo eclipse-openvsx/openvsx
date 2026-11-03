@@ -34,6 +34,8 @@ import org.eclipse.openvsx.repositories.ScanCheckResultRepository;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +66,16 @@ class ExtensionScanPersistenceServiceTest {
                 scannerJobRepository,
                 scanCheckResultRepository,
                 scannerRegistry);
+    }
+
+    @Test
+    void initializeScan_storesTheDeclaredDisplayNameApartFromTheLabel() {
+        when(repositories.saveExtensionScan(any(ExtensionScan.class))).then(returnsFirstArg());
+
+        var scan = svc.initializeScan("publisher", "demo", "1.0.0", "universal", null, null, new UserData());
+
+        assertThat(scan.getExtensionDisplayName()).isEqualTo("demo");
+        assertThat(scan.getDeclaredDisplayName()).isNull();
     }
 
     @Test

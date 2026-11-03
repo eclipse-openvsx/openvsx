@@ -13,6 +13,7 @@
 
 import { FunctionComponent, useMemo } from 'react';
 import {
+    Alert,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -60,6 +61,40 @@ const getThreatsWithoutFileInfo = (scan: ScanResult) => {
     return scan.threats?.filter(threat => !threat.fileName) || [];
 };
 
+/** Display name conflicts that quarantined a version when it was about to be activated. */
+const getDisplayNameConflicts = (scan: ScanResult) =>
+    scan.validationFailures?.filter(failure => failure.enforcedFlag && failure.type === 'DISPLAY_NAME_CONFLICT') ?? [];
+
+/**
+ * Warns that allowing a version quarantined for a display name conflict activates it under a name another
+ * publisher's extension already shows. The admin may still allow it, as the extension holding the name could
+ * be the one impersonating.
+ */
+const DisplayNameConflictWarning: FunctionComponent<{ scans: ScanResult[] }> = ({ scans }) => {
+    const conflicting = scans.filter(scan => getDisplayNameConflicts(scan).length > 0);
+    if (conflicting.length === 0) {
+        return null;
+    }
+    return (
+        <Alert severity='warning' sx={{ mb: 2 }}>
+            Allowing activates {conflicting.length !== 1 ? 'these versions' : 'this version'} under a display name that
+            another publisher&apos;s extension already shows, so both will show the same name:
+            <List dense disablePadding>
+                {conflicting.flatMap(scan =>
+                    getDisplayNameConflicts(scan).map(failure => (
+                        <ListItem key={failure.id} disableGutters>
+                            <ListItemText
+                                primary={`${scan.namespace}.${scan.extensionName} ${scan.version}`}
+                                secondary={failure.reason}
+                            />
+                        </ListItem>
+                    ))
+                )}
+            </List>
+        </Alert>
+    );
+};
+
 /**
  * Confirmation dialog for extension-level allow/block actions.
  * Uses the useDialogs hook to consume context.
@@ -91,24 +126,34 @@ export const QuarantineDialog: FunctionComponent = () => {
         );
     }, [confirmDialog.selectedExtensions]);
 
-    // An errored scan can still carry threats persisted by scanners that finished; those go through
-    // the regular dialog so that the files about to be allow-listed are shown.
-    const allErrored =
-        confirmDialog.selectedExtensions.length > 0 &&
-        confirmDialog.selectedExtensions.every(
-            (scan: ScanResult) => scan.status === 'ERROR' && (scan.threats?.length ?? 0) === 0
-        );
+    const isAllow = confirmDialog.action === 'allow';
 
-    if (allErrored) {
+    // Scans without threats, errored ones or those a check quarantined, have no files to allow or block. An
+    // errored scan can still carry threats persisted by scanners that finished; those go through the regular
+    // dialog so that the files about to be allow-listed are shown.
+    const noThreats =
+        confirmDialog.selectedExtensions.length > 0 &&
+        confirmDialog.selectedExtensions.every((scan: ScanResult) => (scan.threats?.length ?? 0) === 0);
+
+    if (noThreats) {
         const count = confirmDialog.selectedExtensions.length;
+        const versions = `${count} extension version${count !== 1 ? 's' : ''}`;
+        const allErrored = confirmDialog.selectedExtensions.every((scan: ScanResult) => scan.status === 'ERROR');
         return (
             <Dialog open={confirmDialog.isOpen} onClose={confirmDialog.close} maxWidth='md' fullWidth>
-                <DialogTitle>Confirm Allow</DialogTitle>
+                <DialogTitle>{isAllow ? 'Confirm Allow' : 'Confirm Block'}</DialogTitle>
                 <DialogContent>
                     <Typography variant='body1' sx={{ mb: 2 }}>
-                        Activate {count} extension version{count !== 1 ? 's' : ''} although the scan ended in an error?
-                        {count !== 1 ? ' They become' : ' It becomes'} publicly available without a completed scan.
+                        {allErrored &&
+                            `Activate ${versions} although the scan ended in an error? ${count !== 1 ? 'They become' : 'It becomes'} publicly available without a completed scan.`}
+                        {!allErrored &&
+                            isAllow &&
+                            `Activate ${versions}? ${count !== 1 ? 'They become' : 'It becomes'} publicly available.`}
+                        {!allErrored &&
+                            !isAllow &&
+                            `Block ${versions}? ${count !== 1 ? 'They stay' : 'It stays'} inactive.`}
                     </Typography>
+                    {isAllow && <DisplayNameConflictWarning scans={confirmDialog.selectedExtensions} />}
                     <List
                         sx={{
                             maxHeight: '400px',
@@ -130,8 +175,8 @@ export const QuarantineDialog: FunctionComponent = () => {
                     <Button onClick={confirmDialog.close} color='inherit'>
                         Cancel
                     </Button>
-                    <Button onClick={confirmDialog.execute} variant='contained' color='success'>
-                        Confirm Allow
+                    <Button onClick={confirmDialog.execute} variant='contained' color={isAllow ? 'success' : 'error'}>
+                        {isAllow ? 'Confirm Allow' : 'Confirm Block'}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -149,6 +194,8 @@ export const QuarantineDialog: FunctionComponent = () => {
                     {confirmDialog.selectedExtensions.length} extension
                     {confirmDialog.selectedExtensions.length !== 1 ? 's' : ''}?
                 </Typography>
+
+                {isAllow && <DisplayNameConflictWarning scans={confirmDialog.selectedExtensions} />}
 
                 {/* Info message about unenforced threats */}
                 {hasAnyUnenforcedThreats && (

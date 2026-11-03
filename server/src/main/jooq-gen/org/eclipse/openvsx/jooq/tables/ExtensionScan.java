@@ -119,6 +119,11 @@ public class ExtensionScan extends TableImpl<ExtensionScanRecord> {
      */
     public final TableField<ExtensionScanRecord, String> ERROR_MESSAGE = createField(DSL.name("error_message"), SQLDataType.VARCHAR(2048), this, "");
 
+    /**
+     * The column <code>public.extension_scan.declared_display_name</code>.
+     */
+    public final TableField<ExtensionScanRecord, String> DECLARED_DISPLAY_NAME = createField(DSL.name("declared_display_name"), SQLDataType.VARCHAR(255), this, "");
+
     private ExtensionScan(Name alias, Table<ExtensionScanRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
     }

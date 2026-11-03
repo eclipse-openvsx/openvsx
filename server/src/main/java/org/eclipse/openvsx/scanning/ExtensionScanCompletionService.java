@@ -681,17 +681,12 @@ public class ExtensionScanCompletionService implements JobRequestHandler<Handler
                 jobs.size(),
                 scanId);
 
-        // Activate extension first
-        // This sets active=true and updates the extension metadata
-        publishService.activateExtension(extVersion, extensionService);
-
-        // Now mark scan as passed
         ExtensionScan scan = scanRepository.findById(Long.parseLong(scanId));
-        if (scan != null) {
-            scanService.markScanPassed(scan);
+        if (scan == null) {
+            publishService.activateExtension(extVersion, extensionService);
+            return true;
         }
-
-        return true;
+        return scanService.activateScannedVersion(scan, extVersion, extensionService);
     }
 
     /**
@@ -768,7 +763,8 @@ public class ExtensionScanCompletionService implements JobRequestHandler<Handler
                 return true;
             }
 
-            // Mark scan passed and activate extension
+            // Mark scan passed and activate extension. Not through activateScannedVersion: allowing the
+            // version is the admin's call, including over a display name conflict it was quarantined for.
             scanService.markScanPassed(scan);
             publishService.activateExtension(extVersion, extensionService);
 

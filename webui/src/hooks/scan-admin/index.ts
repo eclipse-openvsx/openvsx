@@ -31,7 +31,7 @@ export type { UseDialogsReturn } from './use-dialogs';
 export { useScansTab } from './use-scans-tab';
 export type { UseScansTabReturn } from './use-scans-tab';
 
-export { useQuarantinedTab } from './use-quarantined-tab';
+export { useQuarantinedTab, needsQuarantineReview } from './use-quarantined-tab';
 export type { UseQuarantinedTabReturn } from './use-quarantined-tab';
 
 export { useErrorsTab } from './use-errors-tab';

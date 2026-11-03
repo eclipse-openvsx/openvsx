@@ -36,7 +36,6 @@ import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.ScannerJob;
 import org.eclipse.openvsx.migration.HandlerJobRequest;
-import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 import org.eclipse.openvsx.util.TimeUtil;
@@ -64,7 +63,6 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
     private final ExtensionScanService scanService;
     private final ExtensionScanCompletionService completionService;
     private final PublishCheckRunner publishCheckRunner;
-    private final PublishExtensionVersionService publishService;
     private final ExtensionService extensionService;
     private final JobRequestScheduler jobScheduler;
     private final DSLContext dsl;
@@ -77,7 +75,6 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             ExtensionScanService scanService,
             ExtensionScanCompletionService completionService,
             PublishCheckRunner publishCheckRunner,
-            PublishExtensionVersionService publishService,
             ExtensionService extensionService,
             JobRequestScheduler jobScheduler,
             DSLContext dsl
@@ -89,7 +86,6 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
         this.scanService = scanService;
         this.completionService = completionService;
         this.publishCheckRunner = publishCheckRunner;
-        this.publishService = publishService;
         this.extensionService = extensionService;
         this.jobScheduler = jobScheduler;
         this.dsl = dsl;
@@ -386,8 +382,7 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
                         scan.getNamespaceName(),
                         scan.getExtensionName(),
                         scan.getExtensionVersion());
-                publishService.activateExtension(extVersion, extensionService);
-                scanService.markScanPassed(scan);
+                scanService.activateScannedVersion(scan, extVersion, extensionService);
             }
             return RecoveryResult.RECOVERED;
         } catch (Exception e) {

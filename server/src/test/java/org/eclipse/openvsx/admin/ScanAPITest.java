@@ -15,6 +15,7 @@ package org.eclipse.openvsx.admin;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -160,6 +161,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         anyBoolean(),
+                        anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scanC), PageRequest.of(0, 1), 2));
 
@@ -218,6 +220,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         anyBoolean(),
+                        anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scan), PageRequest.of(0, 1), 1));
         when(repositories.findValidationFailures(any())).thenReturn(Streamable.empty());
@@ -264,6 +267,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scanA)));
@@ -329,6 +333,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         anyBoolean(),
+                        anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scanA)));
 
@@ -354,6 +359,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scanB)));
@@ -390,6 +396,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scanPassed, scanErrored)));
@@ -429,6 +436,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scanA)));
@@ -528,6 +536,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         eq(true)))
                 .thenReturn(1L);
         when(
@@ -537,6 +546,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         eq(false)))
                 .thenReturn(1L);
 
@@ -548,6 +558,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         anyBoolean()))
                 .thenReturn(0L);
 
@@ -586,6 +597,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         any(),
+                        anyBoolean(),
                         anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(scan)));
@@ -686,6 +698,7 @@ class ScanAPITest {
                         any(),
                         any(),
                         anyBoolean(),
+                        anyBoolean(),
                         any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
 
@@ -709,8 +722,64 @@ class ScanAPITest {
                 any(),
                 any(),
                 includeCheckErrors.capture(),
+                anyBoolean(),
                 any());
         org.assertj.core.api.Assertions.assertThat(includeCheckErrors.getAllValues()).containsExactly(true, false);
+    }
+
+    @Test
+    void getScans_and_counts_pass_on_check_quarantines() throws Exception {
+        when(admins.checkPermission(Permission.MANAGE_SCANS)).thenReturn(TestData.adminUser());
+        when(
+                repositories.findScansFullyFiltered(
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+
+        mockMvc.perform(
+                get("/admin/scans").param("threatScannerName", "ClamAV").param("includeCheckQuarantines", "true")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+        mockMvc.perform(
+                get("/admin/scans/counts").param("includeCheckQuarantines", "true")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        verify(repositories).findScansFullyFiltered(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                eq(Set.of("ClamAV")),
+                any(),
+                any(),
+                eq(false),
+                eq(true),
+                any());
+        verify(repositories)
+                .countScansForStatistics(eq(ScanStatus.QUARANTINED), any(), any(), any(), any(), eq(true), any());
+        verify(repositories).countAdminDecisionsForStatistics(
+                eq(AdminScanDecision.ALLOWED),
+                any(),
+                any(),
+                any(),
+                any(),
+                eq(true),
+                any());
     }
 
     @Test

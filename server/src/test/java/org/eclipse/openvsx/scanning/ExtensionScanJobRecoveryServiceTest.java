@@ -33,7 +33,6 @@ import org.springframework.data.util.Streamable;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.ExtensionService;
-import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 
@@ -89,8 +88,6 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
     @Mock
     PublishCheckRunner publishCheckRunner;
     @Mock
-    PublishExtensionVersionService publishService;
-    @Mock
     ExtensionService extensionService;
     @Mock
     JobRequestScheduler jobScheduler;
@@ -106,7 +103,6 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
                 scanService,
                 completionService,
                 publishCheckRunner,
-                publishService,
                 extensionService,
                 jobScheduler,
                 dslContext);

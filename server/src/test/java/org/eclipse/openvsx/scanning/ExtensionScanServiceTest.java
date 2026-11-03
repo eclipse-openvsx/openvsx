@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.scanning;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,14 +24,21 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import org.eclipse.openvsx.ExtensionService;
+import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
+import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.ScannerJob;
+import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -51,6 +59,12 @@ class ExtensionScanServiceTest {
     JobRequestScheduler jobScheduler;
     @Mock
     ScannerJobRepository scanJobRepository;
+    @Mock
+    PublishExtensionVersionService publishService;
+    @Mock
+    DisplayNameConflictCheckService displayNameCheck;
+    @Mock
+    ExtensionService extensions;
 
     private ExtensionScanService svc;
 
@@ -62,7 +76,9 @@ class ExtensionScanServiceTest {
                 persistenceService,
                 scannerRegistry,
                 jobScheduler,
-                scanJobRepository);
+                scanJobRepository,
+                publishService,
+                Optional.empty());
     }
 
     @Test
@@ -193,6 +209,118 @@ class ExtensionScanServiceTest {
 
         verify(persistenceService).resetJobForRetry(scan, failedJob);
         verify(jobScheduler).enqueue(any(ScannerInvocationRequest.class));
+    }
+
+    @Test
+    void activateScannedVersion_activatesAndPassesTheScan_whenTheDisplayNameIsFree() {
+        var scan = scanWithStatus(5L, ScanStatus.SCANNING);
+        var extVersion = versionPublishedBy(new UserData());
+        when(displayNameCheck.isEnabled()).thenReturn(true);
+        when(displayNameCheck.checkActivation(scan, extVersion.getPublishedBy()))
+                .thenReturn(PublishCheck.Result.pass());
+
+        var activated = svcWithDisplayNameCheck().activateScannedVersion(scan, extVersion, extensions);
+
+        assertThat(activated).isTrue();
+        verify(publishService).activateExtension(extVersion, extensions);
+        verify(persistenceService).completeWithStatus(scan, ScanStatus.PASSED);
+        verify(persistenceService, never()).recordValidationFailure(any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void activateScannedVersion_quarantinesInsteadOfActivating_whenTheDisplayNameWasTakenMeanwhile() {
+        var scan = scanWithStatus(5L, ScanStatus.SCANNING);
+        var extVersion = versionPublishedBy(new UserData());
+        when(displayNameCheck.isEnabled()).thenReturn(true);
+        when(displayNameCheck.isEnforced()).thenReturn(true);
+        when(displayNameCheck.getCheckType()).thenReturn(DisplayNameConflictCheckService.CHECK_TYPE);
+        when(displayNameCheck.checkActivation(scan, extVersion.getPublishedBy()))
+                .thenReturn(PublishCheck.Result.fail("Exact display name match", "used by 'other.demo'"));
+
+        var activated = svcWithDisplayNameCheck().activateScannedVersion(scan, extVersion, extensions);
+
+        assertThat(activated).isFalse();
+        verify(persistenceService).recordValidationFailure(
+                scan,
+                DisplayNameConflictCheckService.CHECK_TYPE,
+                "Exact display name match",
+                "used by 'other.demo'",
+                true);
+        verify(persistenceService).completeWithStatus(scan, ScanStatus.QUARANTINED);
+        verify(publishService, never()).activateExtension(any(), any());
+    }
+
+    @Test
+    void activateScannedVersion_recordsAndActivates_whenTheConflictIsNotEnforced() {
+        var scan = scanWithStatus(5L, ScanStatus.SCANNING);
+        var extVersion = versionPublishedBy(new UserData());
+        when(displayNameCheck.isEnabled()).thenReturn(true);
+        when(displayNameCheck.isEnforced()).thenReturn(false);
+        when(displayNameCheck.getCheckType()).thenReturn(DisplayNameConflictCheckService.CHECK_TYPE);
+        when(displayNameCheck.checkActivation(scan, extVersion.getPublishedBy()))
+                .thenReturn(PublishCheck.Result.fail("Exact display name match", "used by 'other.demo'"));
+
+        var activated = svcWithDisplayNameCheck().activateScannedVersion(scan, extVersion, extensions);
+
+        assertThat(activated).isTrue();
+        verify(persistenceService).recordValidationFailure(
+                scan,
+                DisplayNameConflictCheckService.CHECK_TYPE,
+                "Exact display name match",
+                "used by 'other.demo'",
+                false);
+        verify(publishService).activateExtension(extVersion, extensions);
+        verify(persistenceService).completeWithStatus(scan, ScanStatus.PASSED);
+    }
+
+    @Test
+    void activateScannedVersion_skipsTheDisplayNameCheck_whenItIsDisabled() {
+        var scan = scanWithStatus(5L, ScanStatus.SCANNING);
+        var extVersion = versionPublishedBy(new UserData());
+        when(displayNameCheck.isEnabled()).thenReturn(false);
+
+        var activated = svcWithDisplayNameCheck().activateScannedVersion(scan, extVersion, extensions);
+
+        assertThat(activated).isTrue();
+        verify(displayNameCheck, never()).checkActivation(any(), any());
+        verify(publishService).activateExtension(extVersion, extensions);
+    }
+
+    @Test
+    void activateScannedVersion_activates_whenTheDisplayNameCheckIsNotConfigured() {
+        var scan = scanWithStatus(5L, ScanStatus.SCANNING);
+        var extVersion = versionPublishedBy(new UserData());
+
+        var activated = svc.activateScannedVersion(scan, extVersion, extensions);
+
+        assertThat(activated).isTrue();
+        verify(publishService).activateExtension(extVersion, extensions);
+        verify(persistenceService).completeWithStatus(scan, ScanStatus.PASSED);
+    }
+
+    private ExtensionScanService svcWithDisplayNameCheck() {
+        return new ExtensionScanService(
+                config,
+                checkRunner,
+                persistenceService,
+                scannerRegistry,
+                jobScheduler,
+                scanJobRepository,
+                publishService,
+                Optional.of(displayNameCheck));
+    }
+
+    private static ExtensionVersion versionPublishedBy(UserData publisher) {
+        var namespace = new Namespace();
+        namespace.setName("publisher");
+        var extension = new Extension();
+        extension.setName("demo");
+        extension.setNamespace(namespace);
+        var extVersion = new ExtensionVersion();
+        extVersion.setExtension(extension);
+        extVersion.setVersion("1.0.0");
+        extVersion.setPublishedBy(publisher);
+        return extVersion;
     }
 
     private static ExtensionScan scanWithStatus(long id, ScanStatus status) {

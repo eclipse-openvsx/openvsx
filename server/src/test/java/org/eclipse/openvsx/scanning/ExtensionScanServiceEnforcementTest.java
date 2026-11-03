@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.eclipse.openvsx.entities.*;
+import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TempFile;
@@ -57,6 +58,8 @@ class ExtensionScanServiceEnforcementTest {
     @Mock
     ScannerJobRepository scanJobRepository;
     @Mock
+    PublishExtensionVersionService publishService;
+    @Mock
     TempFile extensionFile;
 
     private ExtensionScanService svc;
@@ -71,7 +74,9 @@ class ExtensionScanServiceEnforcementTest {
                 persistenceService,
                 scannerRegistry,
                 jobScheduler,
-                scanJobRepository);
+                scanJobRepository,
+                publishService,
+                Optional.empty());
 
         scan = new ExtensionScan();
         scan.setId(123);

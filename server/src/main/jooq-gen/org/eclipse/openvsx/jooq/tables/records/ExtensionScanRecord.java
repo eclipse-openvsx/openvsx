@@ -201,6 +201,20 @@ public class ExtensionScanRecord extends UpdatableRecordImpl<ExtensionScanRecord
         return (String) get(12);
     }
 
+    /**
+     * Setter for <code>public.extension_scan.declared_display_name</code>.
+     */
+    public void setDeclaredDisplayName(String value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.extension_scan.declared_display_name</code>.
+     */
+    public String getDeclaredDisplayName() {
+        return (String) get(13);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -224,7 +238,7 @@ public class ExtensionScanRecord extends UpdatableRecordImpl<ExtensionScanRecord
     /**
      * Create a detached, initialised ExtensionScanRecord
      */
-    public ExtensionScanRecord(Long id, String namespaceName, String extensionName, String extensionVersion, String targetPlatform, String extensionDisplayName, Boolean universalTargetPlatform, String publisher, String publisherUrl, LocalDateTime startedAt, LocalDateTime completedAt, String status, String errorMessage) {
+    public ExtensionScanRecord(Long id, String namespaceName, String extensionName, String extensionVersion, String targetPlatform, String extensionDisplayName, Boolean universalTargetPlatform, String publisher, String publisherUrl, LocalDateTime startedAt, LocalDateTime completedAt, String status, String errorMessage, String declaredDisplayName) {
         super(ExtensionScan.EXTENSION_SCAN);
 
         setId(id);
@@ -240,6 +254,7 @@ public class ExtensionScanRecord extends UpdatableRecordImpl<ExtensionScanRecord
         setCompletedAt(completedAt);
         setStatus(status);
         setErrorMessage(errorMessage);
+        setDeclaredDisplayName(declaredDisplayName);
         resetChangedOnNotNull();
     }
 }
