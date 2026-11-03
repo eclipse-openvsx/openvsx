@@ -9,6 +9,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `useReportedQuery` requires an `action` that titles the error dialog with what failed, e.g. "Couldn’t load the namespace members", and an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state; `MainContext.handleError` takes the dialog `title` directly
 - Curated home rows are regions labelled with their title and set `aria-busy` while they load, so assistive technology can tell a loading row from a loaded one
+- `PageSettings.elements.userSettingsTabs` lets a deployment contribute user-settings tabs
+- The index exports `handleError`, `NO_CACHE`, `DelayedLoadIndicator`, `Timestamp`, `AddUserDialog`, `GenerateTokenDialog`, `SearchListContainer`, `createMultiSelectFilterOperators`, `createArrayContainsFilterOperators`, `SettingsHeader` and `EmptyPlaceholder`, for pages contributed through `adminPages` and `userSettingsTabs`
 
 ### Changed
 
@@ -21,6 +23,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
 - The error dialog is titled with what failed, e.g. "Couldn’t load the namespace members", instead of a bare "Error"
 - A curated row on the home page that fails to load shows "We couldn’t load extensions at this time." with a Retry button instead of disappearing; `CuratedRow` carries the row's `error` and a `refetch` for custom home pages
+- `AdminPermission` is a string, `ADMIN_PERMISSIONS` names the built-in ones, and the Access Control page lists permissions from the server, so a deployment can register its own
 - **Breaking:** `AppProviders` no longer mounts the `QueryClientProvider` or takes a `queryClient`; `Main` mounts it above everything else, so a page that mounts `AppProviders` without `Main` wraps it in its own `QueryClientProvider`
 
 ### Fixed
@@ -33,6 +36,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Removed
 
 - `sendNonRetriableRequest`, `controllerFromSignal` and the `abortController` field of `ServerAPIRequest`: use `sendRequest` with `signal`, and pass a `queryFn`'s `signal` straight to the service
+- The Rate Limiting admin pages (tiers, customers, usage stats), the user-settings Rate Limiting tab, the `manage_rate_limits` permission and the tier, customer, usage and rate limit token methods and types of `ExtensionRegistryService`: a deployment adds such pages through `PageSettings.elements.adminPages` and `userSettingsTabs`
 
 ### Dependencies
 

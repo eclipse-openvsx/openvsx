@@ -10,13 +10,15 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
-package org.eclipse.openvsx.json;
+package org.eclipse.openvsx.admin;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+/**
+ * Contributes admin permissions that can be granted to users. Implement as a Spring bean; names must
+ * be unique across all providers and at most 32 characters, the width of the storage column.
+ */
+public interface PermissionProvider {
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public record CustomerListJson(
-        List<CustomerJson> customers
-) {}
+    List<PermissionInfo> permissions();
+}

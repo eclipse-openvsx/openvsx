@@ -12,9 +12,6 @@ import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostActivePublishingUse
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopMostDownloadedExtensions;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensionVersions;
 import org.eclipse.openvsx.jooq.tables.AdminStatisticsTopNamespaceExtensions;
-import org.eclipse.openvsx.jooq.tables.Customer;
-import org.eclipse.openvsx.jooq.tables.CustomerMembership;
-import org.eclipse.openvsx.jooq.tables.DailyUsageStats;
 import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
@@ -33,16 +30,13 @@ import org.eclipse.openvsx.jooq.tables.NamespaceSocialLinks;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.PersonalAccessToken;
 import org.eclipse.openvsx.jooq.tables.PublisherAgreementEvent;
-import org.eclipse.openvsx.jooq.tables.RateLimitToken;
 import org.eclipse.openvsx.jooq.tables.ScanCheckResult;
 import org.eclipse.openvsx.jooq.tables.ScanJob;
 import org.eclipse.openvsx.jooq.tables.Setting;
 import org.eclipse.openvsx.jooq.tables.SignatureKeyPair;
 import org.eclipse.openvsx.jooq.tables.SpringSession;
 import org.eclipse.openvsx.jooq.tables.SpringSessionAttributes;
-import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
-import org.eclipse.openvsx.jooq.tables.UsageStats;
 import org.eclipse.openvsx.jooq.tables.UserData;
 import org.eclipse.openvsx.jooq.tables.UserDataPermission;
 
@@ -96,21 +90,6 @@ public class Tables {
      * The table <code>public.admin_statistics_top_namespace_extensions</code>.
      */
     public static final AdminStatisticsTopNamespaceExtensions ADMIN_STATISTICS_TOP_NAMESPACE_EXTENSIONS = AdminStatisticsTopNamespaceExtensions.ADMIN_STATISTICS_TOP_NAMESPACE_EXTENSIONS;
-
-    /**
-     * The table <code>public.customer</code>.
-     */
-    public static final Customer CUSTOMER = Customer.CUSTOMER;
-
-    /**
-     * The table <code>public.customer_membership</code>.
-     */
-    public static final CustomerMembership CUSTOMER_MEMBERSHIP = CustomerMembership.CUSTOMER_MEMBERSHIP;
-
-    /**
-     * The table <code>public.daily_usage_stats</code>.
-     */
-    public static final DailyUsageStats DAILY_USAGE_STATS = DailyUsageStats.DAILY_USAGE_STATS;
 
     /**
      * The table <code>public.download_ingestion</code>.
@@ -203,11 +182,6 @@ public class Tables {
     public static final PublisherAgreementEvent PUBLISHER_AGREEMENT_EVENT = PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT;
 
     /**
-     * The table <code>public.rate_limit_token</code>.
-     */
-    public static final RateLimitToken RATE_LIMIT_TOKEN = RateLimitToken.RATE_LIMIT_TOKEN;
-
-    /**
      * Records all check/scan executions for audit trail
      */
     public static final ScanCheckResult SCAN_CHECK_RESULT = ScanCheckResult.SCAN_CHECK_RESULT;
@@ -238,19 +212,9 @@ public class Tables {
     public static final SpringSessionAttributes SPRING_SESSION_ATTRIBUTES = SpringSessionAttributes.SPRING_SESSION_ATTRIBUTES;
 
     /**
-     * The table <code>public.tier</code>.
-     */
-    public static final Tier TIER = Tier.TIER;
-
-    /**
      * The table <code>public.trusted_publisher</code>.
      */
     public static final TrustedPublisher TRUSTED_PUBLISHER = TrustedPublisher.TRUSTED_PUBLISHER;
-
-    /**
-     * The table <code>public.usage_stats</code>.
-     */
-    public static final UsageStats USAGE_STATS = UsageStats.USAGE_STATS;
 
     /**
      * The table <code>public.user_data</code>.

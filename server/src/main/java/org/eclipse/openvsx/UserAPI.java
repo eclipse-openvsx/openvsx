@@ -38,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
+import org.eclipse.openvsx.admin.PermissionRegistry;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
@@ -45,11 +46,9 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.ScanStatus;
-import org.eclipse.openvsx.entities.UsageStats;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.AccessTokenJson;
 import org.eclipse.openvsx.json.CsrfTokenJson;
-import org.eclipse.openvsx.json.CustomerJson;
 import org.eclipse.openvsx.json.ErrorJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.LoginProvidersJson;
@@ -58,7 +57,6 @@ import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.NamespaceMembershipListJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
-import org.eclipse.openvsx.json.UsageStatsListJson;
 import org.eclipse.openvsx.json.UserJson;
 import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -69,7 +67,6 @@ import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.NotFoundException;
-import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 
 import static org.eclipse.openvsx.entities.FileResource.CHANGELOG;
@@ -95,6 +92,7 @@ public class UserAPI {
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
     private final ExtensionService extensions;
+    private final PermissionRegistry permissionRegistry;
 
     public UserAPI(
             RepositoryService repositories,
@@ -103,7 +101,8 @@ public class UserAPI {
             PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             LocalRegistryService local,
-            ExtensionService extensions
+            ExtensionService extensions,
+            PermissionRegistry permissionRegistry
     ) {
         this.repositories = repositories;
         this.users = users;
@@ -112,6 +111,7 @@ public class UserAPI {
         this.storageUtil = storageUtil;
         this.local = local;
         this.extensions = extensions;
+        this.permissionRegistry = permissionRegistry;
     }
 
     @GetMapping(
@@ -165,7 +165,7 @@ public class UserAPI {
         var json = user.toUserJson();
         var serverUrl = UrlUtil.getBaseUrl();
         json.setRole(user.getRoleAsString());
-        json.setPermissions(user.getPermissionsAsStrings());
+        json.setPermissions(permissionRegistry.registeredNames(user));
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
         publisherAgreements.enrichUserJson(json, user);
@@ -670,56 +670,6 @@ public class UserAPI {
     }
 
     @GetMapping(
-        path = "/user/customers",
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public List<CustomerJson> getOwnCustomers() {
-        var user = users.findLoggedInUser();
-        if (user == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        }
-
-        return repositories.findCustomerMemberships(user).map(membership -> membership.getCustomer().toUserJson())
-                .toList();
-    }
-
-    @GetMapping(
-        path = "/user/customers/{name}/usage",
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<UsageStatsListJson> getOwnUsageStats(
-            @PathVariable String name,
-            @RequestParam(required = false) String date
-    ) {
-        try {
-            var user = users.findLoggedInUser();
-            if (user == null) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-            }
-
-            var customer = repositories.findCustomer(name);
-            if (customer == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            var membership = repositories.findCustomerMembership(user, customer);
-            if (membership == null) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-            }
-
-            var localDateTime = date != null ? TimeUtil.fromUTCString(date) : TimeUtil.getCurrentUTC();
-            var stats = repositories.findUsageStatsByCustomerAndDate(customer, localDateTime);
-            var dailyStats = repositories.findDailyUsageStats(customer, localDateTime.toLocalDate());
-            var dailyP95 = dailyStats != null ? dailyStats.getP95Requests() : null;
-            var result = new UsageStatsListJson(stats.stream().map(UsageStats::toJson).toList(), dailyP95);
-            return ResponseEntity.ok(result);
-        } catch (Exception exc) {
-            logger.error("failed retrieving usage stats", exc);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping(
         path = "/user/search/{name}",
         produces = MediaType.APPLICATION_JSON_VALUE
     )
@@ -748,7 +698,7 @@ public class UserAPI {
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
-            json.setPermissions(user.getPermissionsAsStrings());
+            json.setPermissions(permissionRegistry.registeredNames(user));
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
             publisherAgreements.sign(user, json);

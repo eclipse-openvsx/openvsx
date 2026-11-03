@@ -28,21 +28,15 @@ class PermissionConverter implements AttributeConverter<Permission, String> {
     }
 
     /**
-     * A value this build has no constant for reads as {@code null}, i.e. as no permission at all.
-     * <p>
-     * Throwing here would not stay contained: the collection is EAGER on the path
-     * {@code UserService#findLoggedInUser} takes, which runs on essentially every authenticated
-     * request, and {@code AdminAccessAuthorizationManager} loads the same row inside the security
-     * filter chain. One row left behind by a rolled-back release would turn into a 500 on every
-     * request that user makes, recoverable only by hand. Dropping the grant denies access, which
-     * is the safe direction, and the warning says which row to look at.
+     * An invalid stored value reads as no permission: the collection is loaded on essentially every
+     * authenticated request, so throwing would turn one bad row into a 500 on all of that user's requests.
      */
     @Override
     public Permission convertToEntityAttribute(String value) {
         try {
-            return Permission.valueOfIgnoreCase(value);
+            return Permission.of(value);
         } catch (IllegalArgumentException ignored) {
-            logger.warn("Ignoring unknown permission {} stored in user_data_permission", value);
+            logger.warn("Ignoring invalid permission '{}' stored in user_data_permission", value);
             return null;
         }
     }

@@ -63,29 +63,29 @@ describe('AdminDashboard contributed pages', () => {
 
     it('merges a category into the built-in group of the same name instead of adding a second one', () => {
         const { unmount } = renderDashboard(undefined);
-        const withoutContribution = screen.getAllByText('Rate Limiting').length;
+        const withoutContribution = screen.getAllByText('Analytics').length;
         unmount();
 
-        renderDashboard([{ ...agentsPage, category: { name: 'Rate Limiting', icon: <span /> } }]);
+        renderDashboard([{ ...agentsPage, category: { name: 'Analytics', icon: <span /> } }]);
 
-        expect(screen.getAllByText('Rate Limiting')).toHaveLength(withoutContribution);
+        expect(screen.getAllByText('Analytics')).toHaveLength(withoutContribution);
         expect(screen.getByText('Link customers to analytics user agents')).toBeInTheDocument();
     });
 
     it('ignores a contributed page that would shadow a built-in one', () => {
-        renderDashboard([{ ...agentsPage, path: 'customers', name: 'Not Customers' }]);
+        renderDashboard([{ ...agentsPage, path: 'logs', name: 'Not Logs' }]);
 
-        expect(screen.queryByText('Not Customers')).not.toBeInTheDocument();
+        expect(screen.queryByText('Not Logs')).not.toBeInTheDocument();
         expect(screen.queryByText('Link customers to analytics user agents')).not.toBeInTheDocument();
         // The built-in entry is untouched.
-        expect(screen.getAllByText('Customers').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Logs').length).toBeGreaterThan(0);
     });
 
     it('groups the built-in pages into logical sections instead of leaving them ungrouped', () => {
         renderDashboard(undefined);
 
         // Each group label appears twice: once in the side panel, once as an overview section heading.
-        for (const group of ['Content', 'Search', 'Maintenance', 'Administration', 'Rate Limiting', 'Analytics']) {
+        for (const group of ['Content', 'Search', 'Maintenance', 'Administration', 'Analytics']) {
             expect(screen.getAllByText(group).length).toBeGreaterThan(0);
         }
     });
@@ -97,17 +97,17 @@ describe('AdminDashboard contributed pages', () => {
         // child of the first group ("Content") rendering twice - side panel + overview -
         // proves it starts expanded instead of collapsed like the other groups.
         expect(screen.getAllByText('Namespaces')).toHaveLength(2);
-        // "Tiers" belongs to the later "Rate Limiting" group, which stays collapsed.
-        expect(screen.getAllByText('Tiers')).toHaveLength(1);
+        // "Statistics" belongs to the later "Analytics" group, which stays collapsed.
+        expect(screen.getAllByText('Statistics')).toHaveLength(1);
     });
 
     // adminPages is consumer-provided, and a leading slash used to leave the shadowing check looking
     // at an empty first segment, so this slipped past it and sat in the nav beside the built-in page.
     it('ignores a shadowing page however its path is written', () => {
-        renderDashboard([{ ...agentsPage, path: '/customers/', name: 'Not Customers' }]);
+        renderDashboard([{ ...agentsPage, path: '/logs/', name: 'Not Logs' }]);
 
-        expect(screen.queryByText('Not Customers')).not.toBeInTheDocument();
-        expect(screen.getAllByText('Customers').length).toBeGreaterThan(0);
+        expect(screen.queryByText('Not Logs')).not.toBeInTheDocument();
+        expect(screen.getAllByText('Logs').length).toBeGreaterThan(0);
     });
 
     it('ignores a contributed page with an empty path', () => {
@@ -142,8 +142,8 @@ describe('AdminDashboard permission gating', () => {
     it('hides a nav group entirely once none of its pages are visible to the user', () => {
         renderDashboard(undefined, '/', extensionManager);
 
-        // Rate Limiting holds only manage_rate_limits pages - extensionManager has none of them.
-        expect(screen.queryByText('Rate Limiting')).not.toBeInTheDocument();
+        // Analytics holds only view_reports pages - extensionManager has none of them.
+        expect(screen.queryByText('Analytics')).not.toBeInTheDocument();
     });
 
     // Contributed pages were admin-only by implication for as long as the whole dashboard was.

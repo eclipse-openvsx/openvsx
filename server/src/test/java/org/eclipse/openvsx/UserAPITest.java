@@ -161,6 +161,18 @@ class UserAPITest {
         Mockito.verify(publisherAgreements).enrichUserJson(any(), eq(userData));
     }
 
+    @Test
+    void testLoggedInOmitsAPermissionNoProviderRegisters() throws Exception {
+        var userData = mockUserData();
+        userData.getPermissions().add(Permission.MANAGE_SCANS);
+        userData.getPermissions().add(Permission.of("manage_rate_limits"));
+
+        mockMvc.perform(get("/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions.length()").value(1))
+                .andExpect(jsonPath("$.permissions[0]").value("manage_scans"));
+    }
+
     // What signing does besides answering, such as reactivating extensions, is the service's, tested there.
     @Test
     void testSignPublisherAgreement() throws Exception {
@@ -1392,6 +1404,12 @@ class UserAPITest {
     @TestConfiguration
     @Import(SecurityConfig.class)
     static class TestConfig {
+        @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
         @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();

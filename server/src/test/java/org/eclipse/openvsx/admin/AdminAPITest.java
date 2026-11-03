@@ -71,7 +71,6 @@ import org.eclipse.openvsx.cache.CacheInfoService;
 import org.eclipse.openvsx.cache.CacheService;
 import org.eclipse.openvsx.cache.LatestExtensionVersionCacheKeyGenerator;
 import org.eclipse.openvsx.entities.AdminStatistics;
-import org.eclipse.openvsx.entities.CustomerMembership;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionReview;
 import org.eclipse.openvsx.entities.ExtensionVersion;
@@ -437,6 +436,46 @@ class AdminAPITest {
                 get("/admin/search-explain")
                         .param("query", "markdown")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getValue()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void permissionsListsRegistryForAdmin() throws Exception {
+        mockAdminUser();
+        mockMvc.perform(
+                get("/admin/api/permissions")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.value == 'manage_caches')].label").value("Manage caches"));
+    }
+
+    @Test
+    void permissionsForbiddenWithoutAdminRole() throws Exception {
+        mockNormalUser();
+        mockMvc.perform(
+                get("/admin/api/permissions")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void permissionsForbiddenForDelegatedPermissionWithoutAdminRole() throws Exception {
+        // Holds a registered permission, so the /admin filter lets the request through to the handler.
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_CACHES);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+
+        mockMvc.perform(
+                get("/admin/api/permissions")
+                        .with(
+                                authentication(
+                                        new TestingAuthenticationToken(
+                                                new IdPrincipal(42L, "test_user", List.of()),
+                                                null,
+                                                List.of())))
+                        .with(csrf().asHeader()))
                 .andExpect(status().isForbidden());
     }
 
@@ -1759,10 +1798,6 @@ class AdminAPITest {
         Mockito.when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.of(version));
 
-        var customerMembership = new CustomerMembership();
-        customerMembership.setUser(user);
-        Mockito.when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.of(customerMembership));
-
         // Personal access tokens are always deleted outright.
         var unreferenced = new PersonalAccessToken();
         unreferenced.setUser(user);
@@ -1783,7 +1818,7 @@ class AdminAPITest {
                 .andExpect(
                         content().json(
                                 successJson(
-                                        "Forgot user deleted-user-7: deleted 1 extensions, removed 1 namespace memberships, removed 1 customer memberships, deleted 1 tokens.")));
+                                        "Forgot user deleted-user-7: deleted 1 extensions, removed 1 namespace memberships, deleted 1 tokens.")));
 
         // The extension and its version are deactivated but kept in the database.
         assertThat(version.isActive()).isFalse();
@@ -1791,9 +1826,8 @@ class AdminAPITest {
         Mockito.verify(entityManager, Mockito.never()).remove(extension);
         Mockito.verify(entityManager, Mockito.never()).remove(version);
 
-        // Memberships, the customer membership, and the token are removed.
+        // Memberships and the token are removed.
         Mockito.verify(entityManager).remove(membership);
-        Mockito.verify(entityManager).remove(customerMembership);
         Mockito.verify(entityManager).remove(unreferenced);
 
         // The user record is anonymised in place rather than deleted.
@@ -1830,10 +1864,6 @@ class AdminAPITest {
         Mockito.when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.of(version));
 
-        var customerMembership = new CustomerMembership();
-        customerMembership.setUser(user);
-        Mockito.when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.of(customerMembership));
-
         // Personal access tokens are always deleted outright.
         var unreferenced = new PersonalAccessToken();
         unreferenced.setUser(user);
@@ -1854,7 +1884,7 @@ class AdminAPITest {
                 .andExpect(
                         content().json(
                                 successJson(
-                                        "Forgot user deleted-user-7: deleted 1 extensions, removed 1 namespace memberships, removed 1 customer memberships, deleted 1 tokens.")));
+                                        "Forgot user deleted-user-7: deleted 1 extensions, removed 1 namespace memberships, deleted 1 tokens.")));
 
         // The extension and its version are deactivated but kept in the database.
         assertThat(version.isActive()).isFalse();
@@ -1862,9 +1892,8 @@ class AdminAPITest {
         Mockito.verify(entityManager, Mockito.never()).remove(extension);
         Mockito.verify(entityManager, Mockito.never()).remove(version);
 
-        // Memberships, the customer membership, and the token are removed.
+        // Memberships and the token are removed.
         Mockito.verify(entityManager).remove(membership);
-        Mockito.verify(entityManager).remove(customerMembership);
         Mockito.verify(entityManager).remove(unreferenced);
 
         // The user record is anonymised in place rather than deleted.
@@ -1883,7 +1912,6 @@ class AdminAPITest {
         var token = mockAdminToken();
         var user = mockForgettableUser();
         Mockito.when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
-        Mockito.when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
 
@@ -1906,7 +1934,7 @@ class AdminAPITest {
                 .andExpect(
                         content().json(
                                 successJson(
-                                        "Forgot user deleted-user-7: deleted user record, deleted 0 extensions, removed 0 namespace memberships, removed 0 customer memberships, deleted 1 tokens.")));
+                                        "Forgot user deleted-user-7: deleted user record, deleted 0 extensions, removed 0 namespace memberships, deleted 1 tokens.")));
 
         Mockito.verify(entityManager).remove(personalAccessToken);
         Mockito.verify(entityManager).remove(user);
@@ -1917,7 +1945,6 @@ class AdminAPITest {
         var token = mockAdminToken();
         var user = mockForgettableUser();
         Mockito.when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
-        Mockito.when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
@@ -1939,7 +1966,7 @@ class AdminAPITest {
                 .andExpect(
                         content().json(
                                 successJson(
-                                        "Forgot user deleted-user-7: deleted user record, deleted 0 extensions, removed 0 namespace memberships, removed 0 customer memberships, deleted 0 tokens.")));
+                                        "Forgot user deleted-user-7: deleted user record, deleted 0 extensions, removed 0 namespace memberships, deleted 0 tokens.")));
 
         Mockito.verify(entityManager).remove(user);
         // The row is gone, so there is nothing left to anonymize.
@@ -1951,7 +1978,6 @@ class AdminAPITest {
         var token = mockAdminToken();
         var user = mockForgettableUser();
         Mockito.when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
-        Mockito.when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         Mockito.when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
@@ -1969,7 +1995,7 @@ class AdminAPITest {
                 .andExpect(
                         content().json(
                                 successJson(
-                                        "Forgot user deleted-user-7: deleted 0 extensions, removed 0 namespace memberships, removed 0 customer memberships, deleted 0 tokens.")));
+                                        "Forgot user deleted-user-7: deleted 0 extensions, removed 0 namespace memberships, deleted 0 tokens.")));
 
         Mockito.verify(entityManager, Mockito.never()).remove(user);
         assertThat(user.getLoginName()).isEqualTo("deleted-user-7");
@@ -3345,6 +3371,11 @@ class AdminAPITest {
     @Import(SecurityConfig.class)
     static class TestConfig {
         @Bean
+        PermissionRegistry permissionRegistry() {
+            return new PermissionRegistry(List.of(new BuiltInPermissions()));
+        }
+
+        @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();
         }
@@ -3415,7 +3446,8 @@ class AdminAPITest {
                 ExtensionSizeLimitService sizeLimits,
                 LogService logs,
                 AdminStatisticsService statistics,
-                ApplicationEventPublisher events
+                ApplicationEventPublisher events,
+                PermissionRegistry permissionRegistry
         ) {
             return new AdminService(
                     repositories,
@@ -3433,7 +3465,8 @@ class AdminAPITest {
                     sizeLimits,
                     logs,
                     statistics,
-                    events);
+                    events,
+                    permissionRegistry);
         }
 
         @Bean
