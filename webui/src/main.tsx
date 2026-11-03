@@ -21,7 +21,7 @@ import { SessionExpiredDialog } from './components/session-expired-dialog';
 import { handleError } from './utils';
 import { ExtensionRegistryService } from './extension-registry-service';
 import { ReportedError } from './extension-registry-types';
-import { isNotFound } from './server-request';
+import { isNotFound, isUnauthorized } from './server-request';
 import { MainContext } from './context';
 import { PageSettings } from './page-settings';
 import { AppLayout } from './layout/app-layout';
@@ -48,8 +48,9 @@ const MainContent: FunctionComponent<MainProps> = props => {
     const errorDialogOnClose = useRef<(() => void) | undefined>(undefined);
     const [hasAuthError] = useState(() => new URLSearchParams(window.location.search).has('auth-error'));
     const [sessionDialogDismissed, setSessionDialogDismissed] = useState(false);
+    const sessionDialogDismissedRef = useRef(false);
 
-    const { user, userError, userLoading, loggedOut, sessionExpired, refetchUser, isSessionExpiryError } =
+    const { user, userError, userLoading, loggedOut, sessionExpired, refetchUser, confirmSessionExpiry } =
         useCurrentUser(props.service);
     const { data: registryLoginProviders } = useLoginProviders(props.service, {
         enabled: props.loginProviders == null
@@ -65,18 +66,26 @@ const MainContent: FunctionComponent<MainProps> = props => {
                 // an aborted request is not a failure to report
                 return;
             }
-            if (isSessionExpiryError(err)) {
-                // the session-expired dialog already explains it
+
+            const report = () => {
+                const message = handleError(err);
+                const code = (err as ReportedError).code;
+                errorDialogOnClose.current = options?.onClose;
+                setError({ title: options?.title, message, code });
+                setIsErrorDialogOpen(true);
+            };
+            if (!isUnauthorized(err)) {
+                report();
                 return;
             }
-
-            const message = handleError(err);
-            const code = (err as ReportedError).code;
-            errorDialogOnClose.current = options?.onClose;
-            setError({ title: options?.title, message, code });
-            setIsErrorDialogOpen(true);
+            // the session-expired dialog explains a 401 while it is open; any other 401 is a failure to report
+            void confirmSessionExpiry().then(expired => {
+                if (!expired || sessionDialogDismissedRef.current) {
+                    report();
+                }
+            });
         },
-        [isSessionExpiryError]
+        [confirmSessionExpiry]
     );
 
     useEffect(() => {
@@ -132,7 +141,10 @@ const MainContent: FunctionComponent<MainProps> = props => {
                 <SessionExpiredDialog
                     open={sessionExpired && !sessionDialogDismissed}
                     loginProviders={loginProviders}
-                    onClose={() => setSessionDialogDismissed(true)}
+                    onClose={() => {
+                        sessionDialogDismissedRef.current = true;
+                        setSessionDialogDismissed(true);
+                    }}
                 />
             </>
         );

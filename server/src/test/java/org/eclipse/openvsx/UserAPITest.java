@@ -223,6 +223,13 @@ class UserAPITest {
     }
 
     @Test
+    void testCsrfTokenNotLoggedIn() throws Exception {
+        // not a handler's own answer: the security filter chain refuses it
+        mockMvc.perform(get("/user/csrf"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void testAccessTokensNotLoggedIn() throws Exception {
         mockAccessTokens();
         mockMvc.perform(get("/user/tokens"))

@@ -234,9 +234,12 @@ describe('Main', () => {
 
     it('logs out and asks to log in again when a query is refused with a 401', async () => {
         const user = userEvent.setup();
-        const { resolveUser } = renderMain(refusingQueryPage(unauthorized));
+        const { service, resolveUser, rejectUser } = renderMain(refusingQueryPage(unauthorized));
 
         resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+        // the refusal is checked against the registry's answer for the current user
+        await waitFor(() => expect(service.getUser).toHaveBeenCalledTimes(2));
+        rejectUser(notLoggedIn);
 
         const dialog = await screen.findByRole('dialog');
         expect(dialog).toHaveTextContent('Your session has expired');
@@ -244,21 +247,41 @@ describe('Main', () => {
         expect(screen.getByTestId('probe')).toHaveTextContent('user=none');
 
         // Neither the refusal nor one from a request still in flight opens the error dialog.
-        act(() => seenContexts[seenContexts.length - 1].handleError(unauthorized));
+        await act(async () => seenContexts[seenContexts.length - 1].handleError(unauthorized));
         expect(screen.queryByText(/Full authentication is required/)).not.toBeInTheDocument();
 
         await user.click(within(dialog).getByRole('button', { name: 'Not now' }));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+        // Once the dialog is gone a refusal is a failure like any other.
+        await act(async () => seenContexts[seenContexts.length - 1].handleError(unauthorized));
+        expect(await screen.findByText(/Full authentication is required/)).toBeInTheDocument();
     });
 
     it('logs out and asks to log in again when a mutation is refused with a 401', async () => {
-        const { resolveUser } = renderMain(RefusingMutationPage);
+        const { service, resolveUser, rejectUser } = renderMain(RefusingMutationPage);
 
         resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+        await waitFor(() => expect(service.getUser).toHaveBeenCalledTimes(2));
+        rejectUser(notLoggedIn);
 
         const dialog = await screen.findByRole('dialog');
         expect(dialog).toHaveTextContent('Your session has expired');
         expect(screen.getByTestId('probe')).toHaveTextContent('user=none');
+    });
+
+    it('keeps the user logged in and reports a 401 the registry does not tie to the session', async () => {
+        const { service, resolveUser } = renderMain(refusingQueryPage(unauthorized));
+        const testUser = { loginName: 'testuser', tokensUrl: '', createTokenUrl: '' };
+
+        resolveUser(testUser);
+        await waitFor(() => expect(service.getUser).toHaveBeenCalledTimes(2));
+        resolveUser(testUser);
+
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Couldn’t load the thing');
+        expect(dialog).toHaveTextContent('Full authentication is required');
+        expect(screen.getByTestId('probe')).toHaveTextContent('user=testuser');
     });
 
     it('keeps the user logged in and reports a 403', async () => {

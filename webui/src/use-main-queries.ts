@@ -24,8 +24,9 @@ import { ErrorResponse, isUnauthorized } from './server-request';
 // `Main` builds MainContext from these, so they take the service as an argument.
 
 /**
- * The current user, dropped once their session ends: any query or mutation refused with a 401 while
- * someone is logged in sets `sessionExpired`. A visitor's 401 changes nothing.
+ * The current user, dropped once their session ends. A 401 on any query or mutation while someone is
+ * logged in is checked against the registry's own answer for the current user: only if that says
+ * nobody is logged in does `sessionExpired` get set. A visitor's 401 changes nothing.
  */
 export const useCurrentUser = (service: ExtensionRegistryService) => {
     const queryClient = useQueryClient();
@@ -36,12 +37,42 @@ export const useCurrentUser = (service: ExtensionRegistryService) => {
         refetch: refetchUser
     } = useQuery({ queryKey: ['user'], queryFn: ({ signal }) => service.getUser(signal) });
     const [sessionExpired, setSessionExpired] = useState(false);
-    // Set by the cache listener before the refused request's error reaches whoever reports it.
     const sessionExpiredRef = useRef(false);
+    const loggedInRef = useRef(false);
+    const sessionCheck = useRef<Promise<boolean>>(undefined);
 
     const loggedOut = isNotLoggedIn(userError) || sessionExpired;
     const user = loggedOut ? undefined : data;
     const loggedIn = user !== undefined;
+
+    useEffect(() => {
+        loggedInRef.current = loggedIn;
+    }, [loggedIn]);
+
+    /** Whether the session has ended, asking the registry once however many requests were refused. */
+    const confirmSessionExpiry = useCallback((): Promise<boolean> => {
+        if (sessionExpiredRef.current) {
+            return Promise.resolve(true);
+        }
+        if (!loggedInRef.current) {
+            return Promise.resolve(false);
+        }
+        sessionCheck.current ??= queryClient
+            .fetchQuery({ queryKey: ['user'], queryFn: ({ signal }) => service.getUser(signal), staleTime: 0 })
+            .then(
+                () => false,
+                error => isNotLoggedIn(error)
+            )
+            .then(ended => {
+                sessionCheck.current = undefined;
+                if (ended) {
+                    sessionExpiredRef.current = true;
+                    setSessionExpired(true);
+                }
+                return ended;
+            });
+        return sessionCheck.current;
+    }, [queryClient, service]);
 
     useEffect(() => {
         if (!loggedIn) {
@@ -49,8 +80,7 @@ export const useCurrentUser = (service: ExtensionRegistryService) => {
         }
         const onCacheEvent = (event: QueryCacheNotifyEvent | MutationCacheNotifyEvent) => {
             if (event.type === 'updated' && event.action.type === 'error' && isUnauthorized(event.action.error)) {
-                sessionExpiredRef.current = true;
-                setSessionExpired(true);
+                void confirmSessionExpiry();
             }
         };
         const unsubscribeQueries = queryClient.getQueryCache().subscribe(onCacheEvent);
@@ -59,15 +89,9 @@ export const useCurrentUser = (service: ExtensionRegistryService) => {
             unsubscribeQueries();
             unsubscribeMutations();
         };
-    }, [loggedIn, queryClient]);
+    }, [loggedIn, queryClient, confirmSessionExpiry]);
 
-    /** Whether `error` is a 401 the expired session already explains. */
-    const isSessionExpiryError = useCallback(
-        (error: unknown) => sessionExpiredRef.current && isUnauthorized(error),
-        []
-    );
-
-    return { user, userError, userLoading, loggedOut, sessionExpired, refetchUser, isSessionExpiryError };
+    return { user, userError, userLoading, loggedOut, sessionExpired, refetchUser, confirmSessionExpiry };
 };
 
 /** Whether {@link useCurrentUser} failed because nobody is logged in, which the registry answers with a 200 error result. */
