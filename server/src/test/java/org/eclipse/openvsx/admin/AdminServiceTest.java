@@ -26,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
+import org.springframework.http.HttpStatus;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.UserService;
@@ -698,5 +699,42 @@ class AdminServiceTest {
 
         assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
                 .isInstanceOf(ErrorResultException.class);
+    }
+
+    @Test
+    void checksAnswer401WhenNobodyIsLoggedIn() {
+        // findLoggedInUser() is unstubbed, so it returns null
+        assertThatThrownBy(() -> adminService.checkAdminUser())
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        assertThatThrownBy(
+                () -> adminService.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+    }
+
+    @Test
+    void checksAnswer403ToALoggedInUserWithoutAccess() {
+        when(users.findLoggedInUser()).thenReturn(new UserData());
+
+        assertThatThrownBy(() -> adminService.checkAdminUser())
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(
+                () -> adminService.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
     }
 }

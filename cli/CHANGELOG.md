@@ -12,6 +12,10 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - `publish --trusted-publishing` asks the registry which audience its ID token must carry, so trusted publishing works on a registry whose configured audience is not its URL (#2391)
 - `publish --trusted-publishing` only sends its ID token to a registry reached over https, apart from a loopback address, and a failed registry version lookup is no longer remembered (#2391)
 
+### Removed
+
+- `LoginOptions` is no longer exported from the package entry point; it was the options type of `login`, which the entry point never actually exported
+
 ### Dependencies
 
 - Bump vite from 8.3.2 to 8.3.5 (#2357)
