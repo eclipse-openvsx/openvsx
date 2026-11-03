@@ -41,6 +41,16 @@ export const useCurrentUser = (service: ExtensionRegistryService) => {
     const loggedInRef = useRef(false);
     const sessionCheck = useRef<Promise<boolean>>(undefined);
 
+    // A user fetched again after the session ended, by logging in elsewhere, ends the expiry.
+    if (sessionExpired && data !== undefined && !userError) {
+        setSessionExpired(false);
+    }
+    useEffect(() => {
+        if (!sessionExpired) {
+            sessionExpiredRef.current = false;
+        }
+    }, [sessionExpired]);
+
     const loggedOut = isNotLoggedIn(userError) || sessionExpired;
     const user = loggedOut ? undefined : data;
     const loggedIn = user !== undefined;

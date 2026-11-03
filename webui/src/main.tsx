@@ -49,9 +49,17 @@ const MainContent: FunctionComponent<MainProps> = props => {
     const [hasAuthError] = useState(() => new URLSearchParams(window.location.search).has('auth-error'));
     const [sessionDialogDismissed, setSessionDialogDismissed] = useState(false);
     const sessionDialogDismissedRef = useRef(false);
-
     const { user, userError, userLoading, loggedOut, sessionExpired, refetchUser, confirmSessionExpiry } =
         useCurrentUser(props.service);
+    // A restored session gets its dialog back the next time it expires.
+    if (!sessionExpired && sessionDialogDismissed) {
+        setSessionDialogDismissed(false);
+    }
+    useEffect(() => {
+        if (!sessionExpired) {
+            sessionDialogDismissedRef.current = false;
+        }
+    }, [sessionExpired]);
     const { data: registryLoginProviders } = useLoginProviders(props.service, {
         enabled: props.loginProviders == null
     });

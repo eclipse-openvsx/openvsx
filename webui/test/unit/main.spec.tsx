@@ -94,6 +94,29 @@ const RefusingMutationPage: FunctionComponent = () => {
     return <ContextProbe />;
 };
 
+// Consumer pages that handle a refusal themselves, so only the cache listeners see it.
+const UnreportedQueryPage: FunctionComponent = () => {
+    const { userLoading } = useContext(MainContext);
+    useQuery({
+        queryKey: ['main-spec-unreported'],
+        queryFn: () => Promise.reject(unauthorized),
+        enabled: !userLoading,
+        retry: false
+    });
+    return <ContextProbe />;
+};
+
+const UnreportedMutationPage: FunctionComponent = () => {
+    const { user } = useContext(MainContext);
+    const { mutate } = useMutation({ mutationFn: () => Promise.reject(unauthorized) });
+    useEffect(() => {
+        if (user) {
+            mutate();
+        }
+    }, [user, mutate]);
+    return <ContextProbe />;
+};
+
 function renderMain(home: FunctionComponent = ContextProbe, overrides: Partial<ExtensionRegistryService> = {}) {
     const pageSettings = {
         pageTitle: 'test',
@@ -268,6 +291,41 @@ describe('Main', () => {
         const dialog = await screen.findByRole('dialog');
         expect(dialog).toHaveTextContent('Your session has expired');
         expect(screen.getByTestId('probe')).toHaveTextContent('user=none');
+    });
+
+    it.each([
+        ['query', UnreportedQueryPage],
+        ['mutation', UnreportedMutationPage]
+    ])('logs out when an unreported %s is refused with a 401', async (_kind, page) => {
+        const { service, resolveUser, rejectUser } = renderMain(page);
+
+        resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+        await waitFor(() => expect(service.getUser).toHaveBeenCalledTimes(2));
+        rejectUser(notLoggedIn);
+
+        expect(await screen.findByRole('dialog')).toHaveTextContent('Your session has expired');
+        expect(screen.getByTestId('probe')).toHaveTextContent('user=none');
+    });
+
+    it('logs the user back in when the user is fetched again after the session expired', async () => {
+        const user = userEvent.setup();
+        const testUser = { loginName: 'testuser', tokensUrl: '', createTokenUrl: '' };
+        const { service, resolveUser, rejectUser } = renderMain(refusingQueryPage(unauthorized));
+
+        resolveUser(testUser);
+        await waitFor(() => expect(service.getUser).toHaveBeenCalledTimes(2));
+        rejectUser(notLoggedIn);
+        const dialog = await screen.findByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: 'Not now' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+        // logged in again elsewhere
+        act(() => seenContexts[seenContexts.length - 1].updateUser());
+        await waitFor(() => expect(service.getUser).toHaveBeenCalledTimes(3));
+        resolveUser(testUser);
+
+        await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('user=testuser'));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('keeps the user logged in and reports a 401 the registry does not tie to the session', async () => {
