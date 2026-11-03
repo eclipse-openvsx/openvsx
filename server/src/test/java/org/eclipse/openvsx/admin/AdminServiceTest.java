@@ -40,6 +40,7 @@ import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.UserAccessJson;
+import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -88,6 +89,9 @@ class AdminServiceTest {
 
     @Mock
     ApplicationEventPublisher events;
+
+    @Mock
+    MailService mail;
 
     @Spy
     PermissionRegistry permissionRegistry = new PermissionRegistry(
@@ -619,6 +623,20 @@ class AdminServiceTest {
                 .isInstanceOf(ErrorResultException.class);
 
         assertThat(target.getPermissions()).containsExactly(Permission.MANAGE_SCANS);
+    }
+
+    @Test
+    void revokePublisherTokensAllowsADelegateWhenTheTargetHoldsOnlyAnUnregisteredGrant() {
+        var caller = new UserData();
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setLoginName("sam");
+        target.getPermissions().add(Permission.of("manage_rate_limits"));
+        when(repositories.findUserByLoginName("github", "sam")).thenReturn(target);
+
+        var result = adminService.revokePublisherTokens("github", "sam", caller);
+
+        assertThat(result.getError()).isNull();
     }
 
     @Test

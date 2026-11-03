@@ -869,7 +869,8 @@ public class AdminService {
      * forget or revoke every admin in turn and leave nobody able to grant access back.
      */
     private void checkMayStripAccessOf(UserData target, UserData caller) {
-        var targetHasAccess = target.getRole() != null || !target.getPermissions().isEmpty();
+        var targetHasAccess = target.getRole() != null
+                || target.getPermissions().stream().anyMatch(permissionRegistry::isRegistered);
         if (targetHasAccess && !UserData.Role.ADMIN.equals(caller.getRole())) {
             throw new ErrorResultException(
                     "Administration role is required to act on a user who has a role or permissions.",

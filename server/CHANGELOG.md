@@ -22,7 +22,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - **Upgrade:** the `ovsx.eclipse.*` properties, their deployment descriptor entries and the Eclipse handling of `generate-properties.sh` (`ECLIPSE_CLIENT_*`, and the `ovsx.publishing.require-license=true` it set) are removed without a fallback, so `ovsx.eclipse.check-compliance-on-start` becomes `ovsx.publisher-agreement.check-compliance-on-start`; a deployment that needs Eclipse supplies a `@Primary` `PublisherAgreementProvider`, otherwise everyone may publish unless `ovsx.publisher-agreement.version` is set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.data.mirror.requests-per-second` now spaces upstream requests evenly instead of allowing a burst of up to one second of requests after an idle period ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - A failed namespace change is retried once, instead of ten times as JobRunr does by default ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
-- `Permission` is an open type that deployments extend through `PermissionProvider`; only registered permissions can be granted or open `/admin`, and an unknown name is a 400
+- `Permission` is an open type that deployments extend through `PermissionProvider`; only registered permissions can be granted, open `/admin`, or reserve a user's revocation to admins, and an unknown name is a 400
 
 ### Removed
 
