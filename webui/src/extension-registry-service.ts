@@ -427,7 +427,7 @@ export class ExtensionRegistryService {
         return createAbsoluteURL([this.serverUrl, 'user', 'namespace', namespace, 'trusted-publishing']);
     }
 
-    // Requires a logged-in user; the server answers 403 otherwise.
+    // Requires a logged-in user; the server answers 401 otherwise.
     async getTrustedPublishingStatus(signal: AbortSignal): Promise<Readonly<TrustedPublisherStatus>> {
         return sendRequest<TrustedPublisherStatus>({
             signal,

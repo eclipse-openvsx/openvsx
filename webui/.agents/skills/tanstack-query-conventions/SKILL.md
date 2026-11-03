@@ -71,7 +71,7 @@ async getNamespace(signal: AbortSignal, name: string): Promise<Readonly<Namespac
 ## Retries and caching are owned by the shared client
 
 - One singleton `queryClient` (`query-client.ts`) owns every retry; `sendRequest` sends once. Queries retry network/5xx with backoff, wait out a 429 for the `retryAfter` on the error (up to 10 times), and never retry another 4xx.
-- `Main` builds `MainContext` above the `QueryClientProvider`, so its startup queries (`use-main-queries.ts`) take the service as an argument and pass the singleton client to `useQuery` explicitly.
+- `Main` mounts the singleton's `QueryClientProvider` above everything else, so every hook, its own startup queries (`use-main-queries.ts`) included, reads the client from context; none imports the singleton.
 - Defaults: `refetchOnWindowFocus: false`, `staleTime: 60s`. Override per hook only with reason — `staleTime: 0` / `gcTime: 0` when data must always be fresh (right after publish/delete), `retry: false` to let a 404 surface immediately.
 
 ## Options objects, not positional flags

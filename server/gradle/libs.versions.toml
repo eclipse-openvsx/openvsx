@@ -2,8 +2,8 @@
 aws             = "2.29.52"
 azure           = "12.23.1"
 bouncycastle    = "1.86"
-bucket4j-spring = "0.12.10"
-bucket4j        = "8.10.1"
+bucket4j-spring = "0.14.0"
+bucket4j        = "8.15.0"
 commons-lang3   = "3.20.0"
 flyway          = "11.20.3"
 gatling         = "3.15.0"
@@ -47,7 +47,7 @@ awssdk-s3                    = { module = "software.amazon.awssdk:s3", version.r
 awssdk-sts                   = { module = "software.amazon.awssdk:sts", version.ref = "aws" }
 azure-storage-blob           = { module = "com.azure:azure-storage-blob", version.ref = "azure" }
 bouncycastle                 = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
-bucket4j-redis               = { module = "com.bucket4j:bucket4j-redis", version.ref = "bucket4j" }
+bucket4j-jedis               = { module = "com.bucket4j:bucket4j_jdk17-jedis", version.ref = "bucket4j" }
 bucket4j-spring              = { module = "com.giffing.bucket4j.spring.boot.starter:bucket4j-spring-boot-starter", version.ref = "bucket4j-spring" }
 commons-lang3                = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
 flyway-core                  = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }

@@ -51,8 +51,7 @@ export const ExtensionList: FunctionComponent<ExtensionListProps> = ({ filter, o
     }, [filter.query, filter.category, filter.sortBy, filter.sortOrder, grid.reset]);
 
     const pageSize = filter.size;
-    // Retrying a failed first page is not `isLoading` (the query stays in error), hence `!data`.
-    const loading = isLoading || isFetchingNextPage || (isFetching && !data);
+    const loading = isLoading || isFetchingNextPage;
     // Load failures show inline rather than in the error dialog; a failed refetch keeps its results.
     const firstPageFailed = isError && !data && !isFetching;
     const nextPageFailed = isFetchNextPageError && !isFetching;
