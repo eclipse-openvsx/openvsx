@@ -15,31 +15,10 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '../../../support/test-providers';
 import { disabledStatus, testUser } from '../../../support/trusted-publishing';
-import { settingsServiceStub, testCustomer, testNamespace } from '../../../support/user-settings';
+import { settingsServiceStub, testNamespace } from '../../../support/user-settings';
 import { UserSettingsSidebar } from '../../../../../src/pages/user/settings/user-settings-sidebar';
 
 const EMPTY_TEXT = "You don't belong to any namespace yet.";
-
-describe('UserSettingsSidebar — navigation', () => {
-    it('leaves Rate Limiting out for someone who belongs to no customer group', async () => {
-        const { getCustomers, service } = settingsServiceStub({ status: disabledStatus });
-        renderWithProviders(<UserSettingsSidebar />, { mainContext: { service, user: testUser } });
-
-        await waitFor(() => expect(getCustomers).toHaveBeenCalled());
-        expect(screen.queryByText('Rate Limiting')).not.toBeInTheDocument();
-        expect(screen.getByText('Access Tokens')).toBeInTheDocument();
-    });
-
-    it('offers Rate Limiting to a member of a customer group', async () => {
-        const { service } = settingsServiceStub({
-            status: disabledStatus,
-            customers: [testCustomer()]
-        });
-        renderWithProviders(<UserSettingsSidebar />, { mainContext: { service, user: testUser } });
-
-        expect(await screen.findByText('Rate Limiting')).toBeInTheDocument();
-    });
-});
 
 describe('UserSettingsSidebar — namespaces group', () => {
     it('shows the placeholder once the empty namespace list has loaded', async () => {

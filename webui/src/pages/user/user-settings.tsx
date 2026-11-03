@@ -23,7 +23,6 @@ import { useTrustedPublishingStatus } from './trusted-publishing/use-trusted-pub
 import { UserSettingsProfile } from './profile/user-settings-profile';
 import { UserSettingsNamespaces } from './namespaces/user-settings-namespaces';
 import { UserSettingsExtensions } from './extensions/user-settings-extensions';
-import { UserSettingsCustomers } from './customers/user-settings-customers';
 import { MainContext } from '../../context';
 import { UserData } from '../../extension-registry-types';
 import { LoginComponent } from '../../default/login';
@@ -54,8 +53,6 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
                 return <UserSettingsNamespaces selectedName={namespace} />;
             case 'extensions':
                 return <UserSettingsExtensions />;
-            case 'customers':
-                return <UserSettingsCustomers />;
             default:
                 return visibleTabs.some(t => t.value === activeTab)
                     ? (contributedTabs.find(t => t.value === activeTab)?.element ?? null)

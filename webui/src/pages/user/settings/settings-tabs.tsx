@@ -14,13 +14,11 @@
 import { ReactNode, useContext } from 'react';
 import { useParams } from 'react-router';
 import { MainContext } from '../../../context';
-import { useUserCustomers } from '../customers/use-user-customers';
 import { useTrustedPublishingStatus } from '../trusted-publishing/use-trusted-publishers';
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
-import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
 
 export interface SettingsTab {
     value: string;
@@ -32,8 +30,7 @@ const SETTINGS_TABS: SettingsTab[] = [
     { value: 'profile', label: 'Profile', icon: <PersonOutlinedIcon /> },
     { value: 'tokens', label: 'Access Tokens', icon: <KeyOutlinedIcon /> },
     { value: 'trusted-publishers', label: 'Trusted Publishers', icon: <VerifiedUserOutlinedIcon /> },
-    { value: 'extensions', label: 'Extensions', icon: <GridViewOutlinedIcon /> },
-    { value: 'customers', label: 'Rate Limiting', icon: <SpeedOutlinedIcon /> }
+    { value: 'extensions', label: 'Extensions', icon: <GridViewOutlinedIcon /> }
 ];
 
 /**
@@ -55,19 +52,16 @@ export const useContributedTabs = (): UserSettingsTab[] => {
 };
 
 /**
- * The settings tabs applicable to the current user: Rate Limiting only for customer members, and
- * Trusted Publishers only where the registry has the feature on. An idle or failed status query
+ * The settings tabs applicable to the current user: Trusted Publishers only where the registry has
+ * the feature on. An idle or failed status query
  * leaves `enabled` undefined, so the gate fails closed.
  */
 export const useSettingsTabs = (): SettingsTab[] => {
     const contributed = useContributedTabs();
     const contributedApplicable = contributed.map(tab => tab.useIsApplicable?.() ?? true);
-    const hasCustomers = (useUserCustomers().data ?? []).length > 0;
     const trustedPublishingEnabled = useTrustedPublishingStatus().data?.enabled ?? false;
     const isApplicable = (tab: SettingsTab): boolean => {
         switch (tab.value) {
-            case 'customers':
-                return hasCustomers;
             case 'trusted-publishers':
                 return trustedPublishingEnabled;
             default:

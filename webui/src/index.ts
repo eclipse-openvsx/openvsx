@@ -23,7 +23,8 @@ export { useReportedQuery } from './hooks/use-reported-query';
 export * from './extension-registry-service';
 export * from './extension-registry-types';
 export { sendRequest, isNotFound, type ErrorResponse } from './server-request';
-export { createRoute, createAbsoluteURL, addQuery } from './utils';
+export { createRoute, createAbsoluteURL, addQuery, handleError } from './utils';
+export { NO_CACHE } from './query-client';
 
 // So a deployment with its own menu content can gate an admin entry the way the built-in menu does.
 export { hasPermission, hasAnyAdminAccess } from './permissions';
@@ -36,6 +37,14 @@ export { UserSettings, type UserSettingsProps } from './pages/user/user-settings
 export { NotFound } from './not-found';
 export type { AdminPage, AdminPageCategory } from './pages/admin-dashboard/nav-types';
 export type { UserSettingsTab } from './pages/user/settings/settings-tabs';
+// Layout and grid helpers the built-in admin and settings pages share, for pages contributed to them.
+export { SearchListContainer, type SearchListContainerProps } from './pages/admin-dashboard/search-list-container';
+export {
+    createMultiSelectFilterOperators,
+    createArrayContainsFilterOperators
+} from './pages/admin-dashboard/components';
+export { SettingsHeader, type SettingsHeaderProps } from './pages/user/settings/settings-header';
+export { EmptyPlaceholder } from './pages/user/settings/settings-primitives';
 export type { AdminSettingsSection, AdminSettingsFlag } from './pages/admin-dashboard/settings-sections';
 
 // Building blocks of the built-in home page, for composing a custom one.
@@ -59,6 +68,10 @@ export { KbdKey } from './components/kbd-key';
 export { OpenVsxMark } from './components/openvsx-mark';
 export { PageContainer, type PageContainerProps } from './components/page-container';
 export { ListLoadError, type ListLoadErrorProps } from './components/list-load-error';
+export { DelayedLoadIndicator, type DelayedLoadIndicatorProps } from './components/delayed-load-indicator';
+export { Timestamp, type TimestampProps } from './components/timestamp';
+export { AddUserDialog, type AddUserDialogProps } from './components/add-user-dialog';
+export { GenerateTokenDialog, type GenerateTokenDialogProps } from './components/generate-token-dialog';
 // Also the app's drop target for .vsix packages, so a custom menu keeps drag-and-drop publishing.
 export { PublishButton, type PublishButtonProps } from './components/publish/publish-button';
 

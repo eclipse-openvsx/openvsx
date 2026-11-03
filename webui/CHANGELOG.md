@@ -32,6 +32,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Removed
 
 - `sendNonRetriableRequest`, `controllerFromSignal` and the `abortController` field of `ServerAPIRequest`: use `sendRequest` with `signal`, and pass a `queryFn`'s `signal` straight to the service
+- The Rate Limiting admin pages (tiers, customers, usage stats), the user-settings Rate Limiting tab, the `manage_rate_limits` entry of `ADMIN_PERMISSIONS` and the tier, customer, usage and rate limit token methods and types of `ExtensionRegistryService`: a deployment adds such pages through `PageSettings.elements.adminPages` and `userSettingsTabs`, now also with a `customers` tab, and the index exports `handleError`, `NO_CACHE`, `DelayedLoadIndicator`, `Timestamp`, `AddUserDialog`, `GenerateTokenDialog`, `SearchListContainer`, `createMultiSelectFilterOperators`, `createArrayContainsFilterOperators`, `SettingsHeader` and `EmptyPlaceholder` to build them
 
 ### Dependencies
 

@@ -17,7 +17,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { Route, Routes } from 'react-router';
 import { renderHookWithProviders, renderWithProviders } from '../../../support/test-providers';
 import { disabledStatus, enabledStatus, testUser } from '../../../support/trusted-publishing';
-import { settingsServiceStub, testCustomer } from '../../../support/user-settings';
+import { settingsServiceStub } from '../../../support/user-settings';
 import { ExtensionRegistryService } from '../../../../../src/extension-registry-service';
 import { useSettingsTabs, UserSettingsTab } from '../../../../../src/pages/user/settings/settings-tabs';
 import { UserSettings } from '../../../../../src/pages/user/user-settings';
@@ -49,23 +49,6 @@ describe('useSettingsTabs — trusted publishing gate', () => {
 
         expect(getTrustedPublishingStatus).not.toHaveBeenCalled();
         expect(result.current.map(tab => tab.value)).not.toContain('trusted-publishers');
-    });
-});
-
-describe('useSettingsTabs — rate limiting gate', () => {
-    it('includes the Rate Limiting tab only for members of a customer group', async () => {
-        const { service } = settingsServiceStub({ status: disabledStatus, customers: [testCustomer()] });
-        const { result } = renderTabs(service, testUser);
-
-        await waitFor(() => expect(result.current.map(tab => tab.value)).toContain('customers'));
-    });
-
-    it('omits the Rate Limiting tab when the user belongs to no customer group', async () => {
-        const { getCustomers, service } = settingsServiceStub({ status: disabledStatus });
-        const { result } = renderTabs(service, testUser);
-
-        await waitFor(() => expect(getCustomers).toHaveBeenCalled());
-        expect(result.current.map(tab => tab.value)).not.toContain('customers');
     });
 });
 
@@ -116,6 +99,15 @@ describe('useSettingsTabs — contributed tabs', () => {
 
         await waitFor(() => expect(screen.getAllByText('Access Tokens').length).toBeGreaterThan(0));
         expect(screen.queryByText('extra element')).not.toBeInTheDocument();
+    });
+
+    it('contributed tab with the value customers is accepted', async () => {
+        const tab = contributed({ value: 'customers', label: 'Customers', element: <p>customers element</p> });
+        const { result } = renderContributed([tab]);
+        expect(result.current.map(t => t.value)).toContain('customers');
+
+        renderSettings([tab], '/user-settings/customers');
+        expect(await screen.findByText('customers element')).toBeInTheDocument();
     });
 
     it('contributed tab with a built-in value is ignored', async () => {
