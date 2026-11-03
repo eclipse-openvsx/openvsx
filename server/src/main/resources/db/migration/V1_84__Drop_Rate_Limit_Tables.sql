@@ -6,6 +6,9 @@ DECLARE
     n bigint;
     filled text[] := '{}';
 BEGIN
+    -- A concurrent writer must either be blocked or make the guard fail, never lose a row to the drop.
+    LOCK TABLE public.daily_usage_stats, public.usage_stats, public.rate_limit_token,
+        public.customer_membership, public.customer, public.tier IN ACCESS EXCLUSIVE MODE;
     FOREACH t IN ARRAY ARRAY['daily_usage_stats', 'usage_stats', 'rate_limit_token', 'customer_membership', 'customer', 'tier'] LOOP
         EXECUTE format('SELECT count(*) FROM public.%I', t) INTO n;
         IF n > 0 THEN
