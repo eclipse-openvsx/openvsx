@@ -12,6 +12,8 @@
  *****************************************************************************/
 package org.eclipse.openvsx.entities;
 
+import java.util.Locale;
+
 /**
  * A single admin capability that can be granted to or revoked from a user independently of their
  * {@link UserData.Role}. A user with {@link UserData.Role#ADMIN} implicitly has every permission,
@@ -32,9 +34,17 @@ public record Permission(String name) {
     public static final Permission MANAGE_SETTINGS = of("manage_settings");
     public static final Permission VIEW_REPORTS = of("view_reports");
 
-    /** Trims and lower-cases {@code value}; {@code null} stays {@code null}. */
+    /** Trims and lower-cases the name, so a provider's spelling matches what is stored and granted. */
+    public Permission {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Permission name cannot be null or blank");
+        }
+        name = name.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /** {@code null} stays {@code null}. */
     public static Permission of(String value) {
-        return value == null ? null : new Permission(value.trim().toLowerCase());
+        return value == null ? null : new Permission(value);
     }
 
     @Override
