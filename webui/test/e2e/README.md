@@ -40,6 +40,6 @@ OVSX_E2E_ENV=local yarn smoke-tests
 
 `OVSX_E2E_BASE_URL` points the tests at any other deployment, and `OVSX_E2E_HTTP_USERNAME` and `OVSX_E2E_HTTP_PASSWORD` set HTTP basic auth credentials. They can also go in `webui/.env`, which is git-ignored.
 
-To run against a local registry, start it from the repository root with `make dev-env`, `make server` and `make webui`, each in its own terminal, and publish the test extensions to it.
+To run against a local registry, start it from the repository root with `make dev-env`, `make server` and `make webui`, each in its own terminal, and publish the test extensions to it with [`server/scripts/upload-test-extensions.sh`](../../../server/scripts/upload-test-extensions.sh).
 
 To add an environment, or to change the test data from [`smoke-test.options.ts`](../../configs/smoke-test.options.ts) for one, edit `environments` in [`playwright.config.ts`](../../configs/playwright.config.ts).

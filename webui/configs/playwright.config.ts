@@ -34,6 +34,7 @@ if (!environment) {
 }
 
 const { OVSX_E2E_BASE_URL, OVSX_E2E_HTTP_USERNAME, OVSX_E2E_HTTP_PASSWORD } = process.env;
+const baseURL = OVSX_E2E_BASE_URL || environment.baseURL;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -53,11 +54,15 @@ export default defineConfig<SmokeTestOptions>({
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {
         /* Base URL to use in actions like `await page.goto('/')`. */
-        baseURL: OVSX_E2E_BASE_URL || environment.baseURL,
-        // for deployments behind HTTP basic auth
+        baseURL,
+        // for deployments behind HTTP basic auth; only sent to the registry, not to e.g. a download CDN
         httpCredentials:
             OVSX_E2E_HTTP_USERNAME && OVSX_E2E_HTTP_PASSWORD
-                ? { username: OVSX_E2E_HTTP_USERNAME, password: OVSX_E2E_HTTP_PASSWORD }
+                ? {
+                      username: OVSX_E2E_HTTP_USERNAME,
+                      password: OVSX_E2E_HTTP_PASSWORD,
+                      origin: new URL(baseURL).origin
+                  }
                 : undefined,
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
