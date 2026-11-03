@@ -16,7 +16,7 @@ import { PageContainer } from '../../components/page-container';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { UserSettingsSidebar } from './settings/user-settings-sidebar';
 import { UserSettingsMobileNav } from './settings/user-settings-mobile-nav';
-import { useActiveSettingsTab, useContributedTabs } from './settings/settings-tabs';
+import { useActiveSettingsTab, useContributedTabs, useSettingsTabs } from './settings/settings-tabs';
 import { UserSettingsTokens } from './tokens/user-settings-tokens';
 import { UserSettingsTrustedPublishers } from './trusted-publishing/user-settings-trusted-publishers';
 import { useTrustedPublishingStatus } from './trusted-publishing/use-trusted-publishers';
@@ -34,6 +34,7 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
     const { tab, namespace, extension } = useParams();
     const activeTab = useActiveSettingsTab();
     const contributedTabs = useContributedTabs();
+    const visibleTabs = useSettingsTabs();
     const { data: trustedPublishingStatus } = useTrustedPublishingStatus();
     const trustedPublishingEnabled = trustedPublishingStatus?.enabled ?? false;
 
@@ -56,7 +57,9 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
             case 'customers':
                 return <UserSettingsCustomers />;
             default:
-                return contributedTabs.find(t => t.value === activeTab)?.element ?? null;
+                return visibleTabs.some(t => t.value === activeTab)
+                    ? (contributedTabs.find(t => t.value === activeTab)?.element ?? null)
+                    : null;
         }
     };
 

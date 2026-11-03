@@ -110,6 +110,14 @@ describe('useSettingsTabs — contributed tabs', () => {
         expect(result.current.map(tab => tab.value)).not.toContain('extra');
     });
 
+    it('a hidden contributed tab renders nothing when its URL is visited', async () => {
+        const tab = contributed({ useIsApplicable: () => false });
+        renderSettings([tab], '/user-settings/extra');
+
+        await waitFor(() => expect(screen.getAllByText('Access Tokens').length).toBeGreaterThan(0));
+        expect(screen.queryByText('extra element')).not.toBeInTheDocument();
+    });
+
     it('contributed tab with a built-in value is ignored', async () => {
         const tab = contributed({ value: 'tokens', label: 'Hijacked', element: <p>hijacked element</p> });
         const { result } = renderContributed([tab]);
