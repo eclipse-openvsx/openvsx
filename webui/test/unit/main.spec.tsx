@@ -11,11 +11,11 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { FunctionComponent, useContext } from 'react';
+import { FunctionComponent, useContext, useEffect } from 'react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { renderInEntryShell } from './support/test-providers';
 import { Main } from '../../src/main';
 import { queryClient } from '../../src/query-client';
@@ -58,6 +58,42 @@ const FailingQueryPage: FunctionComponent = () => {
     return failingPageRenders < 50 ? <FailingQueryReporter /> : null;
 };
 
+const githubLogin = 'https://registry.test/oauth2/authorization/github';
+
+// How the registry refuses a request that needs a login when nobody is logged in.
+const unauthorized = { error: 'Unauthorized', message: 'Full authentication is required', status: 401 };
+
+// A consumer page whose reported query is refused once the user query has settled.
+const refusingQueryPage = (refusal: object): FunctionComponent => {
+    const RefusingQueryPage: FunctionComponent = () => {
+        const { userLoading } = useContext(MainContext);
+        useReportedQuery(
+            useQuery({
+                queryKey: ['main-spec-refused'],
+                queryFn: () => Promise.reject(refusal),
+                enabled: !userLoading
+            }),
+            { action: 'load the thing' }
+        );
+        return <ContextProbe />;
+    };
+    return RefusingQueryPage;
+};
+
+// A consumer page whose reported mutation is refused as soon as a user is logged in.
+const RefusingMutationPage: FunctionComponent = () => {
+    const { user } = useContext(MainContext);
+    const { mutate } = useReportedQuery(useMutation({ mutationFn: () => Promise.reject(unauthorized) }), {
+        action: 'save the thing'
+    });
+    useEffect(() => {
+        if (user) {
+            mutate();
+        }
+    }, [user, mutate]);
+    return <ContextProbe />;
+};
+
 function renderMain(home: FunctionComponent = ContextProbe, overrides: Partial<ExtensionRegistryService> = {}) {
     const pageSettings = {
         pageTitle: 'test',
@@ -72,7 +108,7 @@ function renderMain(home: FunctionComponent = ContextProbe, overrides: Partial<E
         ...overrides
     } as unknown as ExtensionRegistryService;
     // `loginProviders` supplied so Main skips its own login-providers fetch.
-    const loginProviders = {};
+    const loginProviders = { github: githubLogin };
     const main = () => <Main service={service} pageSettings={pageSettings} loginProviders={loginProviders} />;
     const { rerender } = renderInEntryShell(main());
     return {
@@ -194,6 +230,58 @@ describe('Main', () => {
         await waitFor(() => expect(queryClient.getQueryState(['auth-error'])?.status).toBe('error'));
         await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('loading=false user=none'));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('logs out and asks to log in again when a query is refused with a 401', async () => {
+        const user = userEvent.setup();
+        const { resolveUser } = renderMain(refusingQueryPage(unauthorized));
+
+        resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Your session has expired');
+        expect(within(dialog).getByRole('link', { name: 'Log in' })).toHaveAttribute('href', githubLogin);
+        expect(screen.getByTestId('probe')).toHaveTextContent('user=none');
+
+        // Neither the refusal nor one from a request still in flight opens the error dialog.
+        act(() => seenContexts[seenContexts.length - 1].handleError(unauthorized));
+        expect(screen.queryByText(/Full authentication is required/)).not.toBeInTheDocument();
+
+        await user.click(within(dialog).getByRole('button', { name: 'Not now' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('logs out and asks to log in again when a mutation is refused with a 401', async () => {
+        const { resolveUser } = renderMain(RefusingMutationPage);
+
+        resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Your session has expired');
+        expect(screen.getByTestId('probe')).toHaveTextContent('user=none');
+    });
+
+    it('keeps the user logged in and reports a 403', async () => {
+        const { resolveUser } = renderMain(
+            refusingQueryPage({ error: 'Forbidden', message: 'not yours', status: 403 })
+        );
+
+        resolveUser({ loginName: 'testuser', tokensUrl: '', createTokenUrl: '' });
+
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Couldn’t load the thing');
+        expect(dialog).toHaveTextContent('not yours');
+        expect(screen.getByTestId('probe')).toHaveTextContent('user=testuser');
+    });
+
+    it('reports a 401 to a visitor who was not logged in', async () => {
+        const { rejectUser } = renderMain(refusingQueryPage(unauthorized));
+
+        rejectUser(notLoggedIn);
+
+        const dialog = await screen.findByRole('dialog');
+        expect(dialog).toHaveTextContent('Couldn’t load the thing');
+        expect(dialog).toHaveTextContent('Full authentication is required');
     });
 
     it('refetches the user when a page asks for it', async () => {

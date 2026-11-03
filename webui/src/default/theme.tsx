@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { CSSProperties } from 'react';
-import { alpha, createTheme, Theme } from '@mui/material';
+import { alpha, backdropClasses, createTheme, Theme } from '@mui/material';
 import type {} from '@mui/x-data-grid/themeAugmentation';
 
 export const MONO_FONT = "'Geist Mono', monospace";
@@ -387,6 +387,13 @@ export default function createDefaultTheme(themeType: 'light' | 'dark'): Theme {
             },
             MuiDialog: {
                 styleOverrides: {
+                    // Only dialogs: menus and popovers mount an invisible backdrop that must not blur the page.
+                    root: {
+                        [`& .${backdropClasses.root}`]: {
+                            backdropFilter: 'blur(1.5px)',
+                            WebkitBackdropFilter: 'blur(1.5px)'
+                        }
+                    },
                     paper: ({ theme }) => floatingPaper(theme)
                 }
             },
