@@ -12,6 +12,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - An outdated agreement stops publishing until it is signed again, while a revoked or missing one also takes extensions offline on the startup compliance check ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- Add `GET /admin/api/permissions` listing the permissions a deployment registers
 
 ### Changed
 

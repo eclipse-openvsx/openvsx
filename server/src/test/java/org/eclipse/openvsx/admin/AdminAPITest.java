@@ -441,6 +441,27 @@ class AdminAPITest {
     }
 
     @Test
+    void permissionsListsRegistryForAdmin() throws Exception {
+        mockAdminUser();
+        mockMvc.perform(
+                get("/admin/api/permissions")
+                        .with(user("admin_user").authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.value == 'manage_caches')].label").value("Manage caches"));
+    }
+
+    @Test
+    void permissionsForbiddenWithoutAdminRole() throws Exception {
+        mockNormalUser();
+        mockMvc.perform(
+                get("/admin/api/permissions")
+                        .with(user("test_user"))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void testGetSearchIndexNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
