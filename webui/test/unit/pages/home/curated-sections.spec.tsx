@@ -64,14 +64,16 @@ describe('CuratedSections', () => {
 
         await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
 
-        // Still shown, but neither failed (no notice or stand-ins) nor loaded (no cards): skeleton slots.
-        expect(screen.getByText('Most downloaded')).toBeInTheDocument();
+        // Still shown and busy, but neither failed (no notice or stand-ins) nor loaded (no cards).
+        const row = screen.getByRole('region', { name: 'Most downloaded' });
+        expect(row).toHaveAttribute('aria-busy', 'true');
         expect(screen.queryByText('We couldn’t load extensions at this time.')).not.toBeInTheDocument();
         expect(screen.queryByText('Language Support')).not.toBeInTheDocument();
         expect(screen.queryAllByRole('link', { hidden: true })).toHaveLength(0);
 
         await act(async () => resolveRetry(result([entry])));
         expect(await screen.findByText('Foo Bar')).toBeInTheDocument();
+        expect(row).toHaveAttribute('aria-busy', 'false');
     });
 
     it('keeps the extensions a row already had when a refetch fails', async () => {
