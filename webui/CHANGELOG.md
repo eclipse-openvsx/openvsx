@@ -24,11 +24,14 @@ This change log covers only the frontend library (webui) of Open VSX.
 - The error dialog is titled with what failed, e.g. "Couldn’t load the namespace members", instead of a bare "Error"
 - A curated row on the home page that fails to load shows "We couldn’t load extensions at this time." with a Retry button instead of disappearing; `CuratedRow` carries the row's `error` and a `refetch` for custom home pages
 - `AdminPermission` is a string, `ADMIN_PERMISSIONS` names the built-in ones, and the Access Control page lists permissions from the server, so a deployment can register its own
+- **Breaking:** `AppProviders` no longer mounts the `QueryClientProvider` or takes a `queryClient`; `Main` mounts it above everything else, so a page that mounts `AppProviders` without `Main` wraps it in its own `QueryClientProvider`
 
 ### Fixed
 
 - A query reported through `useReportedQuery` (or a page's own error effect) no longer reopens the error dialog in a loop that cannot be closed while the query stays failed (#2348)
 - A failed review post or removal, token revocation or user search no longer leaves its spinner running
+- An expired session no longer leaves the UI logged in and failing every request until the page is reloaded: a 401 the registry confirms is the end of the session logs the user out and asks them to log in again, back to the page they were on, which needs a registry that answers 401 when nobody is logged in; any other 401 is reported as an error
+- The extension details show no latest version, instead of a removed one, for an extension the registry no longer serves ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
 
 ### Removed
 

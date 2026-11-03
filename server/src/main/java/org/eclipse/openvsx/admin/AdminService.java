@@ -807,7 +807,11 @@ public class AdminService {
     }
 
     public UserData checkAdminUser() {
-        return checkAdminUser(users.findLoggedInUser());
+        var user = users.findLoggedInUser();
+        if (user == null) {
+            throw new ErrorResultException("Not logged in.", HttpStatus.UNAUTHORIZED);
+        }
+        return checkAdminUser(user);
     }
 
     public UserData checkAdminUser(String tokenValue) {
@@ -835,12 +839,16 @@ public class AdminService {
     }
 
     /**
-     * Checks that the logged-in user has {@code required}, throwing 403 otherwise. Unlike
-     * {@link #checkAdminUser()}, this also passes for a non-ADMIN user individually granted the
-     * permission via {@link #updateUserAccess}.
+     * Checks that the logged-in user has {@code required}, throwing 401 when nobody is logged in and
+     * 403 otherwise. Unlike {@link #checkAdminUser()}, this also passes for a non-ADMIN user
+     * individually granted the permission via {@link #updateUserAccess}.
      */
     public UserData checkPermission(Permission required) {
-        return checkPermission(users.findLoggedInUser(), required);
+        var user = users.findLoggedInUser();
+        if (user == null) {
+            throw new ErrorResultException("Not logged in.", HttpStatus.UNAUTHORIZED);
+        }
+        return checkPermission(user, required);
     }
 
     public UserData checkPermission(String tokenValue, Permission required) {
@@ -885,7 +893,10 @@ public class AdminService {
      */
     public UserData checkAnyPermission(Permission... required) {
         var user = users.findLoggedInUser();
-        if (user != null && Stream.of(required).anyMatch(user::hasPermission)) {
+        if (user == null) {
+            throw new ErrorResultException("Not logged in.", HttpStatus.UNAUTHORIZED);
+        }
+        if (Stream.of(required).anyMatch(user::hasPermission)) {
             return user;
         }
 
