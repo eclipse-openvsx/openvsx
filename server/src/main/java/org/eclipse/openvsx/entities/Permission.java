@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.entities;
 
+import java.io.Serializable;
 import java.util.Locale;
 
 /**
@@ -22,7 +23,7 @@ import java.util.Locale;
  * An open type: deployments add their own through {@code PermissionProvider}. Only registered
  * permissions can be granted, and the stored name is at most 32 characters.
  */
-public record Permission(String name) {
+public record Permission(String name) implements Serializable {
 
     public static final Permission MANAGE_NAMESPACES = of("manage_namespaces");
     public static final Permission MANAGE_EXTENSIONS = of("manage_extensions");

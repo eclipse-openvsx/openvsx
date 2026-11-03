@@ -12,6 +12,10 @@
  *****************************************************************************/
 package org.eclipse.openvsx.entities;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
@@ -46,5 +50,19 @@ class PermissionTest {
     @Test
     void ofKeepsNullAsNull() {
         assertThat(Permission.of(null)).isNull();
+    }
+
+    @Test
+    void aUserWithAPermissionSurvivesJavaSerialization() throws Exception {
+        var user = new UserData();
+        user.getPermissions().add(Permission.MANAGE_SCANS);
+
+        var bytes = new ByteArrayOutputStream();
+        try (var out = new ObjectOutputStream(bytes)) {
+            out.writeObject(user);
+        }
+        try (var in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+            assertThat(((UserData) in.readObject()).getPermissions()).containsExactly(Permission.MANAGE_SCANS);
+        }
     }
 }
