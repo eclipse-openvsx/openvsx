@@ -624,6 +624,7 @@ export interface AdminService {
         signal: AbortSignal,
         params?: { search?: string; role?: string; page?: number; size?: number }
     ): Promise<Readonly<UserSearchResult>>;
+    getPermissions(signal: AbortSignal): Promise<Readonly<{ value: string; label: string }[]>>;
     updateUserAccess(provider: string, login: string, access: UserAccess): Promise<Readonly<SuccessResult>>;
     revokePublisherContributions(provider: string, login: string): Promise<Readonly<SuccessResult>>;
     reinstatePublisherAgreement(provider: string, login: string): Promise<Readonly<SuccessResult>>;
@@ -881,6 +882,14 @@ export class AdminServiceImpl implements AdminService {
             signal,
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'user', 'search'], query)
+        });
+    }
+
+    async getPermissions(signal: AbortSignal): Promise<Readonly<{ value: string; label: string }[]>> {
+        return sendRequest({
+            signal,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'api', 'permissions'])
         });
     }
 

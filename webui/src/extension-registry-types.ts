@@ -227,20 +227,24 @@ export interface UserData {
 }
 
 /**
- * A single admin capability, matching the server's `org.eclipse.openvsx.entities.Permission` enum.
- * A user with role 'admin' implicitly has every value here without it appearing in `permissions`.
+ * A single admin capability. The server owns the set (deployments may register their own); a user
+ * with role 'admin' implicitly has every one without it appearing in `permissions`.
  */
-export type AdminPermission =
-    | 'manage_namespaces'
-    | 'manage_extensions'
-    | 'manage_publishers'
-    | 'manage_scans'
-    | 'manage_consistency'
-    | 'manage_rate_limits'
-    | 'manage_caches'
-    | 'manage_search_index'
-    | 'manage_settings'
-    | 'view_reports';
+export type AdminPermission = string;
+
+/** The permissions built into Open VSX. */
+export const ADMIN_PERMISSIONS = {
+    manageNamespaces: 'manage_namespaces',
+    manageExtensions: 'manage_extensions',
+    managePublishers: 'manage_publishers',
+    manageScans: 'manage_scans',
+    manageConsistency: 'manage_consistency',
+    manageRateLimits: 'manage_rate_limits',
+    manageCaches: 'manage_caches',
+    manageSearchIndex: 'manage_search_index',
+    manageSettings: 'manage_settings',
+    viewReports: 'view_reports'
+} as const satisfies Record<string, AdminPermission>;
 
 /**
  * The admin access a user should end up with, as a whole rather than a delta: `permissions`

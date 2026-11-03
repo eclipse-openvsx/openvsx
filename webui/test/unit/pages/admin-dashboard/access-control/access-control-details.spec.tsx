@@ -26,8 +26,18 @@ function entry(overrides: Partial<UserData> = {}): UserRelationships {
     };
 }
 
+const PERMISSIONS = [
+    ['manage_extensions', 'Manage extensions'],
+    ['manage_caches', 'Manage caches'],
+    ['manage_scans', 'Manage scans']
+].map(([value, label]) => ({ value, label }));
+
 function serviceWith(admin: Partial<AdminService>): ExtensionRegistryService {
-    return { serverUrl: 'https://open-vsx.org', admin: admin as AdminService } as ExtensionRegistryService;
+    const getPermissions = vi.fn().mockResolvedValue(PERMISSIONS);
+    return {
+        serverUrl: 'https://open-vsx.org',
+        admin: { getPermissions, ...admin } as AdminService
+    } as ExtensionRegistryService;
 }
 
 describe('AccessControlDetails', () => {
@@ -40,8 +50,8 @@ describe('AccessControlDetails', () => {
         });
 
         await userEvent.click(screen.getByRole('button', { name: 'Privileged' }));
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage caches' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage caches' }));
         expect(updateUserAccess).not.toHaveBeenCalled();
 
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -61,7 +71,7 @@ describe('AccessControlDetails', () => {
         expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
 
         expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     });
@@ -76,7 +86,7 @@ describe('AccessControlDetails', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
 
         expect(screen.getByRole('button', { name: 'No role' })).toHaveAttribute('aria-pressed', 'true');
-        expect(screen.getByRole('checkbox', { name: 'Manage caches' })).toBeChecked();
+        expect(await screen.findByRole('checkbox', { name: 'Manage caches' })).toBeChecked();
         expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
         expect(updateUserAccess).not.toHaveBeenCalled();
     });
@@ -89,11 +99,11 @@ describe('AccessControlDetails', () => {
             mainContext: { service: serviceWith({ updateUserAccess }) }
         });
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         expect(await screen.findByText(/nope/)).toBeInTheDocument();
-        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
         expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     });
 
@@ -104,7 +114,7 @@ describe('AccessControlDetails', () => {
             mainContext: { service: serviceWith({ updateUserAccess }) }
         });
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
         expect(onDirtyChange).toHaveBeenLastCalledWith(true);
 
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -125,7 +135,7 @@ describe('AccessControlDetails', () => {
             }
         });
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         await waitFor(() => expect(updateUser).toHaveBeenCalled());
@@ -142,7 +152,7 @@ describe('AccessControlDetails', () => {
             }
         });
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage extensions' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage extensions' }));
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
@@ -157,7 +167,7 @@ describe('AccessControlDetails', () => {
             mainContext: { service: serviceWith({ updateUserAccess }) }
         });
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage scans' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage scans' }));
         await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -172,11 +182,11 @@ describe('AccessControlDetails', () => {
             mainContext: { service: serviceWith({ updateUserAccess }) }
         });
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Manage scans' }));
+        await userEvent.click(await screen.findByRole('checkbox', { name: 'Manage scans' }));
         await userEvent.click(screen.getByRole('button', { name: 'Admin' }));
         await userEvent.click(screen.getByRole('button', { name: 'Privileged' }));
 
-        expect(screen.getByRole('checkbox', { name: 'Manage scans' })).toBeChecked();
+        expect(await screen.findByRole('checkbox', { name: 'Manage scans' })).toBeChecked();
 
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
         expect(updateUserAccess).toHaveBeenCalledWith('github', 'octocat', {
@@ -187,13 +197,34 @@ describe('AccessControlDetails', () => {
 
     // Admin implies every permission server-side (UserData#hasPermission), so individual grants
     // would have no effect - the checkboxes reflect that instead of suggesting otherwise.
-    it('shows every permission as checked and disabled once the role is admin', () => {
+    it('shows every permission as checked and disabled once the role is admin', async () => {
         renderWithProviders(<AccessControlDetails entry={entry({ role: 'admin' })} />, {
             mainContext: { service: serviceWith({}) }
         });
 
-        const checkbox = screen.getByRole('checkbox', { name: 'Manage extensions' });
+        const checkbox = await screen.findByRole('checkbox', { name: 'Manage extensions' });
         expect(checkbox).toBeChecked();
         expect(checkbox).toBeDisabled();
+    });
+
+    it('lists permissions returned by the endpoint, including one with no built-in label', async () => {
+        const getPermissions = vi.fn().mockResolvedValue([{ value: 'manage_widgets', label: 'Manage widgets' }]);
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({ getPermissions }) }
+        });
+
+        expect(await screen.findByRole('checkbox', { name: 'Manage widgets' })).toBeInTheDocument();
+        expect(screen.queryByRole('checkbox', { name: 'Manage caches' })).not.toBeInTheDocument();
+    });
+
+    it('renders without options while the query fails', async () => {
+        const getPermissions = vi.fn().mockRejectedValue({ error: 'Forbidden' });
+        renderWithProviders(<AccessControlDetails entry={entry()} />, {
+            mainContext: { service: serviceWith({ getPermissions }) }
+        });
+
+        await waitFor(() => expect(getPermissions).toHaveBeenCalled());
+        expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument();
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     });
 });

@@ -22,6 +22,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
 - The error dialog is titled with what failed, e.g. "Couldn’t load the namespace members", instead of a bare "Error"
 - A curated row on the home page that fails to load shows "We couldn’t load extensions at this time." with a Retry button instead of disappearing; `CuratedRow` carries the row's `error` and a `refetch` for custom home pages
+- `AdminPermission` is a string and the Access Control page lists permissions from the server, so a deployment can register its own
 
 ### Fixed
 
