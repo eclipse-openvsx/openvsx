@@ -14,16 +14,16 @@
 import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
-import { AdminPermission } from '../../../extension-registry-types';
+import { useReportedQuery } from '../../../hooks/use-reported-query';
 
-const NO_OPTIONS: { value: AdminPermission; label: string }[] = [];
-
-/** The permissions the server can grant, in its order; empty while loading or if the request fails. */
+/** The permissions the server can grant, in its order. */
 export const usePermissionOptions = () => {
     const { service } = useContext(MainContext);
-    const { data } = useQuery({
-        queryKey: ['admin', 'permissions'],
-        queryFn: ({ signal }) => service.admin.getPermissions(signal)
-    });
-    return data ?? NO_OPTIONS;
+    return useReportedQuery(
+        useQuery({
+            queryKey: ['admin', 'permissions'],
+            queryFn: ({ signal }) => service.admin.getPermissions(signal)
+        }),
+        { action: 'load the permissions' }
+    );
 };

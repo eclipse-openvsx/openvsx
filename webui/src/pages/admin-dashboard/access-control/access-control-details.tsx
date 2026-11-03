@@ -48,6 +48,8 @@ const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
 ];
 
 // Stable empty set, so the admin-role branch below does not hand a new object to a dependency list.
+const NO_OPTIONS: readonly { value: string; label: string }[] = [];
+
 const NO_PERMISSIONS: ReadonlySet<AdminPermission> = new Set();
 
 /**
@@ -72,7 +74,7 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
     const [permissions, setPermissions] = useState(savedPermissions);
     const [error, setError] = useState<string | null>(null);
 
-    const permissionOptions = usePermissionOptions();
+    const { data: permissionOptions = NO_OPTIONS } = usePermissionOptions();
     const updateAccess = useUpdateUserAccess();
     const { saved, flash: flashSaved, clear: clearSaved } = useSavedFlash(2000);
     const busy = updateAccess.isPending;

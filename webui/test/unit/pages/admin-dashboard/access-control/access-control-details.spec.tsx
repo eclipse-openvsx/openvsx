@@ -217,13 +217,18 @@ describe('AccessControlDetails', () => {
         expect(screen.queryByRole('checkbox', { name: 'Manage caches' })).not.toBeInTheDocument();
     });
 
-    it('renders without options while the query fails', async () => {
+    it('reports a failed permission list and renders without options', async () => {
         const getPermissions = vi.fn().mockRejectedValue({ error: 'Forbidden' });
+        const handleError = vi.fn();
         renderWithProviders(<AccessControlDetails entry={entry()} />, {
-            mainContext: { service: serviceWith({ getPermissions }) }
+            mainContext: { service: serviceWith({ getPermissions }), handleError }
         });
 
-        await waitFor(() => expect(getPermissions).toHaveBeenCalled());
+        await waitFor(() =>
+            expect(handleError).toHaveBeenCalledWith(expect.anything(), {
+                title: 'Couldn’t load the permissions'
+            })
+        );
         expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument();
         expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     });
