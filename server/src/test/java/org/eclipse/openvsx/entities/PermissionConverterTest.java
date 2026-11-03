@@ -39,4 +39,10 @@ class PermissionConverterTest {
         assertThat(converter.convertToEntityAttribute(null)).isNull();
         assertThat(converter.convertToDatabaseColumn(null)).isNull();
     }
+
+    @Test
+    void readsABlankStoredValueAsNoPermission() {
+        assertThat(converter.convertToEntityAttribute("")).isNull();
+        assertThat(converter.convertToEntityAttribute("   ")).isNull();
+    }
 }

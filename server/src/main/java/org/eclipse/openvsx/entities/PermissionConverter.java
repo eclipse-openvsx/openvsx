@@ -14,17 +14,30 @@ package org.eclipse.openvsx.entities;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Converter
 class PermissionConverter implements AttributeConverter<Permission, String> {
+
+    private static final Logger logger = LoggerFactory.getLogger(PermissionConverter.class);
 
     @Override
     public String convertToDatabaseColumn(Permission permission) {
         return permission != null ? permission.toString() : null;
     }
 
+    /**
+     * An invalid stored value reads as no permission: the collection is loaded on essentially every
+     * authenticated request, so throwing would turn one bad row into a 500 on all of that user's requests.
+     */
     @Override
     public Permission convertToEntityAttribute(String value) {
-        return Permission.of(value);
+        try {
+            return Permission.of(value);
+        } catch (IllegalArgumentException ignored) {
+            logger.warn("Ignoring invalid permission '{}' stored in user_data_permission", value);
+            return null;
+        }
     }
 }
