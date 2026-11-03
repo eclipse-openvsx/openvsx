@@ -8,6 +8,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `useReportedQuery` requires an `action` that titles the error dialog with what failed, e.g. "Couldn’t load the namespace members", and an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state; `MainContext.handleError` takes the dialog `title` directly
+- Curated home rows are regions labelled with their title and set `aria-busy` while they load, so assistive technology can tell a loading row from a loaded one
 
 ### Changed
 
@@ -21,11 +22,13 @@ This change log covers only the frontend library (webui) of Open VSX.
 - `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
 - The error dialog is titled with what failed, e.g. "Couldn’t load the namespace members", instead of a bare "Error"
 - A curated row on the home page that fails to load shows "We couldn’t load extensions at this time." with a Retry button instead of disappearing; `CuratedRow` carries the row's `error` and a `refetch` for custom home pages
+- **Breaking:** `AppProviders` no longer mounts the `QueryClientProvider` or takes a `queryClient`; `Main` mounts it above everything else, so a page that mounts `AppProviders` without `Main` wraps it in its own `QueryClientProvider`
 
 ### Fixed
 
 - A query reported through `useReportedQuery` (or a page's own error effect) no longer reopens the error dialog in a loop that cannot be closed while the query stays failed (#2348)
 - A failed review post or removal, token revocation or user search no longer leaves its spinner running
+- An expired session no longer leaves the UI logged in and failing every request until the page is reloaded: a 401 the registry confirms is the end of the session logs the user out and asks them to log in again, back to the page they were on, which needs a registry that answers 401 when nobody is logged in; any other 401 is reported as an error
 
 ### Removed
 

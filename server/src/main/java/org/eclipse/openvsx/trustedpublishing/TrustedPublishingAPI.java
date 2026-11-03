@@ -67,7 +67,7 @@ public class TrustedPublishingAPI {
     ) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         try {
             // throws when the user has no signed publisher agreement, and so has to be caught below
@@ -106,7 +106,7 @@ public class TrustedPublishingAPI {
     public ResponseEntity<TrustedPublisherListJson> getTrustedPublishers(@PathVariable String namespace) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -134,7 +134,7 @@ public class TrustedPublishingAPI {
     public ResponseEntity<ResultJson> deleteTrustedPublisher(@PathVariable String namespace, @PathVariable long id) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -182,7 +182,7 @@ public class TrustedPublishingAPI {
     public ResponseEntity<TrustedPublisherStatusJson> getTrustedPublishingStatus() {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
