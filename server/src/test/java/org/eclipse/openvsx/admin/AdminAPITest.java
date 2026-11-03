@@ -462,6 +462,25 @@ class AdminAPITest {
     }
 
     @Test
+    void permissionsForbiddenForDelegatedPermissionWithoutAdminRole() throws Exception {
+        // Holds a registered permission, so the /admin filter lets the request through to the handler.
+        var caller = mockNormalUser();
+        caller.getPermissions().add(Permission.MANAGE_CACHES);
+        when(entityManager.find(UserData.class, 42L)).thenReturn(caller);
+
+        mockMvc.perform(
+                get("/admin/api/permissions")
+                        .with(
+                                authentication(
+                                        new TestingAuthenticationToken(
+                                                new IdPrincipal(42L, "test_user", List.of()),
+                                                null,
+                                                List.of())))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void testGetSearchIndexNotAdmin() throws Exception {
         mockNormalUser();
         mockMvc.perform(
