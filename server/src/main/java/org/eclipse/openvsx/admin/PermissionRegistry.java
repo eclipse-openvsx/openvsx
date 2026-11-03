@@ -15,10 +15,13 @@ package org.eclipse.openvsx.admin;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.Permission;
+import org.eclipse.openvsx.entities.UserData;
 
 /** Every permission contributed by a {@link PermissionProvider}, in provider then declaration order. */
 @Component
@@ -50,5 +53,16 @@ public class PermissionRegistry {
 
     public boolean isRegistered(Permission permission) {
         return byPermission.containsKey(permission);
+    }
+
+    /**
+     * The names of {@code user}'s registered permissions. A stored grant nothing registers any more
+     * is left out, so a client sending the list back cannot have it refused as invalid.
+     */
+    public Set<String> registeredNames(UserData user) {
+        return user.getPermissions().stream()
+                .filter(this::isRegistered)
+                .map(Permission::toString)
+                .collect(Collectors.toUnmodifiableSet());
     }
 }

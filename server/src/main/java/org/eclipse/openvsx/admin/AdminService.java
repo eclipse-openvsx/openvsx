@@ -497,7 +497,7 @@ public class AdminService {
         // hand the same user back once per row, and toMap would answer that with an
         // IllegalStateException - a 500 on the whole user search for every admin.
         return repositories.findUsersById(ids).stream()
-                .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings, (a, b) -> a));
+                .collect(Collectors.toMap(UserData::getId, permissionRegistry::registeredNames, (a, b) -> a));
     }
 
     /**
@@ -546,6 +546,8 @@ public class AdminService {
             changes.add("revoked " + join(revoked));
         }
         if (changes.isEmpty()) {
+            // A stored grant nothing registers any more still goes, unreported as in difference().
+            user.getPermissions().retainAll(permissions);
             return ResultJson.success("No access changes for user " + provider + "/" + loginName + ".");
         }
 
@@ -891,7 +893,7 @@ public class AdminService {
     }
 
     private Permission parsePermission(String permission) {
-        var parsed = Permission.of(permission);
+        var parsed = permission == null || permission.isBlank() ? null : Permission.of(permission);
         if (parsed == null || !permissionRegistry.isRegistered(parsed)) {
             throw new ErrorResultException("Invalid permission: " + permission, HttpStatus.BAD_REQUEST);
         }

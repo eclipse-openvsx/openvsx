@@ -232,4 +232,23 @@ describe('AccessControlDetails', () => {
         expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument();
         expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     });
+
+    // Without its checkbox a grant can only survive by being carried in the draft - dropping it
+    // would revoke access nobody touched.
+    it('still sends a grant the permission list did not load', async () => {
+        const getPermissions = vi.fn().mockRejectedValue({ error: 'Forbidden' });
+        const updateUserAccess = vi.fn().mockResolvedValue({ success: 'Updated' });
+        renderWithProviders(<AccessControlDetails entry={entry({ permissions: ['manage_caches'] })} />, {
+            mainContext: { service: serviceWith({ getPermissions, updateUserAccess }), handleError: vi.fn() }
+        });
+
+        await waitFor(() => expect(getPermissions).toHaveBeenCalled());
+        await userEvent.click(screen.getByRole('button', { name: 'Privileged' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(updateUserAccess).toHaveBeenCalledWith('github', 'octocat', {
+            role: 'privileged',
+            permissions: ['manage_caches']
+        });
+    });
 });

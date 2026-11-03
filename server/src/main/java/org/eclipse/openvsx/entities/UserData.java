@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -152,12 +151,6 @@ public class UserData implements Serializable {
 
     public void setPermissions(Set<Permission> permissions) {
         this.permissions = permissions;
-    }
-
-    public Set<String> getPermissionsAsStrings() {
-        return permissions.stream()
-                .map(Permission::toString)
-                .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

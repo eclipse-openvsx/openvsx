@@ -38,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
+import org.eclipse.openvsx.admin.PermissionRegistry;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
@@ -91,6 +92,7 @@ public class UserAPI {
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
     private final ExtensionService extensions;
+    private final PermissionRegistry permissionRegistry;
 
     public UserAPI(
             RepositoryService repositories,
@@ -99,7 +101,8 @@ public class UserAPI {
             PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             LocalRegistryService local,
-            ExtensionService extensions
+            ExtensionService extensions,
+            PermissionRegistry permissionRegistry
     ) {
         this.repositories = repositories;
         this.users = users;
@@ -108,6 +111,7 @@ public class UserAPI {
         this.storageUtil = storageUtil;
         this.local = local;
         this.extensions = extensions;
+        this.permissionRegistry = permissionRegistry;
     }
 
     @GetMapping(
@@ -161,7 +165,7 @@ public class UserAPI {
         var json = user.toUserJson();
         var serverUrl = UrlUtil.getBaseUrl();
         json.setRole(user.getRoleAsString());
-        json.setPermissions(user.getPermissionsAsStrings());
+        json.setPermissions(permissionRegistry.registeredNames(user));
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
         publisherAgreements.enrichUserJson(json, user);
@@ -690,7 +694,7 @@ public class UserAPI {
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
-            json.setPermissions(user.getPermissionsAsStrings());
+            json.setPermissions(permissionRegistry.registeredNames(user));
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
             publisherAgreements.sign(user, json);

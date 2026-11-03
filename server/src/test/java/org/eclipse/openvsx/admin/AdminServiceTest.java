@@ -413,6 +413,42 @@ class AdminServiceTest {
     }
 
     @Test
+    void searchUsersOmitsAPermissionNoProviderRegisters() {
+        var user = new UserData();
+        user.setId(7);
+        user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_SCANS);
+        user.getPermissions().add(Permission.of("manage_rate_limits"));
+
+        var pageable = Pageable.ofSize(10);
+        when(repositories.searchUsers(null, null, pageable)).thenReturn(new PageImpl<>(List.of(user), pageable, 1));
+        when(repositories.findUsersById(List.of(7L))).thenReturn(List.of(user));
+        when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
+
+        var page = adminService.searchUsers(null, null, pageable);
+
+        assertThat(page.getContent()).singleElement()
+                .extracting(json -> json.getUser().getPermissions())
+                .isEqualTo(Set.of("manage_scans"));
+    }
+
+    // The webui sends back what the user JSON listed, so a stale grant is simply left out of the save.
+    @Test
+    void updateUserAccessDropsAPermissionNoProviderRegisters() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_SCANS);
+        user.getPermissions().add(Permission.of("manage_rate_limits"));
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var result = adminService
+                .updateUserAccess("github", "amy", new UserAccessJson("none", List.of("manage_scans")), admin);
+
+        assertThat(result.getError()).isNull();
+        assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_SCANS);
+    }
+
+    @Test
     void updateUserAccessAppliesTheRoleAndPermissionsTogether() {
         var user = new UserData();
         user.setLoginName("amy");
