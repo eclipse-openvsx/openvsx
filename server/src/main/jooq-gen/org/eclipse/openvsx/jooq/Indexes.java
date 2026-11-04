@@ -6,7 +6,6 @@ package org.eclipse.openvsx.jooq;
 
 import org.eclipse.openvsx.jooq.tables.AdminScanDecision;
 import org.eclipse.openvsx.jooq.tables.AdminStatistics;
-import org.eclipse.openvsx.jooq.tables.CustomerMembership;
 import org.eclipse.openvsx.jooq.tables.DownloadIngestion;
 import org.eclipse.openvsx.jooq.tables.Extension;
 import org.eclipse.openvsx.jooq.tables.ExtensionReview;
@@ -20,12 +19,10 @@ import org.eclipse.openvsx.jooq.tables.FileResource;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.PublisherAgreementEvent;
-import org.eclipse.openvsx.jooq.tables.RateLimitToken;
 import org.eclipse.openvsx.jooq.tables.ScanCheckResult;
 import org.eclipse.openvsx.jooq.tables.ScanJob;
 import org.eclipse.openvsx.jooq.tables.SignatureKeyPair;
 import org.eclipse.openvsx.jooq.tables.SpringSession;
-import org.eclipse.openvsx.jooq.tables.Tier;
 import org.eclipse.openvsx.jooq.tables.TrustedPublisher;
 import org.jooq.Index;
 import org.jooq.OrderField;
@@ -43,8 +40,6 @@ public class Indexes {
     // INDEX definitions
     // -------------------------------------------------------------------------
 
-    public static final Index CUSTOMER_MEMBERSHIP_NAMESPACE_IDX = Internal.createIndex(DSL.name("customer_membership_namespace_idx"), CustomerMembership.CUSTOMER_MEMBERSHIP, new OrderField[] { CustomerMembership.CUSTOMER_MEMBERSHIP.CUSTOMER }, false);
-    public static final Index CUSTOMER_MEMBERSHIP_USER_DATA_IDX = Internal.createIndex(DSL.name("customer_membership_user_data_idx"), CustomerMembership.CUSTOMER_MEMBERSHIP, new OrderField[] { CustomerMembership.CUSTOMER_MEMBERSHIP.USER_DATA }, false);
     public static final Index DOWNLOAD_INGESTION_NAME = Internal.createIndex(DSL.name("download_ingestion_name"), DownloadIngestion.DOWNLOAD_INGESTION, new OrderField[] { DownloadIngestion.DOWNLOAD_INGESTION.NAME }, false);
     public static final Index DOWNLOAD_INGESTION_STORAGE_TYPE = Internal.createIndex(DSL.name("download_ingestion_storage_type"), DownloadIngestion.DOWNLOAD_INGESTION, new OrderField[] { DownloadIngestion.DOWNLOAD_INGESTION.STORAGE_TYPE }, false);
     public static final Index EXTENSION__NAMESPACE_ID__IDX = Internal.createIndex(DSL.name("extension__namespace_id__idx"), Extension.EXTENSION, new OrderField[] { Extension.EXTENSION.NAMESPACE_ID }, false);
@@ -87,8 +82,6 @@ public class Indexes {
     public static final Index NAMESPACE_MEMBERSHIP__USER_DATA__IDX = Internal.createIndex(DSL.name("namespace_membership__user_data__idx"), NamespaceMembership.NAMESPACE_MEMBERSHIP, new OrderField[] { NamespaceMembership.NAMESPACE_MEMBERSHIP.USER_DATA }, false);
     public static final Index PERSISTED_LOG__USER_DATA__IDX = Internal.createIndex(DSL.name("persisted_log__user_data__idx"), PersistedLog.PERSISTED_LOG, new OrderField[] { PersistedLog.PERSISTED_LOG.USER_DATA }, false);
     public static final Index PUBLISHER_AGREEMENT_EVENT__USER_DATA_ID__IDX = Internal.createIndex(DSL.name("publisher_agreement_event__user_data_id__idx"), PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT, new OrderField[] { PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT.USER_DATA_ID, PublisherAgreementEvent.PUBLISHER_AGREEMENT_EVENT.ID }, false);
-    public static final Index RATE_LIMIT_TOKEN_CUSTOMER_IDX = Internal.createIndex(DSL.name("rate_limit_token_customer_idx"), RateLimitToken.RATE_LIMIT_TOKEN, new OrderField[] { RateLimitToken.RATE_LIMIT_TOKEN.CUSTOMER }, false);
-    public static final Index RATE_LIMIT_TOKEN_VALUE_IDX = Internal.createIndex(DSL.name("rate_limit_token_value_idx"), RateLimitToken.RATE_LIMIT_TOKEN, new OrderField[] { RateLimitToken.RATE_LIMIT_TOKEN.VALUE }, false);
     public static final Index SCAN_CHECK_RESULT_CHECK_TYPE_IDX = Internal.createIndex(DSL.name("scan_check_result_check_type_idx"), ScanCheckResult.SCAN_CHECK_RESULT, new OrderField[] { ScanCheckResult.SCAN_CHECK_RESULT.CHECK_TYPE }, false);
     public static final Index SCAN_CHECK_RESULT_SCAN_ID_IDX = Internal.createIndex(DSL.name("scan_check_result_scan_id_idx"), ScanCheckResult.SCAN_CHECK_RESULT, new OrderField[] { ScanCheckResult.SCAN_CHECK_RESULT.SCAN_ID }, false);
     public static final Index SCAN_JOB_EXTENSION_VERSION_IDX = Internal.createIndex(DSL.name("scan_job_extension_version_idx"), ScanJob.SCAN_JOB, new OrderField[] { ScanJob.SCAN_JOB.EXTENSION_VERSION_ID }, false);
@@ -99,7 +92,6 @@ public class Indexes {
     public static final Index SPRING_SESSION_IX1 = Internal.createIndex(DSL.name("spring_session_ix1"), SpringSession.SPRING_SESSION, new OrderField[] { SpringSession.SPRING_SESSION.SESSION_ID }, true);
     public static final Index SPRING_SESSION_IX2 = Internal.createIndex(DSL.name("spring_session_ix2"), SpringSession.SPRING_SESSION, new OrderField[] { SpringSession.SPRING_SESSION.EXPIRY_TIME }, false);
     public static final Index SPRING_SESSION_IX3 = Internal.createIndex(DSL.name("spring_session_ix3"), SpringSession.SPRING_SESSION, new OrderField[] { SpringSession.SPRING_SESSION.PRINCIPAL_NAME }, false);
-    public static final Index TIER_TIER_TYPE = Internal.createIndex(DSL.name("tier_tier_type"), Tier.TIER, new OrderField[] { Tier.TIER.TIER_TYPE }, false);
     public static final Index TRUSTED_PUBLISHER_EXTENSION_IDX = Internal.createIndex(DSL.name("trusted_publisher_extension_idx"), TrustedPublisher.TRUSTED_PUBLISHER, new OrderField[] { TrustedPublisher.TRUSTED_PUBLISHER.EXTENSION_ID }, true);
     public static final Index UNIQUE_ACTIVE_REVIEW = Internal.createIndex(DSL.name("unique_active_review"), ExtensionReview.EXTENSION_REVIEW, new OrderField[] { ExtensionReview.EXTENSION_REVIEW.EXTENSION_ID, ExtensionReview.EXTENSION_REVIEW.USER_ID }, true);
     public static final Index UNIQUE_ACTIVE_SIGNATURE_KEY_PAIR_IDX = Internal.createIndex(DSL.name("unique_active_signature_key_pair_idx"), SignatureKeyPair.SIGNATURE_KEY_PAIR, new OrderField[] { SignatureKeyPair.SIGNATURE_KEY_PAIR.ACTIVE }, true);

@@ -30,6 +30,8 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// Another test's Spring Boot context start silences every Logback logger, and a concurrent output
+// capture swaps System.out under this one; either leaves the warning asserted below uncaptured.
 @Isolated
 @ExtendWith(OutputCaptureExtension.class)
 class PublisherAgreementConfigTest {

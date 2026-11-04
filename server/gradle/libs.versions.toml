@@ -10,7 +10,6 @@ gatling         = "3.15.0"
 gcloud          = "2.62.1"
 httpclient5     = "5.6.4"
 httpcore5       = "5.4.4"
-ipaddress       = "5.5.1"
 jackson2        = "2.21.7"
 jackson         = "3.1.7"
 java            = "25"
@@ -55,7 +54,6 @@ flyway-database-postgresql   = { module = "org.flywaydb:flyway-database-postgres
 gatling-app                  = { module = "io.gatling:gatling-app", version.ref = "gatling" }
 gatling-core                 = { module = "io.gatling:gatling-core", version.ref = "gatling" }
 google-cloud-storage         = { module = "com.google.cloud:google-cloud-storage", version.ref = "gcloud" }
-ipaddress                    = { module = "com.github.seancfoley:ipaddress", version.ref = "ipaddress" }
 jackson-dataformat-yaml      = { module = "tools.jackson.dataformat:jackson-dataformat-yaml" }
 jackson-dataformat-xml       = { module = "tools.jackson.dataformat:jackson-dataformat-xml" }
 jackson-dataformat-toml      = { module = "tools.jackson.dataformat:jackson-dataformat-toml" }

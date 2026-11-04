@@ -26,6 +26,7 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
+import org.eclipse.openvsx.admin.PermissionRegistry;
 import org.eclipse.openvsx.web.WebUiProperties;
 
 @Configuration
@@ -38,9 +39,10 @@ public class SecurityConfig {
      */
     @Bean
     public AdminAccessAuthorizationManager adminAccessAuthorizationManager(
-            ObjectProvider<EntityManager> entityManagers
+            ObjectProvider<EntityManager> entityManagers,
+            PermissionRegistry permissionRegistry
     ) {
-        return new AdminAccessAuthorizationManager(entityManagers);
+        return new AdminAccessAuthorizationManager(entityManagers, permissionRegistry);
     }
 
     @Bean

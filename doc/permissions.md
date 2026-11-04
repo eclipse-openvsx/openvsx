@@ -24,7 +24,6 @@ full admin. Each one gates a specific admin dashboard page and its underlying RE
 | `manage_publishers` | Publisher | Search users, view a user's publish info, revoke a publisher's contributions or access tokens (single or bulk), forget a user (GDPR erasure). Revoking and forgetting are refused for a target who has a role or permissions of their own - see below |
 | `manage_scans` | Scans | View security scan results and counts, retry failed scanner jobs, make scan decisions, manage the file allow/block list |
 | `manage_consistency` | Data Consistency | List consistency checks, view their findings, fix one finding or all of them |
-| `manage_rate_limits` | Rate Limiting (Tiers, Customers, Usage Stats) | Manage rate-limit tiers, customers, customer memberships and rate-limit tokens, view usage stats |
 | `manage_caches` | Caches | View cache statistics, clear one or all caches |
 | `manage_search_index` | Search Index, Search Explain | View search index statistics, trigger a rebuild, run search-explain queries |
 | `manage_settings` | Settings | View and update runtime registry settings |
