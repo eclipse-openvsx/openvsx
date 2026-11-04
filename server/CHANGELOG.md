@@ -42,7 +42,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - The publisher and admin extension details show the version the registry serves as latest instead of a higher removed one ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
 - A scan job that the timeout watchdog already failed is no longer flipped back to `COMPLETE` by a late scanner result; scan job writes are now version-checked ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
 - Threats of a scan job that did not complete no longer count towards the quarantine decision ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
-- **Upgrade:** migration `V1_84` adds the `scan_job.version` column; it does not rewrite the table ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
+- **Upgrade:** migration `V1_85` adds the `scan_job.version` column; it does not rewrite the table ([#2301](https://github.com/eclipse-openvsx/openvsx/issues/2301))
 
 ### Dependencies
 
