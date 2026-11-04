@@ -15,22 +15,15 @@ import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
 import { useReportedQuery } from '../../../hooks/use-reported-query';
-import { NO_CACHE } from '../../../query-client';
 
-/**
- * Loads the rate-limiting customer groups the current user is a member of.
- * Shared by the settings navigation (which hides the tab when there are none)
- * and the Rate Limiting tab itself.
- */
-export const useUserCustomers = () => {
-    const { service, user } = useContext(MainContext);
+/** The permissions the server can grant, in its order. */
+export const usePermissionOptions = () => {
+    const { service } = useContext(MainContext);
     return useReportedQuery(
         useQuery({
-            queryKey: ['user', 'customers'],
-            queryFn: ({ signal }) => service.getCustomers(signal),
-            enabled: user != null,
-            ...NO_CACHE
+            queryKey: ['admin', 'permissions'],
+            queryFn: ({ signal }) => service.admin.getPermissions(signal)
         }),
-        { action: 'load your rate limiting customers' }
+        { action: 'load the permissions' }
     );
 };

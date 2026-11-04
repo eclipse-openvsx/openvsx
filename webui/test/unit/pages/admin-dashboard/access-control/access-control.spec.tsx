@@ -22,7 +22,10 @@ import { ExtensionRegistryService, AdminService } from '../../../../../src/exten
 import { UserSearchResult } from '../../../../../src/extension-registry-types';
 
 function serviceWith(users: UserSearchResult): ExtensionRegistryService {
-    const admin = { getUsers: vi.fn().mockResolvedValue(users) } as unknown as AdminService;
+    const admin = {
+        getUsers: vi.fn().mockResolvedValue(users),
+        getPermissions: vi.fn().mockResolvedValue([{ value: 'manage_extensions', label: 'Manage extensions' }])
+    } as unknown as AdminService;
     return { serverUrl: 'https://open-vsx.org', admin } as ExtensionRegistryService;
 }
 
@@ -64,7 +67,7 @@ describe('AccessControl', () => {
         renderAccessControl(serviceWith(OCTOCAT), 'octocat');
 
         expect(await screen.findByRole('button', { name: 'Admin' })).toBeInTheDocument();
-        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
     });
 
     // Dropping the selection unmounts the details card and takes the draft with it, so it has to be
@@ -128,7 +131,10 @@ describe('AccessControl', () => {
         });
         const service = {
             serverUrl: 'https://open-vsx.org',
-            admin: { getUsers } as unknown as AdminService
+            admin: {
+                getUsers,
+                getPermissions: vi.fn().mockResolvedValue([{ value: 'manage_extensions', label: 'Manage extensions' }])
+            } as unknown as AdminService
         } as ExtensionRegistryService;
 
         renderAccessControl(service, 'ghost');
@@ -153,7 +159,7 @@ describe('AccessControl', () => {
         await userEvent.click(await screen.findByRole('option', { name: /octocat/ }));
 
         expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
-        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
     });
 
     it('drops a selection with no unsaved changes without asking', async () => {
