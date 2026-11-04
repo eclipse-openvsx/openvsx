@@ -73,6 +73,17 @@ class UserDataJooqRepositoryTest extends AbstractPostgresContainerTest {
         assertThat(found.getContent()).extracting(UserData::getLoginName).containsExactly(prefix + "-both");
     }
 
+    @Test
+    void anEmptyPermissionListMatchesNobody() {
+        var prefix = UUID.randomUUID().toString();
+        persistUser(prefix + "-scans", null, Permission.MANAGE_SCANS);
+        em.flush();
+
+        var found = repo.findUsers(prefix, null, List.of(), Pageable.ofSize(10));
+
+        assertThat(found.getContent()).isEmpty();
+    }
+
     private void persistUser(String loginName, UserData.Role role, Permission... permissions) {
         var user = new UserData();
         user.setLoginName(loginName);

@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { renderWithProviders } from '../../../support/test-providers';
@@ -139,7 +139,7 @@ describe('AccessControl', () => {
         );
 
         await userEvent.click(screen.getByPlaceholderText('Search by login or display name...'));
-        expect(await screen.findByText('manage_scans')).toBeInTheDocument();
+        expect(await within(await screen.findByRole('listbox')).findByText('Manage scans')).toBeInTheDocument();
     });
 
     // A short or stale deep link substring-matches nearly every account, so without a cap this

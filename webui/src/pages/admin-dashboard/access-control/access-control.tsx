@@ -95,7 +95,7 @@ export const AccessControl: FunctionComponent = () => {
 
     const { data: permissionOptions = [] } = usePermissionOptions();
     const permissionFilterOptions = [
-        { value: '', label: 'Any permission' },
+        { value: '', label: 'All users' },
         // 'any' matches users with at least one individually granted permission; admins hold every
         // permission implicitly and are matched by neither this nor a specific permission.
         { value: 'any', label: 'Has permissions' },
@@ -311,7 +311,10 @@ export const AccessControl: FunctionComponent = () => {
                                                     {user.permissions.map(permission => (
                                                         <Chip
                                                             key={permission}
-                                                            label={permission}
+                                                            label={
+                                                                permissionOptions.find(o => o.value === permission)
+                                                                    ?.label ?? permission
+                                                            }
                                                             size='small'
                                                             variant='outlined'
                                                         />
