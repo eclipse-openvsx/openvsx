@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.repositories;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -41,8 +42,8 @@ public class UserDataJooqRepository {
         this.dsl = dsl;
     }
 
-    public Page<UserData> findUsers(String search, String role, String permission, Pageable pageable) {
-        var conditions = buildConditions(search, role, permission);
+    public Page<UserData> findUsers(String search, String role, Collection<String> permissions, Pageable pageable) {
+        var conditions = buildConditions(search, role, permissions);
 
         var total = dsl.selectCount()
                 .from(USER_DATA)
@@ -73,7 +74,7 @@ public class UserDataJooqRepository {
         return query;
     }
 
-    private List<Condition> buildConditions(String search, String role, String permission) {
+    private List<Condition> buildConditions(String search, String role, Collection<String> permissions) {
         var conditions = new ArrayList<Condition>();
         conditions.add(USER_DATA.PROVIDER.isNotNull());
 
@@ -85,16 +86,16 @@ public class UserDataJooqRepository {
             }
         }
 
-        // Individually granted permissions only: ADMIN holds every permission implicitly, and any
-        // grants stored alongside the role are ignored, so admins never match.
-        if (StringUtils.isNotBlank(permission)) {
-            var granted = DSL.selectOne()
-                    .from(USER_DATA_PERMISSION)
-                    .where(USER_DATA_PERMISSION.USER_DATA_ID.eq(USER_DATA.ID));
-            if (!"any".equalsIgnoreCase(permission)) {
-                granted = granted.and(USER_DATA_PERMISSION.PERMISSION.eq(permission));
-            }
-            conditions.add(DSL.exists(granted));
+        // Users holding at least one of the given individually granted permissions (null: no
+        // filter). ADMIN holds every permission implicitly, and any grants stored alongside the role
+        // are ignored, so admins never match.
+        if (permissions != null) {
+            conditions.add(
+                    DSL.exists(
+                            DSL.selectOne()
+                                    .from(USER_DATA_PERMISSION)
+                                    .where(USER_DATA_PERMISSION.USER_DATA_ID.eq(USER_DATA.ID))
+                                    .and(USER_DATA_PERMISSION.PERMISSION.in(permissions))));
             conditions.add(DSL.lower(USER_DATA.ROLE).isDistinctFrom("admin"));
         }
 

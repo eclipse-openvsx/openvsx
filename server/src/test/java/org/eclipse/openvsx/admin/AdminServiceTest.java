@@ -322,23 +322,25 @@ class AdminServiceTest {
     @Test
     void searchUsersNormalizesPermissionFilter() {
         var pageable = Pageable.ofSize(10);
-        when(repositories.searchUsers(null, null, "manage_scans", pageable))
+        when(repositories.searchUsers(null, null, List.of("manage_scans"), pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         adminService.searchUsers(null, null, "MANAGE_SCANS", pageable);
 
-        verify(repositories).searchUsers(null, null, "manage_scans", pageable);
+        verify(repositories).searchUsers(null, null, List.of("manage_scans"), pageable);
     }
 
     @Test
-    void searchUsersPassesAnyPermissionFilterThrough() {
+    void searchUsersExpandsAnyToTheRegisteredPermissions() {
         var pageable = Pageable.ofSize(10);
-        when(repositories.searchUsers(null, null, "ANY", pageable))
+        var registered = permissionRegistry.all().stream().map(info -> info.permission().toString()).toList();
+        when(repositories.searchUsers(null, null, registered, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         adminService.searchUsers(null, null, "ANY", pageable);
 
-        verify(repositories).searchUsers(null, null, "ANY", pageable);
+        assertThat(registered).contains("manage_scans", "manage_widgets").doesNotContain("any");
+        verify(repositories).searchUsers(null, null, registered, pageable);
     }
 
     @Test
