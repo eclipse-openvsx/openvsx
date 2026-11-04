@@ -12,9 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +29,6 @@ import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.AdminScanDecision;
 import org.eclipse.openvsx.entities.AdminStatistics;
-import org.eclipse.openvsx.entities.Customer;
-import org.eclipse.openvsx.entities.CustomerMembership;
-import org.eclipse.openvsx.entities.DailyUsageStats;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionReview;
 import org.eclipse.openvsx.entities.ExtensionScan;
@@ -51,14 +46,10 @@ import org.eclipse.openvsx.entities.PersistedLog;
 import org.eclipse.openvsx.entities.PersonalAccessToken;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.PublisherAgreementEvent;
-import org.eclipse.openvsx.entities.RateLimitToken;
 import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.SignatureKeyPair;
-import org.eclipse.openvsx.entities.Tier;
-import org.eclipse.openvsx.entities.TierType;
 import org.eclipse.openvsx.entities.TrustedPublisher;
-import org.eclipse.openvsx.entities.UsageStats;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.QueryRequest;
 import org.eclipse.openvsx.json.VersionTargetPlatformsJson;
@@ -110,12 +101,6 @@ public class RepositoryService {
     private final ExtensionThreatRepository extensionThreatRepo;
     private final FileDecisionRepository fileDecisionRepo;
     private final ScanCheckResultRepository scanCheckResultRepo;
-    private final TierRepository tierRepo;
-    private final CustomerRepository customerRepo;
-    private final CustomerMembershipRepository customerMembershipRepo;
-    private final UsageStatsRepository usageStatsRepository;
-    private final RateLimitTokenRepository rateLimitTokenRepository;
-    private final DailyUsageStatsRepository dailyUsageStatsRepository;
     private final UserDataJooqRepository userDataJooqRepo;
     private final TrustedPublisherRepository trustedPublisherRepo;
     private final PublisherAgreementEventRepository publisherAgreementEventRepo;
@@ -149,12 +134,6 @@ public class RepositoryService {
             ExtensionThreatRepository extensionThreatRepo,
             FileDecisionRepository fileDecisionRepo,
             ScanCheckResultRepository scanCheckResultRepo,
-            TierRepository tierRepo,
-            CustomerRepository customerRepo,
-            CustomerMembershipRepository customerMembershipRepo,
-            UsageStatsRepository usageStatsRepository,
-            RateLimitTokenRepository rateLimitTokenRepository,
-            DailyUsageStatsRepository dailyUsageStatsRepository,
             UserDataJooqRepository userDataJooqRepo,
             TrustedPublisherRepository trustedPublisherRepo,
             PublisherAgreementEventRepository publisherAgreementEventRepo
@@ -187,12 +166,6 @@ public class RepositoryService {
         this.extensionThreatRepo = extensionThreatRepo;
         this.fileDecisionRepo = fileDecisionRepo;
         this.scanCheckResultRepo = scanCheckResultRepo;
-        this.tierRepo = tierRepo;
-        this.customerRepo = customerRepo;
-        this.customerMembershipRepo = customerMembershipRepo;
-        this.usageStatsRepository = usageStatsRepository;
-        this.rateLimitTokenRepository = rateLimitTokenRepository;
-        this.dailyUsageStatsRepository = dailyUsageStatsRepository;
         this.userDataJooqRepo = userDataJooqRepo;
         this.trustedPublisherRepo = trustedPublisherRepo;
         this.publisherAgreementEventRepo = publisherAgreementEventRepo;
@@ -1461,108 +1434,5 @@ public class RepositoryService {
 
     public boolean hasScanCheckResult(long scanId, String checkType) {
         return scanCheckResultRepo.existsByScanIdAndCheckType(scanId, checkType);
-    }
-
-    public List<Tier> findAllTiers() {
-        return tierRepo.findAllByOrderByIdAsc();
-    }
-
-    public Tier findTier(String name) {
-        return tierRepo.findByNameIgnoreCase(name);
-    }
-
-    public List<Tier> findTiersByTierType(TierType tierType) {
-        return tierRepo.findByTierType(tierType);
-    }
-
-    public List<Tier> findTiersByTierTypeExcludingTier(TierType tierType, Tier tier) {
-        return tierRepo.findByTierTypeAndIdNot(tierType, tier.getId());
-    }
-
-    public Tier upsertTier(Tier tier) {
-        return tierRepo.save(tier);
-    }
-
-    public void deleteTier(Tier tier) {
-        tierRepo.delete(tier);
-    }
-
-    public List<Customer> findAllCustomers() {
-        return customerRepo.findAll();
-    }
-
-    public List<Customer> findCustomersByTier(Tier tier) {
-        return customerRepo.findByTier(tier);
-    }
-
-    public int countCustomersByTier(Tier tier) {
-        return customerRepo.countCustomersByTier(tier);
-    }
-
-    public Optional<Customer> findCustomerById(long id) {
-        return customerRepo.findById(id);
-    }
-
-    public Customer findCustomer(String name) {
-        return customerRepo.findByNameIgnoreCase(name);
-    }
-
-    public Customer upsertCustomer(Customer customer) {
-        return customerRepo.save(customer);
-    }
-
-    public void deleteCustomer(Customer customer) {
-        customerRepo.delete(customer);
-    }
-
-    public Streamable<CustomerMembership> findCustomerMemberships(Customer customer) {
-        return customerMembershipRepo.findByCustomer(customer);
-    }
-
-    public CustomerMembership findCustomerMembership(UserData user, Customer customer) {
-        return customerMembershipRepo.findByUserAndCustomer(user, customer);
-    }
-
-    public Streamable<CustomerMembership> findCustomerMemberships(UserData user) {
-        return customerMembershipRepo.findByUserOrderByCustomerName(user);
-    }
-
-    public List<UsageStats> findUsageStatsByCustomerAndDate(Customer customer, LocalDateTime date) {
-        var startTime = date.truncatedTo(ChronoUnit.DAYS);
-        var endTime = date.truncatedTo(ChronoUnit.DAYS).plusDays(1).minusMinutes(1);
-
-        return usageStatsRepository.findUsageStatsByCustomerAndWindowStartBetween(customer, startTime, endTime);
-    }
-
-    public UsageStats saveUsageStats(UsageStats usageStats) {
-        return usageStatsRepository.save(usageStats);
-    }
-
-    public Streamable<RateLimitToken> findActiveRateLimitTokens(Customer customer) {
-        return rateLimitTokenRepository.findByCustomerAndActiveTrue(customer);
-    }
-
-    public RateLimitToken findRateLimitToken(long id) {
-        return rateLimitTokenRepository.findById(id);
-    }
-
-    public RateLimitToken findRateLimitToken(String value) {
-        return rateLimitTokenRepository.findByValue(value);
-    }
-
-    public boolean hasRateLimitToken(String value) {
-        return rateLimitTokenRepository.existsByValue(value);
-    }
-
-    public DailyUsageStats findDailyUsageStats(Customer customer, LocalDate date) {
-        return dailyUsageStatsRepository.findDailyUsageStatsByCustomerAndDate(customer, date);
-    }
-
-    public List<LocalDateTime> findUnprocessedDaysForDailyUsage(Customer customer) {
-        return dailyUsageStatsRepository.findUnprocessedDays(customer);
-    }
-
-    public DailyUsageStats saveDailyUsageStats(DailyUsageStats dailyUsageStats) {
-        return dailyUsageStatsRepository.save(dailyUsageStats);
     }
 }

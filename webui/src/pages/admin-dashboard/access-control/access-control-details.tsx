@@ -32,13 +32,13 @@ import {
 import GitHubIcon from '@mui/icons-material/GitHub';
 import PersonIcon from '@mui/icons-material/Person';
 import { AdminPermission, UserRelationships } from '../../../extension-registry-types';
-import { PERMISSION_OPTIONS } from '../../../permissions';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
 import { SaveButton } from '../../../components/save-button';
 import { useSavedFlash } from '../../../hooks/use-saved-flash';
 import { handleError as formatError } from '../../../utils';
 import { type AccessRole, useUpdateUserAccess } from './use-access-control';
+import { usePermissionOptions } from './use-permission-options';
 
 // Ordered as an escalating permission scale, low → high.
 const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
@@ -48,6 +48,8 @@ const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
 ];
 
 // Stable empty set, so the admin-role branch below does not hand a new object to a dependency list.
+const NO_OPTIONS: readonly { value: string; label: string }[] = [];
+
 const NO_PERMISSIONS: ReadonlySet<AdminPermission> = new Set();
 
 /**
@@ -72,6 +74,7 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
     const [permissions, setPermissions] = useState(savedPermissions);
     const [error, setError] = useState<string | null>(null);
 
+    const { data: permissionOptions = NO_OPTIONS } = usePermissionOptions();
     const updateAccess = useUpdateUserAccess();
     const { saved, flash: flashSaved, clear: clearSaved } = useSavedFlash(2000);
     const busy = updateAccess.isPending;
@@ -83,7 +86,7 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
     // alone, so switching the role back restores the ticks rather than losing them.
     const effectivePermissions = isAdmin ? NO_PERMISSIONS : permissions;
 
-    // Compared as whole sets rather than over PERMISSION_OPTIONS: a permission this build has no
+    // Compared as whole sets rather than over the listed options: a permission this build has no
     // checkbox for is still carried in the draft, and so still saved back rather than revoked.
     const dirty =
         role !== savedRole ||
@@ -235,7 +238,7 @@ export const AccessControlDetails: FunctionComponent<AccessControlDetailsProps> 
                         : 'Individual admin capabilities granted to this user.'}
                 </Typography>
                 <FormGroup>
-                    {PERMISSION_OPTIONS.map(o => (
+                    {permissionOptions.map(o => (
                         <FormControlLabel
                             key={o.value}
                             control={

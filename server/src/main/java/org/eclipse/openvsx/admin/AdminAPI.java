@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -68,6 +69,7 @@ import org.eclipse.openvsx.json.ChangeNamespaceJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.NamespaceMembershipListJson;
+import org.eclipse.openvsx.json.PermissionJson;
 import org.eclipse.openvsx.json.PersistedLogJson;
 import org.eclipse.openvsx.json.PublisherAgreementEntryJson;
 import org.eclipse.openvsx.json.ResultJson;
@@ -111,6 +113,7 @@ public class AdminAPI {
     private final SearchUtilService search;
     private final SearchExplainService searchExplainService;
     private final CacheInfoService caches;
+    private final PermissionRegistry permissionRegistry;
 
     public AdminAPI(
             RepositoryService repositories,
@@ -121,7 +124,8 @@ public class AdminAPI {
             LocalRegistryService local,
             SearchUtilService search,
             SearchExplainService searchExplainService,
-            CacheInfoService caches
+            CacheInfoService caches,
+            PermissionRegistry permissionRegistry
     ) {
         this.repositories = repositories;
         this.admins = admins;
@@ -132,6 +136,37 @@ public class AdminAPI {
         this.search = search;
         this.searchExplainService = searchExplainService;
         this.caches = caches;
+        this.permissionRegistry = permissionRegistry;
+    }
+
+    @GetMapping(
+        path = "/api/permissions",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(hidden = true, summary = "List the registered admin permissions")
+    @ApiResponse(
+        responseCode = "200",
+        description = "The permissions are returned in JSON format",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            array = @ArraySchema(schema = @Schema(implementation = PermissionJson.class))
+        )
+    )
+    @ApiResponse(
+        responseCode = "403",
+        description = "The caller is not an admin",
+        content = @Content(schema = @Schema(implementation = ResultJson.class))
+    )
+    public ResponseEntity<List<PermissionJson>> getPermissions() {
+        try {
+            admins.checkAdminUser();
+            return ResponseEntity.ok(
+                    permissionRegistry.all().stream()
+                            .map(info -> new PermissionJson(info.permission().toString(), info.label()))
+                            .toList());
+        } catch (ErrorResultException exc) {
+            return ResponseEntity.status(exc.getStatus()).build();
+        }
     }
 
     @GetMapping(
@@ -693,7 +728,11 @@ public class AdminAPI {
         try {
             admins.checkPermission(Permission.MANAGE_EXTENSIONS);
             ExtensionJson json;
-            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            // The version the registry serves as latest, or else the newest of the removed or inactive ones.
+            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, true);
+            if (latest == null) {
+                latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            }
             if (latest != null) {
                 json = local.toExtensionVersionJson(latest, null, false);
                 json.setAllTargetPlatformVersions(

@@ -43,7 +43,7 @@ class UserDataJooqRepositoryTest extends AbstractPostgresContainerTest {
         persistUser(prefix + "-plain", null);
         persistUser(prefix + "-admin", UserData.Role.ADMIN);
         persistUser(prefix + "-scans", null, Permission.MANAGE_SCANS);
-        persistUser(prefix + "-both", null, Permission.MANAGE_SCANS, Permission.MANAGE_RATE_LIMITS);
+        persistUser(prefix + "-both", null, Permission.MANAGE_SCANS, Permission.MANAGE_CACHES);
         em.flush();
 
         var found = repo.findUsers(prefix, null, "any", Pageable.ofSize(10));
@@ -57,10 +57,10 @@ class UserDataJooqRepositoryTest extends AbstractPostgresContainerTest {
     void specificPermissionMatchesOnlyUsersHoldingIt() {
         var prefix = UUID.randomUUID().toString();
         persistUser(prefix + "-scans", null, Permission.MANAGE_SCANS);
-        persistUser(prefix + "-both", null, Permission.MANAGE_SCANS, Permission.MANAGE_RATE_LIMITS);
+        persistUser(prefix + "-both", null, Permission.MANAGE_SCANS, Permission.MANAGE_CACHES);
         em.flush();
 
-        var found = repo.findUsers(prefix, null, "manage_rate_limits", Pageable.ofSize(10));
+        var found = repo.findUsers(prefix, null, "manage_caches", Pageable.ofSize(10));
 
         assertThat(found.getContent()).extracting(UserData::getLoginName).containsExactly(prefix + "-both");
     }

@@ -141,7 +141,7 @@ const SkeletonContent: FunctionComponent = () => (
 
 /** Loading placeholder matching {@link ExtensionCard}'s footprint. */
 export const ExtensionCardSkeleton: FunctionComponent = () => (
-    <SkeletonRoot elevation={0}>
+    <SkeletonRoot elevation={0} data-testid='extension-card-skeleton'>
         <SkeletonContent />
     </SkeletonRoot>
 );
@@ -417,7 +417,7 @@ export const ExtensionCard = memo(
                             </CardRoot>
                         </RouteLink>
                     ) : (
-                        <SkeletonRoot elevation={0}>
+                        <SkeletonRoot elevation={0} data-testid='extension-card-skeleton'>
                             <SkeletonContent />
                         </SkeletonRoot>
                     )}

@@ -21,11 +21,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
+import org.springframework.http.HttpStatus;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.UserService;
@@ -38,6 +40,7 @@ import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.UserAccessJson;
+import org.eclipse.openvsx.mail.MailService;
 import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.util.ErrorResultException;
@@ -86,6 +89,15 @@ class AdminServiceTest {
 
     @Mock
     ApplicationEventPublisher events;
+
+    @Mock
+    MailService mail;
+
+    @Spy
+    PermissionRegistry permissionRegistry = new PermissionRegistry(
+            List.of(
+                    new BuiltInPermissions(),
+                    () -> List.of(new PermissionInfo(Permission.of("manage_widgets"), "Manage widgets"))));
 
     @InjectMocks
     AdminService adminService;
@@ -211,7 +223,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.empty());
-        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
 
         adminService.forgetUser("github", "amy", admin);
@@ -244,7 +255,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.of(extVersion));
-        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
 
         adminService.forgetUser("github", "amy", admin);
@@ -273,7 +283,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(user, false)).thenReturn(Streamable.of(extVersion));
-        when(repositories.findCustomerMemberships(user)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(user)).thenReturn(Streamable.empty());
 
         adminService.forgetUser("github", "amy", admin);
@@ -437,6 +446,43 @@ class AdminServiceTest {
     }
 
     @Test
+    void searchUsersOmitsAPermissionNoProviderRegisters() {
+        var user = new UserData();
+        user.setId(7);
+        user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_SCANS);
+        user.getPermissions().add(Permission.of("manage_rate_limits"));
+
+        var pageable = Pageable.ofSize(10);
+        when(repositories.searchUsers(null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(user), pageable, 1));
+        when(repositories.findUsersById(List.of(7L))).thenReturn(List.of(user));
+        when(repositories.findMemberships(user)).thenReturn(Streamable.empty());
+
+        var page = adminService.searchUsers(null, null, null, pageable);
+
+        assertThat(page.getContent()).singleElement()
+                .extracting(json -> json.getUser().getPermissions())
+                .isEqualTo(Set.of("manage_scans"));
+    }
+
+    // The webui sends back what the user JSON listed, so a stale grant is simply left out of the save.
+    @Test
+    void updateUserAccessDropsAPermissionNoProviderRegisters() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        user.getPermissions().add(Permission.MANAGE_SCANS);
+        user.getPermissions().add(Permission.of("manage_rate_limits"));
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var result = adminService
+                .updateUserAccess("github", "amy", new UserAccessJson("none", List.of("manage_scans")), admin);
+
+        assertThat(result.getError()).isNull();
+        assertThat(user.getPermissions()).containsExactly(Permission.MANAGE_SCANS);
+    }
+
+    @Test
     void updateUserAccessAppliesTheRoleAndPermissionsTogether() {
         var user = new UserData();
         user.setLoginName("amy");
@@ -482,10 +528,8 @@ class AdminServiceTest {
         verify(repositories, never()).findUserByLoginName(any(), any());
     }
 
-    // Permission.valueOfIgnoreCase answers null for a null name, which EnumSet.add would turn into
-    // an NPE - a 500 for input that belongs in the same 400 as any other unknown permission.
     @Test
-    void updateUserAccessRejectsANullPermissionEntry() {
+    void updateUserAccessRejectsNullPermissionWith400() {
         var user = new UserData();
         user.setLoginName("amy");
         when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
@@ -493,7 +537,38 @@ class AdminServiceTest {
         var access = new UserAccessJson("none", Collections.singletonList(null));
         assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
                 .isInstanceOf(ErrorResultException.class)
-                .hasMessageContaining("Invalid permission");
+                .hasMessageContaining("Invalid permission")
+                .extracting(e -> ((ErrorResultException) e).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateUserAccessRejectsUnregisteredPermissionWith400() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        for (var name : List.of("manage_webhooks", " ", "")) {
+            var access = new UserAccessJson("none", List.of(name));
+            assertThatThrownBy(() -> adminService.updateUserAccess("github", "amy", access, admin))
+                    .isInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Invalid permission")
+                    .extracting(e -> ((ErrorResultException) e).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(user.getPermissions()).isEmpty();
+    }
+
+    @Test
+    void updateUserAccessAcceptsPermissionFromAnotherProvider() {
+        var user = new UserData();
+        user.setLoginName("amy");
+        when(repositories.findUserByLoginName("github", "amy")).thenReturn(user);
+
+        var access = new UserAccessJson("none", List.of("Manage_Widgets", "manage_caches"));
+        var result = adminService.updateUserAccess("github", "amy", access, admin);
+
+        assertThat(user.getPermissions())
+                .containsExactlyInAnyOrder(Permission.of("manage_widgets"), Permission.MANAGE_CACHES);
+        assertThat(result.getSuccess()).contains("granted manage_caches, manage_widgets");
     }
 
     @Test
@@ -581,6 +656,20 @@ class AdminServiceTest {
     }
 
     @Test
+    void revokePublisherTokensAllowsADelegateWhenTheTargetHoldsOnlyAnUnregisteredGrant() {
+        var caller = new UserData();
+        caller.getPermissions().add(Permission.MANAGE_PUBLISHERS);
+        var target = new UserData();
+        target.setLoginName("sam");
+        target.getPermissions().add(Permission.of("manage_rate_limits"));
+        when(repositories.findUserByLoginName("github", "sam")).thenReturn(target);
+
+        var result = adminService.revokePublisherTokens("github", "sam", caller);
+
+        assertThat(result.getError()).isNull();
+    }
+
+    @Test
     void forgetUserAllowsAnAdminToActOnAnotherAdmin() {
         var caller = new UserData();
         caller.setRole(UserData.Role.ADMIN);
@@ -591,7 +680,6 @@ class AdminServiceTest {
         when(repositories.findMemberships(target)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(target, true)).thenReturn(Streamable.empty());
         when(repositories.findVersionsByUser(target, false)).thenReturn(Streamable.empty());
-        when(repositories.findCustomerMemberships(target)).thenReturn(Streamable.empty());
         when(repositories.findPersonalAccessTokens(target)).thenReturn(Streamable.empty());
 
         assertThatCode(() -> adminService.forgetUser("github", "root", caller)).doesNotThrowAnyException();
@@ -727,5 +815,42 @@ class AdminServiceTest {
 
         assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
                 .isInstanceOf(ErrorResultException.class);
+    }
+
+    @Test
+    void checksAnswer401WhenNobodyIsLoggedIn() {
+        // findLoggedInUser() is unstubbed, so it returns null
+        assertThatThrownBy(() -> adminService.checkAdminUser())
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+        assertThatThrownBy(
+                () -> adminService.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+    }
+
+    @Test
+    void checksAnswer403ToALoggedInUserWithoutAccess() {
+        when(users.findLoggedInUser()).thenReturn(new UserData());
+
+        assertThatThrownBy(() -> adminService.checkAdminUser())
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> adminService.checkPermission(Permission.MANAGE_SETTINGS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(
+                () -> adminService.checkAnyPermission(Permission.MANAGE_NAMESPACES, Permission.MANAGE_EXTENSIONS))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
     }
 }

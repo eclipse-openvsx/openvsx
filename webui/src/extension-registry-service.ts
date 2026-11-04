@@ -41,16 +41,9 @@ import {
     FileDecisionResponse,
     FileDecisionDeleteRequest,
     FileDecisionDeleteResponse,
-    Tier,
     SizeOverride,
     SizeOverrideList,
-    TierList,
-    Customer,
-    CustomerList,
-    UsageStatsList,
     LogPageableList,
-    CustomerMembershipList,
-    RateLimitToken,
     Settings,
     SiteSettings,
     UserSearchResult,
@@ -373,25 +366,6 @@ export class ExtensionRegistryService {
         });
     }
 
-    async getCustomers(signal: AbortSignal): Promise<Readonly<Customer>[]> {
-        return sendRequest({
-            signal,
-            credentials: true,
-            endpoint: createAbsoluteURL([this.serverUrl, 'user', 'customers'])
-        });
-    }
-
-    async getUsageStats(signal: AbortSignal, customerName: string, date: Date): Promise<Readonly<UsageStatsList>> {
-        const query: { key: string; value: string | number }[] = [];
-        query.push({ key: 'date', value: date.toISOString() });
-
-        return sendRequest({
-            signal,
-            endpoint: createAbsoluteURL([this.serverUrl, 'user', 'customers', customerName, 'usage'], query),
-            credentials: true
-        });
-    }
-
     async getNamespaceMembers(signal: AbortSignal, namespace: Namespace): Promise<Readonly<NamespaceMembershipList>> {
         return sendRequest({
             signal,
@@ -427,7 +401,7 @@ export class ExtensionRegistryService {
         return createAbsoluteURL([this.serverUrl, 'user', 'namespace', namespace, 'trusted-publishing']);
     }
 
-    // Requires a logged-in user; the server answers 403 otherwise.
+    // Requires a logged-in user; the server answers 401 otherwise.
     async getTrustedPublishingStatus(signal: AbortSignal): Promise<Readonly<TrustedPublisherStatus>> {
         return sendRequest<TrustedPublisherStatus>({
             signal,
@@ -624,6 +598,7 @@ export interface AdminService {
         signal: AbortSignal,
         params?: { search?: string; role?: string; permission?: string; page?: number; size?: number }
     ): Promise<Readonly<UserSearchResult>>;
+    getPermissions(signal: AbortSignal): Promise<Readonly<{ value: string; label: string }[]>>;
     updateUserAccess(provider: string, login: string, access: UserAccess): Promise<Readonly<SuccessResult>>;
     revokePublisherContributions(provider: string, login: string): Promise<Readonly<SuccessResult>>;
     reinstatePublisherAgreement(provider: string, login: string): Promise<Readonly<SuccessResult>>;
@@ -684,27 +659,11 @@ export interface AdminService {
     makeScanDecision(request: ScanDecisionRequest): Promise<Readonly<ScanDecisionResponse>>;
     makeFileDecision(request: FileDecisionRequest): Promise<Readonly<FileDecisionResponse>>;
     deleteFileDecisions(request: FileDecisionDeleteRequest): Promise<Readonly<FileDecisionDeleteResponse>>;
-    getTiers(signal: AbortSignal): Promise<Readonly<TierList>>;
-    createTier(tier: Tier): Promise<Readonly<Tier>>;
-    updateTier(name: string, tier: Tier): Promise<Readonly<Tier>>;
-    deleteTier(name: string): Promise<Readonly<SuccessResult>>;
     getSizeOverrides(signal: AbortSignal): Promise<Readonly<SizeOverrideList>>;
     createSizeOverride(override: SizeOverride): Promise<Readonly<SizeOverride>>;
     updateSizeOverride(id: number, override: SizeOverride): Promise<Readonly<SizeOverride>>;
     deleteSizeOverride(id: number): Promise<Readonly<SuccessResult>>;
-    getCustomers(signal: AbortSignal): Promise<Readonly<CustomerList>>;
-    getCustomer(signal: AbortSignal, name: string): Promise<Readonly<Customer>>;
-    createCustomer(customer: Customer): Promise<Readonly<Customer>>;
-    updateCustomer(name: string, customer: Customer): Promise<Readonly<Customer>>;
-    deleteCustomer(name: string): Promise<Readonly<SuccessResult>>;
-    getCustomerMembers(signal: AbortSignal, name: string): Promise<Readonly<CustomerMembershipList>>;
-    addCustomerMember(name: string, user: UserData): Promise<Readonly<SuccessResult>>;
-    removeCustomerMember(name: string, user: UserData): Promise<Readonly<SuccessResult>>;
-    getUsageStats(signal: AbortSignal, customerName: string, date: Date): Promise<Readonly<UsageStatsList>>;
     getLogs(signal: AbortSignal, page?: number, size?: number, period?: string): Promise<Readonly<LogPageableList>>;
-    getCustomerRateLimitTokens(signal: AbortSignal, customerName: string): Promise<Readonly<RateLimitToken[]>>;
-    createCustomerRateLimitToken(customerName: string, description: string): Promise<Readonly<RateLimitToken>>;
-    deleteCustomerRateLimitToken(customerName: string, tokenId: number): Promise<Readonly<SuccessResult>>;
     getSettings(signal: AbortSignal): Promise<Readonly<Settings>>;
     updateSettings(settings: Partial<Settings>): Promise<Readonly<Settings>>;
     getSearchIndex(signal: AbortSignal): Promise<Readonly<SearchIndex>>;
@@ -884,6 +843,14 @@ export class AdminServiceImpl implements AdminService {
             signal,
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'user', 'search'], query)
+        });
+    }
+
+    async getPermissions(signal: AbortSignal): Promise<Readonly<{ value: string; label: string }[]>> {
+        return sendRequest({
+            signal,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'api', 'permissions'])
         });
     }
 
@@ -1173,58 +1140,6 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    async getTiers(signal: AbortSignal): Promise<Readonly<TierList>> {
-        return sendRequest({
-            signal,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'tiers']),
-            credentials: true
-        });
-    }
-
-    async createTier(tier: Tier): Promise<Readonly<Tier>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'POST',
-            payload: tier,
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'tiers', 'create']),
-            headers
-        });
-    }
-
-    async updateTier(name: string, tier: Tier): Promise<Readonly<Tier>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'PUT',
-            payload: tier,
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'tiers', name]),
-            headers
-        });
-    }
-
-    async deleteTier(name: string): Promise<Readonly<SuccessResult>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'DELETE',
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'tiers', name]),
-            headers
-        });
-    }
-
     async getSizeOverrides(signal: AbortSignal): Promise<Readonly<SizeOverrideList>> {
         return sendRequest({
             signal,
@@ -1277,129 +1192,6 @@ export class AdminServiceImpl implements AdminService {
         });
     }
 
-    async getCustomers(signal: AbortSignal): Promise<Readonly<CustomerList>> {
-        return await sendRequest({
-            signal,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers']),
-            credentials: true
-        });
-    }
-
-    async getCustomer(signal: AbortSignal, name: string): Promise<Readonly<Customer>> {
-        return await sendRequest({
-            signal,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
-            credentials: true
-        });
-    }
-
-    async createCustomer(customer: Customer): Promise<Readonly<Customer>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'POST',
-            payload: customer,
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', 'create']),
-            headers
-        });
-    }
-
-    async updateCustomer(name: string, customer: Customer): Promise<Readonly<Customer>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'PUT',
-            payload: customer,
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
-            headers
-        });
-    }
-
-    async deleteCustomer(name: string): Promise<Readonly<SuccessResult>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'DELETE',
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name]),
-            headers
-        });
-    }
-
-    async getCustomerMembers(signal: AbortSignal, name: string): Promise<Readonly<CustomerMembershipList>> {
-        return sendRequest({
-            signal,
-            credentials: true,
-            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name, 'members'])
-        });
-    }
-
-    async addCustomerMember(name: string, user: UserData): Promise<Readonly<SuccessResult>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {};
-        headers[csrfToken.header] = csrfToken.value;
-        const query = [
-            { key: 'user', value: user.loginName },
-            { key: 'provider', value: user.provider }
-        ];
-        return sendRequest({
-            headers,
-            method: 'POST',
-            credentials: true,
-            endpoint: addQuery(
-                createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name, 'add-member']),
-                query
-            )
-        });
-    }
-
-    async removeCustomerMember(name: string, user: UserData): Promise<Readonly<SuccessResult>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {};
-        headers[csrfToken.header] = csrfToken.value;
-        const query = [
-            { key: 'user', value: user.loginName },
-            { key: 'provider', value: user.provider }
-        ];
-        return sendRequest({
-            headers,
-            method: 'POST',
-            credentials: true,
-            endpoint: addQuery(
-                createAbsoluteURL([this.registry.serverUrl, 'admin', 'ratelimit', 'customers', name, 'remove-member']),
-                query
-            )
-        });
-    }
-
-    /**
-     * Get usage stats for a customer within an optional date range.
-     */
-    async getUsageStats(signal: AbortSignal, customerName: string, date: Date): Promise<Readonly<UsageStatsList>> {
-        const query: { key: string; value: string | number }[] = [];
-        query.push({ key: 'date', value: date.toISOString() });
-
-        return sendRequest({
-            signal,
-            endpoint: createAbsoluteURL(
-                [this.registry.serverUrl, 'admin', 'ratelimit', 'customers', customerName, 'usage'],
-                query
-            ),
-            credentials: true
-        });
-    }
-
     async getLogs(
         signal: AbortSignal,
         page: number = 0,
@@ -1418,65 +1210,6 @@ export class AdminServiceImpl implements AdminService {
             signal,
             endpoint,
             credentials: true
-        });
-    }
-
-    async getCustomerRateLimitTokens(signal: AbortSignal, customerName: string): Promise<Readonly<RateLimitToken[]>> {
-        return sendRequest({
-            signal,
-            credentials: true,
-            endpoint: createAbsoluteURL([
-                this.registry.serverUrl,
-                'admin',
-                'ratelimit',
-                'customers',
-                customerName,
-                'tokens'
-            ])
-        });
-    }
-
-    async createCustomerRateLimitToken(customerName: string, description?: string): Promise<Readonly<RateLimitToken>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {};
-        headers[csrfToken.header] = csrfToken.value;
-
-        const url = createAbsoluteURL([
-            this.registry.serverUrl,
-            'admin',
-            'ratelimit',
-            'customers',
-            customerName,
-            'tokens'
-        ]);
-        const endpoint = description !== undefined ? addQuery(url, [{ key: 'description', value: description }]) : url;
-        return sendRequest({
-            method: 'POST',
-            credentials: true,
-            endpoint,
-            headers
-        });
-    }
-
-    async deleteCustomerRateLimitToken(customerName: string, tokenId: number): Promise<Readonly<SuccessResult>> {
-        const csrfToken = await this.registry.getCsrfToken();
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json;charset=UTF-8'
-        };
-        headers[csrfToken.header] = csrfToken.value;
-        return sendRequest({
-            method: 'DELETE',
-            credentials: true,
-            endpoint: createAbsoluteURL([
-                this.registry.serverUrl,
-                'admin',
-                'ratelimit',
-                'customers',
-                customerName,
-                'tokens',
-                `${tokenId}`
-            ]),
-            headers
         });
     }
 

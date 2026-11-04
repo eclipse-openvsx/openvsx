@@ -8,6 +8,9 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `useReportedQuery` requires an `action` that titles the error dialog with what failed, e.g. "Couldn’t load the namespace members", and an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state; `MainContext.handleError` takes the dialog `title` directly
+- Curated home rows are regions labelled with their title and set `aria-busy` while they load, so assistive technology can tell a loading row from a loaded one
+- `PageSettings.elements.userSettingsTabs` lets a deployment contribute user-settings tabs
+- The index exports `handleError`, `NO_CACHE`, `DelayedLoadIndicator`, `Timestamp`, `AddUserDialog`, `GenerateTokenDialog`, `SearchListContainer`, `createMultiSelectFilterOperators`, `createArrayContainsFilterOperators`, `SettingsHeader` and `EmptyPlaceholder`, for pages contributed through `adminPages` and `userSettingsTabs`
 - Filter users on the Access Control page by granted permission and show each user's permissions as chips in the results; `useAdminUserSearch` takes an optional `permission` ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
 
 ### Changed
@@ -21,15 +24,20 @@ This change log covers only the frontend library (webui) of Open VSX.
 - `ExtensionRegistryService` query methods take an `AbortSignal` instead of an `AbortController` and write methods take neither; no method resolves an `ErrorResult` any more but rejects with it, as `getUser` does when nobody is logged in.
 - The error dialog is titled with what failed, e.g. "Couldn’t load the namespace members", instead of a bare "Error"
 - A curated row on the home page that fails to load shows "We couldn’t load extensions at this time." with a Retry button instead of disappearing; `CuratedRow` carries the row's `error` and a `refetch` for custom home pages
+- `AdminPermission` is a string, `ADMIN_PERMISSIONS` names the built-in ones, and the Access Control page lists permissions from the server, so a deployment can register its own
+- **Breaking:** `AppProviders` no longer mounts the `QueryClientProvider` or takes a `queryClient`; `Main` mounts it above everything else, so a page that mounts `AppProviders` without `Main` wraps it in its own `QueryClientProvider`
 
 ### Fixed
 
 - A query reported through `useReportedQuery` (or a page's own error effect) no longer reopens the error dialog in a loop that cannot be closed while the query stays failed (#2348)
 - A failed review post or removal, token revocation or user search no longer leaves its spinner running
+- An expired session no longer leaves the UI logged in and failing every request until the page is reloaded: a 401 the registry confirms is the end of the session logs the user out and asks them to log in again, back to the page they were on, which needs a registry that answers 401 when nobody is logged in; any other 401 is reported as an error
+- The extension details show no latest version, instead of a removed one, for an extension the registry no longer serves ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
 
 ### Removed
 
 - `sendNonRetriableRequest`, `controllerFromSignal` and the `abortController` field of `ServerAPIRequest`: use `sendRequest` with `signal`, and pass a `queryFn`'s `signal` straight to the service
+- The Rate Limiting admin pages (tiers, customers, usage stats), the user-settings Rate Limiting tab, the `manage_rate_limits` permission and the tier, customer, usage and rate limit token methods and types of `ExtensionRegistryService`: a deployment adds such pages through `PageSettings.elements.adminPages` and `userSettingsTabs`
 
 ### Dependencies
 

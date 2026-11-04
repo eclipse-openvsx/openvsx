@@ -51,7 +51,7 @@ import { UserRelationships } from '../../../extension-registry-types';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
 import { AccessControlDetails } from './access-control-details';
-import { PERMISSION_OPTIONS } from '../../../permissions';
+import { usePermissionOptions } from './use-permission-options';
 import { SearchListContainer } from '../search-list-container';
 import { handleError as formatError } from '../../../utils';
 import { AdminDashboardRoutes } from '../admin-dashboard-routes';
@@ -63,14 +63,6 @@ const ROLE_FILTER_OPTIONS = [
     { value: 'admin', label: 'Admin' },
     { value: 'privileged', label: 'Privileged' },
     { value: 'none', label: 'No role' }
-];
-
-// 'any' matches users with at least one individually granted permission; admins hold every
-// permission implicitly and are matched by neither this filter nor a specific permission.
-const PERMISSION_FILTER_OPTIONS = [
-    { value: '', label: 'Any permission' },
-    { value: 'any', label: 'Has permissions' },
-    ...PERMISSION_OPTIONS
 ];
 
 // How close to the bottom of the dropdown (in px) the user must scroll before the next page loads.
@@ -100,6 +92,15 @@ export const AccessControl: FunctionComponent = () => {
     // The switch waiting on the discard confirmation. Held as a thunk, hence the extra arrow in
     // setPendingSwitch - useState would otherwise call a function argument as an initializer.
     const [pendingSwitch, setPendingSwitch] = useState<(() => void) | null>(null);
+
+    const { data: permissionOptions = [] } = usePermissionOptions();
+    const permissionFilterOptions = [
+        { value: '', label: 'Any permission' },
+        // 'any' matches users with at least one individually granted permission; admins hold every
+        // permission implicitly and are matched by neither this nor a specific permission.
+        { value: 'any', label: 'Has permissions' },
+        ...permissionOptions
+    ];
 
     const debouncedSetSearch = useDebouncedCallback(setSearchText);
 
@@ -348,7 +349,7 @@ export const AccessControl: FunctionComponent = () => {
                                 variant='standard'
                                 inputProps={{ 'aria-label': 'Filter by permission' }}
                                 input={<InputBase sx={{ flex: 1, pl: 1 }} />}>
-                                {PERMISSION_FILTER_OPTIONS.map(o => (
+                                {permissionFilterOptions.map(o => (
                                     <MenuItem key={o.value} value={o.value}>
                                         {o.label}
                                     </MenuItem>

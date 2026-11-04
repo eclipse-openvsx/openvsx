@@ -31,8 +31,6 @@ import org.springframework.data.domain.Pageable;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.entities.AdminScanDecision;
-import org.eclipse.openvsx.entities.Customer;
-import org.eclipse.openvsx.entities.DailyUsageStats;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionThreat;
@@ -47,10 +45,7 @@ import org.eclipse.openvsx.entities.PublisherAgreementEvent;
 import org.eclipse.openvsx.entities.ScanCheckResult;
 import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.SignatureKeyPair;
-import org.eclipse.openvsx.entities.Tier;
-import org.eclipse.openvsx.entities.TierType;
 import org.eclipse.openvsx.entities.TrustedPublisher;
-import org.eclipse.openvsx.entities.UsageStats;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.QueryRequest;
 import org.eclipse.openvsx.scanning.NamespaceOwnershipCheckScanner;
@@ -140,21 +135,6 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 .passed("SECRET_SCANNING", ScanCheckResult.CheckCategory.PUBLISH_CHECK, NOW, 10, "All checks passed");
         scanCheckResult.setScan(scan);
 
-        var tier = new Tier();
-        tier.setName("tier");
-        var customer = new Customer();
-        customer.setName("customer");
-        customer.setTier(tier);
-        var usageStats = new UsageStats();
-        usageStats.setCustomer(customer);
-        usageStats.setWindowStart(NOW);
-        usageStats.setDuration(Duration.ofMinutes(1));
-        var dailyUsageStats = new DailyUsageStats();
-        dailyUsageStats.setCustomer(customer);
-        dailyUsageStats.setDate(NOW.toLocalDate());
-        dailyUsageStats.setTotalRequests(1L);
-        dailyUsageStats.setP95Requests(1L);
-
         var trustedPublisher = new TrustedPublisher();
         trustedPublisher.setExtension(extension);
         trustedPublisher.setProvider("provider");
@@ -183,9 +163,6 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 fileDecision,
                 threat,
                 scanCheckResult,
-                tier,
-                customer,
-                usageStats,
                 trustedPublisher)
                 .forEach(em::persist);
         em.flush();
@@ -487,30 +464,6 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         extension.getName(),
                         extVersion.getTargetPlatform(),
                         extVersion.getVersion()),
-                // Rate limit tests
-                () -> repositories.upsertTier(tier),
-                () -> repositories.findTier("tier"),
-                () -> repositories.findTiersByTierType(TierType.FREE),
-                () -> repositories.findTiersByTierTypeExcludingTier(TierType.FREE, tier),
-                () -> repositories.findAllTiers(),
-                () -> repositories.upsertCustomer(customer),
-                () -> repositories.findCustomer("customer"),
-                () -> repositories.findCustomerById(1L),
-                () -> repositories.findCustomersByTier(tier),
-                () -> repositories.countCustomersByTier(tier),
-                () -> repositories.findAllCustomers(),
-                () -> repositories.findCustomerMemberships(customer),
-                () -> repositories.findCustomerMemberships(userData),
-                () -> repositories.findCustomerMembership(userData, customer),
-                () -> repositories.findActiveRateLimitTokens(customer),
-                () -> repositories.findRateLimitToken(1L),
-                () -> repositories.findRateLimitToken("value"),
-                () -> repositories.hasRateLimitToken("value"),
-                () -> repositories.saveUsageStats(usageStats),
-                () -> repositories.findUsageStatsByCustomerAndDate(customer, NOW),
-                () -> repositories.findDailyUsageStats(customer, NOW.toLocalDate()),
-                () -> repositories.findUnprocessedDaysForDailyUsage(customer),
-                () -> repositories.saveDailyUsageStats(dailyUsageStats),
                 () -> repositories.findTrustedPublishersByExtension(extension),
                 () -> repositories.findTrustedPublishersByNamespaceAndCreatedBy(namespace, userData),
                 () -> repositories.findTrustedPublisher(1L),
@@ -520,8 +473,6 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                         userData.getId(),
                         List.of(PublisherAgreementEvent.Type.SIGNED)),
                 () -> repositories.savePublisherAgreementEvent(publisherAgreementEvent),
-                () -> repositories.deleteTier(tier),
-                () -> repositories.deleteCustomer(customer),
                 // Extension scan delete method - add last, still not clear why but otherwise the test fails
                 () -> repositories.deleteExtensionScan(scan));
 
