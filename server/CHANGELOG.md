@@ -24,7 +24,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - A failed namespace change is retried once, instead of ten times as JobRunr does by default ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
 - `Permission` is an open type that deployments extend through `PermissionProvider`; only registered permissions can be granted, open `/admin`, or reserve a user's revocation to admins, and an unknown name is a 400
 - A request that needs a logged-in user answers 401 instead of 403 when nobody is logged in, so clients can tell an expired session from a missing permission ([#2416](https://github.com/eclipse-openvsx/openvsx/pull/2416))
-- **Upgrade:** the Redis cache connects with Jedis, the client rate limiting and pub/sub already use, instead of Lettuce, so `spring.data.redis.lettuce.*` properties no longer apply; pool settings move to `spring.data.redis.jedis.pool.*`
+- **Upgrade:** the Redis cache connects with Jedis, the client rate limiting and pub/sub already use, instead of Lettuce, so `spring.data.redis.lettuce.*` properties no longer apply; pool settings move to `spring.data.redis.jedis.pool.*` ([#2413](https://github.com/eclipse-openvsx/openvsx/pull/2413))
 
 ### Removed
 

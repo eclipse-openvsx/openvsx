@@ -117,6 +117,9 @@ dependencies {
     implementation libs.commons.lang3
     implementation libs.bouncycastle
     implementation libs.jedis
+    // Boot's JedisConnectionConfiguration is @ConditionalOnClass(GenericObjectPool): without it no
+    // RedisConnectionFactory exists. Declared, not left to bucket4j-jedis's transitive copy.
+    implementation "org.apache.commons:commons-pool2"
     implementation libs.uuid.generator
 
     implementation libs.bucket4j.spring
