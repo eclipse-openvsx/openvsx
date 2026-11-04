@@ -145,7 +145,10 @@ async function publishExtensionFile(registry: Registry, options: InternalPublish
             exchanged = { namespace: manifest.publisher, extension: manifest.name };
             options.pat = await getTrustedPublishingToken(registry, manifest.publisher, manifest.name, options);
         } else {
-            options.pat = await getPAT(manifest.publisher, options);
+            // getPAT has verified a prompted token already, so it can be stored before publishing
+            const { pat, save } = await getPAT(manifest.publisher, options);
+            options.pat = pat;
+            await save();
         }
     }
 

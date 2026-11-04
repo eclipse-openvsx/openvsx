@@ -38,19 +38,24 @@ export async function requestPAT(namespace: string, options: CreateNamespaceOpti
     return pat;
 }
 
-export async function getPAT(namespace: string, options: CreateNamespaceOptions | PublishOptions | VerifyPatOptions, verify: boolean = true): Promise<string> {
+export interface ResolvedPAT {
+    pat: string;
+    /** Stores a prompted token; call it only once the registry has accepted the token. */
+    save(): Promise<void>;
+}
+
+export async function getPAT(namespace: string, options: CreateNamespaceOptions | PublishOptions | VerifyPatOptions, verify: boolean = true): Promise<ResolvedPAT> {
+    const nothingToSave = async () => undefined;
     if (options?.pat) {
-        return options.pat;
+        return { pat: options.pat, save: nothingToSave };
     }
 
     const store = await openDefaultStore();
-    let pat = await store.get(namespace);
-    if (pat) {
-        return pat;
+    const stored = await store.get(namespace);
+    if (stored) {
+        return { pat: stored, save: nothingToSave };
     }
 
-    pat = await requestPAT(namespace, options, verify);
-    await store.add(namespace, pat);
-
-    return pat;
+    const pat = await requestPAT(namespace, options, verify);
+    return { pat, save: () => store.add(namespace, pat) };
 }
