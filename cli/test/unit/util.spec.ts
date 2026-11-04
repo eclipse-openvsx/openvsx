@@ -14,8 +14,40 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { Command, CommanderError } from 'commander';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getTempFilePath, levenshtein, readManifest, writeManifest } from '../../src/util';
+import { getTempFilePath, levenshtein, parseNonNegativeInt, readManifest, writeManifest } from '../../src/util';
+
+describe('parseNonNegativeInt', () => {
+
+    function parseSize(value: string): unknown {
+        const program = new Command()
+            .exitOverride()
+            .configureOutput({ writeErr: () => {} })
+            .option('-s, --size <size>', 'Number of results.', parseNonNegativeInt);
+        try {
+            program.parse(['-s', value], { from: 'user' });
+            return program.opts().size;
+        } catch (err) {
+            return err;
+        }
+    }
+
+    it('parses a non-negative whole number', () => {
+        expect(parseSize('0')).toBe(0);
+        expect(parseSize('25')).toBe(25);
+    });
+
+    it.each(['abc', '-1', '1.5'])("lets commander report '%s' as an invalid option argument", value => {
+        const error = parseSize(value);
+
+        expect(error).toBeInstanceOf(CommanderError);
+        expect(error).toMatchObject({
+            code: 'commander.invalidArgument',
+            message: `error: option '-s, --size <size>' argument '${value}' is invalid. Expected a non-negative whole number, got '${value}'.`
+        });
+    });
+});
 
 describe('getTempFilePath', () => {
 
