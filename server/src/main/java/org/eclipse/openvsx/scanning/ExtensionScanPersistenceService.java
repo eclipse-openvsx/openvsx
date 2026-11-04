@@ -437,6 +437,8 @@ public class ExtensionScanPersistenceService {
             boolean scannerEnforced,
             @NonNull LocalDateTime startedAt
     ) {
+        // Deliberate merge of the detached job: its version is the compare-and-swap. Callers only
+        // read ids from it afterwards, never save it again.
         scannerJobRepository.saveAndFlush(job);
         return processCompletedScan(job, result, scannerEnforced, startedAt);
     }

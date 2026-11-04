@@ -101,8 +101,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
             logger.debug("Scan job {} status: {}", scanJobId, status);
 
             // Phase 3: Handle based on status
-            // Note: processCompletedScan() has REQUIRES_NEW, so threats save in separate tx.
-            // Other updates are single entity saves (auto-commit).
+            // Every job write is version-checked; a lost race discards this poll's result.
             if (status == Scanner.PollStatus.COMPLETED) {
                 // Fetch results (another HTTP call)
                 Scanner.Result result = pollContext.scanner().fetchResults(pollContext.submission());
@@ -210,7 +209,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
     /**
      * Save results for a completed scan.
-     * Note: processCompletedScan() has REQUIRES_NEW so threats save in separate tx.
+     * The job, its threats and the audit result commit together in completeScannerJob().
      */
     private void saveCompletedResults(long scanJobId, Scanner scanner, Scanner.Result result) {
         ScannerJob job = scanJobRepository.findById(scanJobId).orElse(null);

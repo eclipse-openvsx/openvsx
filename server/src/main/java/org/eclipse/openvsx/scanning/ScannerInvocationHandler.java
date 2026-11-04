@@ -146,7 +146,7 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
                 logger.debug("Job {} already claimed by another worker, skipping", jobId);
                 return;
             }
-            // Refresh entity so in-memory state matches DB after the bulk UPDATE.
+            // Re-read after the bulk UPDATE: the result is saved against this version.
             job = scanJobRepository.findById(jobId).orElseThrow();
         }
 
@@ -162,14 +162,15 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
                     scannerType,
                     extensionVersionId,
                     e.getMessage());
-            markJobFailed(jobId, e);
-            completionService.checkCompletionSafely(scanId);
+            if (markJobFailed(job, e)) {
+                completionService.checkCompletionSafely(scanId);
+            }
             return;
         }
 
         // Phase 4: Save results (outside the scanner catch block).
         // DB failures here will propagate to JobRunr as an unhandled exception.
-        saveResults(jobId, invocation, scanner, scannerType, extensionVersionId);
+        saveResults(job, invocation, scanner, scannerType, extensionVersionId);
     }
 
     /**
@@ -223,23 +224,17 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
 
     /**
      * Save the scanner invocation results.
+     * <p>
+     * {@code job} is the copy read before the scanner call, not a fresh one: any write during the call
+     * (the watchdog's verdict, a recovery reset and re-claim) then makes this save lose the race.
      */
     private void saveResults(
-            Long jobId,
+            ScannerJob job,
             Scanner.Invocation invocation,
             Scanner scanner,
             String scannerType,
             long extensionVersionId
     ) {
-        ScannerJob job = scanJobRepository.findById(jobId)
-                .orElseThrow(() -> new IllegalStateException("Job not found: " + jobId));
-
-        // The watchdog may have finalized the job while the scanner call was in flight
-        if (job.getStatus().isTerminal()) {
-            logger.debug("Job {} already {}, discarding result of scanner {}", jobId, job.getStatus(), scannerType);
-            return;
-        }
-
         // Determine the scan ID before processing (needed for completion check)
         String scanId = job.getScanId();
 
@@ -265,19 +260,19 @@ public class ScannerInvocationHandler implements JobRequestHandler<ScannerInvoca
     }
 
     /**
-     * Mark a job as failed after an exception.
+     * Mark a job as failed after an exception, based on the copy read before the scanner call.
+     *
+     * @return false if the job changed concurrently and was left as it is
      */
-    private void markJobFailed(Long jobId, Exception e) {
-        ScannerJob job = scanJobRepository.findById(jobId).orElse(null);
-        if (job == null || job.getStatus().isTerminal()) {
-            return;
-        }
+    private boolean markJobFailed(ScannerJob job, Exception e) {
         job.setStatus(ScannerJob.JobStatus.FAILED);
         job.setErrorMessage("Scanner invocation failed: " + e.getMessage());
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
         if (!scanJobRepository.trySave(job)) {
-            logger.debug("Job {} changed concurrently, not marking it failed", jobId);
+            logger.debug("Job {} changed concurrently, not marking it failed", job.getId());
+            return false;
         }
+        return true;
     }
 
     /**

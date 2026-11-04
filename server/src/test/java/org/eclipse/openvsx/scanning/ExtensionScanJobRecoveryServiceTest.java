@@ -38,6 +38,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.ExtensionService;
+import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.ScannerJob;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -176,6 +177,54 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
 
         // recoverPendingJobs() is the first thing a successful acquisition leads to.
         verify(scanJobRepository).findByStatusIn(ArgumentMatchers.anyList());
+    }
+
+    private ScannerJob pendingJob(long id, String scannerType, long version) {
+        var job = new ScannerJob();
+        job.setId(id);
+        job.setScanId("scan" + id);
+        job.setScannerType(scannerType);
+        job.setStatus(ScannerJob.JobStatus.QUEUED);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "version", version);
+        return job;
+    }
+
+    @Test
+    void recoverOnStartup_aLostRaceOnOneJobDoesNotStopTheOthersNorLaterPhases() {
+        var service = Mockito.spy(newService(dsl));
+        when(scanService.isEnabled()).thenReturn(true);
+        doReturn(true).when(service).tryAcquireRecoveryLock();
+        // both jobs belong to a removed scanner, so both are marked REMOVED
+        var lost = pendingJob(1, "gone", 0);
+        var won = pendingJob(2, "gone", 0);
+        when(scanJobRepository.findByStatusIn(ArgumentMatchers.anyList())).thenReturn(List.of(lost, won));
+        when(scanJobRepository.findById(1L)).thenReturn(Optional.of(pendingJob(1, "gone", 0)));
+        when(scanJobRepository.findById(2L)).thenReturn(Optional.of(pendingJob(2, "gone", 0)));
+        when(scanJobRepository.saveAndFlush(ArgumentMatchers.argThat(j -> j != null && j.getId() == 1L)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
+        when(repositories.findExtensionScansByStatus(ArgumentMatchers.any())).thenReturn(Streamable.empty());
+
+        service.recoverOnStartup();
+
+        verify(scanJobRepository).saveAndFlush(ArgumentMatchers.argThat(j -> j != null && j.getId() == 2L));
+        // the VALIDATING phase still ran
+        verify(repositories).findExtensionScansByStatus(ScanStatus.VALIDATING);
+    }
+
+    @Test
+    void recoverOnStartup_leavesAJobAloneThatChangedSinceItWasRead() {
+        var service = Mockito.spy(newService(dsl));
+        when(scanService.isEnabled()).thenReturn(true);
+        doReturn(true).when(service).tryAcquireRecoveryLock();
+        when(scanJobRepository.findByStatusIn(ArgumentMatchers.anyList()))
+                .thenReturn(List.of(pendingJob(1, "gone", 0)));
+        // a concurrent writer bumped the version after the read
+        when(scanJobRepository.findById(1L)).thenReturn(Optional.of(pendingJob(1, "gone", 1)));
+        when(repositories.findExtensionScansByStatus(ArgumentMatchers.any())).thenReturn(Streamable.empty());
+
+        service.recoverOnStartup();
+
+        verify(scanJobRepository, never()).saveAndFlush(ArgumentMatchers.any());
     }
 
     @Test
