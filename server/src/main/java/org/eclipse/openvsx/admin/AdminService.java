@@ -465,8 +465,16 @@ public class AdminService {
     }
 
     @Transactional
-    public Page<UserRelationshipsJson> searchUsers(String search, String role, Pageable pageable) {
-        var page = repositories.searchUsers(search, role, pageable);
+    public Page<UserRelationshipsJson> searchUsers(String search, String role, String permission, Pageable pageable) {
+        // "any" matches users holding at least one registered permission: a grant nothing registers
+        // is not reported in the result, so it must not make a user match either.
+        Collection<String> permissionFilter = null;
+        if (StringUtils.isNotBlank(permission)) {
+            permissionFilter = "any".equalsIgnoreCase(permission)
+                    ? permissionRegistry.all().stream().map(info -> info.permission().toString()).toList()
+                    : List.of(parsePermission(permission).toString());
+        }
+        var page = repositories.searchUsers(search, role, permissionFilter, pageable);
         var permissions = permissionsById(page.getContent());
         return page.map(user -> {
             var json = new UserRelationshipsJson();

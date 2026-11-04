@@ -18,23 +18,25 @@ import { MainContext } from '../context';
 const ADMIN_USER_SEARCH_PAGE_SIZE = 25;
 
 export const adminUserSearchKeys = {
-    list: (search: string, role: string) => ['admin', 'user-search', { search, role }] as const
+    list: (search: string, role: string, permission: string) =>
+        ['admin', 'user-search', { search, role, permission }] as const
 };
 
 /**
- * Loads the searchable, role-filterable admin user list one page at a time. Shared by Publisher
+ * Loads the searchable, role- and permission-filterable admin user list one page at a time. Shared by Publisher
  * admin (finding a user to investigate/revoke) and Access Control (finding a user to edit role or
  * permissions for). `keepPreviousData` keeps the current rows on screen while a changed search or
  * role filter loads, matching the rest of the admin dashboard.
  */
-export const useAdminUserSearch = (search: string, role: string) => {
+export const useAdminUserSearch = (search: string, role: string, permission = '') => {
     const { service } = useContext(MainContext);
     return useInfiniteQuery({
-        queryKey: adminUserSearchKeys.list(search, role),
+        queryKey: adminUserSearchKeys.list(search, role, permission),
         queryFn: ({ pageParam, signal }) =>
             service.admin.getUsers(signal, {
                 search: search || undefined,
                 role: role || undefined,
+                permission: permission || undefined,
                 size: ADMIN_USER_SEARCH_PAGE_SIZE,
                 page: pageParam
             }),

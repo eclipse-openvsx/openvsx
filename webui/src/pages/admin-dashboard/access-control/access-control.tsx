@@ -51,6 +51,7 @@ import { UserRelationships } from '../../../extension-registry-types';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
 import { AccessControlDetails } from './access-control-details';
+import { usePermissionOptions } from './use-permission-options';
 import { SearchListContainer } from '../search-list-container';
 import { handleError as formatError } from '../../../utils';
 import { AdminDashboardRoutes } from '../admin-dashboard-routes';
@@ -85,17 +86,28 @@ export const AccessControl: FunctionComponent = () => {
     const [searchText, setSearchText] = useState(loginParam ?? '');
     const [inputValue, setInputValue] = useState(loginParam ?? '');
     const [roleFilter, setRoleFilter] = useState('');
+    const [permissionFilter, setPermissionFilter] = useState('');
     const [selected, setSelected] = useState<UserRelationships | null>(null);
     const [dirty, setDirty] = useState(false);
     // The switch waiting on the discard confirmation. Held as a thunk, hence the extra arrow in
     // setPendingSwitch - useState would otherwise call a function argument as an initializer.
     const [pendingSwitch, setPendingSwitch] = useState<(() => void) | null>(null);
 
+    const { data: permissionOptions = [] } = usePermissionOptions();
+    const permissionFilterOptions = [
+        { value: '', label: 'All users' },
+        // 'any' matches users with at least one individually granted permission; admins hold every
+        // permission implicitly and are matched by neither this nor a specific permission.
+        { value: 'any', label: 'Has permissions' },
+        ...permissionOptions
+    ];
+
     const debouncedSetSearch = useDebouncedCallback(setSearchText);
 
     const { data, isFetching, isFetchingNextPage, error, hasNextPage, fetchNextPage } = useAdminUserSearch(
         searchText,
-        roleFilter
+        roleFilter,
+        permissionFilter
     );
 
     const users = useMemo(() => data?.pages.flatMap(page => page.content) ?? [], [data]);
@@ -294,6 +306,21 @@ export const AccessControl: FunctionComponent = () => {
                                             <Typography variant='caption' color='text.secondary' noWrap>
                                                 {user.fullName || '—'}
                                             </Typography>
+                                            {user.permissions?.length ? (
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                                    {user.permissions.map(permission => (
+                                                        <Chip
+                                                            key={permission}
+                                                            label={
+                                                                permissionOptions.find(o => o.value === permission)
+                                                                    ?.label ?? permission
+                                                            }
+                                                            size='small'
+                                                            variant='outlined'
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            ) : null}
                                         </Box>
                                         {user.role ? (
                                             <Chip
@@ -320,6 +347,21 @@ export const AccessControl: FunctionComponent = () => {
                                 variant='standard'
                                 input={<InputBase sx={{ flex: 1, pl: 1 }} />}>
                                 {ROLE_FILTER_OPTIONS.map(o => (
+                                    <MenuItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Paper>
+                        <Paper elevation={3} sx={{ flex: 1, display: 'flex', ml: { md: 1 }, mt: { xs: 2, md: 0 } }}>
+                            <Select
+                                value={permissionFilter}
+                                onChange={e => setPermissionFilter(e.target.value)}
+                                displayEmpty
+                                variant='standard'
+                                inputProps={{ 'aria-label': 'Filter by permission' }}
+                                input={<InputBase sx={{ flex: 1, pl: 1 }} />}>
+                                {permissionFilterOptions.map(o => (
                                     <MenuItem key={o.value} value={o.value}>
                                         {o.label}
                                     </MenuItem>

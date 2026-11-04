@@ -11,6 +11,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Curated home rows are regions labelled with their title and set `aria-busy` while they load, so assistive technology can tell a loading row from a loaded one
 - `PageSettings.elements.userSettingsTabs` lets a deployment contribute user-settings tabs
 - The index exports `handleError`, `NO_CACHE`, `DelayedLoadIndicator`, `Timestamp`, `AddUserDialog`, `GenerateTokenDialog`, `SearchListContainer`, `createMultiSelectFilterOperators`, `createArrayContainsFilterOperators`, `SettingsHeader` and `EmptyPlaceholder`, for pages contributed through `adminPages` and `userSettingsTabs`
+- Filter users on the Access Control page by granted permission and show each user's permissions as chips in the results; `useAdminUserSearch` takes an optional `permission` ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
 
 ### Changed
 

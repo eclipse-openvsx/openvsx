@@ -596,7 +596,7 @@ export interface AdminService {
     getPublisherInfo(signal: AbortSignal, provider: string, login: string): Promise<Readonly<PublisherInfo>>;
     getUsers(
         signal: AbortSignal,
-        params?: { search?: string; role?: string; page?: number; size?: number }
+        params?: { search?: string; role?: string; permission?: string; page?: number; size?: number }
     ): Promise<Readonly<UserSearchResult>>;
     getPermissions(signal: AbortSignal): Promise<Readonly<{ value: string; label: string }[]>>;
     updateUserAccess(provider: string, login: string, access: UserAccess): Promise<Readonly<SuccessResult>>;
@@ -819,7 +819,7 @@ export class AdminServiceImpl implements AdminService {
 
     async getUsers(
         signal: AbortSignal,
-        params?: { search?: string; role?: string; page?: number; size?: number }
+        params?: { search?: string; role?: string; permission?: string; page?: number; size?: number }
     ): Promise<Readonly<UserSearchResult>> {
         const query: { key: string; value: string | number }[] = [];
         if (params) {
@@ -828,6 +828,9 @@ export class AdminServiceImpl implements AdminService {
             }
             if (params.role) {
                 query.push({ key: 'role', value: params.role });
+            }
+            if (params.permission) {
+                query.push({ key: 'permission', value: params.permission });
             }
             if (params.page !== undefined) {
                 query.push({ key: 'page', value: params.page });
