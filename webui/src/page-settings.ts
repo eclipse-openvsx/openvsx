@@ -12,6 +12,7 @@ import { ComponentType, ReactNode } from 'react';
 import { SxProps, Theme } from '@mui/material/styles';
 import { Extension, NamespaceDetails, SortBy } from './extension-registry-types';
 import { AdminPage } from './pages/admin-dashboard/nav-types';
+import { UserSettingsTab } from './pages/user/settings/settings-tabs';
 import { AdminSettingsSection } from './pages/admin-dashboard/settings-sections';
 import { Cookie } from './utils';
 
@@ -165,6 +166,11 @@ export interface PageSettings {
          * dashboard overview and as a route. Additive only — see {@link AdminPage}.
          */
         adminPages?: AdminPage[];
+        /**
+         * Extra tabs for the user settings page, listed after the built-in ones and routed at
+         * `/user-settings/<value>`. Additive only — a `value` of a built-in tab is ignored.
+         */
+        userSettingsTabs?: UserSettingsTab[];
         /**
          * Extra switches for the admin dashboard's Settings page, each bound to a boolean runtime
          * setting the deployment's server registers, grouped into the built-in sections or sections

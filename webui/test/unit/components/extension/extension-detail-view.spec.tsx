@@ -128,6 +128,20 @@ describe('ExtensionDetailView', () => {
         expect(screen.queryByText('Latest')).not.toBeInTheDocument();
     });
 
+    it('shows the latest version of a live extension', () => {
+        renderDetail([version({ version: '2.0.0' })], undefined, { extension: { version: '9.9.9', active: true } });
+
+        expect(screen.getByText('9.9.9')).toBeInTheDocument();
+    });
+
+    it('does not show a removed version as the latest version', () => {
+        renderDetail([version({ version: '2.0.0' })], undefined, {
+            extension: { version: '9.9.9', active: false, removed: true }
+        });
+
+        expect(screen.queryByText('9.9.9')).not.toBeInTheDocument();
+    });
+
     it('marks the latest version of a live extension', () => {
         renderDetail([version()], undefined, { extension: { active: true } });
 

@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information regarding copyright ownership.
@@ -12,11 +12,13 @@
  *****************************************************************************/
 package org.eclipse.openvsx.json;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-@JsonInclude(Include.NON_NULL)
-public record CustomerMembershipJson(
-        String customer,
-        UserJson user
+@Schema(
+    name = "Permission",
+    description = "An admin permission that can be granted to a user"
+)
+public record PermissionJson(
+        @Schema(description = "The permission name, as accepted when granting it") String value,
+        @Schema(description = "A human-readable name for the permission") String label
 ) {}

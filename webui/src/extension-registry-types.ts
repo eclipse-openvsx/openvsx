@@ -227,20 +227,23 @@ export interface UserData {
 }
 
 /**
- * A single admin capability, matching the server's `org.eclipse.openvsx.entities.Permission` enum.
- * A user with role 'admin' implicitly has every value here without it appearing in `permissions`.
+ * A single admin capability. The server owns the set (deployments may register their own); a user
+ * with role 'admin' implicitly has every one without it appearing in `permissions`.
  */
-export type AdminPermission =
-    | 'manage_namespaces'
-    | 'manage_extensions'
-    | 'manage_publishers'
-    | 'manage_scans'
-    | 'manage_consistency'
-    | 'manage_rate_limits'
-    | 'manage_caches'
-    | 'manage_search_index'
-    | 'manage_settings'
-    | 'view_reports';
+export type AdminPermission = string;
+
+/** The permissions built into Open VSX. */
+export const ADMIN_PERMISSIONS = {
+    manageNamespaces: 'manage_namespaces',
+    manageExtensions: 'manage_extensions',
+    managePublishers: 'manage_publishers',
+    manageScans: 'manage_scans',
+    manageConsistency: 'manage_consistency',
+    manageCaches: 'manage_caches',
+    manageSearchIndex: 'manage_search_index',
+    manageSettings: 'manage_settings',
+    viewReports: 'view_reports'
+} as const satisfies Record<string, AdminPermission>;
 
 /**
  * The admin access a user should end up with, as a whole rather than a delta: `permissions`
@@ -580,30 +583,6 @@ export interface FileDecisionDeleteResponse {
     results: FileDecisionDeleteResult[];
 }
 
-export enum TierType {
-    FREE = 'FREE',
-    SAFETY = 'SAFETY',
-    NON_FREE = 'NON_FREE'
-}
-
-export enum RefillStrategy {
-    GREEDY = 'GREEDY',
-    INTERVAL = 'INTERVAL'
-}
-
-export interface Tier {
-    name: string;
-    description?: string;
-    tierType: TierType;
-    capacity: number;
-    duration: number;
-    refillStrategy: RefillStrategy;
-}
-
-export interface TierList {
-    tiers: Tier[];
-}
-
 export interface SizeOverride {
     id: number;
     namespace: string;
@@ -617,49 +596,6 @@ export interface SizeOverrideList {
     sizeOverrides: SizeOverride[];
     /** Read-only: neither a size override nor the registry-wide default can be raised past this ceiling. */
     maxOverrideSize: number;
-}
-
-export enum EnforcementState {
-    EVALUATION = 'EVALUATION',
-    ENFORCEMENT = 'ENFORCEMENT'
-}
-
-export interface Customer {
-    name: string;
-    tier?: Tier;
-    state: EnforcementState;
-    cidrBlocks: string[];
-}
-
-export interface CustomerList {
-    customers: Customer[];
-}
-
-export interface CustomerMembership {
-    customer: string;
-    user: UserData;
-}
-
-export interface CustomerMembershipList {
-    customerMemberships: CustomerMembership[];
-}
-
-export interface RateLimitToken {
-    id: number;
-    value?: string;
-    description?: string;
-    createdTimestamp: TimestampString;
-}
-
-export interface UsageStats {
-    windowStart: number; // epoch seconds in UTC
-    duration: number; // in seconds
-    count: number;
-}
-
-export interface UsageStatsList {
-    stats: UsageStats[];
-    dailyP95?: number;
 }
 
 export interface Log {

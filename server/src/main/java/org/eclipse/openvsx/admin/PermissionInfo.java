@@ -10,17 +10,9 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
-package org.eclipse.openvsx.repositories;
+package org.eclipse.openvsx.admin;
 
-import org.springframework.data.repository.Repository;
-import org.springframework.data.util.Streamable;
+import org.eclipse.openvsx.entities.Permission;
 
-import org.eclipse.openvsx.entities.*;
-
-public interface CustomerMembershipRepository extends Repository<CustomerMembership, Long> {
-    Streamable<CustomerMembership> findByCustomer(Customer customer);
-
-    CustomerMembership findByUserAndCustomer(UserData user, Customer customer);
-
-    Streamable<CustomerMembership> findByUserOrderByCustomerName(UserData user);
-}
+/** A registered permission and the label shown for it in the admin UI. */
+public record PermissionInfo(Permission permission, String label) {}

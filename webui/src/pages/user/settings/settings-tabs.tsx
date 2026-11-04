@@ -11,15 +11,14 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { ReactNode } from 'react';
+import { ReactNode, useContext } from 'react';
 import { useParams } from 'react-router';
-import { useUserCustomers } from '../customers/use-user-customers';
+import { MainContext } from '../../../context';
 import { useTrustedPublishingStatus } from '../trusted-publishing/use-trusted-publishers';
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
-import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
 
 export interface SettingsTab {
     value: string;
@@ -31,29 +30,45 @@ const SETTINGS_TABS: SettingsTab[] = [
     { value: 'profile', label: 'Profile', icon: <PersonOutlinedIcon /> },
     { value: 'tokens', label: 'Access Tokens', icon: <KeyOutlinedIcon /> },
     { value: 'trusted-publishers', label: 'Trusted Publishers', icon: <VerifiedUserOutlinedIcon /> },
-    { value: 'extensions', label: 'Extensions', icon: <GridViewOutlinedIcon /> },
-    { value: 'customers', label: 'Rate Limiting', icon: <SpeedOutlinedIcon /> }
+    { value: 'extensions', label: 'Extensions', icon: <GridViewOutlinedIcon /> }
 ];
 
 /**
- * The settings tabs applicable to the current user: Rate Limiting only for customer members, and
- * Trusted Publishers only where the registry has the feature on. An idle or failed status query
+ * A tab a deployment adds through `PageSettings.elements.userSettingsTabs`, after the built-in
+ * ones. A `value` equal to a built-in tab's is ignored. `useIsApplicable` is called as a hook on
+ * every render, so the list must not change over the page's lifetime.
+ */
+export interface UserSettingsTab extends SettingsTab {
+    element: ReactNode;
+    useIsApplicable?: () => boolean;
+}
+
+const builtInValues = new Set([...SETTINGS_TABS.map(tab => tab.value), 'namespaces']);
+
+/** The contributed tabs that do not shadow a built-in one. */
+export const useContributedTabs = (): UserSettingsTab[] => {
+    const { pageSettings } = useContext(MainContext);
+    return (pageSettings.elements.userSettingsTabs ?? []).filter(tab => !builtInValues.has(tab.value));
+};
+
+/**
+ * The settings tabs applicable to the current user: Trusted Publishers only where the registry has
+ * the feature on. An idle or failed status query
  * leaves `enabled` undefined, so the gate fails closed.
  */
 export const useSettingsTabs = (): SettingsTab[] => {
-    const hasCustomers = (useUserCustomers().data ?? []).length > 0;
+    const contributed = useContributedTabs();
+    const contributedApplicable = contributed.map(tab => tab.useIsApplicable?.() ?? true);
     const trustedPublishingEnabled = useTrustedPublishingStatus().data?.enabled ?? false;
     const isApplicable = (tab: SettingsTab): boolean => {
         switch (tab.value) {
-            case 'customers':
-                return hasCustomers;
             case 'trusted-publishers':
                 return trustedPublishingEnabled;
             default:
                 return true;
         }
     };
-    return SETTINGS_TABS.filter(isApplicable);
+    return [...SETTINGS_TABS.filter(isApplicable), ...contributed.filter((_, i) => contributedApplicable[i])];
 };
 
 /** Active settings tab; deep routes carry no :tab param, so derive it from what they do carry. */
