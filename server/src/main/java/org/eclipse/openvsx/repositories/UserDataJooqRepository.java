@@ -30,6 +30,7 @@ import org.springframework.stereotype.Component;
 import org.eclipse.openvsx.entities.UserData;
 
 import static org.eclipse.openvsx.jooq.Tables.USER_DATA;
+import static org.eclipse.openvsx.jooq.Tables.USER_DATA_PERMISSION;
 
 @Component
 public class UserDataJooqRepository {
@@ -40,8 +41,8 @@ public class UserDataJooqRepository {
         this.dsl = dsl;
     }
 
-    public Page<UserData> findUsers(String search, String role, Pageable pageable) {
-        var conditions = buildConditions(search, role);
+    public Page<UserData> findUsers(String search, String role, String permission, Pageable pageable) {
+        var conditions = buildConditions(search, role, permission);
 
         var total = dsl.selectCount()
                 .from(USER_DATA)
@@ -72,7 +73,7 @@ public class UserDataJooqRepository {
         return query;
     }
 
-    private List<Condition> buildConditions(String search, String role) {
+    private List<Condition> buildConditions(String search, String role, String permission) {
         var conditions = new ArrayList<Condition>();
         conditions.add(USER_DATA.PROVIDER.isNotNull());
 
@@ -82,6 +83,18 @@ public class UserDataJooqRepository {
             } else {
                 conditions.add(USER_DATA.ROLE.equalIgnoreCase(role));
             }
+        }
+
+        // Matches individually granted permissions only: ADMIN holds every permission implicitly
+        // and has no rows in user_data_permission.
+        if (StringUtils.isNotBlank(permission)) {
+            var granted = DSL.selectOne()
+                    .from(USER_DATA_PERMISSION)
+                    .where(USER_DATA_PERMISSION.USER_DATA_ID.eq(USER_DATA.ID));
+            if (!"any".equalsIgnoreCase(permission)) {
+                granted = granted.and(USER_DATA_PERMISSION.PERMISSION.eq(permission));
+            }
+            conditions.add(DSL.exists(granted));
         }
 
         if (StringUtils.isNotBlank(search)) {

@@ -32,6 +32,7 @@ import {
 import GitHubIcon from '@mui/icons-material/GitHub';
 import PersonIcon from '@mui/icons-material/Person';
 import { AdminPermission, UserRelationships } from '../../../extension-registry-types';
+import { PERMISSION_OPTIONS } from '../../../permissions';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
 import { SaveButton } from '../../../components/save-button';
@@ -48,19 +49,6 @@ const ROLE_OPTIONS: { value: AccessRole; label: string }[] = [
 
 // Stable empty set, so the admin-role branch below does not hand a new object to a dependency list.
 const NO_PERMISSIONS: ReadonlySet<AdminPermission> = new Set();
-
-const PERMISSION_OPTIONS: { value: AdminPermission; label: string }[] = [
-    { value: 'manage_namespaces', label: 'Manage namespaces' },
-    { value: 'manage_extensions', label: 'Manage extensions' },
-    { value: 'manage_publishers', label: 'Manage publishers' },
-    { value: 'manage_scans', label: 'Manage scans' },
-    { value: 'manage_consistency', label: 'Manage data consistency' },
-    { value: 'manage_rate_limits', label: 'Manage rate limiting' },
-    { value: 'manage_caches', label: 'Manage caches' },
-    { value: 'manage_search_index', label: 'Manage search index' },
-    { value: 'manage_settings', label: 'Manage settings' },
-    { value: 'view_reports', label: 'View reports' }
-];
 
 /**
  * The details card for the user selected in Access Control search: their global role and

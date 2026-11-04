@@ -51,6 +51,7 @@ import { UserRelationships } from '../../../extension-registry-types';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
 import { AccessControlDetails } from './access-control-details';
+import { PERMISSION_OPTIONS } from '../../../permissions';
 import { SearchListContainer } from '../search-list-container';
 import { handleError as formatError } from '../../../utils';
 import { AdminDashboardRoutes } from '../admin-dashboard-routes';
@@ -62,6 +63,14 @@ const ROLE_FILTER_OPTIONS = [
     { value: 'admin', label: 'Admin' },
     { value: 'privileged', label: 'Privileged' },
     { value: 'none', label: 'No role' }
+];
+
+// 'any' matches users with at least one individually granted permission; admins hold every
+// permission implicitly and are matched by neither this filter nor a specific permission.
+const PERMISSION_FILTER_OPTIONS = [
+    { value: '', label: 'Any permission' },
+    { value: 'any', label: 'Has permissions' },
+    ...PERMISSION_OPTIONS
 ];
 
 // How close to the bottom of the dropdown (in px) the user must scroll before the next page loads.
@@ -85,6 +94,7 @@ export const AccessControl: FunctionComponent = () => {
     const [searchText, setSearchText] = useState(loginParam ?? '');
     const [inputValue, setInputValue] = useState(loginParam ?? '');
     const [roleFilter, setRoleFilter] = useState('');
+    const [permissionFilter, setPermissionFilter] = useState('');
     const [selected, setSelected] = useState<UserRelationships | null>(null);
     const [dirty, setDirty] = useState(false);
     // The switch waiting on the discard confirmation. Held as a thunk, hence the extra arrow in
@@ -95,7 +105,8 @@ export const AccessControl: FunctionComponent = () => {
 
     const { data, isFetching, isFetchingNextPage, error, hasNextPage, fetchNextPage } = useAdminUserSearch(
         searchText,
-        roleFilter
+        roleFilter,
+        permissionFilter
     );
 
     const users = useMemo(() => data?.pages.flatMap(page => page.content) ?? [], [data]);
@@ -295,6 +306,9 @@ export const AccessControl: FunctionComponent = () => {
                                                 {user.fullName || '—'}
                                             </Typography>
                                         </Box>
+                                        {user.permissions?.map(permission => (
+                                            <Chip key={permission} label={permission} size='small' variant='outlined' />
+                                        ))}
                                         {user.role ? (
                                             <Chip
                                                 icon={roleIcon(user.role)}
@@ -320,6 +334,21 @@ export const AccessControl: FunctionComponent = () => {
                                 variant='standard'
                                 input={<InputBase sx={{ flex: 1, pl: 1 }} />}>
                                 {ROLE_FILTER_OPTIONS.map(o => (
+                                    <MenuItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Paper>
+                        <Paper elevation={3} sx={{ flex: 1, display: 'flex', ml: { md: 1 }, mt: { xs: 2, md: 0 } }}>
+                            <Select
+                                value={permissionFilter}
+                                onChange={e => setPermissionFilter(e.target.value)}
+                                displayEmpty
+                                variant='standard'
+                                inputProps={{ 'aria-label': 'Filter by permission' }}
+                                input={<InputBase sx={{ flex: 1, pl: 1 }} />}>
+                                {PERMISSION_FILTER_OPTIONS.map(o => (
                                     <MenuItem key={o.value} value={o.value}>
                                         {o.label}
                                     </MenuItem>

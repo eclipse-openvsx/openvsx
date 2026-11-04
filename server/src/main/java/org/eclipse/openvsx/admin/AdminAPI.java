@@ -320,11 +320,16 @@ public class AdminAPI {
             @Parameter(
                 description = "Filter by role",
                 schema = @Schema(allowableValues = { "admin", "privileged" })
-            ) String role
+            ) String role,
+            @RequestParam(name = "permission", required = false)
+            @Parameter(
+                description = "Filter by individually granted permission, or \"any\" for users with at least one; "
+                        + "users with the admin role hold every permission implicitly and are not matched"
+            ) String permission
     ) {
         try {
             admins.checkPermission(Permission.MANAGE_PUBLISHERS);
-            return ResponseEntity.ok(admins.searchUsers(query, role, pageable));
+            return ResponseEntity.ok(admins.searchUsers(query, role, permission, pageable));
         } catch (ErrorResultException exc) {
             var status = exc.getStatus() != null ? exc.getStatus() : HttpStatus.BAD_REQUEST;
             throw new ResponseStatusException(status);

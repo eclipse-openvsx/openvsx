@@ -463,8 +463,12 @@ public class AdminService {
     }
 
     @Transactional
-    public Page<UserRelationshipsJson> searchUsers(String search, String role, Pageable pageable) {
-        var page = repositories.searchUsers(search, role, pageable);
+    public Page<UserRelationshipsJson> searchUsers(String search, String role, String permission, Pageable pageable) {
+        // "any" matches users holding at least one individually granted permission.
+        var permissionFilter = StringUtils.isBlank(permission) || "any".equalsIgnoreCase(permission)
+                ? permission
+                : parsePermission(permission).toString();
+        var page = repositories.searchUsers(search, role, permissionFilter, pageable);
         var permissions = permissionsById(page.getContent());
         return page.map(user -> {
             var json = new UserRelationshipsJson();

@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { renderWithProviders } from '../../../support/test-providers';
@@ -104,6 +104,33 @@ describe('AccessControl', () => {
 
         expect(search).toHaveValue('octocat');
         expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+    });
+
+    it('sends the chosen permission filter to the server and lists granted permissions as chips', async () => {
+        const withPermission: UserSearchResult = {
+            ...OCTOCAT,
+            content: [{ ...OCTOCAT.content[0], user: { ...OCTOCAT.content[0].user, permissions: ['manage_scans'] } }]
+        };
+        const getUsers = vi.fn().mockResolvedValue(withPermission);
+        const service = {
+            serverUrl: 'https://open-vsx.org',
+            admin: { getUsers } as unknown as AdminService
+        } as ExtensionRegistryService;
+        renderAccessControl(service, 'octocat');
+        await screen.findByRole('checkbox', { name: 'Manage extensions' });
+
+        await userEvent.click(screen.getByRole('combobox', { name: 'Filter by permission' }));
+        await userEvent.click(await screen.findByRole('option', { name: 'Manage scans' }));
+
+        await waitFor(() =>
+            expect(getUsers).toHaveBeenLastCalledWith(
+                expect.anything(),
+                expect.objectContaining({ permission: 'manage_scans' })
+            )
+        );
+
+        await userEvent.click(screen.getByPlaceholderText('Search by login or display name...'));
+        expect(await screen.findByText('manage_scans')).toBeInTheDocument();
     });
 
     // A short or stale deep link substring-matches nearly every account, so without a cap this

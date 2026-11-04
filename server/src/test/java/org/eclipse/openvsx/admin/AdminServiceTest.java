@@ -298,16 +298,45 @@ class AdminServiceTest {
         withPermissions.getPermissions().add(Permission.MANAGE_SCANS);
 
         var pageable = Pageable.ofSize(10);
-        when(repositories.searchUsers(null, null, pageable))
+        when(repositories.searchUsers(null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(fromSearch), pageable, 1));
         when(repositories.findUsersById(List.of(7L))).thenReturn(List.of(withPermissions));
         when(repositories.findMemberships(fromSearch)).thenReturn(Streamable.empty());
 
-        var page = adminService.searchUsers(null, null, pageable);
+        var page = adminService.searchUsers(null, null, null, pageable);
 
         assertThat(page.getContent()).singleElement()
                 .extracting(json -> json.getUser().getPermissions())
                 .isEqualTo(Set.of("manage_scans"));
+    }
+
+    @Test
+    void searchUsersNormalizesPermissionFilter() {
+        var pageable = Pageable.ofSize(10);
+        when(repositories.searchUsers(null, null, "manage_scans", pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        adminService.searchUsers(null, null, "MANAGE_SCANS", pageable);
+
+        verify(repositories).searchUsers(null, null, "manage_scans", pageable);
+    }
+
+    @Test
+    void searchUsersPassesAnyPermissionFilterThrough() {
+        var pageable = Pageable.ofSize(10);
+        when(repositories.searchUsers(null, null, "ANY", pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        adminService.searchUsers(null, null, "ANY", pageable);
+
+        verify(repositories).searchUsers(null, null, "ANY", pageable);
+    }
+
+    @Test
+    void searchUsersRejectsUnknownPermissionFilter() {
+        assertThatThrownBy(() -> adminService.searchUsers(null, null, "bogus", Pageable.ofSize(10)))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessage("Invalid permission: bogus");
     }
 
     @Test

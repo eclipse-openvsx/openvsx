@@ -26,3 +26,17 @@ export const hasPermission = (user: UserData | undefined, permission: AdminPermi
  */
 export const hasAnyAdminAccess = (user: UserData | undefined): boolean =>
     user?.role === 'admin' || (user?.permissions?.length ?? 0) > 0;
+
+/** Every admin permission with its display label, in the order admin pages list them. */
+export const PERMISSION_OPTIONS: { value: AdminPermission; label: string }[] = [
+    { value: 'manage_namespaces', label: 'Manage namespaces' },
+    { value: 'manage_extensions', label: 'Manage extensions' },
+    { value: 'manage_publishers', label: 'Manage publishers' },
+    { value: 'manage_scans', label: 'Manage scans' },
+    { value: 'manage_consistency', label: 'Manage data consistency' },
+    { value: 'manage_rate_limits', label: 'Manage rate limiting' },
+    { value: 'manage_caches', label: 'Manage caches' },
+    { value: 'manage_search_index', label: 'Manage search index' },
+    { value: 'manage_settings', label: 'Manage settings' },
+    { value: 'view_reports', label: 'View reports' }
+];

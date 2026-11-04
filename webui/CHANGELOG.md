@@ -8,6 +8,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - `PageSettings.elements.errorHelp` adds a deployment's help below the message of the error dialog, given the error code and message, such as a link for the code of a login provider it adds ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `useReportedQuery` requires an `action` that titles the error dialog with what failed, e.g. "Couldn’t load the namespace members", and an `ignore` predicate for the errors a page renders itself, e.g. `isNotFound` for a 404 shown as a not-found state; `MainContext.handleError` takes the dialog `title` directly
+- Filter users on the Access Control page by granted permission and show each user's permissions as chips in the results; `useAdminUserSearch` takes an optional `permission` ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
 
 ### Changed
 

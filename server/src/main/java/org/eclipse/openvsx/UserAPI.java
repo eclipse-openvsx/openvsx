@@ -725,7 +725,7 @@ public class UserAPI {
         }
 
         var pageable = Pageable.ofSize(5);
-        return repositories.searchUsers(name, null, pageable).stream()
+        return repositories.searchUsers(name, null, null, pageable).stream()
                 .map(UserData::toUserJson)
                 .toList();
     }
