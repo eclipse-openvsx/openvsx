@@ -121,7 +121,6 @@ dependencies {
 
     implementation libs.bucket4j.spring
     implementation libs.bucket4j.jedis
-    implementation libs.ipaddress
 
     implementation libs.jobrunr.spring
 

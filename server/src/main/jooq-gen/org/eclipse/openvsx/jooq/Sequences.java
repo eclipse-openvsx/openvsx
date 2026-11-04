@@ -26,21 +26,6 @@ public class Sequences {
     public static final Sequence<Long> ADMIN_STATISTICS_SEQ = Internal.createSequence("admin_statistics_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
-     * The sequence <code>public.customer_membership_seq</code>
-     */
-    public static final Sequence<Long> CUSTOMER_MEMBERSHIP_SEQ = Internal.createSequence("customer_membership_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
-
-    /**
-     * The sequence <code>public.customer_seq</code>
-     */
-    public static final Sequence<Long> CUSTOMER_SEQ = Internal.createSequence("customer_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
-
-    /**
-     * The sequence <code>public.daily_usage_stats_seq</code>
-     */
-    public static final Sequence<Long> DAILY_USAGE_STATS_SEQ = Internal.createSequence("daily_usage_stats_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
-
-    /**
      * The sequence <code>public.download_ingestion_seq</code>
      */
     public static final Sequence<Long> DOWNLOAD_INGESTION_SEQ = Internal.createSequence("download_ingestion_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
@@ -131,11 +116,6 @@ public class Sequences {
     public static final Sequence<Long> PUBLISHER_AGREEMENT_EVENT_SEQ = Internal.createSequence("publisher_agreement_event_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
 
     /**
-     * The sequence <code>public.rate_limit_token_seq</code>
-     */
-    public static final Sequence<Long> RATE_LIMIT_TOKEN_SEQ = Internal.createSequence("rate_limit_token_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
-
-    /**
      * The sequence <code>public.scan_check_result_seq</code>
      */
     public static final Sequence<Long> SCAN_CHECK_RESULT_SEQ = Internal.createSequence("scan_check_result_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
@@ -156,19 +136,9 @@ public class Sequences {
     public static final Sequence<Long> SIGNATURE_KEY_PAIR_SEQ = Internal.createSequence("signature_key_pair_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
-     * The sequence <code>public.tier_seq</code>
-     */
-    public static final Sequence<Long> TIER_SEQ = Internal.createSequence("tier_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
-
-    /**
      * The sequence <code>public.trusted_publisher_seq</code>
      */
     public static final Sequence<Long> TRUSTED_PUBLISHER_SEQ = Internal.createSequence("trusted_publisher_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
-
-    /**
-     * The sequence <code>public.usage_stats_seq</code>
-     */
-    public static final Sequence<Long> USAGE_STATS_SEQ = Internal.createSequence("usage_stats_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
      * The sequence <code>public.user_data_seq</code>

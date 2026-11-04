@@ -16,7 +16,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -110,6 +109,7 @@ public class AdminService {
     private final LogService logs;
     private final AdminStatisticsService statistics;
     private final ApplicationEventPublisher events;
+    private final PermissionRegistry permissionRegistry;
 
     public AdminService(
             RepositoryService repositories,
@@ -127,7 +127,8 @@ public class AdminService {
             ExtensionSizeLimitService sizeLimits,
             LogService logs,
             AdminStatisticsService statistics,
-            ApplicationEventPublisher events
+            ApplicationEventPublisher events,
+            PermissionRegistry permissionRegistry
     ) {
         this.repositories = repositories;
         this.extensions = extensions;
@@ -145,6 +146,7 @@ public class AdminService {
         this.logs = logs;
         this.statistics = statistics;
         this.events = events;
+        this.permissionRegistry = permissionRegistry;
     }
 
     @EventListener
@@ -495,7 +497,7 @@ public class AdminService {
         // hand the same user back once per row, and toMap would answer that with an
         // IllegalStateException - a 500 on the whole user search for every admin.
         return repositories.findUsersById(ids).stream()
-                .collect(Collectors.toMap(UserData::getId, UserData::getPermissionsAsStrings, (a, b) -> a));
+                .collect(Collectors.toMap(UserData::getId, permissionRegistry::registeredNames, (a, b) -> a));
     }
 
     /**
@@ -544,6 +546,8 @@ public class AdminService {
             changes.add("revoked " + join(revoked));
         }
         if (changes.isEmpty()) {
+            // A stored grant nothing registers any more still goes, unreported as in difference().
+            user.getPermissions().retainAll(permissions);
             return ResultJson.success("No access changes for user " + provider + "/" + loginName + ".");
         }
 
@@ -558,20 +562,17 @@ public class AdminService {
         return result;
     }
 
-    private EnumSet<Permission> parsePermissions(List<String> permissions) {
-        var parsed = EnumSet.noneOf(Permission.class);
-        permissions.forEach(permission -> parsed.add(parsePermission(permission)));
-        return parsed;
+    private Set<Permission> parsePermissions(List<String> permissions) {
+        return permissions.stream().map(this::parsePermission).collect(Collectors.toSet());
     }
 
-    // Not EnumSet.copyOf: that throws on an empty non-EnumSet collection, which both arguments can
-    // be. Nulls are filtered because PermissionConverter reads an unknown stored value as one, and
-    // EnumSet rejects them.
-    private EnumSet<Permission> difference(Collection<Permission> from, Collection<Permission> without) {
-        var result = EnumSet.noneOf(Permission.class);
-        from.stream().filter(Objects::nonNull).forEach(result::add);
-        result.removeAll(without);
-        return result;
+    // Registry order, so the log message lists permissions the way the UI does. Stored permissions
+    // nothing registers any more are not reported.
+    private List<Permission> difference(Collection<Permission> from, Collection<Permission> without) {
+        return permissionRegistry.all().stream()
+                .map(PermissionInfo::permission)
+                .filter(p -> from.contains(p) && !without.contains(p))
+                .toList();
     }
 
     private String join(Collection<Permission> permissions) {
@@ -750,14 +751,6 @@ public class AdminService {
             removedExtensionCount++;
         }
 
-        // Remove customer memberships. The customer and its rate-limit tokens are organisation-level
-        // and shared, so they are retained.
-        var removedCustomerMembershipCount = 0;
-        for (var customerMembership : repositories.findCustomerMemberships(user)) {
-            entityManager.remove(customerMembership);
-            removedCustomerMembershipCount++;
-        }
-
         // Personal access tokens are no longer referenced by extension versions, so they can
         // always be deleted outright.
         var deletedTokenCount = 0;
@@ -766,7 +759,7 @@ public class AdminService {
             deletedTokenCount++;
         }
 
-        // Namespace and customer memberships are already fully removed above. If nothing else in
+        // Namespace memberships are already fully removed above. If nothing else in
         // the database still refers to this user either, delete the row outright instead of
         // anonymizing it.
         //
@@ -807,8 +800,7 @@ public class AdminService {
                 "Forgot user " + tombstoneLogin
                         + (canDeleteUser ? ": deleted user record, deleted " : ": deleted ")
                         + removedExtensionCount + " extensions, removed "
-                        + removedMembershipCount + " namespace memberships, removed "
-                        + removedCustomerMembershipCount + " customer memberships, deleted "
+                        + removedMembershipCount + " namespace memberships, deleted "
                         + deletedTokenCount + " tokens.");
         logs.logAction(admin, result);
         return result;
@@ -885,7 +877,8 @@ public class AdminService {
      * forget or revoke every admin in turn and leave nobody able to grant access back.
      */
     private void checkMayStripAccessOf(UserData target, UserData caller) {
-        var targetHasAccess = target.getRole() != null || !target.getPermissions().isEmpty();
+        var targetHasAccess = target.getRole() != null
+                || target.getPermissions().stream().anyMatch(permissionRegistry::isRegistered);
         if (targetHasAccess && !UserData.Role.ADMIN.equals(caller.getRole())) {
             throw new ErrorResultException(
                     "Administration role is required to act on a user who has a role or permissions.",
@@ -912,15 +905,8 @@ public class AdminService {
     }
 
     private Permission parsePermission(String permission) {
-        Permission parsed;
-        try {
-            // null for a null name, rather than throwing - a null entry in the JSON list has to be
-            // rejected here or it reaches EnumSet.add and surfaces as a 500.
-            parsed = Permission.valueOfIgnoreCase(permission);
-        } catch (IllegalArgumentException ignored) {
-            parsed = null;
-        }
-        if (parsed == null) {
+        var parsed = permission == null || permission.isBlank() ? null : Permission.of(permission);
+        if (parsed == null || !permissionRegistry.isRegistered(parsed)) {
             throw new ErrorResultException("Invalid permission: " + permission, HttpStatus.BAD_REQUEST);
         }
         return parsed;
