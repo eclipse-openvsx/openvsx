@@ -11,6 +11,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - `publish` prints the exact byte counts next to the friendly sizes of a size limit, so a package one byte over its limit no longer reads as "1 MB exceeds the size limit of 1 MB" (#2392)
 - `publish --trusted-publishing` asks the registry which audience its ID token must carry, so trusted publishing works on a registry whose configured audience is not its URL (#2391)
 - `publish --trusted-publishing` only sends its ID token to a registry reached over https, apart from a loopback address, and a failed registry version lookup is no longer remembered (#2391)
+- `search` reports an invalid `--size` or `--offset` value as a usage error instead of crashing with a stack trace (#2414)
 
 ### Removed
 
