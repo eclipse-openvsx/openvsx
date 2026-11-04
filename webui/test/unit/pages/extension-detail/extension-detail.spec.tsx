@@ -111,4 +111,58 @@ describe('ExtensionDetail', () => {
             expect(handleError).toHaveBeenCalledWith(failure, { title: 'Couldn’t load the extension' })
         );
     });
+
+    describe('target platform in the URL', () => {
+        const renderDetail = (route: string) => {
+            // Left pending: the loaded page needs a ResizeObserver, and only the request is under test.
+            const getExtensionDetail = vi.fn(() => new Promise<Extension>(() => {}));
+            const getExtensionApiUrl = vi.fn(() => 'https://open-vsx.org/api/foo/bar');
+            renderWithProviders(
+                <Routes>
+                    <Route path={ExtensionDetailRoutes.MAIN} element={<ExtensionDetail />} />
+                </Routes>,
+                {
+                    route,
+                    mainContext: {
+                        service: { getExtensionDetail, getExtensionApiUrl } as unknown as ExtensionRegistryService,
+                        pageSettings: { elements: {}, urls: {} } as PageSettings
+                    }
+                }
+            );
+            return { getExtensionApiUrl };
+        };
+
+        it('loads the extension for the platform of a tab URL', () => {
+            const { getExtensionApiUrl } = renderDetail('/extension/foo/bar/linux-x64/reviews');
+
+            expect(getExtensionApiUrl).toHaveBeenCalledWith({
+                namespace: 'foo',
+                name: 'bar',
+                target: 'linux-x64',
+                version: undefined
+            });
+        });
+
+        it('loads the platform and version of a versioned URL', () => {
+            const { getExtensionApiUrl } = renderDetail('/extension/foo/bar/linux-x64/1.0.0');
+
+            expect(getExtensionApiUrl).toHaveBeenCalledWith({
+                namespace: 'foo',
+                name: 'bar',
+                target: 'linux-x64',
+                version: '1.0.0'
+            });
+        });
+
+        it('reads a segment that is not a platform as the version', () => {
+            const { getExtensionApiUrl } = renderDetail('/extension/foo/bar/1.0.0');
+
+            expect(getExtensionApiUrl).toHaveBeenCalledWith({
+                namespace: 'foo',
+                name: 'bar',
+                target: undefined,
+                version: '1.0.0'
+            });
+        });
+    });
 });

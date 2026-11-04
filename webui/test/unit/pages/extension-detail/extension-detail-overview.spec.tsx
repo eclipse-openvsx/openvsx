@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useLocation } from 'react-router';
 import { ExtensionDetailOverview } from '../../../../src/pages/extension-detail/extension-detail-overview';
 import { Extension } from '../../../../src/extension-registry-types';
 import { renderWithProviders } from '../../support/test-providers';
@@ -41,6 +42,8 @@ const extension = (overrides: Partial<Extension> = {}): Extension =>
 
 const renderOverview = (overrides: Partial<Extension> = {}) =>
     renderWithProviders(<ExtensionDetailOverview extension={extension(overrides)} selectVersion={() => {}} />);
+
+const CurrentPath = () => <span data-testid='path'>{useLocation().pathname}</span>;
 
 const platformRow = (name: string): HTMLElement =>
     screen.getAllByRole('listitem').find(row => within(row).queryByText(name)) as HTMLElement;
@@ -90,6 +93,26 @@ describe('ExtensionDetailOverview', () => {
         await userEvent.hover(info);
 
         expect(await screen.findByRole('tooltip')).toHaveTextContent(/installed size is larger/i);
+    });
+
+    it('keeps the target platform when switching to another version alias', async () => {
+        renderWithProviders(
+            <>
+                <CurrentPath />
+                <ExtensionDetailOverview
+                    extension={extension({
+                        allVersions: { latest: 'https://example.com/latest', 'pre-release': 'https://example.com/pre' },
+                        versionAlias: ['latest']
+                    })}
+                    target='linux-x64'
+                    selectVersion={() => {}}
+                />
+            </>
+        );
+
+        await userEvent.click(await screen.findByRole('button', { name: 'pre-release' }));
+
+        expect(screen.getByTestId('path')).toHaveTextContent('/extension/foo/bar/linux-x64/pre-release');
     });
 
     it('shows no info icon when no size is shown', async () => {

@@ -33,6 +33,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - A failed review post or removal, token revocation or user search no longer leaves its spinner running
 - An expired session no longer leaves the UI logged in and failing every request until the page is reloaded: a 401 the registry confirms is the end of the session logs the user out and asks them to log in again, back to the page they were on, which needs a registry that answers 401 when nobody is logged in; any other 401 is reported as an error
 - The extension details show no latest version, instead of a removed one, for an extension the registry no longer serves ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
+- Extension URLs with a target platform, such as `/extension/foo/bar/linux-x64/reviews`, load that platform's extension and keep it in the tab, version and alias links instead of showing "Extension Not Found"; `ExtensionDetailRoutes.Parameters.TARGET` is now a plain `:target` param, since React Router has no regex params (#2426)
 
 ### Removed
 

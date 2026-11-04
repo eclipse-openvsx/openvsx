@@ -11,13 +11,13 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { createRoute, getTargetPlatforms } from '../../utils';
+import { createRoute } from '../../utils';
 
 export namespace ExtensionDetailRoutes {
     export namespace Parameters {
         export const NAMESPACE = ':namespace';
         export const NAME = ':name';
-        export const TARGET = `:target(${getTargetPlatforms().join('|')})`;
+        export const TARGET = ':target';
     }
 
     export const ROOT = 'extension';

@@ -23,9 +23,9 @@ import {
     decomposeColor
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { Link as RouteLink, Route, Routes, useNavigate, useParams } from 'react-router';
+import { Link as RouteLink, useNavigate, useParams } from 'react-router';
 import { MainContext } from '../../context';
-import { createRoute, formatCompactNumber } from '../../utils';
+import { createRoute, formatCompactNumber, getTargetPlatforms } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { ExtensionIcon } from '../../components/extension/extension-icon';
 import { HoverPopover } from '../../components/hover-popover';
@@ -76,6 +76,13 @@ const TAB_VALUES = new Set<string>(Object.values(ExtensionTab));
 const isTabSegment = (segment?: string): segment is ExtensionTab => TAB_VALUES.has(segment ?? '');
 
 const parseTab = (segment?: string): ExtensionTab => (isTabSegment(segment) ? segment : ExtensionTab.OVERVIEW);
+
+// React Router has no regex params, so the target platform is read off the front of the splat.
+const parseSplat = (splat?: string): { target?: string; version?: string } => {
+    const segments = splat ? splat.split('/') : [];
+    const target = getTargetPlatforms().includes(segments[0]) ? segments.shift() : undefined;
+    return { target, version: segments.join('/') || undefined };
+};
 
 const buildExtensionPath = (namespace: string, name: string, target?: string, ...extra: string[]) => {
     const arr = [ExtensionDetailRoutes.ROOT, namespace, name];
@@ -405,12 +412,12 @@ const ExtensionHeader: FunctionComponent<{
 };
 
 export const ExtensionDetail: FunctionComponent = () => {
-    const { namespace, name, target, '*': splat } = useParams();
+    const { namespace, name, '*': splat } = useParams();
 
     const navigate = useNavigate();
     const { pageSettings } = useContext(MainContext);
 
-    const version = splat || undefined;
+    const { target, version } = parseSplat(splat);
     const effectiveVersion = isTabSegment(version) ? undefined : version;
     const activeTab = parseTab(version);
 
@@ -537,25 +544,15 @@ export const ExtensionDetail: FunctionComponent = () => {
                             />
                         </PillTabs>
                         <Box sx={{ pt: 2 }}>
-                            <Routes>
-                                <Route
-                                    path={ExtensionTab.REVIEWS}
-                                    element={<ExtensionDetailReviews extension={extension} />}
+                            {activeTab === ExtensionTab.REVIEWS && <ExtensionDetailReviews extension={extension} />}
+                            {activeTab === ExtensionTab.CHANGES && <ExtensionDetailChanges extension={extension} />}
+                            {activeTab === ExtensionTab.OVERVIEW && (
+                                <ExtensionDetailOverview
+                                    extension={extension}
+                                    target={target}
+                                    selectVersion={navigateToVersion}
                                 />
-                                <Route
-                                    path={ExtensionTab.CHANGES}
-                                    element={<ExtensionDetailChanges extension={extension} />}
-                                />
-                                <Route
-                                    path='*'
-                                    element={
-                                        <ExtensionDetailOverview
-                                            extension={extension}
-                                            selectVersion={navigateToVersion}
-                                        />
-                                    }
-                                />
-                            </Routes>
+                            )}
                         </Box>
                     </PageContainer>
                 </>
