@@ -42,6 +42,8 @@ class UserDataJooqRepositoryTest extends AbstractPostgresContainerTest {
         var prefix = UUID.randomUUID().toString();
         persistUser(prefix + "-plain", null);
         persistUser(prefix + "-admin", UserData.Role.ADMIN);
+        persistUser(prefix + "-admin-granted", UserData.Role.ADMIN, Permission.MANAGE_SCANS);
+        persistUser(prefix + "-privileged", UserData.Role.PRIVILEGED, Permission.MANAGE_SCANS);
         persistUser(prefix + "-scans", null, Permission.MANAGE_SCANS);
         persistUser(prefix + "-both", null, Permission.MANAGE_SCANS, Permission.MANAGE_CACHES);
         em.flush();
@@ -49,8 +51,8 @@ class UserDataJooqRepositoryTest extends AbstractPostgresContainerTest {
         var found = repo.findUsers(prefix, null, "any", Pageable.ofSize(10));
 
         assertThat(found.getContent()).extracting(UserData::getLoginName)
-                .containsExactly(prefix + "-both", prefix + "-scans");
-        assertThat(found.getTotalElements()).isEqualTo(2);
+                .containsExactly(prefix + "-both", prefix + "-privileged", prefix + "-scans");
+        assertThat(found.getTotalElements()).isEqualTo(3);
     }
 
     @Test

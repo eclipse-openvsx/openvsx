@@ -85,8 +85,8 @@ public class UserDataJooqRepository {
             }
         }
 
-        // Matches individually granted permissions only: ADMIN holds every permission implicitly
-        // and has no rows in user_data_permission.
+        // Individually granted permissions only: ADMIN holds every permission implicitly, and any
+        // grants stored alongside the role are ignored, so admins never match.
         if (StringUtils.isNotBlank(permission)) {
             var granted = DSL.selectOne()
                     .from(USER_DATA_PERMISSION)
@@ -95,6 +95,7 @@ public class UserDataJooqRepository {
                 granted = granted.and(USER_DATA_PERMISSION.PERMISSION.eq(permission));
             }
             conditions.add(DSL.exists(granted));
+            conditions.add(DSL.lower(USER_DATA.ROLE).isDistinctFrom("admin"));
         }
 
         if (StringUtils.isNotBlank(search)) {

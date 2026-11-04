@@ -306,10 +306,19 @@ export const AccessControl: FunctionComponent = () => {
                                             <Typography variant='caption' color='text.secondary' noWrap>
                                                 {user.fullName || '—'}
                                             </Typography>
+                                            {user.permissions?.length ? (
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                                    {user.permissions.map(permission => (
+                                                        <Chip
+                                                            key={permission}
+                                                            label={permission}
+                                                            size='small'
+                                                            variant='outlined'
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            ) : null}
                                         </Box>
-                                        {user.permissions?.map(permission => (
-                                            <Chip key={permission} label={permission} size='small' variant='outlined' />
-                                        ))}
                                         {user.role ? (
                                             <Chip
                                                 icon={roleIcon(user.role)}
