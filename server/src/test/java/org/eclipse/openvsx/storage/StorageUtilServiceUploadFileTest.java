@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.util.stream.Stream;
 
 import jakarta.persistence.EntityManager;
+import org.hibernate.Session;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -35,6 +36,8 @@ import org.eclipse.openvsx.util.TempFile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -117,6 +120,7 @@ class StorageUtilServiceUploadFileTest {
 
         // Ingestion will count this download from the access logs, so the request path must not.
         verify(entityManager, never()).find(any(), any());
+        verify(repositories, never()).increaseDownloadCount(anyLong(), anyInt());
         verify(ingestionProcessor, never()).captureDownload(any());
     }
 
@@ -130,7 +134,7 @@ class StorageUtilServiceUploadFileTest {
 
         newService(disabledSource(FileResource.STORAGE_AWS)).increaseDownloadCount(resource);
 
-        assertThat(extension.getDownloadCount()).isEqualTo(1);
+        verify(repositories).increaseDownloadCount(extension.getId(), 1);
         verify(ingestionProcessor).captureDownload(resource);
     }
 
@@ -142,7 +146,7 @@ class StorageUtilServiceUploadFileTest {
 
         newService(enabledSource(FileResource.STORAGE_AWS)).increaseDownloadCount(resource);
 
-        assertThat(extension.getDownloadCount()).isEqualTo(1);
+        verify(repositories).increaseDownloadCount(extension.getId(), 1);
     }
 
     @Test
@@ -169,6 +173,7 @@ class StorageUtilServiceUploadFileTest {
         extensionVersion.setExtension(extension);
         resource.setExtension(extensionVersion);
         when(entityManager.find(FileResource.class, resource.getId())).thenReturn(resource);
+        when(entityManager.unwrap(Session.class)).thenReturn(mock(Session.class));
         return extension;
     }
 

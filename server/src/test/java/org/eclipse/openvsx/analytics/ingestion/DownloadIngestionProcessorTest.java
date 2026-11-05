@@ -15,7 +15,9 @@ package org.eclipse.openvsx.analytics.ingestion;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +30,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
@@ -42,6 +45,7 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.storage.StorageUtilService;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -67,12 +71,17 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
     @Autowired
     PlatformTransactionManager transactionManager;
 
+    @Autowired
+    StorageUtilService storageUtil;
+
     @MockitoSpyBean
     RepositoryService repositories;
 
     private final List<Object> seededEntities = new CopyOnWriteArrayList<>();
 
     private long seededVersionId;
+
+    private FileResource seededResource;
 
     @AfterEach
     void cleanUp() {
@@ -328,6 +337,53 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
         assertEquals(0, freshDownloadCount(extension.getId()));
     }
 
+    @Test
+    void testConcurrentCounterIncreasesAreNotLost() {
+        var extension = seedExtension("proc8", "proc8.ext-1.0.0.vsix");
+
+        var extensions = inTransaction(() -> {
+            // loads the counter before the concurrent ingestion below commits its increase
+            entityManager.find(Extension.class, extension.getId());
+            runInNewTransaction(() -> processor.increaseDownloadCounts(Map.of(extension.getId(), 5)));
+            return processor.increaseDownloadCounts(Map.of(extension.getId(), 3));
+        });
+
+        assertEquals(8, freshDownloadCount(extension.getId()));
+        // the returned entities feed the search index, so they must carry the committed count too
+        assertEquals(8, extensions.get(0).getDownloadCount());
+    }
+
+    @Test
+    void testConcurrentRequestPathDownloadsAreNotLost() {
+        var extension = seedExtension("proc11", "proc11.ext-1.0.0.vsix");
+        var resource = seededResource;
+
+        runInTransaction(() -> {
+            // loads the counter before the concurrent download below commits its increase
+            var managed = entityManager.find(FileResource.class, resource.getId());
+            managed.getExtension().getExtension().getDownloadCount();
+            runInNewTransaction(() -> storageUtil.increaseDownloadCount(resource));
+            storageUtil.increaseDownloadCount(managed);
+        });
+
+        assertEquals(2, freshDownloadCount(extension.getId()));
+    }
+
+    @Test
+    void testIncreasesEveryExtensionOfTheBatch() {
+        var first = seedExtension("proc9", "proc9.ext-1.0.0.vsix");
+        var second = seedExtension("proc10", "proc10.ext-1.0.0.vsix");
+
+        var extensions = inTransaction(
+                () -> processor.increaseDownloadCounts(Map.of(first.getId(), 2, second.getId(), 7)));
+
+        assertEquals(2, freshDownloadCount(first.getId()));
+        assertEquals(7, freshDownloadCount(second.getId()));
+        assertEquals(
+                Map.of(first.getId(), 2, second.getId(), 7),
+                extensions.stream().collect(Collectors.toMap(Extension::getId, Extension::getDownloadCount)));
+    }
+
     private long countIngestions() {
         return inTransaction(
                 () -> entityManager.createQuery("select count(i) from DownloadIngestion i", Long.class)
@@ -377,6 +433,7 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
             resource.setStorageType(FileResource.STORAGE_AWS);
             resource.setExtension(extVersion);
             entityManager.persist(resource);
+            seededResource = resource;
 
             seededEntities.addAll(List.of(namespace, extension, publisher, extVersion, resource));
             return extension;
@@ -392,6 +449,12 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
 
     private <T> T inTransaction(java.util.function.Supplier<T> action) {
         return new TransactionTemplate(transactionManager).execute(status -> action.get());
+    }
+
+    private void runInNewTransaction(Runnable action) {
+        var template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.executeWithoutResult(status -> action.run());
     }
 
     @TestConfiguration
