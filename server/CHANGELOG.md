@@ -14,6 +14,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `GET /admin/api/permissions` lists the permissions a deployment registers
+- `GET /admin/user/search` takes a `permission` parameter, a permission name or `any`, to list users granted it individually; admins are not matched ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
 
 ### Changed
 

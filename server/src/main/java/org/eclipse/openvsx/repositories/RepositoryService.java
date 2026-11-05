@@ -504,8 +504,8 @@ public class RepositoryService {
         return userDataRepo.count();
     }
 
-    public Page<UserData> searchUsers(String search, String role, Pageable pageable) {
-        return userDataJooqRepo.findUsers(search, role, pageable);
+    public Page<UserData> searchUsers(String search, String role, Collection<String> permissions, Pageable pageable) {
+        return userDataJooqRepo.findUsers(search, role, permissions, pageable);
     }
 
     public NamespaceMembership findMembership(UserData user, Namespace namespace) {
