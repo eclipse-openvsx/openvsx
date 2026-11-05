@@ -197,14 +197,14 @@ class TrustedPublishingPendingRegistrationTest {
 
     private void bindOnRefresh(TrustedPublisher publisher, String repositoryId) {
         doAnswer(invocation -> {
-                    var claims = new java.util.HashMap<>(publisher.getClaims());
-                    claims.put("repository_id", repositoryId);
-                    claims.put("repository_owner_id", "7");
-                    publisher.setClaims(claims);
-                    publisher.setRegistrationCodeHash(null);
-                    publisher.setRegistrationCodeExpiry(null);
-                    return null;
-                })
+            var claims = new java.util.HashMap<>(publisher.getClaims());
+            claims.put("repository_id", repositoryId);
+            claims.put("repository_owner_id", "7");
+            publisher.setClaims(claims);
+            publisher.setRegistrationCodeHash(null);
+            publisher.setRegistrationCodeExpiry(null);
+            return null;
+        })
                 .when(entityManager)
                 .refresh(eq(publisher), any(LockModeType.class));
     }
