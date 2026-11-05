@@ -38,6 +38,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 - Remove `fetch-retry`; the query client owns retries
 - Bump dompurify from 3.4.16 to 3.4.17 (#2379)
 - Upgrade `yarn` from 4.9.1 to 4.18.1 and set `npmMinimalAgeGate` to 7 days, so versions published in the last 7 days are not picked for new resolutions (#2393)
+- Bump qs from 6.16.0 to 6.17.1 (#2429)
 
 ## [1.3.0] - 2026-10-16
 
