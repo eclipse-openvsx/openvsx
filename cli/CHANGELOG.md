@@ -17,6 +17,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - `publish --trusted-publishing` only sends its ID token to a registry reached over https, apart from a loopback address, and a failed registry version lookup is no longer remembered (#2391)
 - `search` reports an invalid `--size` or `--offset` value as a usage error instead of crashing with a stack trace (#2414)
 - `verify-pat`, `unpublish` and `create-namespace` only store a prompted personal access token once the registry accepts it, so a mistyped token is no longer reused on every later run until `logout` (#2427)
+- `publish` to several targets or packages shows its prompts one at a time, offering the license once per package and asking for the token once per namespace, instead of opening a prompt for each target on the same terminal (#2434)
 
 ### Removed
 
