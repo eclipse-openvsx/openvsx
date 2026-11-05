@@ -34,11 +34,13 @@ This change log covers only the frontend library (webui) of Open VSX.
 - A failed review post or removal, token revocation or user search no longer leaves its spinner running
 - An expired session no longer leaves the UI logged in and failing every request until the page is reloaded: a 401 the registry confirms is the end of the session logs the user out and asks them to log in again, back to the page they were on, which needs a registry that answers 401 when nobody is logged in; any other 401 is reported as an error
 - The extension details show no latest version, instead of a removed one, for an extension the registry no longer serves ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
+- An extension URL with a target platform, `/extension/<namespace>/<name>/<platform>/...`, redirects to the same URL without the platform instead of showing "Extension Not Found" (#2433)
 
 ### Removed
 
 - `sendNonRetriableRequest`, `controllerFromSignal` and the `abortController` field of `ServerAPIRequest`: use `sendRequest` with `signal`, and pass a `queryFn`'s `signal` straight to the service
 - The Rate Limiting admin pages (tiers, customers, usage stats), the user-settings Rate Limiting tab, the `manage_rate_limits` permission and the tier, customer, usage and rate limit token methods and types of `ExtensionRegistryService`: a deployment adds such pages through `PageSettings.elements.adminPages` and `userSettingsTabs`
+- **Breaking:** `ExtensionDetailRoutes.MAIN_TARGET`, `LATEST_TARGET`, `PRE_RELEASE_TARGET`, `REVIEWS_TARGET`, `CHANGES_TARGET` and `Parameters.TARGET`, whose regex parameter never matched under React Router v6 (#2433)
 
 ### Dependencies
 
