@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.entities.ExtensionScan;
@@ -34,6 +35,10 @@ import org.eclipse.openvsx.repositories.ScanCheckResultRepository;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -115,6 +120,37 @@ class ExtensionScanPersistenceServiceTest {
         job.setScanId(String.valueOf(scan.getId()));
         job.setScannerType("ARGUS");
         return job;
+    }
+
+    @Test
+    void completeScannerJob_savesTheJobBeforeItsThreats() {
+        var scan = new ExtensionScan();
+        scan.setId(1L);
+        when(repositories.findExtensionScan(1L)).thenReturn(scan);
+        var job = jobFor(scan);
+        var result = Scanner.Result.withThreats(List.of(new Scanner.Threat("rule", "desc", "HIGH")));
+
+        var outcome = svc.completeScannerJob(job, result, true, LocalDateTime.now());
+
+        assertThat(outcome.checkResult()).isEqualTo(ScanCheckResult.CheckResult.QUARANTINE);
+        var inOrder = inOrder(scannerJobRepository, repositories);
+        inOrder.verify(scannerJobRepository).saveAndFlush(job);
+        inOrder.verify(repositories).saveExtensionThreat(any());
+    }
+
+    @Test
+    void completeScannerJob_versionConflictPropagatesAndSavesNoThreats() {
+        var scan = new ExtensionScan();
+        scan.setId(1L);
+        var job = jobFor(scan);
+        var result = Scanner.Result.withThreats(List.of(new Scanner.Threat("rule", "desc", "HIGH")));
+        when(scannerJobRepository.saveAndFlush(job))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
+
+        assertThatThrownBy(() -> svc.completeScannerJob(job, result, true, LocalDateTime.now()))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+
+        verify(repositories, never()).saveExtensionThreat(any());
     }
 
     @Test

@@ -124,6 +124,11 @@ public class ScanJob extends TableImpl<ScanJobRecord> {
      */
     public final TableField<ScanJobRecord, String> FILE_HASHES_JSON = createField(DSL.name("file_hashes_json"), SQLDataType.CLOB, this, "Stores filename→hash mapping for async scanners with file extraction. Used to look up hashes when results come back later.");
 
+    /**
+     * The column <code>public.scan_job.version</code>.
+     */
+    public final TableField<ScanJobRecord, Long> VERSION = createField(DSL.name("version"), SQLDataType.BIGINT.nullable(false).defaultValue(DSL.field(DSL.raw("0"), SQLDataType.BIGINT)), this, "");
+
     private ScanJob(Name alias, Table<ScanJobRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
     }

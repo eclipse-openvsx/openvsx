@@ -77,6 +77,10 @@ public class ScannerJob {
     @SequenceGenerator(name = "scanJobSeq", sequenceName = "scan_job_seq")
     private long id;
 
+    // Optimistic lock: a save based on a stale read fails instead of overwriting a newer verdict
+    @Version
+    private long version;
+
     // Links multiple scan jobs together for one extension scan
     // All scan jobs for a single extension version upload share the same scanId
     @Column(nullable = false)
@@ -150,6 +154,10 @@ public class ScannerJob {
 
     public void setId(long id) {
         this.id = id;
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     public String getScanId() {
