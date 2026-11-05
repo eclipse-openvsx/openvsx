@@ -39,6 +39,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 - Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
+- Force the transitive `guava` (from `google-cloud-storage`) from 33.5.0 to 33.7.2, fixing uncontrolled memory allocation when deserializing Guava's compact hash collections
 
 ## [1.3.2] - 2026-10-27
 
