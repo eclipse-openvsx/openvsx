@@ -17,8 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +30,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
@@ -45,6 +45,7 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.repositories.DownloadAnalyticsRepository;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.storage.StorageUtilService;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -70,12 +71,17 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
     @Autowired
     PlatformTransactionManager transactionManager;
 
+    @Autowired
+    StorageUtilService storageUtil;
+
     @MockitoSpyBean
     RepositoryService repositories;
 
     private final List<Object> seededEntities = new CopyOnWriteArrayList<>();
 
     private long seededVersionId;
+
+    private FileResource seededResource;
 
     @AfterEach
     void cleanUp() {
@@ -332,37 +338,35 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
     }
 
     @Test
-    void testConcurrentCounterIncreasesAreNotLost() throws InterruptedException {
+    void testConcurrentCounterIncreasesAreNotLost() {
         var extension = seedExtension("proc8", "proc8.ext-1.0.0.vsix");
 
-        var staleLoaded = new CountDownLatch(1);
-        var otherCommitted = new CountDownLatch(1);
-        var staleResult = new AtomicReference<List<Extension>>();
-        var staleFailure = new AtomicReference<Throwable>();
-        var stale = new Thread(() -> {
-            try {
-                staleResult.set(inTransaction(() -> {
-                    // loads the counter before the concurrent ingestion below commits its increase
-                    entityManager.find(Extension.class, extension.getId());
-                    staleLoaded.countDown();
-                    await(otherCommitted);
-                    return processor.increaseDownloadCounts(Map.of(extension.getId(), 3));
-                }));
-            } catch (Throwable t) {
-                staleFailure.set(t);
-            }
+        var extensions = inTransaction(() -> {
+            // loads the counter before the concurrent ingestion below commits its increase
+            entityManager.find(Extension.class, extension.getId());
+            runInNewTransaction(() -> processor.increaseDownloadCounts(Map.of(extension.getId(), 5)));
+            return processor.increaseDownloadCounts(Map.of(extension.getId(), 3));
         });
-        stale.start();
-        staleLoaded.await();
 
-        processor.increaseDownloadCounts(Map.of(extension.getId(), 5));
-        otherCommitted.countDown();
-        stale.join();
-
-        assertNull(staleFailure.get());
         assertEquals(8, freshDownloadCount(extension.getId()));
         // the returned entities feed the search index, so they must carry the committed count too
-        assertEquals(8, staleResult.get().get(0).getDownloadCount());
+        assertEquals(8, extensions.get(0).getDownloadCount());
+    }
+
+    @Test
+    void testConcurrentRequestPathDownloadsAreNotLost() {
+        var extension = seedExtension("proc11", "proc11.ext-1.0.0.vsix");
+        var resource = seededResource;
+
+        runInTransaction(() -> {
+            // loads the counter before the concurrent download below commits its increase
+            var managed = entityManager.find(FileResource.class, resource.getId());
+            managed.getExtension().getExtension().getDownloadCount();
+            runInNewTransaction(() -> storageUtil.increaseDownloadCount(resource));
+            storageUtil.increaseDownloadCount(managed);
+        });
+
+        assertEquals(2, freshDownloadCount(extension.getId()));
     }
 
     @Test
@@ -375,16 +379,9 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
 
         assertEquals(2, freshDownloadCount(first.getId()));
         assertEquals(7, freshDownloadCount(second.getId()));
-        assertEquals(List.of(first.getId(), second.getId()), extensions.stream().map(Extension::getId).toList());
-        assertEquals(List.of(2, 7), extensions.stream().map(Extension::getDownloadCount).toList());
-    }
-
-    private void await(CountDownLatch latch) {
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        assertEquals(
+                Map.of(first.getId(), 2, second.getId(), 7),
+                extensions.stream().collect(Collectors.toMap(Extension::getId, Extension::getDownloadCount)));
     }
 
     private long countIngestions() {
@@ -436,6 +433,7 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
             resource.setStorageType(FileResource.STORAGE_AWS);
             resource.setExtension(extVersion);
             entityManager.persist(resource);
+            seededResource = resource;
 
             seededEntities.addAll(List.of(namespace, extension, publisher, extVersion, resource));
             return extension;
@@ -451,6 +449,12 @@ class DownloadIngestionProcessorTest extends AbstractPostgresContainerTest {
 
     private <T> T inTransaction(java.util.function.Supplier<T> action) {
         return new TransactionTemplate(transactionManager).execute(status -> action.get());
+    }
+
+    private void runInNewTransaction(Runnable action) {
+        var template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.executeWithoutResult(status -> action.run());
     }
 
     @TestConfiguration

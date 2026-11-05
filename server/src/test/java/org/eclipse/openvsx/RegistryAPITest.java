@@ -29,6 +29,7 @@ import java.util.zip.ZipOutputStream;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.persistence.EntityManager;
 import org.apache.commons.lang3.ArrayUtils;
+import org.hibernate.Session;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
@@ -3411,6 +3412,7 @@ class RegistryAPITest {
         resource.setType(FileResource.DOWNLOAD);
         resource.setStorageType(STORAGE_LOCAL);
         Mockito.when(entityManager.find(FileResource.class, resource.getId())).thenReturn(resource);
+        Mockito.when(entityManager.unwrap(Session.class)).thenReturn(Mockito.mock(Session.class));
         Mockito.when(repositories.findFileByType("foo", "bar", "universal", "latest", FileResource.DOWNLOAD))
                 .thenReturn(resource);
 

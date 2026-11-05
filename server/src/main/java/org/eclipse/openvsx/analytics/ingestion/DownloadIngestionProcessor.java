@@ -424,8 +424,10 @@ public class DownloadIngestionProcessor {
     public List<Extension> increaseDownloadCounts(Map<Long, Integer> extensionDownloads) {
         return Observation.createNotStarted("DownloadIngestionProcessor#increaseDownloadCounts", observations)
                 .observe(() -> {
-                    var extensions = repositories.findExtensionsForUpdate(extensionDownloads.keySet());
+                    // the counters are written through jOOQ, which Hibernate does not flush ahead of
+                    entityManager.flush();
                     var counts = repositories.increaseDownloadCounts(extensionDownloads);
+                    var extensions = repositories.findExtensions(counts.keySet()).toList();
                     var session = entityManager.unwrap(Session.class);
                     extensions.forEach(extension -> {
                         // read-only, so the new count reaches the search index without being flushed back

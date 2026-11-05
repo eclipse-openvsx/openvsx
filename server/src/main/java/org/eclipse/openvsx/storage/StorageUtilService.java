@@ -24,6 +24,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
+import org.hibernate.Session;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
@@ -370,9 +371,16 @@ public class StorageUtilService implements IStorageService {
 
         var managedResource = entityManager.find(FileResource.class, resource.getId());
         var extension = managedResource.getExtension().getExtension();
-        repositories.increaseDownloadCount(extension, 1);
-        // picks up the new count for the search index, and keeps the stale one from being flushed
-        entityManager.refresh(extension);
+        // the counter is written through jOOQ, which Hibernate does not flush ahead of
+        entityManager.flush();
+        var downloadCount = repositories.increaseDownloadCount(extension.getId(), 1);
+        if (downloadCount == null) {
+            // deleted concurrently
+            return;
+        }
+        // read-only, so the new count reaches the search index without being flushed back
+        entityManager.unwrap(Session.class).setReadOnly(extension, true);
+        extension.setDownloadCount(downloadCount);
         ingestionProcessor.captureDownload(managedResource);
 
         cache.evictNamespaceDetails(extension);
