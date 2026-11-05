@@ -114,7 +114,7 @@ const RegistrationCodeNotice: FunctionComponent<{ publisher: TrustedPublisher }>
                 {publisher.registrationCodeExpiry ? (
                     <>
                         {' '}
-                        and expires <Timestamp value={publisher.registrationCodeExpiry} />
+                        and expires <Timestamp value={publisher.registrationCodeExpiry} isFutureTime />
                     </>
                 ) : null}
                 .

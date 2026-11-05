@@ -105,7 +105,7 @@ describe('RegisterTrustedPublisherDialog', () => {
         const pending = trustedPublisher({
             pending: true,
             registrationCode: 'one-time-code',
-            registrationCodeExpiry: '2026-11-12T10:00:00.000Z'
+            registrationCodeExpiry: new Date(Date.now() + 7 * 86_400_000).toISOString()
         });
         const { onClose, onRegistered } = renderDialog({}, vi.fn().mockResolvedValue(pending));
         await fillRequiredFields(ue);
@@ -114,6 +114,7 @@ describe('RegisterTrustedPublisherDialog', () => {
 
         expect(await screen.findByLabelText('Registration code')).toHaveValue('one-time-code');
         expect(screen.getByText(/will not be shown again/)).toBeInTheDocument();
+        expect(screen.getByText('in 7 days')).toBeInTheDocument();
         expect(onRegistered).toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
 

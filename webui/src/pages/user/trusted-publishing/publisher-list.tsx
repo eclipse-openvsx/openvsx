@@ -132,7 +132,10 @@ export const PublisherList: FunctionComponent<PublisherListProps> = props => {
                                                         {publisher.registrationCodeExpiry ? (
                                                             <>
                                                                 , valid until{' '}
-                                                                <Timestamp value={publisher.registrationCodeExpiry} />
+                                                                <Timestamp
+                                                                    value={publisher.registrationCodeExpiry}
+                                                                    isFutureTime
+                                                                />
                                                             </>
                                                         ) : null}
                                                     </>

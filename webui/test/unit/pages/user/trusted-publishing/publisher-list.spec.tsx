@@ -43,7 +43,7 @@ describe('PublisherList', () => {
     });
 
     it('marks a pending registration and says when its code has expired', () => {
-        const future = new Date(Date.now() + 86_400_000).toISOString();
+        const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
         const past = new Date(Date.now() - 86_400_000).toISOString();
         renderWithProviders(
             <PublisherList
@@ -60,6 +60,7 @@ describe('PublisherList', () => {
 
         expect(screen.getAllByText(/Pending:/)).toHaveLength(2);
         expect(screen.getByText(/completes with the first publish/)).toBeInTheDocument();
+        expect(screen.getByText('in 3 days')).toBeInTheDocument();
         expect(screen.getByText(/registration code has expired/)).toBeInTheDocument();
     });
 
