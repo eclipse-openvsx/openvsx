@@ -43,7 +43,8 @@ export async function unpublish(options: UnpublishOptions = {}): Promise<void> {
     const registry = new Registry(options);
     await ensureUnpublishSupported(registry);
 
-    options.pat = await getPAT(namespace, { ...options, namespace }, false);
+    const { pat, save } = await getPAT(namespace, { ...options, namespace }, false);
+    options.pat = pat;
 
     const targetVersions = getTargetVersions(options);
     await confirmUnpublish(`${namespace}.${extension}`, targetVersions, registry.url, options.force);
@@ -52,6 +53,7 @@ export async function unpublish(options: UnpublishOptions = {}): Promise<void> {
     if (result.error) {
         throw new Error(result.error);
     }
+    await save();
     // the registry reports one line per deleted version, and nothing at all if there was nothing to delete
     console.log(`🗑  ${result.success || `Nothing to delete for ${namespace}.${extension}`}`);
 }

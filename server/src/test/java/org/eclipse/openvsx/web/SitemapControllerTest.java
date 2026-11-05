@@ -77,6 +77,12 @@ class SitemapControllerTest {
     @Import(SecurityConfig.class)
     static class TestConfig {
         @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
+        @Bean
         OAuth2UserServices oauth2UserServices(
                 UserService users,
                 OAuth2AttributesConfig attributesConfig

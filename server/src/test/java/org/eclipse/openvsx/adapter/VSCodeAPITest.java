@@ -1635,6 +1635,12 @@ class VSCodeAPITest {
     @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class })
     static class TestConfig {
         @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
+        @Bean
         IExtensionQueryRequestHandler extensionQueryRequestHandler(
                 LocalVSCodeService localVSCodeService,
                 UpstreamVSCodeService upstream

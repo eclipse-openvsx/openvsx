@@ -38,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.eclipse.openvsx.accesstoken.AccessTokenService;
+import org.eclipse.openvsx.admin.PermissionRegistry;
 import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionVersion;
@@ -45,11 +46,9 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.NamespaceMembership;
 import org.eclipse.openvsx.entities.PersonalAccessTokenType;
 import org.eclipse.openvsx.entities.ScanStatus;
-import org.eclipse.openvsx.entities.UsageStats;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.AccessTokenJson;
 import org.eclipse.openvsx.json.CsrfTokenJson;
-import org.eclipse.openvsx.json.CustomerJson;
 import org.eclipse.openvsx.json.ErrorJson;
 import org.eclipse.openvsx.json.ExtensionJson;
 import org.eclipse.openvsx.json.LoginProvidersJson;
@@ -58,7 +57,6 @@ import org.eclipse.openvsx.json.NamespaceJson;
 import org.eclipse.openvsx.json.NamespaceMembershipListJson;
 import org.eclipse.openvsx.json.ResultJson;
 import org.eclipse.openvsx.json.TargetPlatformVersionJson;
-import org.eclipse.openvsx.json.UsageStatsListJson;
 import org.eclipse.openvsx.json.UserJson;
 import org.eclipse.openvsx.publisheragreement.PublisherAgreementService;
 import org.eclipse.openvsx.repositories.RepositoryService;
@@ -69,7 +67,6 @@ import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.NamingUtil;
 import org.eclipse.openvsx.util.NotFoundException;
-import org.eclipse.openvsx.util.TimeUtil;
 import org.eclipse.openvsx.util.UrlUtil;
 
 import static org.eclipse.openvsx.entities.FileResource.CHANGELOG;
@@ -95,6 +92,7 @@ public class UserAPI {
     private final StorageUtilService storageUtil;
     private final LocalRegistryService local;
     private final ExtensionService extensions;
+    private final PermissionRegistry permissionRegistry;
 
     public UserAPI(
             RepositoryService repositories,
@@ -103,7 +101,8 @@ public class UserAPI {
             PublisherAgreementService publisherAgreements,
             StorageUtilService storageUtil,
             LocalRegistryService local,
-            ExtensionService extensions
+            ExtensionService extensions,
+            PermissionRegistry permissionRegistry
     ) {
         this.repositories = repositories;
         this.users = users;
@@ -112,6 +111,7 @@ public class UserAPI {
         this.storageUtil = storageUtil;
         this.local = local;
         this.extensions = extensions;
+        this.permissionRegistry = permissionRegistry;
     }
 
     @GetMapping(
@@ -149,7 +149,7 @@ public class UserAPI {
     }
 
     /**
-     * This endpoint is used to check whether there is a logged-in user. For this reason, it does not return a 403
+     * This endpoint is used to check whether there is a logged-in user. For this reason, it does not return a 401
      * status, but an OK status with JSON body when no user data is available. This is to avoid unnecessary network
      * error logging in the browser console.
      */
@@ -165,7 +165,7 @@ public class UserAPI {
         var json = user.toUserJson();
         var serverUrl = UrlUtil.getBaseUrl();
         json.setRole(user.getRoleAsString());
-        json.setPermissions(user.getPermissionsAsStrings());
+        json.setPermissions(permissionRegistry.registeredNames(user));
         json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
         json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
         publisherAgreements.enrichUserJson(json, user);
@@ -190,7 +190,7 @@ public class UserAPI {
     public List<AccessTokenJson> getAccessTokens() {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         var serverUrl = UrlUtil.getBaseUrl();
         return repositories.findActivePersonalAccessTokensAndType(user, PersonalAccessTokenType.LONG_LIVED)
@@ -221,7 +221,7 @@ public class UserAPI {
         }
         var user = users.findLoggedInUser();
         if (user == null) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
 
         if (namespace == null && extension != null) {
@@ -266,7 +266,7 @@ public class UserAPI {
     public ResponseEntity<ResultJson> deleteAccessToken(@PathVariable long id) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -285,7 +285,7 @@ public class UserAPI {
      * {@link #getOwnExtension}). The list includes inactive and removed (soft-deleted) versions of
      * the extensions that do qualify.
      *
-     * @return {@code 200 OK} with the list of extensions, or {@code 403 Forbidden} if not logged in
+     * @return {@code 200 OK} with the list of extensions, or {@code 401 Unauthorized} if not logged in
      */
     @GetMapping(
         path = "/user/extensions",
@@ -294,7 +294,7 @@ public class UserAPI {
     public List<ExtensionJson> getOwnExtensions() {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         // Restrict to namespaces the user is currently a member of: a user who left a namespace must
@@ -458,7 +458,7 @@ public class UserAPI {
      *
      * @param namespaceName the namespace of the extension
      * @param extensionName the extension name
-     * @return {@code 200 OK} with the extension, {@code 403 Forbidden} if not logged in, or
+     * @return {@code 200 OK} with the extension, {@code 401 Unauthorized} if not logged in, or
      *         {@code 404 Not Found} if the caller is not a namespace member or the extension does
      *         not exist
      */
@@ -472,7 +472,7 @@ public class UserAPI {
     ) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -487,7 +487,11 @@ public class UserAPI {
                 throw new ErrorResultException(error, HttpStatus.NOT_FOUND);
             }
 
-            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            // The version the registry serves as latest, or else the newest of the removed or inactive ones.
+            var latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, true);
+            if (latest == null) {
+                latest = repositories.findLatestVersion(namespaceName, extensionName, null, false, false);
+            }
 
             ExtensionJson json;
             if (latest != null) {
@@ -521,7 +525,7 @@ public class UserAPI {
     ) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         try {
             // The authorization (namespace membership, owner vs. member) is shared with the
@@ -544,7 +548,7 @@ public class UserAPI {
     public List<NamespaceJson> getOwnNamespaces() {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         return repositories.findMemberships(user).map(membership -> {
@@ -582,7 +586,7 @@ public class UserAPI {
     public ResponseEntity<ResultJson> updateNamespaceDetails(@RequestBody NamespaceDetailsJson details) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -609,7 +613,7 @@ public class UserAPI {
     ) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -627,7 +631,7 @@ public class UserAPI {
     public ResponseEntity<NamespaceMembershipListJson> getNamespaceMembers(@PathVariable String name) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
 
         var memberships = repositories.findMembershipsForOwner(user, name);
@@ -655,7 +659,7 @@ public class UserAPI {
     ) {
         var requestingUser = users.findLoggedInUser();
         if (requestingUser == null) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
         try {
             var json = users.setNamespaceMember(requestingUser, namespace, provider, user, role);
@@ -666,66 +670,16 @@ public class UserAPI {
     }
 
     @GetMapping(
-        path = "/user/customers",
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public List<CustomerJson> getOwnCustomers() {
-        var user = users.findLoggedInUser();
-        if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-
-        return repositories.findCustomerMemberships(user).map(membership -> membership.getCustomer().toUserJson())
-                .toList();
-    }
-
-    @GetMapping(
-        path = "/user/customers/{name}/usage",
-        produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<UsageStatsListJson> getOwnUsageStats(
-            @PathVariable String name,
-            @RequestParam(required = false) String date
-    ) {
-        try {
-            var user = users.findLoggedInUser();
-            if (user == null) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-            }
-
-            var customer = repositories.findCustomer(name);
-            if (customer == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            var membership = repositories.findCustomerMembership(user, customer);
-            if (membership == null) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-            }
-
-            var localDateTime = date != null ? TimeUtil.fromUTCString(date) : TimeUtil.getCurrentUTC();
-            var stats = repositories.findUsageStatsByCustomerAndDate(customer, localDateTime);
-            var dailyStats = repositories.findDailyUsageStats(customer, localDateTime.toLocalDate());
-            var dailyP95 = dailyStats != null ? dailyStats.getP95Requests() : null;
-            var result = new UsageStatsListJson(stats.stream().map(UsageStats::toJson).toList(), dailyP95);
-            return ResponseEntity.ok(result);
-        } catch (Exception exc) {
-            logger.error("failed retrieving usage stats", exc);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping(
         path = "/user/search/{name}",
         produces = MediaType.APPLICATION_JSON_VALUE
     )
     public List<UserJson> getUsersStartWith(@PathVariable String name) {
         if (users.findLoggedInUser() == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         var pageable = Pageable.ofSize(5);
-        return repositories.searchUsers(name, null, pageable).stream()
+        return repositories.searchUsers(name, null, null, pageable).stream()
                 .map(UserData::toUserJson)
                 .toList();
     }
@@ -738,13 +692,13 @@ public class UserAPI {
     public ResponseEntity<UserJson> signPublisherAgreement() {
         var user = users.findLoggedInUser();
         if (user == null) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
         try {
             var json = user.toUserJson();
             var serverUrl = UrlUtil.getBaseUrl();
             json.setRole(user.getRoleAsString());
-            json.setPermissions(user.getPermissionsAsStrings());
+            json.setPermissions(permissionRegistry.registeredNames(user));
             json.setTokensUrl(createApiUrl(serverUrl, "user", "tokens"));
             json.setCreateTokenUrl(createApiUrl(serverUrl, "user", "token", "create"));
             publisherAgreements.sign(user, json);

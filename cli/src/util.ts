@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as http from 'http';
+import { InvalidArgumentError } from 'commander';
 import { RegistryOptions } from './registry-options';
 import { TrustedPublishingOptions } from './trusted-publishing-options';
 
@@ -66,7 +67,8 @@ function parseBooleanEnv(value?: string): boolean | undefined {
 export function parseNonNegativeInt(value: string): number {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 0) {
-        throw new Error(`Expected a non-negative whole number, got '${value}'.`);
+        // Commander prints only this error type as a usage message; anything else escapes as a stack trace.
+        throw new InvalidArgumentError(`Expected a non-negative whole number, got '${value}'.`);
     }
     return parsed;
 }

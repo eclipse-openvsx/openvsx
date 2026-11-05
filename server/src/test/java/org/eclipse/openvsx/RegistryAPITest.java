@@ -2645,7 +2645,7 @@ class RegistryAPITest {
                         .content(reviewJson(r -> {
                             r.setRating(3);
                         })).with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -2726,7 +2726,7 @@ class RegistryAPITest {
     @Test
     void testDeleteReviewNotLoggedIn() throws Exception {
         mockMvc.perform(post("/api/{namespace}/{extension}/review/delete", "foo", "bar").with(csrf()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -3914,6 +3914,12 @@ class RegistryAPITest {
     @TestConfiguration
     @Import({ SecurityConfig.class, MockMvcAsyncConfig.class })
     static class TestConfig {
+        @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
         @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();

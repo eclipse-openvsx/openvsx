@@ -35,8 +35,7 @@ by table count, so unrelated tables - e.g. spring_session - don't confuse it):
     the app against it), run 'flyway migrate' (no -target) yourself once this script is done.
     This migrate also applies server/src/dev/resources/db/migration (the 'dev' Gradle source
     set's own migrations, normally only applied by running the app locally that way) alongside
-    the main ones, so e.g. V1_62_1's rate-limit tier/customer seed data ends up present too, the
-    same as a real local dev run would have it. The one exception is the 'super_user' /
+    the main ones, the same as a real local dev run would have it. The one exception is the 'super_user' /
     'super_token' seed (V1_0_1 + V1_1_1): it touches user_data/personal_access_token, so the
     DELETE+import below wipes it regardless of having run - deliberately not reseeded afterwards
     (its own migrations' hardcoded id isn't guaranteed free in real dump data, and it's not worth
@@ -181,9 +180,7 @@ target_psql() {
 # --- Migrate the TARGET itself (not the scratch container) directly to a given Flyway version,
 # for the "target is empty" case below. Includes the dev migrations (see DEV_MIGRATIONS_DIR above)
 # alongside the main ones, if that directory exists, so a fresh target ends up the same way
-# running the app locally would have left it - including e.g. V1_62_1's rate-limit tier/customer
-# seed data, which isn't part of any of these 10 dump tables so survives the import step untouched.
-# The one exception is V1_0_1/V1_1_1's 'super_user' seed, which DOES touch two of these 10 tables
+# running the app locally would have left it. The one exception is V1_0_1/V1_1_1's 'super_user' seed, which DOES touch two of these 10 tables
 # (user_data, personal_access_token) and so gets wiped by the DELETE+import below regardless of
 # having been applied here - deliberately left that way, not reseeded afterwards.
 target_flyway_migrate() {

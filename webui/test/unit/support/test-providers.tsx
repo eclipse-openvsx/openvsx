@@ -15,7 +15,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import { ComponentType, FunctionComponent, ReactElement, ReactNode } from 'react';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@mui/material/styles';
 import { InitialEntry, MemoryRouter } from 'react-router';
 import { render, renderHook, RenderHookOptions, RenderOptions } from '@testing-library/react';
@@ -28,10 +28,10 @@ import { ViewportObserver, ViewportObserverContext } from '../../../src/context/
 import { allInViewObserver } from './viewport';
 
 /**
- * The app's provider stack for tests. It reuses the real `AppProviders` (query
- * client, MainContext, keyboard shortcuts, search) so tests track the app
- * automatically, and adds the entry-shell bits `AppProviders` doesn't own — the
- * MUI theme and a router. Use it whenever a component or hook under test reads
+ * The app's provider stack for tests. It reuses the real `AppProviders`
+ * (MainContext, keyboard shortcuts, search) so tests track the app
+ * automatically, and adds the bits `AppProviders` doesn't own — a query client,
+ * the MUI theme and a router. Use it whenever a component or hook under test reads
  * any of those. It's a real `MemoryRouter`, so drive history navigation with the
  * `useNavigate()` from the hook under test — `navigate(-1)` / `navigate(1)` are POPs.
  */
@@ -113,11 +113,9 @@ export function TestProviders({
 }: ProviderOptions & { children: ReactNode }) {
     return (
         <TestEntryShell route={route} viewport={viewport}>
-            <AppProviders
-                mainContext={mainContextValue(mainContext)}
-                queryClient={queryClient ?? createTestQueryClient()}>
-                {children}
-            </AppProviders>
+            <QueryClientProvider client={queryClient ?? createTestQueryClient()}>
+                <AppProviders mainContext={mainContextValue(mainContext)}>{children}</AppProviders>
+            </QueryClientProvider>
         </TestEntryShell>
     );
 }

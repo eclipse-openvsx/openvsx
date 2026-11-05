@@ -33,6 +33,8 @@ export async function verifyPat(options: VerifyPatOptions): Promise<void> {
         }
     }
 
-    options.pat = await getPAT(options.namespace, options, false);
+    const { pat, save } = await getPAT(options.namespace, options, false);
+    options.pat = pat;
     await doVerifyPat(options);
+    await save();
 }

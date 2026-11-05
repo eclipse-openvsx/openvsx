@@ -161,6 +161,18 @@ class UserAPITest {
         Mockito.verify(publisherAgreements).enrichUserJson(any(), eq(userData));
     }
 
+    @Test
+    void testLoggedInOmitsAPermissionNoProviderRegisters() throws Exception {
+        var userData = mockUserData();
+        userData.getPermissions().add(Permission.MANAGE_SCANS);
+        userData.getPermissions().add(Permission.of("manage_rate_limits"));
+
+        mockMvc.perform(get("/user"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions.length()").value(1))
+                .andExpect(jsonPath("$.permissions[0]").value("manage_scans"));
+    }
+
     // What signing does besides answering, such as reactivating extensions, is the service's, tested there.
     @Test
     void testSignPublisherAgreement() throws Exception {
@@ -223,10 +235,17 @@ class UserAPITest {
     }
 
     @Test
+    void testCsrfTokenNotLoggedIn() throws Exception {
+        // not a handler's own answer: the security filter chain refuses it
+        mockMvc.perform(get("/user/csrf"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void testAccessTokensNotLoggedIn() throws Exception {
         mockAccessTokens();
         mockMvc.perform(get("/user/tokens"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -371,7 +390,7 @@ class UserAPITest {
         mockMvc.perform(
                 post("/user/token/create?description={description}", "This is my token")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -398,7 +417,7 @@ class UserAPITest {
         mockMvc.perform(
                 post("/user/token/delete/{id}", 100)
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -463,7 +482,7 @@ class UserAPITest {
     void testOwnNamespacesNotLoggedIn() throws Exception {
         mockOwnMemberships();
         mockMvc.perform(get("/user/namespaces"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -508,7 +527,7 @@ class UserAPITest {
         var userData = mockUserData();
         mockExtension(userData, 1, 0, 0);
         mockMvc.perform(get("/user/extensions"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -593,6 +612,30 @@ class UserAPITest {
                 .andExpect(content().json("{\"name\":\"baz\",\"namespace\":\"foobar\"}"))
                 .andExpect(jsonPath("$.allTargetPlatformVersions[0].canDelete").value(true))
                 .andExpect(jsonPath("$.allTargetPlatformVersions[1].canDelete").value(true));
+    }
+
+    @Test
+    void testGetOwnExtensionShowsTheServedLatestVersionOverARemovedHigherOne() throws Exception {
+        var userData = mockUserData();
+        var versions = mockExtension(userData, 2, 0, 0);
+        var served = versions.getFirst();
+        var removed = versions.getLast();
+        served.setId(41L);
+        removed.setId(42L);
+        removed.setActive(false);
+        removed.setRemoved(true);
+        Mockito.when(repositories.isNamespaceOwner(any(UserData.class), any(Namespace.class))).thenReturn(true);
+        Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(true)))
+                .thenReturn(served);
+        Mockito.when(repositories.findLatestVersion(eq("foobar"), eq("baz"), any(), eq(false), eq(false)))
+                .thenReturn(removed);
+        Mockito.when(storageUtil.getFiles(Mockito.anyCollection(), Mockito.any(String[].class)))
+                .thenReturn(java.util.Map.of(41L, java.util.List.of()));
+        mockMvc.perform(
+                get("/user/extension/{namespace}/{extension}", "foobar", "baz")
+                        .with(user("test_user")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value("1.0.0"));
     }
 
     @Test
@@ -743,7 +786,7 @@ class UserAPITest {
     @Test
     void testGetOwnExtensionNotLoggedIn() throws Exception {
         mockMvc.perform(get("/user/extension/{namespace}/{extension}", "foobar", "baz"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -769,7 +812,7 @@ class UserAPITest {
     void testNamespaceMembersNotLoggedIn() throws Exception {
         mockNamespaceMemberships(NamespaceMembership.ROLE_OWNER);
         mockMvc.perform(get("/user/namespace/{name}/members", "foobar"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -824,7 +867,7 @@ class UserAPITest {
                         "other_user",
                         "contributor")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -973,7 +1016,7 @@ class UserAPITest {
         mockMvc.perform(
                 post("/user/extension/{namespace}/{extension}/delete", "foobar", "baz")
                         .with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -1361,6 +1404,12 @@ class UserAPITest {
     @TestConfiguration
     @Import(SecurityConfig.class)
     static class TestConfig {
+        @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
         @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();

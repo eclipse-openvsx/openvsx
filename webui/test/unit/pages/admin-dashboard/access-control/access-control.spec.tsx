@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { renderWithProviders } from '../../../support/test-providers';
@@ -22,7 +22,10 @@ import { ExtensionRegistryService, AdminService } from '../../../../../src/exten
 import { UserSearchResult } from '../../../../../src/extension-registry-types';
 
 function serviceWith(users: UserSearchResult): ExtensionRegistryService {
-    const admin = { getUsers: vi.fn().mockResolvedValue(users) } as unknown as AdminService;
+    const admin = {
+        getUsers: vi.fn().mockResolvedValue(users),
+        getPermissions: vi.fn().mockResolvedValue([{ value: 'manage_extensions', label: 'Manage extensions' }])
+    } as unknown as AdminService;
     return { serverUrl: 'https://open-vsx.org', admin } as ExtensionRegistryService;
 }
 
@@ -64,7 +67,7 @@ describe('AccessControl', () => {
         renderAccessControl(serviceWith(OCTOCAT), 'octocat');
 
         expect(await screen.findByRole('button', { name: 'Admin' })).toBeInTheDocument();
-        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
     });
 
     // Dropping the selection unmounts the details card and takes the draft with it, so it has to be
@@ -106,6 +109,39 @@ describe('AccessControl', () => {
         expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
     });
 
+    it('sends the chosen permission filter to the server and lists granted permissions as chips', async () => {
+        const withPermission: UserSearchResult = {
+            ...OCTOCAT,
+            content: [{ ...OCTOCAT.content[0], user: { ...OCTOCAT.content[0].user, permissions: ['manage_scans'] } }]
+        };
+        const getUsers = vi.fn().mockResolvedValue(withPermission);
+        const service = {
+            serverUrl: 'https://open-vsx.org',
+            admin: {
+                getUsers,
+                getPermissions: vi.fn().mockResolvedValue([
+                    { value: 'manage_extensions', label: 'Manage extensions' },
+                    { value: 'manage_scans', label: 'Manage scans' }
+                ])
+            } as unknown as AdminService
+        } as ExtensionRegistryService;
+        renderAccessControl(service, 'octocat');
+        await screen.findByRole('checkbox', { name: 'Manage extensions' });
+
+        await userEvent.click(screen.getByRole('combobox', { name: 'Filter by permission' }));
+        await userEvent.click(await screen.findByRole('option', { name: 'Manage scans' }));
+
+        await waitFor(() =>
+            expect(getUsers).toHaveBeenLastCalledWith(
+                expect.anything(),
+                expect.objectContaining({ permission: 'manage_scans' })
+            )
+        );
+
+        await userEvent.click(screen.getByPlaceholderText('Search by login or display name...'));
+        expect(await within(await screen.findByRole('listbox')).findByText('Manage scans')).toBeInTheDocument();
+    });
+
     // A short or stale deep link substring-matches nearly every account, so without a cap this
     // walks the entire registry a page at a time, showing an empty placeholder throughout.
     it('gives up after a few pages when a deep link matches no exact login', async () => {
@@ -128,7 +164,10 @@ describe('AccessControl', () => {
         });
         const service = {
             serverUrl: 'https://open-vsx.org',
-            admin: { getUsers } as unknown as AdminService
+            admin: {
+                getUsers,
+                getPermissions: vi.fn().mockResolvedValue([{ value: 'manage_extensions', label: 'Manage extensions' }])
+            } as unknown as AdminService
         } as ExtensionRegistryService;
 
         renderAccessControl(service, 'ghost');
@@ -153,7 +192,7 @@ describe('AccessControl', () => {
         await userEvent.click(await screen.findByRole('option', { name: /octocat/ }));
 
         expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
-        expect(screen.getByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeChecked();
     });
 
     it('drops a selection with no unsaved changes without asking', async () => {
