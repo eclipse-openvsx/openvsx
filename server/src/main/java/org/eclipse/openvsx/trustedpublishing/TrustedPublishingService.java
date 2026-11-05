@@ -385,7 +385,8 @@ public class TrustedPublishingService {
     /**
      * Binds a pending registration to the IDs of the verified token, if the code it was registered with is
      * presented in time. The code works once: the row is locked and re-read, so of two concurrent exchanges
-     * only one binds it.
+     * only one binds it and the other one is
+     * accepted only if its token matches what was bound.
      */
     private TrustedPublisher bindPending(
             TrustedPublisher publisher,
@@ -394,7 +395,16 @@ public class TrustedPublishingService {
             String registrationCode
     ) {
         entityManager.refresh(publisher, LockModeType.PESSIMISTIC_WRITE);
-        if (!publisher.isPending() || isExpiredPending(publisher)) {
+        if (!publisher.isPending()) {
+            // a concurrent exchange bound it first: that is fine for a token with the same IDs
+            if (provider.matches(publisher.getClaims(), claims)) {
+                return publisher;
+            }
+            throw new ErrorResultException(
+                    "No trusted publisher matches the presented token.",
+                    HttpStatus.FORBIDDEN);
+        }
+        if (isExpiredPending(publisher)) {
             throw new ErrorResultException(
                     "The registration code of this trusted publisher has expired. Register it again.",
                     HttpStatus.FORBIDDEN);

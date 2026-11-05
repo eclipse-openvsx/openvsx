@@ -20,6 +20,7 @@ import java.util.Optional;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -166,6 +169,44 @@ class TrustedPublishingPendingRegistrationTest {
         verify(tokens).createTrustedPublishingAccessToken(any(), anyString(), any(), any());
         // listings never show the code again
         assertThat(publisher.toJson().getRegistrationCode()).isNull();
+    }
+
+    @Test
+    void acceptsAMatchingExchangeThatLostTheBindingRace() {
+        var publisher = register();
+        bindOnRefresh(publisher, "42");
+
+        service.requestPublishToken(NAMESPACE, EXTENSION, idToken, publisher.getRegistrationCode());
+
+        verify(tokens).createTrustedPublishingAccessToken(any(), anyString(), any(), any());
+    }
+
+    @Test
+    void rejectsAConflictingExchangeThatLostTheBindingRace() {
+        var publisher = register();
+        var code = publisher.getRegistrationCode();
+        bindOnRefresh(publisher, "99");
+
+        assertThatThrownBy(() -> service.requestPublishToken(NAMESPACE, EXTENSION, idToken, code))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+        assertThat(publisher.getClaims()).containsEntry("repository_id", "99");
+        verify(tokens, never()).createTrustedPublishingAccessToken(any(), anyString(), any(), any());
+    }
+
+    private void bindOnRefresh(TrustedPublisher publisher, String repositoryId) {
+        doAnswer(invocation -> {
+                    var claims = new java.util.HashMap<>(publisher.getClaims());
+                    claims.put("repository_id", repositoryId);
+                    claims.put("repository_owner_id", "7");
+                    publisher.setClaims(claims);
+                    publisher.setRegistrationCodeHash(null);
+                    publisher.setRegistrationCodeExpiry(null);
+                    return null;
+                })
+                .when(entityManager)
+                .refresh(eq(publisher), any(LockModeType.class));
     }
 
     @Test
