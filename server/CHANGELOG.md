@@ -9,6 +9,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Added
 
 - Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
+- **Upgrade:** migration `V1_86` creates the `pg_trgm` extension, which the database owner can do since PostgreSQL 13, and the `name_similarity_allow` table; `V1_87` builds trigram indexes on `extension` and `extension_version` that block writes to them while building and give up after waiting 5 s for a lock, so to avoid the pause create them `CONCURRENTLY` beforehand as `V1_87` describes
 
 ### Fixed
 

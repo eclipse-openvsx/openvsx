@@ -27,6 +27,7 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
 import org.eclipse.openvsx.jooq.tables.MigrationItem;
+import org.eclipse.openvsx.jooq.tables.NameSimilarityAllow;
 import org.eclipse.openvsx.jooq.tables.Namespace;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.NamespaceSocialLinks;
@@ -166,6 +167,11 @@ public class Public extends SchemaImpl {
     public final MigrationItem MIGRATION_ITEM = MigrationItem.MIGRATION_ITEM;
 
     /**
+     * The table <code>public.name_similarity_allow</code>.
+     */
+    public final NameSimilarityAllow NAME_SIMILARITY_ALLOW = NameSimilarityAllow.NAME_SIMILARITY_ALLOW;
+
+    /**
      * The table <code>public.namespace</code>.
      */
     public final Namespace NAMESPACE = Namespace.NAMESPACE;
@@ -271,6 +277,7 @@ public class Public extends SchemaImpl {
             Sequences.FILE_RESOURCE_SEQ,
             Sequences.HIBERNATE_SEQUENCE,
             Sequences.MIGRATION_ITEM_SEQ,
+            Sequences.NAME_SIMILARITY_ALLOW_SEQ,
             Sequences.NAMESPACE_MEMBERSHIP_SEQ,
             Sequences.NAMESPACE_SEQ,
             Sequences.PERSISTED_LOG_SEQ,
@@ -308,6 +315,7 @@ public class Public extends SchemaImpl {
             FileDecision.FILE_DECISION,
             FileResource.FILE_RESOURCE,
             MigrationItem.MIGRATION_ITEM,
+            NameSimilarityAllow.NAME_SIMILARITY_ALLOW,
             Namespace.NAMESPACE,
             NamespaceMembership.NAMESPACE_MEMBERSHIP,
             NamespaceSocialLinks.NAMESPACE_SOCIAL_LINKS,

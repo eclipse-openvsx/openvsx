@@ -16,6 +16,7 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersion;
 import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
+import org.eclipse.openvsx.jooq.tables.NameSimilarityAllow;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.PersistedLog;
 import org.eclipse.openvsx.jooq.tables.PublisherAgreementEvent;
@@ -78,6 +79,9 @@ public class Indexes {
     public static final Index IDX_VALIDATION_FAILURE_DETECTED_AT = Internal.createIndex(DSL.name("idx_validation_failure_detected_at"), ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE, new OrderField[] { ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE.DETECTED_AT }, false);
     public static final Index IDX_VALIDATION_FAILURE_SCAN = Internal.createIndex(DSL.name("idx_validation_failure_scan"), ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE, new OrderField[] { ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE.SCAN_ID }, false);
     public static final Index IDX_VALIDATION_FAILURE_VALIDATION_TYPE = Internal.createIndex(DSL.name("idx_validation_failure_validation_type"), ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE, new OrderField[] { ExtensionValidationFailure.EXTENSION_VALIDATION_FAILURE.VALIDATION_TYPE }, false);
+    public static final Index NAME_SIMILARITY_ALLOW_DECIDED_BY_IDX = Internal.createIndex(DSL.name("name_similarity_allow_decided_by_idx"), NameSimilarityAllow.NAME_SIMILARITY_ALLOW, new OrderField[] { NameSimilarityAllow.NAME_SIMILARITY_ALLOW.DECIDED_BY_ID }, false);
+    public static final Index NAME_SIMILARITY_ALLOW_EXTENSION_IDX = Internal.createIndex(DSL.name("name_similarity_allow_extension_idx"), NameSimilarityAllow.NAME_SIMILARITY_ALLOW, new OrderField[] { NameSimilarityAllow.NAME_SIMILARITY_ALLOW.EXTENSION_ID }, false);
+    public static final Index NAME_SIMILARITY_ALLOW_OTHER_EXTENSION_IDX = Internal.createIndex(DSL.name("name_similarity_allow_other_extension_idx"), NameSimilarityAllow.NAME_SIMILARITY_ALLOW, new OrderField[] { NameSimilarityAllow.NAME_SIMILARITY_ALLOW.OTHER_EXTENSION_ID }, false);
     public static final Index NAMESPACE_MEMBERSHIP__NAMESPACE__IDX = Internal.createIndex(DSL.name("namespace_membership__namespace__idx"), NamespaceMembership.NAMESPACE_MEMBERSHIP, new OrderField[] { NamespaceMembership.NAMESPACE_MEMBERSHIP.NAMESPACE }, false);
     public static final Index NAMESPACE_MEMBERSHIP__USER_DATA__IDX = Internal.createIndex(DSL.name("namespace_membership__user_data__idx"), NamespaceMembership.NAMESPACE_MEMBERSHIP, new OrderField[] { NamespaceMembership.NAMESPACE_MEMBERSHIP.USER_DATA }, false);
     public static final Index PERSISTED_LOG__USER_DATA__IDX = Internal.createIndex(DSL.name("persisted_log__user_data__idx"), PersistedLog.PERSISTED_LOG, new OrderField[] { PersistedLog.PERSISTED_LOG.USER_DATA }, false);
