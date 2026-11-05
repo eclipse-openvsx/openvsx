@@ -109,7 +109,7 @@ dependencies {
 
     implementation "io.micrometer:micrometer-tracing"
     implementation "io.micrometer:micrometer-tracing-bridge-otel"
-    implementation "io.opentelemetry:opentelemetry-exporter-zipkin"
+    implementation libs.opentelemetry.exporter.zipkin
 
     implementation libs.commons.lang3
     implementation libs.bouncycastle
