@@ -23,9 +23,9 @@ import {
     decomposeColor
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { Link as RouteLink, Route, Routes, useNavigate, useParams } from 'react-router';
+import { Link as RouteLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { MainContext } from '../../context';
-import { createRoute, formatCompactNumber } from '../../utils';
+import { createRoute, formatCompactNumber, getTargetPlatforms } from '../../utils';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { ExtensionIcon } from '../../components/extension/extension-icon';
 import { HoverPopover } from '../../components/hover-popover';
@@ -77,12 +77,8 @@ const isTabSegment = (segment?: string): segment is ExtensionTab => TAB_VALUES.h
 
 const parseTab = (segment?: string): ExtensionTab => (isTabSegment(segment) ? segment : ExtensionTab.OVERVIEW);
 
-const buildExtensionPath = (namespace: string, name: string, target?: string, ...extra: string[]) => {
-    const arr = [ExtensionDetailRoutes.ROOT, namespace, name];
-    if (target) arr.push(target);
-    arr.push(...extra);
-    return createRoute(arr);
-};
+const buildExtensionPath = (namespace: string, name: string, ...extra: string[]) =>
+    createRoute([ExtensionDetailRoutes.ROOT, namespace, name, ...extra]);
 
 const UnverifiedBanner: FunctionComponent<{
     extension: Extension;
@@ -405,7 +401,18 @@ const ExtensionHeader: FunctionComponent<{
 };
 
 export const ExtensionDetail: FunctionComponent = () => {
-    const { namespace, name, target, '*': splat } = useParams();
+    const { namespace, name, '*': splat } = useParams();
+    const { search, hash } = useLocation();
+    const [platform, ...rest] = splat?.split('/') ?? [];
+    // The page shows no per-platform view, so a platform in the URL is dropped.
+    if (namespace && name && getTargetPlatforms().includes(platform)) {
+        return <Navigate to={{ pathname: buildExtensionPath(namespace, name, ...rest), search, hash }} replace />;
+    }
+    return <ExtensionDetailContent />;
+};
+
+const ExtensionDetailContent: FunctionComponent = () => {
+    const { namespace, name, '*': splat } = useParams();
 
     const navigate = useNavigate();
     const { pageSettings } = useContext(MainContext);
@@ -436,7 +443,7 @@ export const ExtensionDetail: FunctionComponent = () => {
         data: extension,
         error: extensionError,
         isLoading: extensionLoading
-    } = useExtensionDetail(namespace!, name!, target, effectiveVersion);
+    } = useExtensionDetail(namespace!, name!, undefined, effectiveVersion);
 
     // Tab switches keep the scroll position (the effect above adjusts it).
     const goToTab = useCallback((path: string) => navigate(path, { state: { preserveScroll: true } }), [navigate]);
@@ -446,17 +453,17 @@ export const ExtensionDetail: FunctionComponent = () => {
             if (!namespace || !name) return;
             navigate(
                 selectedVersion === 'latest'
-                    ? buildExtensionPath(namespace, name, target)
-                    : buildExtensionPath(namespace, name, target, selectedVersion)
+                    ? buildExtensionPath(namespace, name)
+                    : buildExtensionPath(namespace, name, selectedVersion)
             );
         },
-        [navigate, namespace, name, target]
+        [navigate, namespace, name]
     );
 
     // Computed before the early return so the shortcut hooks below run unconditionally.
-    const basePath = namespace && name ? buildExtensionPath(namespace, name, target) : '';
-    const changesPath = namespace && name ? buildExtensionPath(namespace, name, target, ExtensionTab.CHANGES) : '';
-    const reviewsPath = namespace && name ? buildExtensionPath(namespace, name, target, ExtensionTab.REVIEWS) : '';
+    const basePath = namespace && name ? buildExtensionPath(namespace, name) : '';
+    const changesPath = namespace && name ? buildExtensionPath(namespace, name, ExtensionTab.CHANGES) : '';
+    const reviewsPath = namespace && name ? buildExtensionPath(namespace, name, ExtensionTab.REVIEWS) : '';
 
     useShortcut({
         key: 'o',
@@ -484,9 +491,9 @@ export const ExtensionDetail: FunctionComponent = () => {
 
     let overviewPath = basePath;
     if (version && !isTabSegment(version)) {
-        overviewPath = buildExtensionPath(namespace, name, target, version);
+        overviewPath = buildExtensionPath(namespace, name, version);
     } else if (extension && !extension.versionAlias.includes('latest')) {
-        overviewPath = buildExtensionPath(namespace, name, target, extension.version);
+        overviewPath = buildExtensionPath(namespace, name, extension.version);
     }
 
     const HeadTags = pageSettings.elements.extensionHeadTags;

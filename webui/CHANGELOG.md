@@ -2,6 +2,16 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
+## [next] (unreleased)
+
+### Fixed
+
+- An extension URL with a target platform, `/extension/<namespace>/<name>/<platform>/...`, redirects to the same URL without the platform instead of showing "Extension Not Found" (#2433)
+
+### Removed
+
+- **Breaking:** `ExtensionDetailRoutes.MAIN_TARGET`, `LATEST_TARGET`, `PRE_RELEASE_TARGET`, `REVIEWS_TARGET`, `CHANGES_TARGET` and `Parameters.TARGET`, whose regex parameter never matched under React Router v6 (#2433)
+
 ## [1.4.0] - 2026-11-09
 
 ### Added
