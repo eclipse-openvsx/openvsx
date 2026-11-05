@@ -20,6 +20,7 @@ import java.util.Optional;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -301,6 +303,24 @@ class TrustedPublishingPendingRegistrationTest {
         assertThatThrownBy(() -> service.registerTrustedPublisher(user, NAMESPACE, EXTENSION, "github", REGISTRATION))
                 .isInstanceOf(ErrorResultException.class);
 
+        verify(repositories, never()).deleteTrustedPublisher(any());
+    }
+
+    @Test
+    void failsCleanlyWhenThePendingRegistrationWasDeletedBeforeItWasLocked() {
+        var publisher = register();
+        var code = publisher.getRegistrationCode();
+        doThrow(new EntityNotFoundException()).when(entityManager).refresh(eq(publisher), any(LockModeType.class));
+
+        assertThatThrownBy(() -> service.requestPublishToken(NAMESPACE, EXTENSION, idToken, code))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> service.registerTrustedPublisher(user, NAMESPACE, EXTENSION, "github", REGISTRATION))
+                .isInstanceOfSatisfying(
+                        ErrorResultException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT));
         verify(repositories, never()).deleteTrustedPublisher(any());
     }
 

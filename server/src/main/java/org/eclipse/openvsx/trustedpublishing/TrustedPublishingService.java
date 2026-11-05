@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 import com.nimbusds.jwt.JWTParser;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -175,8 +176,17 @@ public class TrustedPublishingService {
         // a pending registration whose code has expired can never be bound, so registering again replaces it
         var existing = repositories.findTrustedPublishersByExtension(extension).toList();
         // lock them before deciding: an exchange may be binding one right now, and a bound one must not be deleted
-        existing.stream().filter(TrustedPublisher::isPending)
-                .forEach(tp -> entityManager.refresh(tp, LockModeType.PESSIMISTIC_WRITE));
+        for (var tp : existing) {
+            if (tp.isPending()) {
+                try {
+                    entityManager.refresh(tp, LockModeType.PESSIMISTIC_WRITE);
+                } catch (EntityNotFoundException e) {
+                    throw new ErrorResultException(
+                            "The registration changed while registering. Try again.",
+                            HttpStatus.CONFLICT);
+                }
+            }
+        }
         if (existing.stream().anyMatch(tp -> !isExpiredPending(tp))) {
             throw new ErrorResultException("An equivalent trusted publisher is already registered.");
         }
@@ -396,7 +406,12 @@ public class TrustedPublishingService {
             Map<String, String> claims,
             String registrationCode
     ) {
-        entityManager.refresh(publisher, LockModeType.PESSIMISTIC_WRITE);
+        try {
+            entityManager.refresh(publisher, LockModeType.PESSIMISTIC_WRITE);
+        } catch (EntityNotFoundException e) {
+            // deleted since it was read, by the expiry job or its owner
+            throw new ErrorResultException("No trusted publisher matches the presented token.", HttpStatus.FORBIDDEN);
+        }
         if (!publisher.isPending()) {
             // a concurrent exchange bound it first: that is fine for a token with the same IDs
             if (provider.matches(publisher.getClaims(), claims)) {
