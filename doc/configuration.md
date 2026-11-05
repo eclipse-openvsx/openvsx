@@ -141,7 +141,7 @@ answer. Either way the wrong URLs are cached, so flush the caches after fixing i
 | Default       |
 | Compatibility | Since 1.2.0
 
-The absolute URL this registry is served at, e.g. `https://openvsx.example`, or `https://example.com/openvsx` when it is served under a path. Setting it takes the base URL out of the request altogether: the `X-Forwarded-*` headers are ignored, whoever sends them and however the proxies in front are configured, every node in a cluster agrees on what it emits, and the response cache holds one entry per extension rather than one per host that was asked for. Set it on any deployment reachable from the open web.
+The absolute URL this registry is served at, e.g. `https://openvsx.example`, or `https://example.com/openvsx` when it is served under a path. Setting it takes the base URL out of the request altogether: the `X-Forwarded-*` headers are ignored, whoever sends them and however the proxies in front are configured, every node in a cluster agrees on what it emits, and the response cache holds one entry per extension rather than one per host that was asked for. Set it on any deployment reachable from the open web. It is also the base URL of the URLs built outside a request, by background jobs; without it those come out relative.
 
 Empty by default, which derives the base URL from each request and is only as trustworthy as `ovsx.server.trusted-proxies` is correct for the deployment.
 
