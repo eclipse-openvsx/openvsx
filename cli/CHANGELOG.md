@@ -2,6 +2,12 @@
 
 This change log covers only the command line interface (CLI) of Open VSX.
 
+## [next] (unreleased)
+
+### Fixed
+
+- `publish` to several targets or packages shows its prompts one at a time, offering the license once per package and asking for the token once per namespace, instead of opening a prompt for each target on the same terminal (#2434)
+
 ## [1.4.0] - 2026-11-09
 
 ### Added

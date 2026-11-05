@@ -21,11 +21,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVSIX } from '@vscode/vsce';
 import { PACKAGING_OPTIONS, publish } from '../../src/publish';
 import { PublishOptions } from '../../src/publish-options';
+import { Registry } from '../../src/registry';
 import { buildZip } from './support/zip';
 
 // Only the tests below that publish from a source directory reach this; every other one passes an
 // already-packaged file and never packages anything.
 vi.mock('@vscode/vsce', () => ({ createVSIX: vi.fn() }));
+
+const prompts = vi.hoisted(() => ({ password: vi.fn(), select: vi.fn(), input: vi.fn() }));
+vi.mock('@inquirer/prompts', () => prompts);
+
+const store = vi.hoisted(() => ({ get: vi.fn(), add: vi.fn(), delete: vi.fn() }));
+vi.mock('../../src/store', () => ({ openDefaultStore: async () => store }));
+
+// The license is only offered outside CI, and these tests must not depend on where they run.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 interface RecordedRequest {
     pathname: string;
@@ -83,6 +93,9 @@ async function startRegistryStub(
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ maxSize: version.sizeLimit }));
                 }
+            } else if (url.pathname.endsWith('/verify-pat')) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: 'Valid token' }));
             } else if (url.pathname === '/api/-/trusted-publishing/token') {
                 state.tokenRequests++;
                 res.writeHead(201, { 'Content-Type': 'application/json' });
@@ -122,6 +135,8 @@ describe('publish', () => {
 
     afterEach(async () => {
         vi.restoreAllMocks();
+        Object.values(prompts).forEach(prompt => prompt.mockReset());
+        Object.values(store).forEach(method => method.mockReset());
         await Promise.all(stubs.splice(0).map(stub => stub.close()));
         tmpFiles.splice(0).forEach(file => fs.rmSync(file, { force: true }));
     });
@@ -627,6 +642,106 @@ describe('publish', () => {
         expect(results.every(result => result.status === 'fulfilled')).toBe(true);
         expect(registry.publishRequests).toHaveLength(3);
         expect(registry.versionRequests).toBe(1);
+    });
+
+    describe('prompts on the one terminal', () => {
+
+        const dirs: string[] = [];
+
+        afterEach(() => {
+            dirs.splice(0).forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
+        });
+
+        // Stays open long enough for a parallel publish to reach its own prompt, recording how many
+        // prompts were open at once.
+        function givenPrompt(prompt: typeof prompts.password, answer: string): { maxOpen: number } {
+            const state = { open: 0, maxOpen: 0 };
+            prompt.mockImplementation(() => {
+                state.maxOpen = Math.max(state.maxOpen, ++state.open);
+                return new Promise(resolve => setTimeout(() => {
+                    state.open--;
+                    resolve(answer);
+                }, 50));
+            });
+            return state;
+        }
+
+        it('offers the license once for a package published to several targets', async () => {
+            const registry = await givenRegistry();
+            vi.spyOn(Registry.prototype, 'requiresLicense', 'get').mockReturnValue(true);
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ovsx-publish-license-'));
+            dirs.push(dir);
+            fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' }));
+            givenPackaging();
+            const select = givenPrompt(prompts.select, 'yes');
+            givenPrompt(prompts.input, '2026 Jane Doe');
+
+            const results = await publish({
+                packagePath: [dir],
+                pat: 'the.pat',
+                registryUrl: registry.url,
+                targets: ['linux-x64', 'win32-x64', 'darwin-arm64']
+            });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
+            expect(prompts.select).toHaveBeenCalledOnce();
+            expect(prompts.input).toHaveBeenCalledOnce();
+            expect(select.maxOpen).toBe(1);
+        });
+
+        it('fails every target of a package whose license is declined', async () => {
+            const registry = await givenRegistry();
+            vi.spyOn(Registry.prototype, 'requiresLicense', 'get').mockReturnValue(true);
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ovsx-publish-license-'));
+            dirs.push(dir);
+            fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ publisher: 'foo', name: 'bar', version: '1.0.0' }));
+            givenPackaging();
+            givenPrompt(prompts.select, 'no');
+
+            const results = await publish({
+                packagePath: [dir],
+                pat: 'the.pat',
+                registryUrl: registry.url,
+                targets: ['linux-x64', 'win32-x64']
+            });
+
+            expect(results.map(result => result.status)).toEqual(['rejected', 'rejected']);
+            expect(prompts.select).toHaveBeenCalledOnce();
+            expect(vi.mocked(createVSIX)).not.toHaveBeenCalled();
+            expect(registry.publishRequests).toHaveLength(0);
+        });
+
+        it('asks for the token once for every package of one namespace', async () => {
+            const registry = await givenRegistry();
+            const packagePath = await Promise.all([
+                givenVsixFile('foo', 'prompted'),
+                givenVsixFile('foo', 'prompted'),
+                givenVsixFile('foo', 'prompted')
+            ]);
+            store.get.mockResolvedValue(undefined);
+            givenPrompt(prompts.password, 'typed.pat');
+
+            const results = await publish({ packagePath, registryUrl: registry.url });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
+            expect(prompts.password).toHaveBeenCalledOnce();
+            expect(store.add).toHaveBeenCalledOnce();
+            expect(registry.publishRequests.map(request => request.headers.authorization))
+                .toEqual(['Bearer typed.pat', 'Bearer typed.pat', 'Bearer typed.pat']);
+        });
+
+        it('asks for the token of each namespace in turn', async () => {
+            const registry = await givenRegistry();
+            const packagePath = await Promise.all([givenVsixFile('foo', 'first'), givenVsixFile('baz', 'second')]);
+            store.get.mockResolvedValue(undefined);
+            const password = givenPrompt(prompts.password, 'typed.pat');
+
+            const results = await publish({ packagePath, registryUrl: registry.url });
+
+            expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled']);
+            expect(prompts.password).toHaveBeenCalledTimes(2);
+            expect(password.maxOpen).toBe(1);
+        });
     });
 
     // The trusted publishing token is short-lived and shared by every target platform of a release, so
