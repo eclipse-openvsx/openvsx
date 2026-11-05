@@ -48,6 +48,13 @@ import org.springframework.context.annotation.Import;
     }
 )
 @EntityScan("org.eclipse.openvsx.entities")
-@Import({ ExtensionVersionJooqRepository.class, ExtensionJooqRepository.class, UserDataJooqRepository.class })
+@Import(
+    {
+        ExtensionVersionJooqRepository.class,
+        ExtensionJooqRepository.class,
+        UserDataJooqRepository.class,
+        NameSimilarityJooqRepository.class
+    }
+)
 public class JooqOnlyTestConfig {
 }

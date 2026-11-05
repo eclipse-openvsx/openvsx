@@ -91,6 +91,11 @@ public class Sequences {
     public static final Sequence<Long> MIGRATION_ITEM_SEQ = Internal.createSequence("migration_item_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);
 
     /**
+     * The sequence <code>public.name_similarity_allow_seq</code>
+     */
+    public static final Sequence<Long> NAME_SIMILARITY_ALLOW_SEQ = Internal.createSequence("name_similarity_allow_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, null, null, null, false, null);
+
+    /**
      * The sequence <code>public.namespace_membership_seq</code>
      */
     public static final Sequence<Long> NAMESPACE_MEMBERSHIP_SEQ = Internal.createSequence("namespace_membership_seq", Public.PUBLIC, SQLDataType.BIGINT.nullable(false), null, 50, null, null, false, null);

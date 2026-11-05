@@ -4,6 +4,12 @@ This change log covers only the server of Open VSX.
 
 Releases up to and including v1.2.0 were backfilled from the GitHub release notes. Those list every pull request of the repository, so they also contain web UI and CLI changes.
 
+## [next] (unreleased)
+
+### Added
+
+- **Upgrade:** migration `V1_86` creates the `pg_trgm` extension, which the database owner can do since PostgreSQL 13, and the `name_similarity_allow` table; `V1_87` builds trigram indexes on `extension` and `extension_version` that block writes to them while building and give up after waiting 5 s for a lock, so to avoid the pause create them `CONCURRENTLY` beforehand as `V1_87` describes
+
 ## [1.4.0] - 2026-11-09
 
 ### Added
