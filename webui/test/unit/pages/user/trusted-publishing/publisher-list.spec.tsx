@@ -42,6 +42,27 @@ describe('PublisherList', () => {
         expect(screen.getByText('octo/vsx · workflow: release.yml · environment: prod')).toBeInTheDocument();
     });
 
+    it('marks a pending registration and says when its code has expired', () => {
+        const future = new Date(Date.now() + 86_400_000).toISOString();
+        const past = new Date(Date.now() - 86_400_000).toISOString();
+        renderWithProviders(
+            <PublisherList
+                publishers={[
+                    trustedPublisher({ id: 1, pending: true, registrationCodeExpiry: future }),
+                    trustedPublisher({ id: 2, pending: true, registrationCodeExpiry: past }),
+                    trustedPublisher({ id: 3 })
+                ]}
+                providers={providers}
+                loading={false}
+                onDelete={vi.fn()}
+            />
+        );
+
+        expect(screen.getAllByText(/Pending:/)).toHaveLength(2);
+        expect(screen.getByText(/completes with the first publish/)).toBeInTheDocument();
+        expect(screen.getByText(/registration code has expired/)).toBeInTheDocument();
+    });
+
     it('labels rows according to rowDetail', () => {
         const publisher = trustedPublisher();
         const { rerender } = renderWithProviders(

@@ -347,7 +347,7 @@ class TrustedPublishingAPITest {
                     .andExpect(jsonPath("$.error").value("The fields namespace, extension and token are mandatory."));
         }
 
-        verify(trustedPublishing, never()).requestPublishToken(anyString(), anyString(), anyString());
+        verify(trustedPublishing, never()).requestPublishToken(anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -357,7 +357,7 @@ class TrustedPublishingAPITest {
         accessToken.setId(42L);
         accessToken.setValue("the-access-token");
         accessToken.setDescription("Trusted publishing (github)");
-        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token")).thenReturn(accessToken);
+        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token", null)).thenReturn(accessToken);
 
         mockMvc.perform(tokenRequest(tokenRequestBody(NAMESPACE, EXTENSION, "the-token")))
                 .andExpect(status().isCreated())
@@ -371,7 +371,7 @@ class TrustedPublishingAPITest {
 
     @Test
     void requestPublishToken_returns403_whenNoTrustedPublisherMatches() throws Exception {
-        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token")).thenThrow(
+        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token", null)).thenThrow(
                 new ErrorResultException(
                         "No trusted publisher matches the presented token.",
                         HttpStatus.FORBIDDEN));
@@ -385,7 +385,7 @@ class TrustedPublishingAPITest {
     // provider must not look like one - the CI job should retry instead of failing the build.
     @Test
     void requestPublishToken_returns503_whenTheTokenCouldNotBeVerified() throws Exception {
-        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token")).thenThrow(
+        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token", null)).thenThrow(
                 new ErrorResultException(
                         "Could not verify the token with GitHub, please retry.",
                         HttpStatus.SERVICE_UNAVAILABLE));
@@ -397,7 +397,7 @@ class TrustedPublishingAPITest {
 
     @Test
     void requestPublishToken_returns400_whenTokenIsNotAcceptable() throws Exception {
-        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token"))
+        when(trustedPublishing.requestPublishToken(NAMESPACE, EXTENSION, "the-token", null))
                 .thenThrow(new ErrorResultException("Unsupported token issuer."));
 
         mockMvc.perform(tokenRequest(tokenRequestBody(NAMESPACE, EXTENSION, "the-token")))

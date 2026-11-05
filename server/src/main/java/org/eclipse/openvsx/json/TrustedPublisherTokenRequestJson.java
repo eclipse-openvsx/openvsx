@@ -28,6 +28,8 @@ public class TrustedPublisherTokenRequestJson {
 
     private String token;
 
+    private String registrationCode;
+
     public String getNamespace() {
         return namespace;
     }
@@ -50,5 +52,16 @@ public class TrustedPublisherTokenRequestJson {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    /**
+     * Optional; the code of a pending registration, see {@link TrustedPublisherJson}.
+     */
+    public String getRegistrationCode() {
+        return registrationCode;
+    }
+
+    public void setRegistrationCode(String registrationCode) {
+        this.registrationCode = registrationCode;
     }
 }

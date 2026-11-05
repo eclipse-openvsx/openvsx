@@ -15,6 +15,8 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - `GET /admin/api/permissions` lists the permissions a deployment registers
 - `GET /admin/user/search` takes a `permission` parameter, a permission name or `any`, to list users granted it individually; admins are not matched ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
 
+- Trusted publishing registers a repository the provider does not show without authentication, such as a private one, as pending with a single-use registration code, shown once and valid for 7 days and deleted by a daily job once expired; the first token exchange presenting the code (`registrationCode` of `POST /api/-/trusted-publishing/token`) binds it to the repository IDs of the verified token; migration `V1_85` adds the code columns to `trusted_publisher` ([#2350](https://github.com/eclipse-openvsx/openvsx/issues/2350))
+
 ### Changed
 
 - The Eclipse publisher agreement and OAuth login moved behind the `PublisherAgreementProvider` and `ExternalLoginProvider` extension points, and `UserJson.publisherAgreement` gains `loginProvider` and `loginProviderName` ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))

@@ -69,13 +69,14 @@ module.exports = function (argv: string[]): void {
         .option('--trusted-publishing', 'Exchange an OIDC ID token for a short-lived publishing token. Enabled automatically when a CI system provides an ID token and no access token is given.')
         .option('--idToken <token>', 'The OIDC ID token to exchange. Only needed on CI systems that provide the token directly, e.g. GitLab CI.')
         .option('--oidcAudience <audience>', 'Audience to request for the OIDC ID token. Defaults to the registry URL.')
-        .action((extensionFile: string, { target, packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience }) => {
+        .option('--registrationCode <code>', 'The registration code of a pending trusted publisher (a private repository); completes its registration on the first publish.')
+        .action((extensionFile: string, { target, packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience, registrationCode }) => {
             if (extensionFile !== undefined && packagePath !== undefined) {
                 console.error('\u274c  Please specify either a package file or a package path, but not both.\n');
                 publishCmd.help();
             }
             const { registryUrl, pat, debug } = program.opts();
-            publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience })
+            publish({ extensionFile, registryUrl, pat, targets: typeof target === 'string' ? [target] : target, packagePath: typeof packagePath === 'string' ? [packagePath] : packagePath, baseContentUrl, baseImagesUrl, yarn, followSymlinks, preRelease, allowMissingRepository, dependencies, skipDuplicate, packageVersion, trustedPublishing, idToken, oidcAudience, registrationCode })
                 .then(results => {
                     const reasons = results.filter(result => result.status === 'rejected')
                         .map(rejectedResult => rejectedResult.reason);

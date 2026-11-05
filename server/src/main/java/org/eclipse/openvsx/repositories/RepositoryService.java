@@ -204,6 +204,10 @@ public class RepositoryService {
         return trustedPublisherRepo.findById(id);
     }
 
+    public int deleteExpiredPendingTrustedPublishers(LocalDateTime timestamp) {
+        return trustedPublisherRepo.deleteExpiredPending(timestamp);
+    }
+
     public void deleteTrustedPublisher(TrustedPublisher trustedPublisher) {
         trustedPublisherRepo.delete(trustedPublisher);
     }

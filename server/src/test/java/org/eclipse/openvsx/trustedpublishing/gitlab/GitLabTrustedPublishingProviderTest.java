@@ -84,6 +84,28 @@ class GitLabTrustedPublishingProviderTest {
     }
 
     @Test
+    void trustRequestForUnresolvableProjectLacksIds() {
+        var gl = new GitLabTrustedPublishingProvider(
+                config,
+                GitLabTrustedPublishingProvider.PROVIDER_ID,
+                "GitLab",
+                GitLabTrustedPublishingProvider.PROVIDER_URL,
+                GitLabTrustedPublishingProvider.PROVIDER_URL) {
+            @Override
+            protected Map<String, Object> resolve(String projectPath) {
+                return null; // GitLab answers 404 for a private project
+            }
+        };
+        Map<String, String> data = gl.extractRequest(
+                Map.of("namespace", "my-group", "project", "my-project", "workflow", ".gitlab-ci.yml"));
+        assertEquals("my-group/my-project", data.get("project_path"));
+        assertFalse(data.containsKey("project_id"));
+        assertFalse(data.containsKey("namespace_id"));
+        assertTrue(gl.lacksIds(data));
+        assertFalse(gl.lacksIds(registeredClaims()));
+    }
+
+    @Test
     void extractClaimsRecordsRunInformation() {
         var claims = new HashMap<String, Object>(tokenClaims());
         claims.put("pipeline_id", "574");

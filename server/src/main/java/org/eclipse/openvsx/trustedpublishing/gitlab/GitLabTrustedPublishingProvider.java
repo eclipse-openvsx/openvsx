@@ -16,12 +16,14 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 
 import org.eclipse.openvsx.json.TrustedPublisherInputJson;
@@ -135,17 +137,19 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
         final String projectPath = namespace + "/" + project;
 
         Map<String, Object> response = resolve(projectPath);
-        if (response == null || !(response.get("id") instanceof Number projectId)
-                || !(response.get("namespace") instanceof Map<?, ?> namespaceMap)
-                || !(namespaceMap.get("id") instanceof Number namespaceId)) {
-            throw new ErrorResultException("Unexpected GitLab response for project " + projectPath);
-        }
 
         HashMap<String, String> result = new HashMap<>();
-        result.put(CLAIM_NAMESPACE_ID, String.valueOf(namespaceId.longValue()));
         result.put(CLAIM_NAMESPACE_PATH, namespace);
-        result.put(CLAIM_PROJECT_ID, String.valueOf(projectId.longValue()));
         result.put(CLAIM_PROJECT_PATH, projectPath);
+        if (response != null) {
+            if (!(response.get("id") instanceof Number projectId)
+                    || !(response.get("namespace") instanceof Map<?, ?> namespaceMap)
+                    || !(namespaceMap.get("id") instanceof Number namespaceId)) {
+                throw new ErrorResultException("Unexpected GitLab response for project " + projectPath);
+            }
+            result.put(CLAIM_NAMESPACE_ID, String.valueOf(namespaceId.longValue()));
+            result.put(CLAIM_PROJECT_ID, String.valueOf(projectId.longValue()));
+        }
         // registered without the "@<ref>" part: publishing is trusted regardless of branch or tag
         result.put(CLAIM_CI_CONFIG_REF_URI, instanceLocation + "/" + projectPath + "//" + workflow);
         if (environment != null) {
@@ -154,8 +158,14 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
         return result;
     }
 
+    @Override
+    protected Set<String> idClaims() {
+        return Set.of(CLAIM_PROJECT_ID, CLAIM_NAMESPACE_ID);
+    }
+
     /**
-     * Pulled out for testability; is mocked in UT to prevent real remote access.
+     * Pulled out for testability; is mocked in UT to prevent real remote access. Returns {@code null} if GitLab
+     * answers 404, which it also does for a private project.
      */
     protected Map<String, Object> resolve(String projectPath) throws ErrorResultException {
         try {
@@ -166,6 +176,8 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
+        } catch (HttpClientErrorException.NotFound e) {
+            return null;
         } catch (RestClientException e) {
             throw new ErrorResultException("Could not resolve GitLab project " + projectPath, e);
         }

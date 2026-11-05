@@ -29,6 +29,7 @@ export function addTrustedPublishingEnvOptions(options: TrustedPublishingOptions
     options.trustedPublishing ??= parseBooleanEnv(process.env.OVSX_TRUSTED_PUBLISHING);
     options.idToken ??= process.env.OVSX_ID_TOKEN;
     options.oidcAudience ??= process.env.OVSX_OIDC_AUDIENCE;
+    options.registrationCode ??= process.env.OVSX_REGISTRATION_CODE;
 }
 
 /** How long a request may make no progress before it is abandoned; see RegistryOptions.timeout. */

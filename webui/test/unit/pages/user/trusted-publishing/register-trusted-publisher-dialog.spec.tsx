@@ -100,6 +100,27 @@ describe('RegisterTrustedPublisherDialog', () => {
         expect(onRegistered).toHaveBeenCalled();
     });
 
+    it('shows the registration code once and keeps the dialog open for a pending registration', async () => {
+        const ue = userEvent.setup();
+        const pending = trustedPublisher({
+            pending: true,
+            registrationCode: 'one-time-code',
+            registrationCodeExpiry: '2026-11-12T10:00:00.000Z'
+        });
+        const { onClose, onRegistered } = renderDialog({}, vi.fn().mockResolvedValue(pending));
+        await fillRequiredFields(ue);
+
+        await ue.click(screen.getByRole('button', { name: 'Register' }));
+
+        expect(await screen.findByLabelText('Registration code')).toHaveValue('one-time-code');
+        expect(screen.getByText(/will not be shown again/)).toBeInTheDocument();
+        expect(onRegistered).toHaveBeenCalled();
+        expect(onClose).not.toHaveBeenCalled();
+
+        await ue.click(screen.getByRole('button', { name: 'Done' }));
+        expect(onClose).toHaveBeenCalled();
+    });
+
     it('shows a server error inline and keeps the dialog open', async () => {
         // handleError() also logs the raw error to the console; expected here since we're
         // intentionally triggering it, so silence it rather than let it dirty test output.

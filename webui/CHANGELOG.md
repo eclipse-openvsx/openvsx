@@ -13,6 +13,8 @@ This change log covers only the frontend library (webui) of Open VSX.
 - The index exports `handleError`, `NO_CACHE`, `DelayedLoadIndicator`, `Timestamp`, `AddUserDialog`, `GenerateTokenDialog`, `SearchListContainer`, `createMultiSelectFilterOperators`, `createArrayContainsFilterOperators`, `SettingsHeader` and `EmptyPlaceholder`, for pages contributed through `adminPages` and `userSettingsTabs`
 - Filter users on the Access Control page by granted permission and show each user's permissions as chips in the results; `useAdminUserSearch` takes an optional `permission` ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
 
+- Registering a trusted publisher for a private repository shows its single-use registration code once and marks the registration as pending in the list until the first publish completes it ([#2350](https://github.com/eclipse-openvsx/openvsx/issues/2350))
+
 ### Changed
 
 - The error dialog no longer has help for the `eclipse-missing-github-id` and `eclipse-mismatch-github-id` login errors, and a failed publisher agreement points to `pageSettings.publisherAgreement.email`, or to the registry's administrators without one, instead of `webmaster@eclipse.org`; the error message itself is still shown ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))

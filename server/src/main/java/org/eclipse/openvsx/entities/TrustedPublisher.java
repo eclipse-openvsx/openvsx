@@ -26,6 +26,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -80,6 +81,25 @@ public class TrustedPublisher implements Serializable {
     private LocalDateTime createdTimestamp;
 
     /**
+     * SHA-256 of the single-use registration code of a pending registration, {@code null} once it is bound.
+     */
+    @Column(name = "registration_code_hash", length = 64)
+    private String registrationCodeHash;
+
+    @Column(name = "registration_code_expiry")
+    private LocalDateTime registrationCodeExpiry;
+
+    /**
+     * The plain registration code, only known right after it was generated and never persisted.
+     */
+    @Transient
+    private String registrationCode;
+
+    public boolean isPending() {
+        return registrationCodeHash != null;
+    }
+
+    /**
      * Convert to a JSON object.
      */
     public TrustedPublisherJson toJson() {
@@ -91,6 +111,13 @@ public class TrustedPublisher implements Serializable {
         json.setRegistration(this.getRegistration());
         if (this.getCreatedTimestamp() != null) {
             json.setCreatedTimestamp(TimeUtil.toUTCString(this.getCreatedTimestamp()));
+        }
+        if (this.isPending()) {
+            json.setPending(true);
+            json.setRegistrationCode(this.registrationCode);
+            if (this.registrationCodeExpiry != null) {
+                json.setRegistrationCodeExpiry(TimeUtil.toUTCString(this.registrationCodeExpiry));
+            }
         }
         return json;
     }
@@ -149,6 +176,30 @@ public class TrustedPublisher implements Serializable {
 
     public void setCreatedTimestamp(LocalDateTime createdTimestamp) {
         this.createdTimestamp = createdTimestamp;
+    }
+
+    public String getRegistrationCodeHash() {
+        return registrationCodeHash;
+    }
+
+    public void setRegistrationCodeHash(String registrationCodeHash) {
+        this.registrationCodeHash = registrationCodeHash;
+    }
+
+    public LocalDateTime getRegistrationCodeExpiry() {
+        return registrationCodeExpiry;
+    }
+
+    public void setRegistrationCodeExpiry(LocalDateTime registrationCodeExpiry) {
+        this.registrationCodeExpiry = registrationCodeExpiry;
+    }
+
+    public String getRegistrationCode() {
+        return registrationCode;
+    }
+
+    public void setRegistrationCode(String registrationCode) {
+        this.registrationCode = registrationCode;
     }
 
     @Override
