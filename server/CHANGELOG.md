@@ -39,7 +39,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 - Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
-- Bump OpenTelemetry from 1.63.0 to 1.67.0, fixing quadratic CPU use when parsing crafted W3C `tracestate` headers ([#2430](https://github.com/eclipse-openvsx/openvsx/pull/2430))
+- Bump OpenTelemetry from 1.63.0 to 1.67.0, fixing quadratic CPU use when parsing crafted W3C `tracestate` headers; the discontinued Zipkin exporter stays at 1.64.0 ([#2430](https://github.com/eclipse-openvsx/openvsx/pull/2430))
 
 ## [1.3.2] - 2026-10-27
 

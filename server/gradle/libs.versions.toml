@@ -30,6 +30,8 @@ spring-boot     = "4.0.9"
 springdoc       = "3.1.1"
 tika            = "3.3.2"
 uuid-generator  = "5.2.0"
+# the Zipkin exporter is no longer published; 1.64.0 is its last release
+zipkin-exporter = "1.64.0"
 
 [plugins]
 download                     = { id = "de.undercouch.download", version = "5.7.0" }
@@ -62,6 +64,7 @@ jackson-dataformat-toml      = { module = "tools.jackson.dataformat:jackson-data
 jedis                        = { module = "redis.clients:jedis", version.ref = "jedis" }
 jobrunr-spring               = { module = "org.jobrunr:jobrunr-spring-boot-4-starter", version.ref = "jobrunr" }
 loki-logback-appender        = { module = "com.github.loki4j:loki-logback-appender", version.ref = "loki4j" }
+opentelemetry-exporter-zipkin = { module = "io.opentelemetry:opentelemetry-exporter-zipkin", version.ref = "zipkin-exporter" }
 re2j                         = { module = "com.google.re2j:re2j", version.ref = "re2j" }
 rewrite-java                 = { module = "org.openrewrite.recipe:rewrite-migrate-java", version.ref = "rewrite-java"}
 springdoc                    = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
