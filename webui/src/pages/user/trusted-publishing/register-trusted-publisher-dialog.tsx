@@ -97,10 +97,18 @@ const fieldHelp = (providerId: string, key: string): ReactNode => FIELD_HELP[pro
 // Shown once after registering a private repository, whose registration waits for the first publish.
 const RegistrationCodeNotice: FunctionComponent<{ publisher: TrustedPublisher }> = ({ publisher }) => {
     const [copied, setCopied] = useState(false);
+    const [copyFailed, setCopyFailed] = useState(false);
     const code = publisher.registrationCode ?? '';
-    const handleCopy = () => {
-        navigator.clipboard.writeText(code).then(() => setCopied(true));
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(code);
+            setCopyFailed(false);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // no clipboard access (permission, insecure context): the code stays selectable in the field
+            setCopyFailed(true);
+        }
     };
     return (
         <>
@@ -127,7 +135,7 @@ const RegistrationCodeNotice: FunctionComponent<{ publisher: TrustedPublisher }>
                 sx={{ fontFamily: 'monospace', fontSize: '0.85rem', mb: 2 }}
                 endAdornment={
                     <InputAdornment position='end'>
-                        <Tooltip title={copied ? 'Copied!' : 'Copy'} placement='top'>
+                        <Tooltip title={copied ? 'Copied!' : copyFailed ? 'Copy failed' : 'Copy'} placement='top'>
                             <IconButton size='small' onClick={handleCopy} aria-label='Copy registration code'>
                                 <ContentCopyIcon fontSize='small' />
                             </IconButton>
@@ -135,6 +143,11 @@ const RegistrationCodeNotice: FunctionComponent<{ publisher: TrustedPublisher }>
                     </InputAdornment>
                 }
             />
+            {copyFailed && (
+                <Alert severity='warning' sx={{ mb: 2 }}>
+                    The code could not be copied. Select it in the field above and copy it manually.
+                </Alert>
+            )}
             <DialogContentText>
                 Pass it to <code>ovsx publish</code> as <code>--registrationCode</code>, or as the environment variable{' '}
                 <code>OVSX_REGISTRATION_CODE</code>; a secret of the repository is a good place for it. Later publishes
@@ -201,8 +214,9 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
     const selectedNamespace = props.namespaces.find(ns => ns.name === namespace);
     const extensionNames = selectedNamespace?.registrableExtensions ?? [];
 
+    // The code is shown only once, so only Done closes the dialog while it is displayed.
     const handleClose = () => {
-        if (!loading) {
+        if (!loading && !pendingPublisher) {
             props.onClose();
         }
     };
@@ -240,6 +254,9 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
 
     const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (pendingPublisher) {
+            return;
+        }
         const cleaned: Record<string, string> = {};
         for (const key of orderedKeys) {
             const value = (registration[key] ?? '').trim();
@@ -339,6 +356,12 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
         <Dialog
             open={open}
             onClose={handleClose}
+            TransitionProps={{
+                onExited: () => {
+                    setPendingPublisher(undefined);
+                    resetRegistration();
+                }
+            }}
             fullWidth
             maxWidth='sm'
             PaperProps={{ component: 'form', onSubmit: handleRegister }}>
