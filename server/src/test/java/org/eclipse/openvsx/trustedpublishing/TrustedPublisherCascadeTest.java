@@ -108,6 +108,64 @@ class TrustedPublisherCascadeTest extends AbstractPostgresContainerTest {
         cleanUp(ids, "revoke");
     }
 
+    @Test
+    void deletingExpiredPendingRegistrationsLeavesLiveAndBoundOnesAlone() {
+        var now = TimeUtil.getCurrentUTC();
+        var ids = new TransactionTemplate(txManager).execute(status -> {
+            var user = new UserData();
+            user.setLoginName("expire-tp-owner");
+            user.setProvider("github");
+            em.persist(user);
+
+            var namespace = new Namespace();
+            namespace.setName("expire-tp-testns");
+            em.persist(namespace);
+
+            var expired = persistTrustedPublisher(namespace, user, "expired", "hash", now.minusDays(1));
+            var live = persistTrustedPublisher(namespace, user, "live", "hash", now.plusDays(1));
+            var bound = persistTrustedPublisher(namespace, user, "bound", null, null);
+            em.flush();
+            return new long[] { user.getId(), namespace.getId(), expired, live, bound };
+        });
+
+        transaction(status -> assertThat(repositories.deleteExpiredPendingTrustedPublishers(now))
+                .isGreaterThanOrEqualTo(1));
+
+        transaction(status -> {
+            assertThat(em.find(TrustedPublisher.class, ids[2])).isNull();
+            assertThat(em.find(TrustedPublisher.class, ids[3])).isNotNull();
+            assertThat(em.find(TrustedPublisher.class, ids[4])).isNotNull();
+        });
+
+        cleanUp(new Ids(ids[0], ids[1], 0, 0, 0), "expire");
+    }
+
+    private long persistTrustedPublisher(
+            Namespace namespace,
+            UserData user,
+            String name,
+            String codeHash,
+            java.time.LocalDateTime codeExpiry
+    ) {
+        var extension = new Extension();
+        extension.setName(name + "-tp-testext");
+        extension.setNamespace(namespace);
+        extension.setActive(true);
+        em.persist(extension);
+
+        var trustedPublisher = new TrustedPublisher();
+        trustedPublisher.setExtension(extension);
+        trustedPublisher.setProvider("github");
+        trustedPublisher.setRegistration(Map.of("owner", "octo-org", "repo", "octo-repo"));
+        trustedPublisher.setClaims(Map.of("repository", "octo-org/octo-repo"));
+        trustedPublisher.setRegistrationCodeHash(codeHash);
+        trustedPublisher.setRegistrationCodeExpiry(codeExpiry);
+        trustedPublisher.setCreatedBy(user);
+        trustedPublisher.setCreatedTimestamp(TimeUtil.getCurrentUTC());
+        em.persist(trustedPublisher);
+        return trustedPublisher.getId();
+    }
+
     private record Ids(long userId, long namespaceId, long extensionId, long trustedPublisherId, long tokenId) {}
 
     /**
