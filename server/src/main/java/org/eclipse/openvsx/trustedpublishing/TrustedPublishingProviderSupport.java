@@ -308,6 +308,18 @@ public abstract class TrustedPublishingProviderSupport {
         return !registered.keySet().containsAll(idClaims());
     }
 
+    /** The claims holding the names (not the provider assigned IDs) of what is registered. */
+    protected abstract Set<String> nameClaims();
+
+    /**
+     * Whether a registration without IDs, as far as it is known, is the one the verified token comes from: its names
+     * must equal the token's, as {@link #matches(Map, Map)} only compares IDs once those are copied over.
+     */
+    public boolean matchesPending(@NonNull Map<String, String> registered, @NonNull Map<String, String> token) {
+        return nameClaims().stream().allMatch(claim -> claimEquals(claim, registered, token))
+                && matches(withIdsOf(registered, token), token);
+    }
+
     /**
      * Completes the registered claims with the provider assigned IDs taken from the claims of a verified token.
      * Whether the result is trusted is up to {@link #matches(Map, Map)}, which then compares the names.

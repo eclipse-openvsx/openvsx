@@ -174,6 +174,9 @@ public class TrustedPublishingService {
 
         // a pending registration whose code has expired can never be bound, so registering again replaces it
         var existing = repositories.findTrustedPublishersByExtension(extension).toList();
+        // lock them before deciding: an exchange may be binding one right now, and a bound one must not be deleted
+        existing.stream().filter(TrustedPublisher::isPending)
+                .forEach(tp -> entityManager.refresh(tp, LockModeType.PESSIMISTIC_WRITE));
         if (existing.stream().anyMatch(tp -> !isExpiredPending(tp))) {
             throw new ErrorResultException("An equivalent trusted publisher is already registered.");
         }
@@ -359,8 +362,7 @@ public class TrustedPublishingService {
             // a pending registration has no IDs yet, so its names are compared against the verified token
             match = candidates.stream()
                     .filter(
-                            tp -> tp.isPending()
-                                    && provider.matches(provider.withIdsOf(tp.getClaims(), claims), claims))
+                            tp -> tp.isPending() && provider.matchesPending(tp.getClaims(), claims))
                     .findFirst()
                     .map(tp -> bindPending(tp, provider, claims, registrationCode))
                     .orElseThrow(

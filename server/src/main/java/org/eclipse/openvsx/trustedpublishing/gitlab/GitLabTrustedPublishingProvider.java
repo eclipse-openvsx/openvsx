@@ -184,6 +184,11 @@ public class GitLabTrustedPublishingProvider extends TrustedPublishingProviderSu
     }
 
     @Override
+    protected Set<String> nameClaims() {
+        return Set.of(CLAIM_PROJECT_PATH, CLAIM_NAMESPACE_PATH);
+    }
+
+    @Override
     public boolean matches(@NonNull Map<String, String> registered, @NonNull Map<String, String> token) {
         requireNonNull(registered);
         requireNonNull(token);

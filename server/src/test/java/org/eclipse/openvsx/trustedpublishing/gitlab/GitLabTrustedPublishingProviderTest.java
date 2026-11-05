@@ -106,6 +106,23 @@ class GitLabTrustedPublishingProviderTest {
     }
 
     @Test
+    void pendingRegistrationOnlyMatchesTheProjectItNames() {
+        var gl = newProvider(config);
+        var pending = registeredClaims();
+        pending.remove("project_id");
+        pending.remove("namespace_id");
+        assertTrue(gl.matchesPending(pending, tokenClaims()));
+
+        // another project running the registered project's CI configuration
+        var other = tokenClaims();
+        other.put("project_id", "1");
+        other.put("namespace_id", "2");
+        other.put("project_path", "evil/fork");
+        other.put("namespace_path", "evil");
+        assertFalse(gl.matchesPending(pending, other));
+    }
+
+    @Test
     void extractClaimsRecordsRunInformation() {
         var claims = new HashMap<String, Object>(tokenClaims());
         claims.put("pipeline_id", "574");

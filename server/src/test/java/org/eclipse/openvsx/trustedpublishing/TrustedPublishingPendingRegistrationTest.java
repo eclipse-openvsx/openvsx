@@ -288,6 +288,23 @@ class TrustedPublishingPendingRegistrationTest {
     }
 
     @Test
+    void doesNotReplaceAPendingRegistrationThatWasBoundWhileRegisteringAgain() {
+        var expired = new TrustedPublisher();
+        expired.setExtension(extension);
+        expired.setClaims(Map.of("repository", "acme/private"));
+        expired.setRegistrationCodeHash("hash");
+        expired.setRegistrationCodeExpiry(TimeUtil.getCurrentUTC().minusSeconds(1));
+        when(repositories.findTrustedPublishersByExtension(extension)).thenReturn(Streamable.of(expired));
+        // an exchange binds it just before the lock is granted
+        bindOnRefresh(expired, "42");
+
+        assertThatThrownBy(() -> service.registerTrustedPublisher(user, NAMESPACE, EXTENSION, "github", REGISTRATION))
+                .isInstanceOf(ErrorResultException.class);
+
+        verify(repositories, never()).deleteTrustedPublisher(any());
+    }
+
+    @Test
     void deletesTheExpiredPendingRegistrations() {
         when(repositories.deleteExpiredPendingTrustedPublishers(any())).thenReturn(2);
 

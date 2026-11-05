@@ -155,6 +155,11 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
     }
 
     @Override
+    protected Set<String> nameClaims() {
+        return Set.of(CLAIM_REPOSITORY, CLAIM_REPOSITORY_OWNER);
+    }
+
+    @Override
     public boolean matches(@NonNull Map<String, String> registered, @NonNull Map<String, String> token) {
         requireNonNull(registered);
         requireNonNull(token);
