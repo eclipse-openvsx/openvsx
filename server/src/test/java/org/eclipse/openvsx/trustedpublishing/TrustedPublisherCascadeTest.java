@@ -128,8 +128,9 @@ class TrustedPublisherCascadeTest extends AbstractPostgresContainerTest {
             return new long[] { user.getId(), namespace.getId(), expired, live, bound };
         });
 
-        transaction(status -> assertThat(repositories.deleteExpiredPendingTrustedPublishers(now))
-                .isGreaterThanOrEqualTo(1));
+        transaction(
+                status -> assertThat(repositories.deleteExpiredPendingTrustedPublishers(now))
+                        .isGreaterThanOrEqualTo(1));
 
         transaction(status -> {
             assertThat(em.find(TrustedPublisher.class, ids[2])).isNull();
