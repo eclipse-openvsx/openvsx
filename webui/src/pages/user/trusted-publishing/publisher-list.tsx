@@ -50,6 +50,8 @@ const registrationSummary = (registration: { [key: string]: string }): string =>
     return [path, ...fields].filter(Boolean).join(' · ');
 };
 
+const isExpired = (expiry?: string): boolean => expiry !== undefined && Date.parse(expiry) < Date.now();
+
 export interface PublisherListProps {
     publishers: TrustedPublisher[];
     providers: TrustedPublisherProvider[];
@@ -117,6 +119,27 @@ export const PublisherList: FunctionComponent<PublisherListProps> = props => {
                                                 color='text.secondary'
                                                 sx={{ wordBreak: 'break-word' }}>
                                                 {summary}
+                                            </Typography>
+                                        ) : null}
+                                        {publisher.pending ? (
+                                            <Typography variant='body2' color='warning.main'>
+                                                {isExpired(publisher.registrationCodeExpiry) ? (
+                                                    'Pending: the registration code has expired. Delete this registration and register it again.'
+                                                ) : (
+                                                    <>
+                                                        Pending: completes with the first publish that presents the
+                                                        registration code
+                                                        {publisher.registrationCodeExpiry ? (
+                                                            <>
+                                                                , valid until{' '}
+                                                                <Timestamp
+                                                                    value={publisher.registrationCodeExpiry}
+                                                                    isFutureTime
+                                                                />
+                                                            </>
+                                                        ) : null}
+                                                    </>
+                                                )}
                                             </Typography>
                                         ) : null}
                                         {publisher.createdTimestamp ? (

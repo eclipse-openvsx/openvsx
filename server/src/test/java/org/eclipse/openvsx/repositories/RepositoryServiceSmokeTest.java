@@ -468,6 +468,7 @@ class RepositoryServiceSmokeTest extends AbstractPostgresContainerTest {
                 () -> repositories.findTrustedPublishersByNamespaceAndCreatedBy(namespace, userData),
                 () -> repositories.findTrustedPublisher(1L),
                 () -> repositories.deleteTrustedPublisher(trustedPublisher),
+                () -> repositories.deleteExpiredPendingTrustedPublishers(NOW),
                 () -> repositories.findPublisherAgreementEvents(userData.getId()),
                 () -> repositories.findLatestPublisherAgreementEvent(
                         userData.getId(),

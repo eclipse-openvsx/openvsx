@@ -15,12 +15,14 @@ package org.eclipse.openvsx.trustedpublishing.github;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 
 import org.eclipse.openvsx.json.TrustedPublisherInputJson;
@@ -101,19 +103,19 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
         final String environment = registration.get(REG_ENVIRONMENT);
 
         Map<String, Object> response = resolve(owner, repo);
-        if (response == null || !(response.get("id") instanceof Number repositoryId)
-                || !(response.get("owner") instanceof Map<?, ?> ownerMap)
-                || !(ownerMap.get("id") instanceof Number ownerId)) {
-            throw new ErrorResultException(
-                    "Unexpected GitHub response for repository "
-                            + owner + "/" + repo);
-        }
 
         HashMap<String, String> result = new HashMap<>();
         result.put(CLAIM_REPOSITORY, owner + "/" + repo);
-        result.put(CLAIM_REPOSITORY_ID, String.valueOf(repositoryId.longValue()));
         result.put(CLAIM_REPOSITORY_OWNER, owner);
-        result.put(CLAIM_REPOSITORY_OWNER_ID, String.valueOf(ownerId.longValue()));
+        if (response != null) {
+            if (!(response.get("id") instanceof Number repositoryId)
+                    || !(response.get("owner") instanceof Map<?, ?> ownerMap)
+                    || !(ownerMap.get("id") instanceof Number ownerId)) {
+                throw new ErrorResultException("Unexpected GitHub response for repository " + owner + "/" + repo);
+            }
+            result.put(CLAIM_REPOSITORY_ID, String.valueOf(repositoryId.longValue()));
+            result.put(CLAIM_REPOSITORY_OWNER_ID, String.valueOf(ownerId.longValue()));
+        }
         // registered without the "@<ref>" part: publishing is trusted regardless of branch or tag
         result.put(
                 CLAIM_WORKFLOW_REF,
@@ -125,8 +127,14 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
         return result;
     }
 
+    @Override
+    protected Set<String> idClaims() {
+        return Set.of(CLAIM_REPOSITORY_ID, CLAIM_REPOSITORY_OWNER_ID);
+    }
+
     /**
-     * Pulled out for testability; is mocked in UT to prevent real remote access.
+     * Pulled out for testability; is mocked in UT to prevent real remote access. Returns {@code null} if GitHub
+     * answers 404, which it also does for a private repository.
      */
     protected Map<String, Object> resolve(String owner, String repo) throws ErrorResultException {
         try {
@@ -136,12 +144,19 @@ public abstract class GitHubTrustedPublishingProviderSupport extends TrustedPubl
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
+        } catch (HttpClientErrorException.NotFound e) {
+            return null;
         } catch (RestClientException e) {
             throw new ErrorResultException(
                     "Could not resolve GitHub repository "
                             + owner + "/" + repo,
                     e);
         }
+    }
+
+    @Override
+    protected Set<String> nameClaims() {
+        return Set.of(CLAIM_REPOSITORY, CLAIM_REPOSITORY_OWNER);
     }
 
     @Override

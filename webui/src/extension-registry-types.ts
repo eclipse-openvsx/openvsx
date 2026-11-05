@@ -381,6 +381,11 @@ export interface TrustedPublisher {
     extension: string;
     registration: { [key: string]: string };
     createdTimestamp?: TimestampString;
+    // set while the registration of a private repository waits for the first publish that completes it
+    pending?: boolean;
+    // returned once, in the response to the registration that created the pending registration
+    registrationCode?: string;
+    registrationCodeExpiry?: TimestampString;
 }
 
 export interface TrustedPublisherList {

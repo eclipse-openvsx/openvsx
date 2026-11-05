@@ -14,6 +14,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `GET /admin/api/permissions` lists the permissions a deployment registers
 - `GET /admin/user/search` takes a `permission` parameter, a permission name or `any`, to list users granted it individually; admins are not matched ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
+- Trusted publishing registers a repository the provider cannot look up, such as a private one, as pending until its first publish presents the single-use registration code (`registrationCode`, valid for 7 days); migration `V1_85` ([#2350](https://github.com/eclipse-openvsx/openvsx/issues/2350))
 
 ### Changed
 

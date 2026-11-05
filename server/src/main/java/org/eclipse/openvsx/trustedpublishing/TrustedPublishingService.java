@@ -12,9 +12,16 @@
  *****************************************************************************/
 package org.eclipse.openvsx.trustedpublishing;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.text.ParseException;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +31,12 @@ import java.util.stream.Collectors;
 
 import com.nimbusds.jwt.JWTParser;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.stereotype.Service;
@@ -50,6 +60,9 @@ import static java.util.Objects.requireNonNull;
 @Service
 public class TrustedPublishingService {
     private static final String TOKEN_DESCRIPTION_TEMPLATE = "Trusted publishing (%s)";
+    // shortcut: fixed, make it a trusted-publishing setting when a deployment needs another lifetime
+    private static final Duration REGISTRATION_CODE_LIFETIME = Duration.ofDays(7);
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TrustedPublishingConfig config;
@@ -59,23 +72,32 @@ public class TrustedPublishingService {
 
     private final Map<String, TrustedPublishingProviderSupport> providers;
 
+    @Autowired
     public TrustedPublishingService(
             TrustedPublishingConfig config,
             RepositoryService repositories,
             AccessTokenService tokens,
             EntityManager entityManager
     ) {
+        this(config, repositories, tokens, entityManager, config.isEnabled() ? createProviders(config) : Map.of());
+        if (config.isEnabled()) {
+            warnAboutUnknownActiveProviders(config);
+        }
+    }
+
+    // for tests, to run the exchange against providers that do not reach out to the network
+    TrustedPublishingService(
+            TrustedPublishingConfig config,
+            RepositoryService repositories,
+            AccessTokenService tokens,
+            EntityManager entityManager,
+            Map<String, TrustedPublishingProviderSupport> providers
+    ) {
         this.config = requireNonNull(config);
         this.repositories = requireNonNull(repositories);
         this.tokens = requireNonNull(tokens);
         this.entityManager = requireNonNull(entityManager);
-
-        if (config.isEnabled()) {
-            this.providers = createProviders(config);
-            warnAboutUnknownActiveProviders(config);
-        } else {
-            this.providers = Map.of();
-        }
+        this.providers = providers;
     }
 
     /**
@@ -151,9 +173,26 @@ public class TrustedPublishingService {
             throw new ErrorResultException("Extension must exist to register trusted publisher for it.");
         }
 
-        boolean duplicate = repositories.findTrustedPublishersByExtension(extension).stream().findAny().isPresent();
-        if (duplicate) {
+        // a pending registration whose code has expired can never be bound, so registering again replaces it
+        var existing = repositories.findTrustedPublishersByExtension(extension).toList();
+        // lock them before deciding: an exchange may be binding one right now, and a bound one must not be deleted
+        for (var tp : existing) {
+            if (tp.isPending()) {
+                try {
+                    entityManager.refresh(tp, LockModeType.PESSIMISTIC_WRITE);
+                } catch (EntityNotFoundException e) {
+                    throw new ErrorResultException(
+                            "The registration changed while registering. Try again.",
+                            HttpStatus.CONFLICT);
+                }
+            }
+        }
+        if (existing.stream().anyMatch(tp -> !isExpiredPending(tp))) {
             throw new ErrorResultException("An equivalent trusted publisher is already registered.");
+        }
+        if (!existing.isEmpty()) {
+            existing.forEach(repositories::deleteTrustedPublisher);
+            entityManager.flush();
         }
 
         TrustedPublishingProviderSupport provider = providers.get(providerId);
@@ -168,6 +207,13 @@ public class TrustedPublishingService {
         publisher.setProvider(provider.getProviderId());
         publisher.setRegistration(registration);
         publisher.setClaims(claims);
+        if (provider.lacksIds(claims)) {
+            // the repository is not visible without authentication; the first publish binds it, given the code
+            var code = newRegistrationCode();
+            publisher.setRegistrationCode(code);
+            publisher.setRegistrationCodeHash(hash(code));
+            publisher.setRegistrationCodeExpiry(TimeUtil.getCurrentUTC().plus(REGISTRATION_CODE_LIFETIME));
+        }
         // find, not merge: this needs a managed UserData to point the new row at, and merging the
         // caller's (detached) user wrote their whole row back as a side effect - see #989.
         // trusted_publisher.created_by is NOT NULL, so a user that has gone away since the request
@@ -240,6 +286,14 @@ public class TrustedPublishingService {
     }
 
     /**
+     * Deletes the pending registrations whose code has expired, as they can no longer be bound.
+     */
+    @Transactional
+    public int deleteExpiredPendingRegistrations() {
+        return repositories.deleteExpiredPendingTrustedPublishers(TimeUtil.getCurrentUTC());
+    }
+
+    /**
      * Returns the enforced "audience" ({@code aud}) header of the accepted OIDC ID tokens, if service is enabled.
      */
     public String getRequiredAudience() {
@@ -264,7 +318,12 @@ public class TrustedPublishingService {
      * token.
      */
     @Transactional
-    public AccessTokenJson requestPublishToken(String namespaceName, String extensionName, String token) {
+    public AccessTokenJson requestPublishToken(
+            String namespaceName,
+            String extensionName,
+            String token,
+            String registrationCode
+    ) {
         requireNonNull(namespaceName);
         requireNonNull(extensionName);
         requireNonNull(token);
@@ -302,14 +361,25 @@ public class TrustedPublishingService {
             throw new ErrorResultException("No trusted publisher matches the presented token.", HttpStatus.FORBIDDEN);
         }
 
-        TrustedPublisher match = repositories.findTrustedPublishersByExtension(extension).stream()
+        var candidates = repositories.findTrustedPublishersByExtension(extension).stream()
                 .filter(tp -> tp.getProvider().equals(provider.getProviderId()))
-                .filter(tp -> provider.matches(tp.getClaims(), claims))
+                .toList();
+        TrustedPublisher match = candidates.stream()
+                .filter(tp -> !tp.isPending() && provider.matches(tp.getClaims(), claims))
                 .findFirst()
-                .orElseThrow(
-                        () -> new ErrorResultException(
-                                "No trusted publisher matches the presented token.",
-                                HttpStatus.FORBIDDEN));
+                .orElse(null);
+        if (match == null) {
+            // a pending registration has no IDs yet, so its names are compared against the verified token
+            match = candidates.stream()
+                    .filter(
+                            tp -> tp.isPending() && provider.matchesPending(tp.getClaims(), claims))
+                    .findFirst()
+                    .map(tp -> bindPending(tp, provider, claims, registrationCode))
+                    .orElseThrow(
+                            () -> new ErrorResultException(
+                                    "No trusted publisher matches the presented token.",
+                                    HttpStatus.FORBIDDEN));
+        }
 
         logger.info(
                 "Issuing trusted publishing token for namespace {} to {}",
@@ -322,6 +392,73 @@ public class TrustedPublishingService {
                 TOKEN_DESCRIPTION_TEMPLATE.formatted(provider.getProviderId()),
                 config.getTokenExpiration(),
                 claims);
+    }
+
+    /**
+     * Binds a pending registration to the IDs of the verified token, if the code it was registered with is
+     * presented in time. The code works once: the row is locked and re-read, so of two concurrent exchanges
+     * only one binds it and the other one is
+     * accepted only if its token matches what was bound.
+     */
+    private TrustedPublisher bindPending(
+            TrustedPublisher publisher,
+            TrustedPublishingProviderSupport provider,
+            Map<String, String> claims,
+            String registrationCode
+    ) {
+        try {
+            entityManager.refresh(publisher, LockModeType.PESSIMISTIC_WRITE);
+        } catch (EntityNotFoundException e) {
+            // deleted since it was read, by the expiry job or its owner
+            throw new ErrorResultException("No trusted publisher matches the presented token.", HttpStatus.FORBIDDEN);
+        }
+        if (!publisher.isPending()) {
+            // a concurrent exchange bound it first: that is fine for a token with the same IDs
+            if (provider.matches(publisher.getClaims(), claims)) {
+                return publisher;
+            }
+            throw new ErrorResultException(
+                    "No trusted publisher matches the presented token.",
+                    HttpStatus.FORBIDDEN);
+        }
+        if (isExpiredPending(publisher)) {
+            throw new ErrorResultException(
+                    "The registration code of this trusted publisher has expired. Register it again.",
+                    HttpStatus.FORBIDDEN);
+        }
+        if (registrationCode == null
+                || !MessageDigest.isEqual(
+                        hash(registrationCode.trim()).getBytes(StandardCharsets.US_ASCII),
+                        publisher.getRegistrationCodeHash().getBytes(StandardCharsets.US_ASCII))) {
+            throw new ErrorResultException(
+                    "This trusted publisher registration is pending. Publish with its registration code to complete it.",
+                    HttpStatus.FORBIDDEN);
+        }
+        publisher.setClaims(provider.withIdsOf(publisher.getClaims(), claims));
+        publisher.setRegistrationCodeHash(null);
+        publisher.setRegistrationCodeExpiry(null);
+        return publisher;
+    }
+
+    private static boolean isExpiredPending(TrustedPublisher publisher) {
+        return publisher.isPending()
+                && (publisher.getRegistrationCodeExpiry() == null
+                        || TimeUtil.getCurrentUTC().isAfter(publisher.getRegistrationCodeExpiry()));
+    }
+
+    private static String newRegistrationCode() {
+        var bytes = new byte[24];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String hash(String code) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256").digest(code.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private Namespace requireOwnedNamespace(UserData user, String namespaceName) {

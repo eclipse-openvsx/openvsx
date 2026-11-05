@@ -165,7 +165,11 @@ public class TrustedPublishingAPI {
 
         try {
             var json = trustedPublishing
-                    .requestPublishToken(request.getNamespace(), request.getExtension(), request.getToken());
+                    .requestPublishToken(
+                            request.getNamespace(),
+                            request.getExtension(),
+                            request.getToken(),
+                            request.getRegistrationCode());
             return new ResponseEntity<>(json, HttpStatus.CREATED);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(AccessTokenJson.class);

@@ -66,6 +66,8 @@ Options:
  * `--idToken <token>` passes the ID token explicitly. Use this on CI systems that expose the token as a variable, for example with GitLab CI's [`id_tokens`](https://docs.gitlab.com/ci/yaml/#id_tokens) keyword. The environment variable `OVSX_ID_TOKEN` does the same.
  * `--oidcAudience <audience>` sets the audience requested for the ID token. By default the CLI asks the registry, which expects the audience of `ovsx.trusted-publishing.audience` - the web UI URL by default, not necessarily the API URL the CLI talks to - and falls back to the registry URL when the registry reports nothing. The environment variable `OVSX_OIDC_AUDIENCE` does the same.
 
+ * `--registrationCode <code>` completes the registration of a trusted publisher for a private repository. The registry cannot look such a repository up, so it shows a single-use code when the publisher is registered, valid for 7 days. Pass it on the first `publish` from the repository's workflow, for example as a secret in `OVSX_REGISTRATION_CODE`; the registry then takes the repository IDs from the verified ID token. Later publishes do not need it.
+
 The issued token is valid for a few minutes only and is never written to the token store, but it does carry publishing rights, so treat CI logs accordingly.
 
 The ID token is only sent to a registry reached over https, so a plain `http://` registry URL is refused (a loopback address such as `localhost` is exempt). Publish with an access token there instead.

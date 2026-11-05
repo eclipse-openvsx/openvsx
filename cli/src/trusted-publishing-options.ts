@@ -27,4 +27,9 @@ export interface TrustedPublishingOptions {
      * the audience the registry expects.
      */
     oidcAudience?: string;
+    /**
+     * The registration code shown when the trusted publisher of a private repository was registered.
+     * Only the first publish needs it: it completes the registration, and the code is used up.
+     */
+    registrationCode?: string;
 }

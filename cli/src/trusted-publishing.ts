@@ -106,7 +106,7 @@ async function requestToken(
 
     let result: AccessToken;
     try {
-        result = await exchangeWithRetry(registry, namespace, extension, idToken);
+        result = await exchangeWithRetry(registry, namespace, extension, idToken, options.registrationCode);
     } catch (err) {
         throw new Error(`${err.message}\n${registrationHint(registry, namespace, extension)}`);
     }
@@ -126,11 +126,12 @@ async function exchangeWithRetry(
     registry: Registry,
     namespace: string,
     extension: string,
-    idToken: string
+    idToken: string,
+    registrationCode?: string
 ): Promise<AccessToken> {
     for (let attempt = 0; ; attempt++) {
         try {
-            return await registry.requestTrustedPublishingToken(namespace, extension, idToken);
+            return await registry.requestTrustedPublishingToken(namespace, extension, idToken, registrationCode);
         } catch (err) {
             const status = (err as StatusError)?.status;
             if (attempt >= RETRY_DELAYS_MS.length || status === undefined || !RETRYABLE_STATUS.includes(status)) {
