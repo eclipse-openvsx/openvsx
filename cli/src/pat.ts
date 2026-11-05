@@ -40,7 +40,7 @@ export async function requestPAT(namespace: string, options: CreateNamespaceOpti
 
 export interface ResolvedPAT {
     pat: string;
-    /** Stores a prompted token; call it only once the registry has accepted the token. */
+    /** Stores a prompted token, warning instead of throwing; call it only once the registry has accepted the token. */
     save(): Promise<void>;
 }
 
@@ -57,5 +57,13 @@ export async function getPAT(namespace: string, options: CreateNamespaceOptions 
     }
 
     const pat = await requestPAT(namespace, options, verify);
-    return { pat, save: () => store.add(namespace, pat) };
+    // a storage failure must not turn a completed registry operation into a reported failure
+    const save = async () => {
+        try {
+            await store.add(namespace, pat);
+        } catch (e) {
+            console.warn(`Could not store the token: ${e instanceof Error ? e.message : e}`);
+        }
+    };
+    return { pat, save };
 }

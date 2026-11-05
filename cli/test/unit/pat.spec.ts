@@ -106,6 +106,14 @@ describe('a prompted personal access token', () => {
         expect(store.add).toHaveBeenCalledWith('foo', 'typed.pat');
     });
 
+    it('does not fail a successful unpublish when it cannot be stored', async () => {
+        store.add.mockRejectedValue(new Error('keychain unavailable'));
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const registryUrl = await givenRegistry(200, { success: 'Deleted 1 version' });
+        await unpublish({ extensionId: 'foo.bar', force: true, registryUrl });
+        expect(warn).toHaveBeenCalledWith('Could not store the token: keychain unavailable');
+    });
+
     it('is not prompted for when a token is already stored', async () => {
         store.get.mockResolvedValue('stored.pat');
         const registryUrl = await givenRegistry(200, { success: 'Valid token' });
