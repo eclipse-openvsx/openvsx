@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 import * as fs from 'fs';
+import * as path from 'path';
 import * as semver from 'semver';
 import { createVSIX, IPackageOptions } from '@vscode/vsce';
 import { getPAT } from './pat';
@@ -59,9 +60,29 @@ export async function publish(options: PublishOptions = {}): Promise<PromiseSett
     // Registry.tokenQuery), so a wide fan-out doesn't repeat that lookup once per target either.
     const registry = new Registry(options);
     const maxExtensionSize = await getMaxExtensionSize(registry);
+    const prompts = new PromptQueue();
 
     return Promise.allSettled(internalPublishOptions.map(publishOptions =>
-        doPublish(registry, { ...publishOptions, maxExtensionSize })));
+        doPublish(registry, prompts, { ...publishOptions, maxExtensionSize })));
+}
+
+/**
+ * The targets and packages publish in parallel but share one terminal, so every step that may prompt
+ * runs here: one at a time, and once per key, with later callers sharing the first one's outcome.
+ */
+class PromptQueue {
+    private tail: Promise<unknown> = Promise.resolve();
+    private readonly steps = new Map<string, Promise<unknown>>();
+
+    once<T>(key: string, step: () => Promise<T>): Promise<T> {
+        let result = this.steps.get(key) as Promise<T> | undefined;
+        if (!result) {
+            result = this.tail.then(step);
+            this.tail = result.catch(() => undefined);
+            this.steps.set(key, result);
+        }
+        return result;
+    }
 }
 
 /**
@@ -112,15 +133,15 @@ async function getMaxExtensionSize(registry: Registry): Promise<number | undefin
     }
 }
 
-async function doPublish(registry: Registry, options: InternalPublishOptions = {}): Promise<void> {
+async function doPublish(registry: Registry, prompts: PromptQueue, options: InternalPublishOptions = {}): Promise<void> {
     // Only a package created here is a temp file; one the user supplied must never be deleted.
     const packaged = !options.extensionFile;
     try {
         if (packaged) {
-            await packageExtension(options, registry);
+            await packageExtension(options, registry, prompts);
             console.log(); // new line
         }
-        await publishExtensionFile(registry, options);
+        await publishExtensionFile(registry, prompts, options);
     } finally {
         if (packaged && options.extensionFile) {
             // Caught rather than awaited plainly: a failure here (e.g. the temp dir is locked or
@@ -132,7 +153,7 @@ async function doPublish(registry: Registry, options: InternalPublishOptions = {
     }
 }
 
-async function publishExtensionFile(registry: Registry, options: InternalPublishOptions): Promise<void> {
+async function publishExtensionFile(registry: Registry, prompts: PromptQueue, options: InternalPublishOptions): Promise<void> {
     // Read up front rather than only when a token has to be obtained: the size limit is looked up per
     // namespace, and the namespace lives in the manifest.
     const manifest = await readVSIXPackage(options.extensionFile!);
@@ -145,10 +166,12 @@ async function publishExtensionFile(registry: Registry, options: InternalPublish
             exchanged = { namespace: manifest.publisher, extension: manifest.name };
             options.pat = await getTrustedPublishingToken(registry, manifest.publisher, manifest.name, options);
         } else {
-            // getPAT has verified a prompted token already, so it can be stored before publishing
-            const { pat, save } = await getPAT(manifest.publisher, options);
-            options.pat = pat;
-            await save();
+            options.pat = await prompts.once(`pat:${manifest.publisher}`, async () => {
+                // getPAT has verified a prompted token already, so it can be stored before publishing
+                const { pat, save } = await getPAT(manifest.publisher, options);
+                await save();
+                return pat;
+            });
         }
     }
 
@@ -306,9 +329,11 @@ async function resolveSizeLimit(
     }
 }
 
-async function packageExtension(options: InternalPublishOptions, registry: Registry): Promise<void> {
+async function packageExtension(options: InternalPublishOptions, registry: Registry, prompts: PromptQueue): Promise<void> {
     if (registry.requiresLicense) {
-        await checkLicense(options.packagePath!);
+        // Per directory, not per target: a license added here is written into the sources every target packages.
+        const packagePath = options.packagePath;
+        await prompts.once(`license:${path.resolve(packagePath ?? '.')}`, () => checkLicense(packagePath!));
     }
 
     options.extensionFile = getTempFilePath('.vsix');
