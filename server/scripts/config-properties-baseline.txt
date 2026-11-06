@@ -28,6 +28,12 @@ undocumented ovsx.scanning.enabled
 undocumented ovsx.scanning.max-archive-size-bytes
 undocumented ovsx.scanning.max-entry-count
 undocumented ovsx.scanning.max-single-file-bytes
+undocumented ovsx.scanning.name-similarity.display-name-threshold
+undocumented ovsx.scanning.name-similarity.enabled
+undocumented ovsx.scanning.name-similarity.max-matches
+undocumented ovsx.scanning.name-similarity.min-fuzzy-length
+undocumented ovsx.scanning.name-similarity.name-threshold
+undocumented ovsx.scanning.name-similarity.statement-timeout
 undocumented ovsx.scanning.namespace-ownership-check.check-active-extensions
 undocumented ovsx.scanning.namespace-ownership-check.enabled
 undocumented ovsx.scanning.namespace-ownership-check.enforced

@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -38,6 +39,16 @@ public interface NameSimilarityAllowRepository extends Repository<NameSimilarity
             WHERE a.extensionId IN :extensionIds OR a.otherExtensionId IN :extensionIds
             """)
     List<NameSimilarityAllow> findInvolving(@Param("extensionIds") Collection<Long> extensionIds);
+
+    /** The extensions that were allowed as look-alikes, the most recently allowed first. */
+    @Query("""
+            SELECT a.extensionId FROM NameSimilarityAllow a
+            GROUP BY a.extensionId
+            ORDER BY MAX(a.decidedAt) DESC, a.extensionId
+            """)
+    List<Long> findAllowedExtensionIds(Pageable pageable);
+
+    List<NameSimilarityAllow> findByExtensionIdInOrderByDecidedAtDesc(Collection<Long> extensionIds);
 
     Optional<NameSimilarityAllow> findById(long id);
 

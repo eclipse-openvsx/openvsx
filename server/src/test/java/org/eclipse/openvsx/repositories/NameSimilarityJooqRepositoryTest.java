@@ -14,11 +14,13 @@ package org.eclipse.openvsx.repositories;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -36,10 +38,14 @@ import org.springframework.core.io.ClassPathResource;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.entities.Extension;
+import org.eclipse.openvsx.entities.ExtensionScan;
+import org.eclipse.openvsx.entities.ExtensionValidationFailure;
 import org.eclipse.openvsx.entities.ExtensionVersion;
 import org.eclipse.openvsx.entities.NameSimilarityField;
 import org.eclipse.openvsx.entities.Namespace;
+import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.UserData;
+import org.eclipse.openvsx.repositories.NameSimilarityJooqRepository.Candidate;
 import org.eclipse.openvsx.repositories.NameSimilarityJooqRepository.Match;
 import org.eclipse.openvsx.repositories.NameSimilarityJooqRepository.Probe;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -56,6 +62,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
 
     private static final LocalDateTime PUBLISHED = LocalDateTime.of(2024, 1, 1, 0, 0);
+
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+
+    private static final LocalDateTime FLAGGED = LocalDateTime.of(2026, 10, 1, 12, 0);
 
     @Autowired
     NameSimilarityJooqRepository repo;
@@ -163,7 +173,7 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
         var exact = persistExtension(namespace(), word, word.toUpperCase());
         var near = persistExtension(namespace(), word.substring(0, 2), word.substring(0, 2));
 
-        var matches = find(new Probe("other", word, List.of(word), 0.1f, 0.1f, 4, 50), exact, near);
+        var matches = find(new Probe("other", word, List.of(word), 0.1f, 0.1f, 4, 50, TIMEOUT), exact, near);
 
         assertThat(matches).isNotEmpty().allSatisfy(match -> {
             assertThat(match.extensionId()).isEqualTo(exact.getId());
@@ -213,26 +223,6 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     }
 
     @Test
-    void groupsDisplayNamesSharedAcrossNamespaces() {
-        var word = word();
-        var first = persistExtension(namespace(), "x" + word(), word.toUpperCase() + " Shared");
-        var second = persistExtension(namespace(), "x" + word(), "\u2002" + word + " shared");
-        var soloNamespace = namespace();
-        persistExtension(soloNamespace, "x" + word(), word + " Solo");
-        persistExtension(soloNamespace, "x" + word(), word + " Solo");
-        em.flush();
-
-        var groups = repo.findSharedDisplayNames();
-
-        assertThat(groups).filteredOn(group -> group.normalizedDisplayName().equals(word + " shared"))
-                .singleElement()
-                .satisfies(
-                        group -> assertThat(group.extensionIds())
-                                .containsExactlyInAnyOrder(first.getId(), second.getId()));
-        assertThat(groups).noneMatch(group -> group.normalizedDisplayName().equals(word + " solo"));
-    }
-
-    @Test
     void javaNormalizationAgreesWithTheSqlExpression() {
         var samples = new ArrayList<String>();
         for (var c : NameSimilarityJooqRepository.DISPLAY_NAME_TRIM_CHARS.toCharArray()) {
@@ -260,10 +250,164 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
 
     @Test
     void probeRejectsThresholdsOutsideTheUnitInterval() {
-        assertThatThrownBy(() -> new Probe("ns", "ext", List.of(), 0f, 0.7f, 4, 10))
+        assertThatThrownBy(() -> new Probe("ns", "ext", List.of(), 0f, 0.7f, 4, 10, TIMEOUT))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Probe("ns", "ext", List.of(), 0.7f, 1.5f, 4, 10))
+        assertThatThrownBy(() -> new Probe("ns", "ext", List.of(), 0.7f, 1.5f, 4, 10, TIMEOUT))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void probeRejectsATimeoutThatIsNotPositive() {
+        assertThatThrownBy(() -> new Probe("ns", "ext", List.of(), 0.7f, 0.7f, 4, 10, Duration.ZERO))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void putsTheStatementTimeoutBackAfterALookup() {
+        dsl.execute("SET LOCAL statement_timeout = '42s'");
+
+        repo.findSimilar(probe("other", "x" + word(), word() + " Tools", 0.7f));
+
+        assertThat(
+                dsl.select(DSL.function("current_setting", String.class, DSL.inline("statement_timeout")))
+                        .fetchOne(0, String.class))
+                .isEqualTo("42s");
+    }
+
+    @Test
+    void listsFlaggedExtensionsByTheirLatestFlagNewestFirst() {
+        var fixture = flaggedFixture();
+
+        // One failure per step, so the walk resumes inside a scan and between scans flagged at one instant.
+        var walked = repo.findCandidates(fixture.checkType(), 0, 100_000, TIMEOUT, 1, 1_000);
+
+        assertThat(ofInterest(walked, fixture)).containsExactly(
+                new Candidate(fixture.reflagged().getId(), FLAGGED),
+                new Candidate(fixture.tiedLater().getId(), FLAGGED.minusDays(1)),
+                new Candidate(fixture.tiedEarlier().getId(), FLAGGED.minusDays(1)),
+                new Candidate(fixture.manyMatches().getId(), FLAGGED.minusDays(2)),
+                new Candidate(fixture.otherCase().getId(), FLAGGED.minusDays(4)),
+                new Candidate(fixture.sharesDisplayName().getId(), null));
+    }
+
+    @Test
+    void walkAndOneGoLookupAgree() {
+        var fixture = flaggedFixture();
+
+        var walked = repo.findCandidates(fixture.checkType(), 0, 100_000, TIMEOUT, 1, 1_000);
+        var inOneGo = repo.findCandidates(fixture.checkType(), 0, 100_000, TIMEOUT, 1, 1);
+
+        assertThat(ofInterest(inOneGo, fixture)).isEqualTo(ofInterest(walked, fixture)).hasSize(6);
+    }
+
+    @Test
+    void pagesThroughTheFlaggedExtensions() {
+        var fixture = flaggedFixture();
+
+        var page = repo.findCandidates(fixture.checkType(), 1, 2, TIMEOUT, 1, 3);
+
+        assertThat(page).extracting(Candidate::extensionId)
+                .containsExactly(fixture.tiedLater().getId(), fixture.tiedEarlier().getId());
+    }
+
+    @Test
+    void walkReadsFailuresOffTheirIndex() {
+        dsl.execute("SET LOCAL enable_seqscan = off");
+        dsl.execute("SET LOCAL enable_bitmapscan = off");
+
+        var plan = dsl.explain(
+                NameSimilarityJooqRepository.flaggedStepQuery(dsl, "TEST_" + word(), FLAGGED, 42L, 1024)).plan();
+
+        assertThat(plan).containsPattern("Index (Only )?Scan using extension_validation_failure_type_detected_idx")
+                .contains("ROW(detected_at, scan_id) <")
+                .doesNotContain("Sort Key: extension_validation_failure");
+    }
+
+    /**
+     * Extensions flagged by a check type of their own, as the publish check would flag them, plus one
+     * never flagged whose display name another namespace's extension (the reflagged one) shares.
+     */
+    private FlaggedFixture flaggedFixture() {
+        var checkType = "TEST_" + word();
+        var sharedName = word() + " Tools";
+        var reflagged = persistExtension(namespace(), "ext" + word(), sharedName);
+        var tiedEarlier = persistExtension(namespace(), "ext" + word(), word() + " Tools");
+        var tiedLater = persistExtension(namespace(), "ext" + word(), word() + " Tools");
+        var manyMatches = persistExtension(namespace(), "ext" + word(), word() + " Tools");
+        var otherCase = persistExtension(namespace(), "ext" + word(), word() + " Tools");
+        var inactive = persistExtension(namespace(), "ext" + word(), word() + " Tools");
+        inactive.setActive(false);
+        var sharesDisplayName = persistExtension(namespace(), "ext" + word(), sharedName);
+
+        flag(checkType, reflagged, FLAGGED.minusDays(3), 1, false);
+        flag(checkType, otherCase, FLAGGED.minusDays(4), 1, true);
+        flag(checkType, manyMatches, FLAGGED.minusDays(2), 3, false);
+        flag(checkType, tiedEarlier, FLAGGED.minusDays(1), 2, false);
+        flag(checkType, tiedLater, FLAGGED.minusDays(1), 2, false);
+        flag(checkType, reflagged, FLAGGED, 1, false);
+        flag(checkType, inactive, FLAGGED.plusDays(1), 1, false);
+        em.flush();
+        return new FlaggedFixture(
+                checkType,
+                reflagged,
+                tiedEarlier,
+                tiedLater,
+                manyMatches,
+                otherCase,
+                inactive,
+                sharesDisplayName);
+    }
+
+    private record FlaggedFixture(
+            String checkType,
+            Extension reflagged,
+            Extension tiedEarlier,
+            Extension tiedLater,
+            Extension manyMatches,
+            Extension otherCase,
+            Extension inactive,
+            Extension sharesDisplayName
+    ) {
+        Set<Long> ids() {
+            return Set.of(
+                    reflagged.getId(),
+                    tiedEarlier.getId(),
+                    tiedLater.getId(),
+                    manyMatches.getId(),
+                    otherCase.getId(),
+                    inactive.getId(),
+                    sharesDisplayName.getId());
+        }
+    }
+
+    private static List<Candidate> ofInterest(List<Candidate> candidates, FlaggedFixture fixture) {
+        return candidates.stream().filter(candidate -> fixture.ids().contains(candidate.extensionId())).toList();
+    }
+
+    /** A scan of the extension recording {@code failures} failures of the check type, all at one instant. */
+    private void flag(String checkType, Extension extension, LocalDateTime at, int failures, boolean upperCase) {
+        var scan = new ExtensionScan();
+        var namespaceName = extension.getNamespace().getName();
+        scan.setNamespaceName(upperCase ? namespaceName.toUpperCase(Locale.ROOT) : namespaceName);
+        scan.setExtensionName(upperCase ? extension.getName().toUpperCase(Locale.ROOT) : extension.getName());
+        scan.setExtensionVersion("1.0.0");
+        scan.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
+        scan.setUniversalTargetPlatform(true);
+        scan.setPublisher("name-similarity-publisher");
+        scan.setStartedAt(at);
+        scan.setStatus(ScanStatus.PASSED);
+        em.persist(scan);
+
+        for (var i = 0; i < failures; i++) {
+            var failure = new ExtensionValidationFailure();
+            failure.setScan(scan);
+            failure.setCheckType(checkType);
+            failure.setRuleName("DISPLAY_NAME");
+            failure.setValidationFailureReason("flagged by the test");
+            failure.setEnforced(false);
+            failure.setDetectedAt(at);
+            em.persist(failure);
+        }
     }
 
     private List<Match> find(Probe probe, Extension... ofInterest) {
@@ -279,17 +423,16 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
             float threshold
     ) {
         Collection<String> displayNames = displayName == null ? List.of() : List.of(displayName);
-        return new Probe(namespaceName, extensionName, displayNames, threshold, threshold, 4, 50);
+        return new Probe(namespaceName, extensionName, displayNames, threshold, threshold, 4, 50, TIMEOUT);
     }
 
     /**
-     * The fixture tables are nearly empty, so the planner would rather read them whole, by a sequential
-     * scan or a full scan of any B-tree. GIN indexes are only read through bitmap scans, so with both of
-     * those off the plan names a trigram index only if the query's expression matches it.
+     * The fixture tables are nearly empty, so the planner would rather read them whole. The trigram filter
+     * runs in a step of its own, so with sequential scans off the index is the cheapest way left to read
+     * it, provided the query's expression matches the index's.
      */
     private void disablePlansThatBypassTrigramIndexes() {
         dsl.execute("SET LOCAL enable_seqscan = off");
-        dsl.execute("SET LOCAL enable_indexscan = off");
     }
 
     /**

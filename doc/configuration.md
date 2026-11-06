@@ -878,6 +878,58 @@ Whether removing an extension through the extension control file also removes wh
 
 Whether to generate a signature archive (sigzip) for published extensions. By default it does nothing. There are 3 modes: `create`, `renew` and `delete`. When `renew` is specified, then on startup a new keypair is generated and a new signature is generated for each extension version in the background. When `create` is specified then on startup, if no keypair exists, a keypair is created and a signature is generated for each extension version in the background. A signature is generated for newly published extension versions in both `renew` and `create` modes. The `delete` mode deletes the keypair and all generated signatures.
 
+## Name Similarity
+
+The `NAME_SIMILARITY` publish check flags a version whose extension name or display name matches or resembles another namespace's active extension, for an admin to review on the name squatting dashboard. It never blocks publication, whether it finds a match or fails, and like every publish check it runs only while `ovsx.scanning.enabled` is `true`.
+
+| Property      | `ovsx.scanning.name-similarity.enabled`
+|---------------|----------------------------------------
+| Type          | boolean
+| Default       | `true`
+| Compatibility | Since 1.5.0
+
+Whether the `NAME_SIMILARITY` check runs on publish. The dashboard works either way, but without the check it has no flagged versions to show beyond extensions sharing a display name.
+
+| Property      | `ovsx.scanning.name-similarity.name-threshold`
+|---------------|-----------------------------------------------
+| Type          | number
+| Default       | `0.7`
+| Compatibility | Since 1.5.0
+
+Lowest trigram similarity, above 0 and at most 1, at which two extension names count as a match. A value out of range stops the server from starting.
+
+| Property      | `ovsx.scanning.name-similarity.display-name-threshold`
+|---------------|-------------------------------------------------------
+| Type          | number
+| Default       | `0.7`
+| Compatibility | Since 1.5.0
+
+Lowest trigram similarity, above 0 and at most 1, at which two display names count as a match. A value out of range stops the server from starting.
+
+| Property      | `ovsx.scanning.name-similarity.min-fuzzy-length`
+|---------------|-------------------------------------------------
+| Type          | integer
+| Default       | `4`
+| Compatibility | Since 1.5.0
+
+Names shorter than this, once normalized, only match exactly, since trigram scores of very short strings say little. Must be at least 1.
+
+| Property      | `ovsx.scanning.name-similarity.max-matches`
+|---------------|--------------------------------------------
+| Type          | integer
+| Default       | `10`
+| Compatibility | Since 1.5.0
+
+Most matches looked up per field and name, which bounds the work a very generic name causes. Must be at least 1.
+
+| Property      | `ovsx.scanning.name-similarity.statement-timeout`
+|---------------|--------------------------------------------------
+| Type          | duration
+| Default       | `10s`
+| Compatibility | Since 1.5.0
+
+How long one lookup may run before the database cancels it, for the publish check and the dashboard alike. A cancelled check fails without blocking publication; a cancelled dashboard lookup answers 503 and suggests raising this value. Must be positive.
+
 ## OAuth2
 
 The `ovsx.oauth2.attribute-names.[provider-name].*` configuration properties allow mapping a login provider's attributes to Open VSX user data. By default it provides an attribute name configuration for [GitHub](https://docs.github.com/en/free-pro-team@latest/developers/apps/building-oauth-apps). It is possible to configure attribute name mappings for multiple login providers. Make sure to also configure Spring Security using its `spring.security.oauth2.client.registration.[provider-name].*` and `spring.security.oauth2.client.provider.[provider-name].*` properties.
