@@ -227,6 +227,13 @@ ovsx:
       only-protect-verified-names: false
       allow-similarity-to-own-names: true
       only-check-new-extensions: true
+    name-similarity:
+      enabled: true
+      name-threshold: 0.7
+      display-name-threshold: 0.7
+      min-fuzzy-length: 4
+      max-matches: 10
+      statement-timeout: 10s
     secret-detection:
       enabled: true
       enforced: false

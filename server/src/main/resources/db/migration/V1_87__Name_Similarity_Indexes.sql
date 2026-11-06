@@ -1,13 +1,14 @@
--- Trigram indexes for the NAME_SIMILARITY lookups (see NameSimilarityJooqRepository), which find the
--- active extensions whose name or display name resembles a given one with the % operator.
+-- Indexes for the NAME_SIMILARITY check (see NameSimilarityJooqRepository): trigram indexes to find the
+-- active extensions whose name or display name resembles a given one with the % operator, and one to
+-- list the extensions the check flagged, most recently flagged first.
 --
 -- The display name expression has to match the one used by the query, or the planner falls back to a
 -- sequential scan over every version: casing and surrounding whitespace are normalised away, the
 -- trimmed set being every Unicode space separator. It is the same normalisation as the
 -- DISPLAY_NAME_CONFLICT check's extension_version_display_name_idx.
 --
--- Restricted to the versions and extensions that are publicly visible, which is all the lookups look
--- at, and which keeps the inactive versions that make up the bulk of the table out of the index.
+-- The trigram indexes are restricted to the versions and extensions that are publicly visible, which is
+-- all the lookups look at, and which keeps the inactive versions that make up the bulk of the table out.
 --
 -- Deliberately not CONCURRENTLY: Flyway holds a transaction open on a second connection for the whole
 -- run, and CREATE INDEX CONCURRENTLY waits for every transaction open alongside it, Flyway's own
@@ -29,3 +30,9 @@ CREATE INDEX IF NOT EXISTS extension_name_trgm_idx
     ON public.extension
     USING gin (lower(name) gin_trgm_ops)
     WHERE active;
+
+-- Lets the name squatting dashboard walk a check type's failures newest first and stop once a page is
+-- full, instead of aggregating every failure ever recorded. scan_id makes the walk index-only and gives
+-- failures recorded at the same instant a stable order to resume from.
+CREATE INDEX IF NOT EXISTS extension_validation_failure_type_detected_idx
+    ON public.extension_validation_failure (validation_type, detected_at DESC, scan_id DESC);
