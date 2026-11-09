@@ -15,6 +15,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change
 - A failed asynchronous publish is retried again (up to 3 times, an `Error` is not retried), and the uploaded package is kept until the last attempt instead of being deleted after the first ([#2449](https://github.com/eclipse-openvsx/openvsx/issues/2449))
 - Namespace details are cached under one key whatever the case of the namespace name in the request, so a differently-cased URL no longer serves stale details after a member, details or logo change ([#2445](https://github.com/eclipse-openvsx/openvsx/issues/2445))
+- Concurrent downloads and download-log ingestions of the same extension no longer lose increments of its download count ([#2361](https://github.com/eclipse-openvsx/openvsx/pull/2361))
 - Deleting an extension is no longer refused because of removed versions of other extensions that depended on it ([#2441](https://github.com/eclipse-openvsx/openvsx/issues/2441))
 
 ## [1.4.0] - 2026-11-09
@@ -55,7 +56,6 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
 - Fix the startup failure with `bucket4j.enabled=true` by bumping bucket4j-spring-boot-starter to 0.14.0 (Spring Boot 4) and bucket4j to 8.15.0 ([#2405](https://github.com/eclipse-openvsx/openvsx/issues/2405))
 - The publisher and admin extension details show the version the registry serves as latest instead of a higher removed one ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
-- Concurrent downloads and download-log ingestions of the same extension no longer lose increments of its download count ([#2361](https://github.com/eclipse-openvsx/openvsx/pull/2361))
 
 ### Dependencies
 
