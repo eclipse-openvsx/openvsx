@@ -43,6 +43,9 @@ import {
     FileDecisionDeleteResponse,
     SizeOverride,
     SizeOverrideList,
+    NameSquattingAllowlist,
+    NameSquattingAllowRequest,
+    NameSquattingCollisions,
     LogPageableList,
     Settings,
     SiteSettings,
@@ -663,6 +666,19 @@ export interface AdminService {
     createSizeOverride(override: SizeOverride): Promise<Readonly<SizeOverride>>;
     updateSizeOverride(id: number, override: SizeOverride): Promise<Readonly<SizeOverride>>;
     deleteSizeOverride(id: number): Promise<Readonly<SuccessResult>>;
+    /** Looks the name squatting candidates up again, `size` at a time from `offset`; `nextOffset` continues. */
+    getNameSquattingCollisions(
+        signal: AbortSignal,
+        offset: number,
+        size: number
+    ): Promise<Readonly<NameSquattingCollisions>>;
+    getNameSquattingAllowlist(
+        signal: AbortSignal,
+        page: number,
+        size: number
+    ): Promise<Readonly<NameSquattingAllowlist>>;
+    allowNameSquattingPair(request: NameSquattingAllowRequest): Promise<Readonly<SuccessResult>>;
+    removeNameSquattingAllow(id: number): Promise<Readonly<SuccessResult>>;
     getLogs(signal: AbortSignal, page?: number, size?: number, period?: string): Promise<Readonly<LogPageableList>>;
     getSettings(signal: AbortSignal): Promise<Readonly<Settings>>;
     updateSettings(settings: Partial<Settings>): Promise<Readonly<Settings>>;
@@ -1188,6 +1204,71 @@ export class AdminServiceImpl implements AdminService {
             method: 'DELETE',
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'size-overrides', String(id)]),
+            headers
+        });
+    }
+
+    async getNameSquattingCollisions(
+        signal: AbortSignal,
+        offset: number,
+        size: number
+    ): Promise<Readonly<NameSquattingCollisions>> {
+        return sendRequest({
+            signal,
+            credentials: true,
+            endpoint: createAbsoluteURL(
+                [this.registry.serverUrl, 'admin', 'name-squatting', 'collisions'],
+                [
+                    { key: 'offset', value: offset },
+                    { key: 'size', value: size }
+                ]
+            )
+        });
+    }
+
+    async getNameSquattingAllowlist(
+        signal: AbortSignal,
+        page: number,
+        size: number
+    ): Promise<Readonly<NameSquattingAllowlist>> {
+        return sendRequest({
+            signal,
+            credentials: true,
+            endpoint: createAbsoluteURL(
+                [this.registry.serverUrl, 'admin', 'name-squatting', 'allowlist'],
+                [
+                    { key: 'page', value: page },
+                    { key: 'size', value: size }
+                ]
+            )
+        });
+    }
+
+    async allowNameSquattingPair(request: NameSquattingAllowRequest): Promise<Readonly<SuccessResult>> {
+        const csrfToken = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        headers[csrfToken.header] = csrfToken.value;
+        return sendRequest({
+            method: 'POST',
+            payload: request,
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'allowlist']),
+            headers
+        });
+    }
+
+    async removeNameSquattingAllow(id: number): Promise<Readonly<SuccessResult>> {
+        const csrfToken = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        headers[csrfToken.header] = csrfToken.value;
+        return sendRequest({
+            method: 'DELETE',
+            credentials: true,
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'allowlist', String(id)]),
             headers
         });
     }

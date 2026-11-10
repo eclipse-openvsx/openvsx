@@ -603,6 +603,94 @@ export interface SizeOverrideList {
     maxOverrideSize: number;
 }
 
+/** An extension as the name squatting dashboard shows it. */
+export interface NameSquattingExtension {
+    namespace: string;
+    name: string;
+    /** A display name of one of its active versions. */
+    displayName?: string;
+    downloadCount: number;
+    /** UTC timestamp of its first publication. */
+    publishedDate?: string;
+    activeVersionCount: number;
+    active: boolean;
+}
+
+export type NameSquattingField = 'NAME' | 'DISPLAY_NAME';
+
+/** How a look-alike's name compares with the extension published first. */
+export interface NameSquattingMatch {
+    field: NameSquattingField;
+    /** The value of the extension published first. */
+    value: string;
+    lookalikeValue: string;
+    /** Trigram similarity, from 0 to 1. */
+    similarity: number;
+    /** Equal ignoring case and surrounding whitespace; a similarity of 1 alone does not imply it. */
+    exact: boolean;
+}
+
+export interface NameSquattingLookalike {
+    extension: NameSquattingExtension;
+    /** Closest first. */
+    matches: NameSquattingMatch[];
+    /** Trigram similarity of the two namespace names, from 0 to 1. */
+    namespaceSimilarity: number;
+    /** UTC timestamp of the latest flag of either extension, absent for a display name only shared. */
+    flaggedAt?: string;
+}
+
+/** An extension and the later extensions that resemble it. */
+export interface NameSquattingGroup {
+    anchor: NameSquattingExtension;
+    lookalikes: NameSquattingLookalike[];
+}
+
+export interface NameSquattingCollisions {
+    groups: NameSquattingGroup[];
+    /** Pass as `offset` to load the next groups. */
+    nextOffset: number;
+    hasMore: boolean;
+}
+
+export interface NameSquattingAllowRequest {
+    namespace: string;
+    extension: string;
+    otherNamespace: string;
+    otherExtension: string;
+    reason?: string;
+}
+
+/** A pair an admin allowed. */
+export interface NameSquattingAllow {
+    id: number;
+    other: NameSquattingExtension;
+    field: NameSquattingField | 'NAMESPACE';
+    similarity: number;
+    /** The allowed extension's value when it was allowed. */
+    value: string;
+    /** The other extension's value when it was allowed. */
+    otherValue: string;
+    /** Whether either value has changed since. */
+    renamed: boolean;
+    reason?: string;
+    /** Login name of the admin, absent once that user is gone. */
+    decidedBy?: string;
+    decidedAt: string;
+}
+
+/** An allowed extension and the pairs it was allowed in. */
+export interface NameSquattingAllowlistGroup {
+    extension: NameSquattingExtension;
+    allows: NameSquattingAllow[];
+}
+
+export interface NameSquattingAllowlist {
+    groups: NameSquattingAllowlistGroup[];
+    page: number;
+    hasMore: boolean;
+}
+
 export interface Log {
     timestamp: string;
     user: string;
