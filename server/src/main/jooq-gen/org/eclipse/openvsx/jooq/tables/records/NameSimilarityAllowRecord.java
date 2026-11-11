@@ -90,16 +90,16 @@ public class NameSimilarityAllowRecord extends UpdatableRecordImpl<NameSimilarit
     }
 
     /**
-     * Setter for <code>public.name_similarity_allow.extension_value</code>.
+     * Setter for <code>public.name_similarity_allow.lookalike_value</code>.
      */
-    public void setExtensionValue(String value) {
+    public void setLookalikeValue(String value) {
         set(5, value);
     }
 
     /**
-     * Getter for <code>public.name_similarity_allow.extension_value</code>.
+     * Getter for <code>public.name_similarity_allow.lookalike_value</code>.
      */
-    public String getExtensionValue() {
+    public String getLookalikeValue() {
         return (String) get(5);
     }
 
@@ -159,6 +159,34 @@ public class NameSimilarityAllowRecord extends UpdatableRecordImpl<NameSimilarit
         return (LocalDateTime) get(9);
     }
 
+    /**
+     * Setter for <code>public.name_similarity_allow.namespace_id</code>.
+     */
+    public void setNamespaceId(Long value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.name_similarity_allow.namespace_id</code>.
+     */
+    public Long getNamespaceId() {
+        return (Long) get(10);
+    }
+
+    /**
+     * Setter for <code>public.name_similarity_allow.other_namespace_id</code>.
+     */
+    public void setOtherNamespaceId(Long value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.name_similarity_allow.other_namespace_id</code>.
+     */
+    public Long getOtherNamespaceId() {
+        return (Long) get(11);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -182,7 +210,7 @@ public class NameSimilarityAllowRecord extends UpdatableRecordImpl<NameSimilarit
     /**
      * Create a detached, initialised NameSimilarityAllowRecord
      */
-    public NameSimilarityAllowRecord(Long id, Long extensionId, Long otherExtensionId, String field, Float similarity, String extensionValue, String otherValue, String reason, Long decidedById, LocalDateTime decidedAt) {
+    public NameSimilarityAllowRecord(Long id, Long extensionId, Long otherExtensionId, String field, Float similarity, String lookalikeValue, String otherValue, String reason, Long decidedById, LocalDateTime decidedAt, Long namespaceId, Long otherNamespaceId) {
         super(NameSimilarityAllow.NAME_SIMILARITY_ALLOW);
 
         setId(id);
@@ -190,11 +218,13 @@ public class NameSimilarityAllowRecord extends UpdatableRecordImpl<NameSimilarit
         setOtherExtensionId(otherExtensionId);
         setField(field);
         setSimilarity(similarity);
-        setExtensionValue(extensionValue);
+        setLookalikeValue(lookalikeValue);
         setOtherValue(otherValue);
         setReason(reason);
         setDecidedById(decidedById);
         setDecidedAt(decidedAt);
+        setNamespaceId(namespaceId);
+        setOtherNamespaceId(otherNamespaceId);
         resetChangedOnNotNull();
     }
 }

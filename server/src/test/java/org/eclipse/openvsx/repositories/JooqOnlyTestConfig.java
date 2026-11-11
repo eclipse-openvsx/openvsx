@@ -53,7 +53,8 @@ import org.springframework.context.annotation.Import;
         ExtensionVersionJooqRepository.class,
         ExtensionJooqRepository.class,
         UserDataJooqRepository.class,
-        NameSimilarityJooqRepository.class
+        NameSimilarityJooqRepository.class,
+        NamespaceSimilarityJooqRepository.class
     }
 )
 public class JooqOnlyTestConfig {

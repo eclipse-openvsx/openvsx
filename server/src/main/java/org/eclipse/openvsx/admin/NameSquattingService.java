@@ -226,7 +226,7 @@ public class NameSquattingService {
         allow.setOtherExtensionId(other.getId());
         allow.setField(closest.field());
         allow.setSimilarity(closest.similarity());
-        allow.setExtensionValue(closest.probeValue());
+        allow.setLookalikeValue(closest.probeValue());
         allow.setOtherValue(closest.value());
         allow.setReason(reason);
         allow.setDecidedById(admin.getId());
@@ -288,7 +288,7 @@ public class NameSquattingService {
     ) {
         var extension = names.get(allow.getExtensionId());
         var other = names.get(allow.getOtherExtensionId());
-        var renamed = !hasValue(extension, allow.getField(), allow.getExtensionValue())
+        var renamed = !hasValue(extension, allow.getField(), allow.getLookalikeValue())
                 || !hasValue(other, allow.getField(), allow.getOtherValue());
         String decidedBy = null;
         if (allow.getDecidedById() != null) {
@@ -302,7 +302,7 @@ public class NameSquattingService {
                 toJson(other),
                 allow.getField().name(),
                 allow.getSimilarity(),
-                allow.getExtensionValue(),
+                allow.getLookalikeValue(),
                 allow.getOtherValue(),
                 renamed,
                 allow.getReason(),

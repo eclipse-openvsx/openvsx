@@ -25,7 +25,7 @@ import org.eclipse.openvsx.entities.NameSimilarityAllow;
 
 public interface NameSimilarityAllowRepository extends Repository<NameSimilarityAllow, Long> {
 
-    /** The allow for the pair, whichever way round it was stored. */
+    /** The allow for the pair of extensions, whichever way round it was stored. */
     @Query("""
             SELECT a FROM NameSimilarityAllow a
             WHERE (a.extensionId = :first AND a.otherExtensionId = :second)
@@ -33,7 +33,7 @@ public interface NameSimilarityAllowRepository extends Repository<NameSimilarity
             """)
     Optional<NameSimilarityAllow> findPair(@Param("first") long first, @Param("second") long second);
 
-    /** Every allow that has one of the given extensions on either side. */
+    /** Every allow of extensions that has one of the given extensions on either side. */
     @Query("""
             SELECT a FROM NameSimilarityAllow a
             WHERE a.extensionId IN :extensionIds OR a.otherExtensionId IN :extensionIds
@@ -43,10 +43,19 @@ public interface NameSimilarityAllowRepository extends Repository<NameSimilarity
     /** The extensions that were allowed as look-alikes, the most recently allowed first. */
     @Query("""
             SELECT a.extensionId FROM NameSimilarityAllow a
+            WHERE a.extensionId IS NOT NULL
             GROUP BY a.extensionId
             ORDER BY MAX(a.decidedAt) DESC, a.extensionId
             """)
     List<Long> findAllowedExtensionIds(Pageable pageable);
+
+    /** The allow for the pair of namespaces, whichever way round it was stored. */
+    @Query("""
+            SELECT a FROM NameSimilarityAllow a
+            WHERE (a.namespaceId = :first AND a.otherNamespaceId = :second)
+               OR (a.namespaceId = :second AND a.otherNamespaceId = :first)
+            """)
+    Optional<NameSimilarityAllow> findNamespacePair(@Param("first") long first, @Param("second") long second);
 
     List<NameSimilarityAllow> findByExtensionIdInOrderByDecidedAtDesc(Collection<Long> extensionIds);
 
