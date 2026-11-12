@@ -124,6 +124,30 @@ class ExtensionProcessorTest {
     }
 
     @Test
+    void testMissingPackageJsonIsRejected() throws Exception {
+        try (
+                var file = writeZipWithoutMetadata();
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThatThrownBy(processor::getPackageMetadata)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("Entry not found: extension/package.json");
+        }
+    }
+
+    @Test
+    void testMissingVsixManifestIsRejected() throws Exception {
+        try (
+                var file = writeZipWithoutMetadata();
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThatThrownBy(processor::getNamespace)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("Entry not found: extension.vsixmanifest");
+        }
+    }
+
+    @Test
     void testTagsAreCappedAtTheDefaultLimit() throws Exception {
         var declaredTags = tags(35);
         try (
@@ -252,6 +276,17 @@ class ExtensionProcessorTest {
                 out.write(content.getBytes(StandardCharsets.UTF_8));
                 out.closeEntry();
             }
+        }
+
+        return target;
+    }
+
+    // ZipOutputStream refuses to write an archive without entries.
+    private TempFile writeZipWithoutMetadata() throws IOException {
+        var target = new TempFile("test", ".zip");
+        try (var out = new ZipOutputStream(Files.newOutputStream(target.getPath()))) {
+            out.putNextEntry(new ZipEntry("extension/README.md"));
+            out.closeEntry();
         }
 
         return target;
