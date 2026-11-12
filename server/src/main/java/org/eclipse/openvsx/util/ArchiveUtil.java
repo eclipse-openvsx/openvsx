@@ -63,36 +63,37 @@ public final class ArchiveUtil {
         var prefix = suffixIndex == -1 ? fileName : fileName.substring(0, suffixIndex);
         var file = new TempFile(prefix, suffix);
         try (var out = Files.newOutputStream(file.getPath())) {
-            try (var is = openEntry(archive, entry)) {
+            try (var is = sizeLimitedStream(archive, entry)) {
                 is.transferTo(out);
             } catch (IOException e) {
                 IOUtils.closeQuietly(file);
-                throw failedToRead(entry, e);
+                throw failedToRead(entry.getName(), e);
             }
         }
         return file;
     }
 
     /**
-     * Reads an entry into memory, applying the same size limits as {@link #readEntry(ZipFile, String)}.
+     * Opens an entry, applying the same size limits as {@link #readEntry(ZipFile, String)}. Reading past
+     * the entry's declared size fails with an {@link IOException}.
      *
      * @return the entry's content, or {@code null} if the archive has no such entry
      */
-    public static byte @Nullable [] readEntryBytes(ZipFile archive, String entryName) {
-        return readEntryBytes(archive, entryName, MAX_ENTRY_SIZE);
+    public static @Nullable InputStream openEntry(ZipFile archive, String entryName) {
+        return openEntry(archive, entryName, MAX_ENTRY_SIZE);
     }
 
-    static byte @Nullable [] readEntryBytes(ZipFile archive, String entryName, long maxEntrySize) {
+    static @Nullable InputStream openEntry(ZipFile archive, String entryName, long maxEntrySize) {
         var entry = archive.getEntry(entryName);
         if (entry == null) {
             return null;
         }
 
         checkEntrySize(entry, maxEntrySize);
-        try (var is = openEntry(archive, entry)) {
-            return is.readAllBytes();
+        try {
+            return sizeLimitedStream(archive, entry);
         } catch (IOException e) {
-            throw failedToRead(entry, e);
+            throw failedToRead(entry.getName(), e);
         }
     }
 
@@ -109,12 +110,12 @@ public final class ArchiveUtil {
     }
 
     // Read at most the number of bytes declared by the entry, a zip header can lie about it.
-    private static InputStream openEntry(ZipFile archive, ZipEntry entry) throws IOException {
+    private static InputStream sizeLimitedStream(ZipFile archive, ZipEntry entry) throws IOException {
         return new SizeLimitInputStream(archive.getInputStream(entry), entry.getSize());
     }
 
-    private static ErrorResultException failedToRead(ZipEntry entry, IOException e) {
-        return new ErrorResultException("Failed to read " + entry.getName() + ": " + e.getMessage());
+    public static ErrorResultException failedToRead(String entryName, IOException e) {
+        return new ErrorResultException("Failed to read " + entryName + ": " + e.getMessage());
     }
 
     /**

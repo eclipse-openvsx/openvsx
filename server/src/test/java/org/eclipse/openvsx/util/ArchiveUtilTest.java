@@ -61,30 +61,36 @@ class ArchiveUtilTest {
     }
 
     @Test
-    void testReadEntryBytes() throws IOException {
+    void testOpenEntry() throws IOException {
         var packageUrl = getClass().getResource("todo-tree.zip");
         assertThat(packageUrl).isNotNull();
 
         try (var archive = new ZipFile(packageUrl.getPath())) {
-            assertThat(ArchiveUtil.readEntryBytes(archive, "extension/package.json")).hasSize(44712);
-            assertThat(ArchiveUtil.readEntryBytes(archive, "extension/missing.json")).isNull();
+            try (var stream = ArchiveUtil.openEntry(archive, "extension/package.json")) {
+                assertThat(stream).isNotNull();
+                assertThat(stream.readAllBytes()).hasSize(44712);
+            }
+            assertThat(ArchiveUtil.openEntry(archive, "extension/missing.json")).isNull();
         }
     }
 
     @Test
-    void testReadEntryBytesExceedMaxEntrySize() throws IOException {
+    void testOpenEntryExceedMaxEntrySize() throws IOException {
         // an artificially crafted zip file with a file whose size is set lower as its actual content
         var packageUrl = getClass().getResource("wrong-size.zip");
         assertThat(packageUrl).isNotNull();
 
         try (var archive = new ZipFile(packageUrl.getPath())) {
-            assertThatThrownBy(() -> ArchiveUtil.readEntryBytes(archive, "extension/README.md", 8192))
+            assertThatThrownBy(() -> ArchiveUtil.openEntry(archive, "extension/README.md", 8192))
                     .isExactlyInstanceOf(ErrorResultException.class)
                     .hasMessage("The file extension/README.md exceeds the size limit of 8 KB.");
 
-            assertThatThrownBy(() -> ArchiveUtil.readEntryBytes(archive, "extension/package.json", 8192))
-                    .isExactlyInstanceOf(ErrorResultException.class)
-                    .hasMessageContaining("Failed to read extension/package.json: File size exceeds limit of 0 bytes.");
+            try (var stream = ArchiveUtil.openEntry(archive, "extension/package.json", 8192)) {
+                assertThat(stream).isNotNull();
+                assertThatThrownBy(stream::readAllBytes)
+                        .isExactlyInstanceOf(IOException.class)
+                        .hasMessage("File size exceeds limit of 0 bytes.");
+            }
         }
     }
 

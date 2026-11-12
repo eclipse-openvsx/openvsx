@@ -12,7 +12,10 @@
  *****************************************************************************/
 package org.eclipse.openvsx;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -120,6 +123,19 @@ class ExtensionProcessorTest {
             assertThatThrownBy(processor::getPackageMetadata)
                     .isExactlyInstanceOf(ErrorResultException.class)
                     .hasMessageContaining("Failed to read extension/package.json: File size exceeds limit of 0 bytes.");
+        }
+    }
+
+    @Test
+    void testVsixManifestLargerThanDeclaredIsRejected() throws Exception {
+        try (
+                var file = writeZipWithUnderstatedSize("extension.vsixmanifest", "<PackageManifest/>");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            // The XML parser reports the failed read differently from the JSON one, both must surface as such.
+            assertThatThrownBy(processor::getNamespace)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("Failed to read extension.vsixmanifest: File size exceeds limit of 0 bytes.");
         }
     }
 
@@ -278,6 +294,30 @@ class ExtensionProcessorTest {
             }
         }
 
+        return target;
+    }
+
+    /**
+     * Writes a single-entry package whose central directory declares a size of 0, while the entry
+     * actually holds the given content.
+     */
+    private TempFile writeZipWithUnderstatedSize(String name, String content) throws IOException {
+        var target = new TempFile("test", ".zip");
+        var bytes = new ByteArrayOutputStream();
+        try (var out = new ZipOutputStream(bytes)) {
+            out.putNextEntry(new ZipEntry(name));
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+
+        // Zero the uncompressed size at offset 24 of the central directory header (signature PK\1\2).
+        var zip = ByteBuffer.wrap(bytes.toByteArray()).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < zip.limit() - 4; i++) {
+            if (zip.getInt(i) == 0x02014b50) {
+                zip.putInt(i + 24, 0);
+            }
+        }
+        Files.write(target.getPath(), zip.array());
         return target;
     }
 
