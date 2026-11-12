@@ -22,6 +22,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import org.eclipse.openvsx.entities.NameSimilarityAllow;
+import org.eclipse.openvsx.entities.NameSimilarityField;
 
 public interface NameSimilarityAllowRepository extends Repository<NameSimilarityAllow, Long> {
 
@@ -56,6 +57,18 @@ public interface NameSimilarityAllowRepository extends Repository<NameSimilarity
                OR (a.namespaceId = :second AND a.otherNamespaceId = :first)
             """)
     Optional<NameSimilarityAllow> findNamespacePair(@Param("first") long first, @Param("second") long second);
+
+    /**
+     * A page of the allows of the field, the most recently allowed first; the id breaks ties so pages
+     * neither repeat nor skip an allow.
+     */
+    List<NameSimilarityAllow> findByFieldOrderByDecidedAtDescIdDesc(NameSimilarityField field, Pageable pageable);
+
+    /**
+     * Every allow of the field, in no particular order. Meant for {@link NameSimilarityField#NAMESPACE},
+     * whose allows the dashboard filters every namespace pair against.
+     */
+    List<NameSimilarityAllow> findByField(NameSimilarityField field);
 
     List<NameSimilarityAllow> findByExtensionIdInOrderByDecidedAtDesc(Collection<Long> extensionIds);
 

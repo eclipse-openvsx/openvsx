@@ -104,4 +104,67 @@ public final class NameSquattingJson {
 
     @Schema(name = "NameSquattingAllowlist")
     public record Allowlist(List<AllowlistGroup> groups, int page, boolean hasMore) {}
+
+    @Schema(name = "NameSquattingNamespace", description = "A namespace as the name squatting dashboard shows it")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record NamespaceSummary(
+            String name,
+            @Schema(description = "Downloads of its active extensions") long downloads,
+            @Schema(description = "How many active extensions it has") int activeExtensions,
+            @Schema(
+                description = "UTC timestamp of its earliest active extension's publication, absent without any"
+            ) @Nullable String firstPublished
+    ) {}
+
+    @Schema(
+        name = "NameSquattingNamespacePair",
+        description = "Two namespaces whose names resemble each other, the one with more downloads as target"
+    )
+    public record NamespacePair(
+            NamespaceSummary target,
+            NamespaceSummary lookalike,
+            @Schema(description = "Levenshtein distance of the names, ignoring case") int editDistance,
+            @Schema(description = "Trigram similarity of the names, from 0 to 1") float similarity,
+            @Schema(
+                description = "Whether the names only differ in characters other than letters and digits"
+            ) boolean separatorOnly,
+            @Schema(description = "Whether a user is a member of both namespaces") boolean sharedMember,
+            @Schema(description = "Whether the target counts as popular next to the look-alike") boolean popular
+    ) {}
+
+    @Schema(name = "NameSquattingNamespacePairs")
+    public record NamespacePairs(
+            List<NamespacePair> pairs,
+            @Schema(description = "Pairs not allowed, popular or not") int total,
+            @Schema(description = "Of those, the pairs with a popular target") int popularTotal,
+            @Schema(description = "The offset the page starts at") int offset,
+            @Schema(description = "Whether more pairs follow the page") boolean hasMore
+    ) {}
+
+    @Schema(name = "NameSquattingNamespaceAllowRequest", description = "Two namespaces to allow alongside each other")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record NamespaceAllowRequest(
+            @Schema(description = "Name of the look-alike") String namespace,
+            @Schema(description = "Name of the namespace it resembles") String otherNamespace,
+            @Schema(description = "Why the pair is not squatting, at most 2048 characters") @Nullable String reason
+    ) {}
+
+    @Schema(name = "NameSquattingNamespaceAllow", description = "A pair of namespaces an admin allowed")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record NamespaceAllow(
+            long id,
+            @Schema(description = "The look-alike's name when it was allowed") String namespace,
+            @Schema(description = "The other namespace's name when it was allowed") String otherNamespace,
+            @Schema(description = "Trigram similarity of the names when allowed, from 0 to 1") float similarity,
+            @Nullable String reason,
+            @Schema(description = "Login name of the admin, absent once that user is gone") @Nullable String decidedBy,
+            @Schema(description = "UTC timestamp of the allow") String decidedAt
+    ) {}
+
+    @Schema(name = "NameSquattingNamespaceAllowlist")
+    public record NamespaceAllowlist(
+            @Schema(description = "The most recently allowed first") List<NamespaceAllow> allows,
+            int page,
+            @Schema(description = "Whether another page follows") boolean hasMore
+    ) {}
 }

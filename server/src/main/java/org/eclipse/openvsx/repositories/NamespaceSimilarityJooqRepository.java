@@ -121,6 +121,37 @@ public class NamespaceSimilarityJooqRepository {
         });
     }
 
+    /**
+     * How two namespace names compare, by the measures of {@link Pair}.
+     *
+     * @param editDistance  Levenshtein distance of the lowercased names
+     * @param similarity    trigram similarity of the lowercased names, from 0 to 1
+     * @param separatorOnly whether the names only differ in characters other than letters and digits
+     * @param resembles     whether {@link #findSimilarPairs} reports them, as far as their names go: it also
+     *                      needs an active extension on either side
+     */
+    public record Comparison(int editDistance, float similarity, boolean separatorOnly, boolean resembles) {}
+
+    /**
+     * Compare two namespace names the way {@link #findSimilarPairs} does, in a single query that reads no
+     * table, so the namespaces need not exist. The allowed edits follow the longer name's length.
+     */
+    public Comparison compare(String first, String second) {
+        var firstName = DSL.lower(DSL.val(first));
+        var secondName = DSL.lower(DSL.val(second));
+        var record = dsl.select(
+                DSL.function("levenshtein", Integer.class, firstName, secondName),
+                similarity(firstName, secondName),
+                DSL.field(stripped(firstName).eq(stripped(secondName))))
+                .fetchSingle();
+        int editDistance = record.value1();
+        float similarity = record.value2();
+        boolean separatorOnly = record.value3();
+        var resembles = separatorOnly || similarity >= PREFILTER_THRESHOLD
+                && editDistance <= allowedEdits(Math.max(first.length(), second.length()));
+        return new Comparison(editDistance, similarity, separatorOnly, resembles);
+    }
+
     /** The % operator compares against this setting. */
     static void applyThreshold(DSLContext tx) {
         setLocal(tx, "pg_trgm.similarity_threshold", Float.toString(PREFILTER_THRESHOLD));

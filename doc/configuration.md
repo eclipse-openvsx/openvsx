@@ -880,7 +880,7 @@ Whether to generate a signature archive (sigzip) for published extensions. By de
 
 ## Name Similarity
 
-The `NAME_SIMILARITY` publish check flags a version whose extension name or display name matches or resembles another namespace's active extension, for an admin to review on the name squatting dashboard. It never blocks publication, whether it finds a match or fails, and like every publish check it runs only while `ovsx.scanning.enabled` is `true`.
+The `NAME_SIMILARITY` publish check flags a version whose extension name or display name matches or resembles another namespace's active extension, for an admin to review on the name squatting dashboard. It never blocks publication, whether it finds a match or fails, and like every publish check it runs only while `ovsx.scanning.enabled` is `true`. The dashboard's namespaces view, which lists pairs of namespaces with similar names, uses the popularity properties below.
 
 | Property      | `ovsx.scanning.name-similarity.enabled`
 |---------------|----------------------------------------
@@ -929,6 +929,22 @@ Most matches looked up per field and name, which bounds the work a very generic 
 | Compatibility | Since 1.5.0
 
 How long one lookup may run before the database cancels it, for the publish check and the dashboard alike. A cancelled check fails without blocking publication; a cancelled dashboard lookup answers 503 and suggests raising this value. Must be positive.
+
+| Property      | `ovsx.scanning.name-similarity.popular-namespace-downloads`
+|---------------|------------------------------------------------------------
+| Type          | integer
+| Default       | `10000`
+| Compatibility | Since 1.5.0
+
+Downloads of its active extensions from which the more downloaded namespace of a pair counts as a popular target. The dashboard's namespaces view shows only pairs with a popular target by default, and admins can switch to all pairs. Must not be negative.
+
+| Property      | `ovsx.scanning.name-similarity.popular-namespace-ratio`
+|---------------|--------------------------------------------------------
+| Type          | number
+| Default       | `10`
+| Compatibility | Since 1.5.0
+
+How many times the other namespace's downloads a popular target also needs, which keeps out pairs of two established namespaces that are rarely one squatting on the other. Must be at least 1.
 
 ## OAuth2
 

@@ -40,6 +40,8 @@ class NameSimilarityCheckConfigTest {
             assertThat(config.getMinFuzzyLength()).isEqualTo(4);
             assertThat(config.getMaxMatches()).isEqualTo(10);
             assertThat(config.getStatementTimeout()).isEqualTo(Duration.ofSeconds(10));
+            assertThat(config.getPopularNamespaceDownloads()).isEqualTo(10_000);
+            assertThat(config.getPopularNamespaceRatio()).isEqualTo(10);
         });
     }
 
@@ -51,7 +53,9 @@ class NameSimilarityCheckConfigTest {
                 "ovsx.scanning.name-similarity.display-name-threshold=1",
                 "ovsx.scanning.name-similarity.min-fuzzy-length=3",
                 "ovsx.scanning.name-similarity.max-matches=5",
-                "ovsx.scanning.name-similarity.statement-timeout=2s")
+                "ovsx.scanning.name-similarity.statement-timeout=2s",
+                "ovsx.scanning.name-similarity.popular-namespace-downloads=0",
+                "ovsx.scanning.name-similarity.popular-namespace-ratio=2.5")
                 .run(context -> {
                     var config = context.getBean(NameSimilarityCheckConfig.class);
                     assertThat(config.isEnabled()).isFalse();
@@ -60,6 +64,8 @@ class NameSimilarityCheckConfigTest {
                     assertThat(config.getMinFuzzyLength()).isEqualTo(3);
                     assertThat(config.getMaxMatches()).isEqualTo(5);
                     assertThat(config.getStatementTimeout()).isEqualTo(Duration.ofSeconds(2));
+                    assertThat(config.getPopularNamespaceDownloads()).isZero();
+                    assertThat(config.getPopularNamespaceRatio()).isEqualTo(2.5);
                 });
     }
 
@@ -71,7 +77,10 @@ class NameSimilarityCheckConfigTest {
             "ovsx.scanning.name-similarity.display-name-threshold=-0.5",
             "ovsx.scanning.name-similarity.min-fuzzy-length=0",
             "ovsx.scanning.name-similarity.max-matches=0",
-            "ovsx.scanning.name-similarity.statement-timeout=0s"
+            "ovsx.scanning.name-similarity.statement-timeout=0s",
+            "ovsx.scanning.name-similarity.popular-namespace-downloads=-1",
+            "ovsx.scanning.name-similarity.popular-namespace-ratio=0.5",
+            "ovsx.scanning.name-similarity.popular-namespace-ratio=NaN"
         }
     )
     void refusesToStartWithAnInvalidValue(String property) {

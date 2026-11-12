@@ -37,7 +37,12 @@ import org.springframework.context.annotation.Configuration;
  *       min-fuzzy-length: 4         # shorter names only match exactly, default: 4
  *       max-matches: 10             # matches looked up per field and name, default: 10
  *       statement-timeout: 10s      # cancels a lookup that runs longer, default: 10s
+ *       popular-namespace-downloads: 10000 # see below, default: 10000
+ *       popular-namespace-ratio: 10        # see below, default: 10
  * </pre>
+ * The dashboard's namespaces view shows popular targets by default: pairs where the namespace with more
+ * downloads has at least {@code popular-namespace-downloads} of them, and {@code popular-namespace-ratio}
+ * times as many as the other.
  */
 @Configuration
 public class NameSimilarityCheckConfig {
@@ -96,6 +101,26 @@ public class NameSimilarityCheckConfig {
     @Value("${ovsx.scanning.name-similarity.statement-timeout:10s}")
     private Duration statementTimeout;
 
+    /**
+     * Downloads of its active extensions from which the namespace of a pair counts as a popular target, so
+     * the dashboard's default namespaces view shows the pair. Must not be negative.
+     * <p>
+     * Property: {@code ovsx.scanning.name-similarity.popular-namespace-downloads}
+     * Default: {@code 10000}
+     */
+    @Value("${ovsx.scanning.name-similarity.popular-namespace-downloads:10000}")
+    private long popularNamespaceDownloads;
+
+    /**
+     * How many times the other namespace's downloads a popular target needs, at least 1. It keeps out pairs
+     * of two established namespaces, which are rarely one squatting on the other.
+     * <p>
+     * Property: {@code ovsx.scanning.name-similarity.popular-namespace-ratio}
+     * Default: {@code 10}
+     */
+    @Value("${ovsx.scanning.name-similarity.popular-namespace-ratio:10}")
+    private double popularNamespaceRatio;
+
     @PostConstruct
     void validate() {
         requireThreshold("name-threshold", nameThreshold);
@@ -111,6 +136,16 @@ public class NameSimilarityCheckConfig {
         if (statementTimeout == null || statementTimeout.isNegative() || statementTimeout.isZero()) {
             throw new IllegalStateException(
                     "ovsx.scanning.name-similarity.statement-timeout must be positive: " + statementTimeout);
+        }
+        if (popularNamespaceDownloads < 0) {
+            throw new IllegalStateException(
+                    "ovsx.scanning.name-similarity.popular-namespace-downloads must not be negative: "
+                            + popularNamespaceDownloads);
+        }
+        if (!(popularNamespaceRatio >= 1)) {
+            throw new IllegalStateException(
+                    "ovsx.scanning.name-similarity.popular-namespace-ratio must be at least 1: "
+                            + popularNamespaceRatio);
         }
     }
 
@@ -143,5 +178,13 @@ public class NameSimilarityCheckConfig {
 
     public Duration getStatementTimeout() {
         return statementTimeout;
+    }
+
+    public long getPopularNamespaceDownloads() {
+        return popularNamespaceDownloads;
+    }
+
+    public double getPopularNamespaceRatio() {
+        return popularNamespaceRatio;
     }
 }

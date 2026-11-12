@@ -234,6 +234,8 @@ ovsx:
       min-fuzzy-length: 4
       max-matches: 10
       statement-timeout: 10s
+      popular-namespace-downloads: 10000
+      popular-namespace-ratio: 10
     secret-detection:
       enabled: true
       enforced: false
