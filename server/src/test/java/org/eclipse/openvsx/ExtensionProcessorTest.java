@@ -253,6 +253,22 @@ class ExtensionProcessorTest {
         }
     }
 
+    @Test
+    void testMalformedVsixManifestIsReportedAsXml() throws Exception {
+        try (var file = new TempFile("test", ".zip")) {
+            try (var out = new ZipOutputStream(Files.newOutputStream(file.getPath()))) {
+                out.putNextEntry(new ZipEntry("extension.vsixmanifest"));
+                out.write("<PackageManifest><Metadata>".getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+            try (var processor = new ExtensionProcessor(file)) {
+                assertThatThrownBy(processor::getExtensionName)
+                        .isInstanceOf(ErrorResultException.class)
+                        .hasMessageStartingWith("Invalid XML format in extension.vsixmanifest: ");
+            }
+        }
+    }
+
     private List<String> tags(int count) {
         // Named so that the alphabetical order the tags are stored in matches the declaration order.
         return IntStream.rangeClosed(1, count).mapToObj(i -> String.format("tag-%03d", i)).toList();

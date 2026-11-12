@@ -137,7 +137,7 @@ public class ExtensionProcessor implements AutoCloseable {
         }
         readInputStream();
 
-        packageJson = readTree(new JsonMapper(), PACKAGE_JSON);
+        packageJson = readTree(new JsonMapper(), PACKAGE_JSON, "JSON");
     }
 
     private void loadVsixManifest() {
@@ -147,10 +147,10 @@ public class ExtensionProcessor implements AutoCloseable {
 
         readInputStream();
 
-        vsixManifest = readTree(new XmlMapper(), VSIX_MANIFEST);
+        vsixManifest = readTree(new XmlMapper(), VSIX_MANIFEST, "XML");
     }
 
-    private JsonNode readTree(ObjectMapper mapper, String entryName) {
+    private JsonNode readTree(ObjectMapper mapper, String entryName, String format) {
         try (var stream = ArchiveUtil.openEntry(zipFile, entryName)) {
             if (stream == null) {
                 throw new ErrorResultException(entryNotFoundMessage(entryName));
@@ -162,7 +162,7 @@ public class ExtensionProcessor implements AutoCloseable {
             if (readFailure != null) {
                 throw ArchiveUtil.failedToRead(entryName, readFailure);
             }
-            throw new ErrorResultException("Invalid JSON format in " + entryName + ": " + exc.getMessage());
+            throw new ErrorResultException("Invalid " + format + " format in " + entryName + ": " + exc.getMessage());
         } catch (IOException exc) {
             throw ArchiveUtil.failedToRead(entryName, exc);
         }
