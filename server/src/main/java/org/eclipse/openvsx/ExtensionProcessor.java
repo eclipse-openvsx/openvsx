@@ -171,7 +171,7 @@ public class ExtensionProcessor implements AutoCloseable {
             }
         } catch (JacksonException exc) {
             throw new ErrorResultException(
-                    "Invalid JSON format in " + VSIX_MANIFEST
+                    "Invalid XML format in " + VSIX_MANIFEST
                             + ": " + exc.getMessage());
         } catch (IOException exc) {
             throw new ServerErrorException("Failed to read extension.vsixmanifest file", exc);
