@@ -135,21 +135,17 @@ public class ExtensionProcessor implements AutoCloseable {
         }
         readInputStream();
 
-        // Read package.json
-        try (var entryFile = ArchiveUtil.readEntry(zipFile, PACKAGE_JSON)) {
-            if (entryFile == null) {
-                throw new ErrorResultException(entryNotFoundMessage(PACKAGE_JSON));
-            }
+        var content = ArchiveUtil.readEntryBytes(zipFile, PACKAGE_JSON);
+        if (content == null) {
+            throw new ErrorResultException(entryNotFoundMessage(PACKAGE_JSON));
+        }
 
-            try (var stream = Files.newInputStream(entryFile.getPath())) {
-                packageJson = new JsonMapper().readTree(stream);
-            }
+        try {
+            packageJson = new JsonMapper().readTree(content);
         } catch (JacksonException exc) {
             throw new ErrorResultException(
                     "Invalid JSON format in " + PACKAGE_JSON
                             + ": " + exc.getMessage());
-        } catch (IOException exc) {
-            throw new ErrorResultException("Failed to load package.json", exc);
         }
     }
 
@@ -160,21 +156,17 @@ public class ExtensionProcessor implements AutoCloseable {
 
         readInputStream();
 
-        // Read extension.vsixmanifest
-        try (var entryFile = ArchiveUtil.readEntry(zipFile, VSIX_MANIFEST)) {
-            if (entryFile == null) {
-                throw new ErrorResultException(entryNotFoundMessage(VSIX_MANIFEST));
-            }
+        var content = ArchiveUtil.readEntryBytes(zipFile, VSIX_MANIFEST);
+        if (content == null) {
+            throw new ErrorResultException(entryNotFoundMessage(VSIX_MANIFEST));
+        }
 
-            try (var stream = Files.newInputStream(entryFile.getPath())) {
-                vsixManifest = new XmlMapper().readTree(stream);
-            }
+        try {
+            vsixManifest = new XmlMapper().readTree(content);
         } catch (JacksonException exc) {
             throw new ErrorResultException(
                     "Invalid JSON format in " + VSIX_MANIFEST
                             + ": " + exc.getMessage());
-        } catch (IOException exc) {
-            throw new ServerErrorException("Failed to read extension.vsixmanifest file", exc);
         }
     }
 

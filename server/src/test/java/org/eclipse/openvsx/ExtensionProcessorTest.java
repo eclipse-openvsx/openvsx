@@ -28,9 +28,11 @@ import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
 
 import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TempFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExtensionProcessorTest {
 
@@ -105,6 +107,19 @@ class ExtensionProcessorTest {
             Consumer<TempFile> consumer = _ -> count.incrementAndGet();
             processor.getFileResources(processor.getMetadata(), consumer);
             assertThat(count.get()).isEqualTo(5);
+        }
+    }
+
+    @Test
+    void testPackageJsonLargerThanDeclaredIsRejected() throws Exception {
+        try (
+                var file = writeToTempFile("util/wrong-size.zip");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            // Must surface as a read failure, not be swallowed into an "Invalid JSON" parse error.
+            assertThatThrownBy(processor::getPackageMetadata)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Failed to read extension/package.json: File size exceeds limit of 0 bytes.");
         }
     }
 

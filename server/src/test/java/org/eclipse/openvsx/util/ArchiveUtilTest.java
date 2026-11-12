@@ -61,6 +61,34 @@ class ArchiveUtilTest {
     }
 
     @Test
+    void testReadEntryBytes() throws IOException {
+        var packageUrl = getClass().getResource("todo-tree.zip");
+        assertThat(packageUrl).isNotNull();
+
+        try (var archive = new ZipFile(packageUrl.getPath())) {
+            assertThat(ArchiveUtil.readEntryBytes(archive, "extension/package.json")).hasSize(44712);
+            assertThat(ArchiveUtil.readEntryBytes(archive, "extension/missing.json")).isNull();
+        }
+    }
+
+    @Test
+    void testReadEntryBytesExceedMaxEntrySize() throws IOException {
+        // an artificially crafted zip file with a file whose size is set lower as its actual content
+        var packageUrl = getClass().getResource("wrong-size.zip");
+        assertThat(packageUrl).isNotNull();
+
+        try (var archive = new ZipFile(packageUrl.getPath())) {
+            assertThatThrownBy(() -> ArchiveUtil.readEntryBytes(archive, "extension/README.md", 8192))
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("The file extension/README.md exceeds the size limit of 8 KB.");
+
+            assertThatThrownBy(() -> ArchiveUtil.readEntryBytes(archive, "extension/package.json", 8192))
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Failed to read extension/package.json: File size exceeds limit of 0 bytes.");
+        }
+    }
+
+    @Test
     void testSafePath() {
         // restricted path patterns
         assertThat(ArchiveUtil.isSafePath("\0")).isEqualTo(false);
