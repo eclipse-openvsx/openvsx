@@ -24,12 +24,14 @@ import java.util.zip.ZipFile;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.server.ServerErrorException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.MissingNode;
 import tools.jackson.dataformat.xml.XmlMapper;
@@ -135,22 +137,7 @@ public class ExtensionProcessor implements AutoCloseable {
         }
         readInputStream();
 
-        // Read package.json
-        try (var entryFile = ArchiveUtil.readEntry(zipFile, PACKAGE_JSON)) {
-            if (entryFile == null) {
-                throw new ErrorResultException(entryNotFoundMessage(PACKAGE_JSON));
-            }
-
-            try (var stream = Files.newInputStream(entryFile.getPath())) {
-                packageJson = new JsonMapper().readTree(stream);
-            }
-        } catch (JacksonException exc) {
-            throw new ErrorResultException(
-                    "Invalid JSON format in " + PACKAGE_JSON
-                            + ": " + exc.getMessage());
-        } catch (IOException exc) {
-            throw new ErrorResultException("Failed to load package.json", exc);
-        }
+        packageJson = readTree(new JsonMapper(), PACKAGE_JSON, "JSON");
     }
 
     private void loadVsixManifest() {
@@ -160,21 +147,24 @@ public class ExtensionProcessor implements AutoCloseable {
 
         readInputStream();
 
-        // Read extension.vsixmanifest
-        try (var entryFile = ArchiveUtil.readEntry(zipFile, VSIX_MANIFEST)) {
-            if (entryFile == null) {
-                throw new ErrorResultException(entryNotFoundMessage(VSIX_MANIFEST));
-            }
+        vsixManifest = readTree(new XmlMapper(), VSIX_MANIFEST, "XML");
+    }
 
-            try (var stream = Files.newInputStream(entryFile.getPath())) {
-                vsixManifest = new XmlMapper().readTree(stream);
+    private JsonNode readTree(ObjectMapper mapper, String entryName, String format) {
+        try (var stream = ArchiveUtil.openEntry(zipFile, entryName)) {
+            if (stream == null) {
+                throw new ErrorResultException(entryNotFoundMessage(entryName));
             }
+            return mapper.readTree(stream);
         } catch (JacksonException exc) {
-            throw new ErrorResultException(
-                    "Invalid XML format in " + VSIX_MANIFEST
-                            + ": " + exc.getMessage());
+            // Jackson wraps a failed read, e.g. content past the declared size, as a parse error.
+            var readFailure = ExceptionUtils.throwableOfType(exc, IOException.class);
+            if (readFailure != null) {
+                throw ArchiveUtil.failedToRead(entryName, readFailure);
+            }
+            throw new ErrorResultException("Invalid " + format + " format in " + entryName + ": " + exc.getMessage());
         } catch (IOException exc) {
-            throw new ServerErrorException("Failed to read extension.vsixmanifest file", exc);
+            throw ArchiveUtil.failedToRead(entryName, exc);
         }
     }
 
