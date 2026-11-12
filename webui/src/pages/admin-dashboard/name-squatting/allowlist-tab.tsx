@@ -30,10 +30,13 @@ import {
     TableHead,
     TableRow,
     TextField,
+    ToggleButton,
+    ToggleButtonGroup,
     Typography
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import { useSearchParams } from 'react-router';
 import type {
     NameSquattingAllow,
     NameSquattingAllowlistGroup,
@@ -44,6 +47,7 @@ import { handleError } from '../../../utils';
 import { FIELD_LABELS, filterAllowlistGroups, pluralize } from './name-squatting-model';
 import { ColumnWidths, ExtensionIdentity, SimilarityChip, ValuePair } from './name-squatting-parts';
 import { GroupCard, GroupHeader, GroupTable, HeaderEnd, Toolbar } from './name-squatting-styles';
+import { NamespaceAllowlist } from './namespace-allowlist';
 import { RemoveAllowsDialog } from './remove-allows-dialog';
 import { extensionId, useNameSquattingAllowlist } from './use-name-squatting';
 
@@ -140,7 +144,7 @@ const AllowlistGroup: FC<{
     );
 };
 
-export const AllowlistTab: FC = () => {
+const ExtensionAllowlist: FC = () => {
     const [query, setQuery] = useState('');
     const [renamedOnly, setRenamedOnly] = useState(false);
     const [removeTarget, setRemoveTarget] = useState<{
@@ -253,6 +257,44 @@ export const AllowlistTab: FC = () => {
                     onClose={() => setRemoveTarget(undefined)}
                 />
             )}
+        </>
+    );
+};
+
+type AllowlistKind = 'extensions' | 'namespaces';
+
+/** Allowed pairs of extensions or of namespaces; the kind is kept in the URL, extensions leaving it bare. */
+export const AllowlistTab: FC = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const kind: AllowlistKind = searchParams.get('kind') === 'namespaces' ? 'namespaces' : 'extensions';
+
+    return (
+        <>
+            <ToggleButtonGroup
+                size='small'
+                exclusive
+                value={kind}
+                aria-label='Allowed pairs of'
+                onChange={(_event, next: AllowlistKind | null) =>
+                    next &&
+                    setSearchParams(
+                        previous => {
+                            const params = new URLSearchParams(previous);
+                            if (next === 'namespaces') {
+                                params.set('kind', next);
+                            } else {
+                                params.delete('kind');
+                            }
+                            return params;
+                        },
+                        { replace: true }
+                    )
+                }
+                sx={{ mb: 2 }}>
+                <ToggleButton value='extensions'>Extensions</ToggleButton>
+                <ToggleButton value='namespaces'>Namespaces</ToggleButton>
+            </ToggleButtonGroup>
+            {kind === 'extensions' ? <ExtensionAllowlist /> : <NamespaceAllowlist />}
         </>
     );
 };

@@ -13,7 +13,6 @@
 
 import { FC, useMemo, useState } from 'react';
 import {
-    Alert,
     Box,
     Button,
     CircularProgress,
@@ -27,40 +26,15 @@ import {
     Typography
 } from '@mui/material';
 import type { NameSquattingExtension, NameSquattingField } from '../../../extension-registry-types';
-import type { ErrorResponse } from '../../../server-request';
-import { handleError } from '../../../utils';
 import { AllowDialog } from './allow-dialog';
 import { CollisionGroup } from './collision-group';
 import { DeleteExtensionDialog } from './delete-extension-dialog';
 import { FIELD_LABELS, filterCollisionGroups, pluralize } from './name-squatting-model';
+import { LoadError } from './name-squatting-parts';
 import { Toolbar } from './name-squatting-styles';
 import { extensionId, useNameSquattingCollisions } from './use-name-squatting';
 
 const ALL_FIELDS: NameSquattingField[] = ['NAME', 'DISPLAY_NAME'];
-
-/** The server answers 503 when a lookup ran past its statement timeout and was stopped. */
-const isTimeout = (error: unknown): boolean => (error as Partial<ErrorResponse> | null)?.status === 503;
-
-const LoadError: FC<{ error: unknown; onRetry: () => void }> = ({ error, onRetry }) => (
-    <Alert
-        severity='error'
-        sx={{ mb: 2 }}
-        action={
-            <Button color='inherit' size='small' onClick={onRetry}>
-                Try again
-            </Button>
-        }>
-        {isTimeout(error) ? (
-            <>
-                <strong>The check took too long and was stopped.</strong> Nothing was changed. Try again; if this keeps
-                happening, raise <code>ovsx.scanning.name-similarity.statement-timeout</code> in the server
-                configuration.
-            </>
-        ) : (
-            handleError(error)
-        )}
-    </Alert>
-);
 
 export const CollisionsTab: FC = () => {
     const [fields, setFields] = useState<NameSquattingField[]>(ALL_FIELDS);

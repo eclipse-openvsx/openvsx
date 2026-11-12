@@ -24,7 +24,8 @@ import {
 } from '../../../../../src/pages/admin-dashboard/name-squatting/name-squatting-model';
 import {
     mergeAllowlistPages,
-    mergeCollisionPages
+    mergeCollisionPages,
+    mergeNamespacePairPages
 } from '../../../../../src/pages/admin-dashboard/name-squatting/use-name-squatting';
 
 const ext = (namespace: string, name: string, displayName = name): NameSquattingExtension => ({
@@ -163,5 +164,29 @@ describe('merging pages', () => {
 
         expect(merged).toHaveLength(1);
         expect(merged[0].allows.map(a => a.id)).toEqual([1, 2]);
+    });
+
+    // The server looks the pairs up again once its copy expires, which can push a pair onto the next page.
+    it('shows a namespace pair repeated on the next page once, with the latest totals', () => {
+        const namespace = (name: string) => ({ name, downloads: 0, activeExtensions: 1 });
+        const pair = (lookalike: string) => ({
+            target: namespace('redhat'),
+            lookalike: namespace(lookalike),
+            editDistance: 1,
+            similarity: 0.5,
+            separatorOnly: false,
+            sharedMember: false,
+            popular: true
+        });
+        const merged = mergeNamespacePairPages({
+            pageParams: [0, 1],
+            pages: [
+                { pairs: [pair('redhaat')], total: 2, popularTotal: 2, offset: 0, hasMore: true },
+                { pairs: [pair('redhaat'), pair('red-hat')], total: 3, popularTotal: 2, offset: 1, hasMore: false }
+            ]
+        });
+
+        expect(merged.pairs.map(p => p.lookalike.name)).toEqual(['redhaat', 'red-hat']);
+        expect(merged.total).toBe(3);
     });
 });

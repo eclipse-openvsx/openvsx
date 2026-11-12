@@ -17,8 +17,24 @@ import { styled } from '@mui/material/styles';
 import { useSearchParams } from 'react-router';
 import { AllowlistTab } from './allowlist-tab';
 import { CollisionsTab } from './collisions-tab';
+import { NamespacesTab } from './namespaces-tab';
 
-type NameSquattingTab = 'collisions' | 'allowlist';
+type NameSquattingTab = 'collisions' | 'namespaces' | 'allowlist';
+
+const TABS: NameSquattingTab[] = ['collisions', 'namespaces', 'allowlist'];
+
+const DESCRIPTIONS: Record<NameSquattingTab, string> = {
+    collisions:
+        'Active extensions in different namespaces whose name or display name match or closely resemble each other, ' +
+        'grouped under the one published first. Published first is not proof of being the original: someone may ' +
+        'publish an extension here before its author does. The most recently flagged come first, followed by display ' +
+        'names shared across namespaces.',
+    namespaces:
+        'Namespaces whose names differ by a typo or only in separators, the one with more downloads as target. ' +
+        'Popular targets only shows pairs whose target is far more downloaded than the look-alike; turn it off to ' +
+        'review quieter pairs too. A namespace created in the last minute may not show yet.',
+    allowlist: 'Pairs admins decided are not squatting. Removing an allow reports the pair again while the names match.'
+};
 
 // Same gutters as the Extension Scans page.
 const Page = styled(Box)(({ theme }) => ({
@@ -26,12 +42,12 @@ const Page = styled(Box)(({ theme }) => ({
 }));
 
 /**
- * Extensions in different namespaces whose names match or resemble each other, and the pairs admins
- * allowed. The tab is kept in the URL so a link can open the allowlist.
+ * Extensions in different namespaces whose names match or resemble each other, namespaces whose names
+ * resemble each other, and the pairs admins allowed. The tab is kept in the URL so a link can open it.
  */
 export const NameSquatting: FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const tab: NameSquattingTab = searchParams.get('tab') === 'allowlist' ? 'allowlist' : 'collisions';
+    const tab = TABS.find(candidate => candidate === searchParams.get('tab')) ?? 'collisions';
 
     return (
         <Page>
@@ -39,10 +55,7 @@ export const NameSquatting: FC = () => {
                 Name Squatting
             </Typography>
             <Typography color='text.secondary' sx={{ mb: 2 }}>
-                Active extensions in different namespaces whose name or display name match or closely resemble each
-                other, grouped under the one published first. Published first is not proof of being the original:
-                someone may publish an extension here before its author does. The most recently flagged come first,
-                followed by display names shared across namespaces.
+                {DESCRIPTIONS[tab]}
             </Typography>
             <Tabs
                 value={tab}
@@ -51,10 +64,13 @@ export const NameSquatting: FC = () => {
                 }
                 sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Tab value='collisions' label='Collisions' id='name-squatting-tab-collisions' />
+                <Tab value='namespaces' label='Namespaces' id='name-squatting-tab-namespaces' />
                 <Tab value='allowlist' label='Allowlist' id='name-squatting-tab-allowlist' />
             </Tabs>
             <Box role='tabpanel' aria-labelledby={`name-squatting-tab-${tab}`}>
-                {tab === 'collisions' ? <CollisionsTab /> : <AllowlistTab />}
+                {tab === 'collisions' && <CollisionsTab />}
+                {tab === 'namespaces' && <NamespacesTab />}
+                {tab === 'allowlist' && <AllowlistTab />}
             </Box>
         </Page>
     );

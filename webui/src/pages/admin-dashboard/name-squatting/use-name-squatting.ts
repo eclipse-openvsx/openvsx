@@ -21,18 +21,32 @@ import type {
     NameSquattingCollisions,
     NameSquattingExtension,
     NameSquattingGroup,
+    NameSquattingNamespaceAllowlist,
+    NameSquattingNamespaceAllowRequest,
+    NameSquattingNamespacePair,
+    NameSquattingNamespacePairs,
+    NameSquattingNamespaceSort,
     TargetPlatformVersion
 } from '../../../extension-registry-types';
 
 /** Candidates the server looks up per batch; each costs it a few trigram probes. */
 export const COLLISIONS_BATCH_SIZE = 25;
 export const ALLOWLIST_PAGE_SIZE = 25;
+export const NAMESPACE_PAIRS_PAGE_SIZE = 25;
 
 export const nameSquattingKeys = {
     all: ['admin', 'name-squatting'] as const,
     collisions: () => [...nameSquattingKeys.all, 'collisions'] as const,
-    allowlist: () => [...nameSquattingKeys.all, 'allowlist'] as const
+    allowlist: () => [...nameSquattingKeys.all, 'allowlist'] as const,
+    namespaces: (view: NamespacePairsView) =>
+        [...nameSquattingKeys.all, 'namespaces', view.popularOnly, view.sort] as const,
+    namespaceAllowlist: () => [...nameSquattingKeys.all, 'namespaces', 'allowlist'] as const
 };
+
+export interface NamespacePairsView {
+    popularOnly: boolean;
+    sort: NameSquattingNamespaceSort;
+}
 
 export const extensionId = (extension: Pick<NameSquattingExtension, 'namespace' | 'name'>): string =>
     `${extension.namespace}.${extension.name}`;
@@ -71,6 +85,31 @@ export const mergeAllowlistPages = (
     return [...groups.values()];
 };
 
+export const namespacePairKey = (pair: NameSquattingNamespacePair): string =>
+    `${pair.target.name}/${pair.lookalike.name}`;
+
+export interface NamespacePairList {
+    pairs: NameSquattingNamespacePair[];
+    total: number;
+    popularTotal: number;
+}
+
+/**
+ * Joins the pages into one list, the totals from the latest. The server looks the pairs up again once
+ * its cached copy expires, which can shift a pair onto the next page; it is shown once.
+ */
+export const mergeNamespacePairPages = (data: InfiniteData<NameSquattingNamespacePairs, number>): NamespacePairList => {
+    const pairs = new Map<string, NameSquattingNamespacePair>();
+    for (const pair of data.pages.flatMap(page => page.pairs)) {
+        const key = namespacePairKey(pair);
+        if (!pairs.has(key)) {
+            pairs.set(key, pair);
+        }
+    }
+    const last = data.pages[data.pages.length - 1] as NameSquattingNamespacePairs | undefined;
+    return { pairs: [...pairs.values()], total: last?.total ?? 0, popularTotal: last?.popularTotal ?? 0 };
+};
+
 /**
  * The look-alikes, looked up live a batch at a time. Never retried: a lookup that hit the server's
  * statement timeout would only be run again against the same database, and the page offers a retry.
@@ -97,6 +136,51 @@ export const useNameSquattingAllowlist = () => {
         initialPageParam: 0,
         getNextPageParam: lastPage => (lastPage.hasMore ? lastPage.page + 1 : undefined),
         select: mergeAllowlistPages
+    });
+};
+
+/** Never retried, for the same reason as the collisions: a 503 means the lookup ran out of time. */
+export const useNameSquattingNamespacePairs = (view: NamespacePairsView) => {
+    const { service } = useContext(MainContext);
+    return useInfiniteQuery({
+        queryKey: nameSquattingKeys.namespaces(view),
+        queryFn: ({ signal, pageParam }) =>
+            service.admin.getNameSquattingNamespacePairs(
+                signal,
+                view.popularOnly,
+                view.sort,
+                pageParam,
+                NAMESPACE_PAIRS_PAGE_SIZE
+            ),
+        initialPageParam: 0,
+        getNextPageParam: lastPage => (lastPage.hasMore ? lastPage.offset + lastPage.pairs.length : undefined),
+        select: mergeNamespacePairPages,
+        retry: false
+    });
+};
+
+export const useNameSquattingNamespaceAllowlist = () => {
+    const { service } = useContext(MainContext);
+    return useInfiniteQuery({
+        queryKey: nameSquattingKeys.namespaceAllowlist(),
+        queryFn: ({ signal, pageParam }) =>
+            service.admin.getNameSquattingNamespaceAllowlist(signal, pageParam, ALLOWLIST_PAGE_SIZE),
+        initialPageParam: 0,
+        getNextPageParam: (lastPage: NameSquattingNamespaceAllowlist) =>
+            lastPage.hasMore ? lastPage.page + 1 : undefined,
+        // An allow removed meanwhile shifts the next page back by one, repeating its first entry.
+        select: data => [...new Map(data.pages.flatMap(page => page.allows).map(allow => [allow.id, allow])).values()]
+    });
+};
+
+/** Both views of the Namespaces tab and the allowlist change, so every name squatting query is refreshed. */
+export const useAllowNameSquattingNamespaces = () => {
+    const { service } = useContext(MainContext);
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (request: NameSquattingNamespaceAllowRequest) =>
+            service.admin.allowNameSquattingNamespaces(request),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: nameSquattingKeys.all })
     });
 };
 

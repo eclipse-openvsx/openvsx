@@ -691,6 +691,73 @@ export interface NameSquattingAllowlist {
     hasMore: boolean;
 }
 
+/** A namespace as the name squatting dashboard shows it. */
+export interface NameSquattingNamespace {
+    name: string;
+    /** Downloads of its active extensions. */
+    downloads: number;
+    activeExtensions: number;
+    /** UTC timestamp of its earliest active extension's publication, absent without any. */
+    firstPublished?: string;
+}
+
+/** Two namespaces whose names resemble each other, the one with more downloads as target. */
+export interface NameSquattingNamespacePair {
+    target: NameSquattingNamespace;
+    lookalike: NameSquattingNamespace;
+    /** Levenshtein distance of the names, ignoring case. */
+    editDistance: number;
+    /** Trigram similarity of the names, from 0 to 1. */
+    similarity: number;
+    /** Whether the names only differ in characters other than letters and digits. */
+    separatorOnly: boolean;
+    /** Whether a user is a member of both namespaces. */
+    sharedMember: boolean;
+    /** Whether the target counts as popular next to the look-alike. */
+    popular: boolean;
+}
+
+/** `downloads`: the most downloaded target first; `newest`: the most recently first published look-alike first. */
+export type NameSquattingNamespaceSort = 'downloads' | 'newest';
+
+export interface NameSquattingNamespacePairs {
+    pairs: NameSquattingNamespacePair[];
+    /** Pairs not allowed, popular or not. */
+    total: number;
+    /** Of those, the pairs with a popular target. */
+    popularTotal: number;
+    offset: number;
+    hasMore: boolean;
+}
+
+export interface NameSquattingNamespaceAllowRequest {
+    /** The look-alike. */
+    namespace: string;
+    otherNamespace: string;
+    reason?: string;
+}
+
+/** A pair of namespaces an admin allowed. */
+export interface NameSquattingNamespaceAllow {
+    id: number;
+    /** The look-alike's name when it was allowed. */
+    namespace: string;
+    /** The other namespace's name when it was allowed. */
+    otherNamespace: string;
+    similarity: number;
+    reason?: string;
+    /** Login name of the admin, absent once that user is gone. */
+    decidedBy?: string;
+    decidedAt: string;
+}
+
+export interface NameSquattingNamespaceAllowlist {
+    /** The most recently allowed first. */
+    allows: NameSquattingNamespaceAllow[];
+    page: number;
+    hasMore: boolean;
+}
+
 export interface Log {
     timestamp: string;
     user: string;
