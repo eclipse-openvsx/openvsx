@@ -4,12 +4,6 @@ This change log covers only the server of Open VSX.
 
 Releases up to and including v1.2.0 were backfilled from the GitHub release notes. Those list every pull request of the repository, so they also contain web UI and CLI changes.
 
-## [next] (unreleased)
-
-### Fixed
-
-- A malformed `extension.vsixmanifest` is reported as invalid XML instead of invalid JSON
-
 ## [1.4.0] - 2026-11-09
 
 ### Added
