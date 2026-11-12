@@ -28,9 +28,11 @@ import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
 
 import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TempFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExtensionProcessorTest {
 
@@ -195,6 +197,22 @@ class ExtensionProcessorTest {
             assertThat(processor.getMetadata().getTags())
                     .hasSize(100)
                     .containsExactlyElementsOf(internalTags.subList(0, 100));
+        }
+    }
+
+    @Test
+    void testMalformedVsixManifestIsReportedAsXml() throws Exception {
+        try (var file = new TempFile("test", ".zip")) {
+            try (var out = new ZipOutputStream(Files.newOutputStream(file.getPath()))) {
+                out.putNextEntry(new ZipEntry("extension.vsixmanifest"));
+                out.write("<PackageManifest><Metadata>".getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+            try (var processor = new ExtensionProcessor(file)) {
+                assertThatThrownBy(processor::getExtensionName)
+                        .isInstanceOf(ErrorResultException.class)
+                        .hasMessageStartingWith("Invalid XML format in extension.vsixmanifest: ");
+            }
         }
     }
 
