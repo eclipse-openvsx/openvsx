@@ -20,6 +20,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.util.Streamable;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -39,7 +42,9 @@ import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.eclipse.openvsx.cache.CacheService.CACHE_NAMESPACE_DETAILS_JSON;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -65,6 +70,9 @@ class UserServiceTest {
 
     @Autowired
     UserService users;
+
+    @Autowired
+    CacheManager cacheManager;
 
     @Test
     void testUpsertUserMatchingAuthId() {
@@ -222,6 +230,23 @@ class UserServiceTest {
         verify(repositories, never()).deleteTrustedPublisher(any());
     }
 
+    @Test
+    void shouldEvictNamespaceDetailsWhenAnOwnerSetsAMember() {
+        var owner = mockUser(1, "owner", "auth-1");
+        var target = mockUser(2, "target", "auth-2");
+        var namespace = mockNamespace();
+        Mockito.when(repositories.findNamespace("my-ns")).thenReturn(namespace);
+        Mockito.when(repositories.isNamespaceOwner(owner, namespace)).thenReturn(true);
+        Mockito.when(repositories.findUserByLoginName("example", "target")).thenReturn(target);
+        var cache = cacheManager.getCache(CACHE_NAMESPACE_DETAILS_JSON);
+        cache.put("my-ns", new NamespaceDetailsJson());
+
+        users.setNamespaceMember(owner, "my-ns", "example", "target", NamespaceMembership.ROLE_OWNER);
+
+        // the cached details carry the verified flag, which depends on the namespace owners
+        assertThat(cache.get("my-ns")).isNull();
+    }
+
     private Namespace mockNamespace() {
         var namespace = new Namespace();
         namespace.setId(1);
@@ -266,7 +291,13 @@ class UserServiceTest {
     }
 
     @TestConfiguration
+    @EnableCaching
     static class TestConfig {
+
+        @Bean
+        CacheManager cacheManager() {
+            return new ConcurrentMapCacheManager();
+        }
 
         @Bean
         UserService userService(

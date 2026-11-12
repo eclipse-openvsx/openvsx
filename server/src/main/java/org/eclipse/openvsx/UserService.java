@@ -132,7 +132,9 @@ public class UserService {
         return repositories.canPublishInNamespace(user, namespace);
     }
 
+    // The @CacheEvict on add/removeNamespaceMember is skipped for these self-invocations.
     @Transactional(rollbackOn = ErrorResultException.class)
+    @CacheEvict(value = { CACHE_NAMESPACE_DETAILS_JSON }, key = "#namespaceName")
     public ResultJson setNamespaceMember(
             UserData requestingUser,
             String namespaceName,

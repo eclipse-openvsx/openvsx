@@ -18,8 +18,7 @@ import com.giffing.bucket4j.spring.boot.starter.config.cache.AbstractCacheResolv
 import com.giffing.bucket4j.spring.boot.starter.config.cache.SyncCacheResolver;
 import io.github.bucket4j.distributed.ExpirationAfterWriteStrategy;
 import io.github.bucket4j.distributed.proxy.AbstractProxyManager;
-import io.github.bucket4j.distributed.proxy.ClientSideConfig;
-import io.github.bucket4j.redis.jedis.cas.JedisBasedProxyManager;
+import io.github.bucket4j.redis.jedis.Bucket4jJedis;
 import redis.clients.jedis.RedisClusterClient;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -44,11 +43,9 @@ public class JedisClusterCacheResolver extends AbstractCacheResolverTemplate<byt
 
     @Override
     public AbstractProxyManager<byte[]> getProxyManager(String cacheName) {
-        var clientSideConfig = ClientSideConfig.getDefault().withExpirationAfterWriteStrategy(
-                ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofSeconds(10)));
-
-        return JedisBasedProxyManager.builderFor(redisClusterClient)
-                .withClientSideConfig(clientSideConfig)
+        return Bucket4jJedis.casBasedBuilder(redisClusterClient)
+                .expirationAfterWrite(
+                        ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofSeconds(10)))
                 .build();
     }
 }

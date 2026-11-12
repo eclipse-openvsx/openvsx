@@ -4,6 +4,12 @@ This change log covers only the server of Open VSX.
 
 Releases up to and including v1.2.0 were backfilled from the GitHub release notes. Those list every pull request of the repository, so they also contain web UI and CLI changes.
 
+## [next] (unreleased)
+
+### Fixed
+
+- Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change
+
 ## [1.4.0] - 2026-11-09
 
 ### Added
