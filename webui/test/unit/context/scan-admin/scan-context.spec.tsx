@@ -105,6 +105,63 @@ describe('ScanProvider — scans loading flag', () => {
     });
 });
 
+describe('ScanProvider — selection across a refresh', () => {
+    // Regression test: a refresh that drops a checked scan must not keep its ID, since
+    // the confirm dialog lists only loaded rows but the decision sends every checked ID.
+    it('applies a scan decision only to checked scans still listed after a refresh', async () => {
+        const { service, scansCalls, getAllScans } = createMockService();
+        const makeScanDecision = vi.fn().mockResolvedValue({});
+        Object.assign(service.admin, { makeScanDecision });
+        const { result } = setup(service);
+
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(1));
+        act(() =>
+            scansCalls[0].resolve({ scans: [scanFixture('scan-a', 'foo'), scanFixture('scan-b', 'bar')], totalSize: 2 })
+        );
+        await waitFor(() => expect(result.current.state.scans).toHaveLength(2));
+        act(() => {
+            result.current.actions.toggleQuarantinedCheck('scan-a', true);
+            result.current.actions.toggleQuarantinedCheck('scan-b', true);
+        });
+
+        act(() => result.current.dispatch({ type: 'TRIGGER_REFRESH' }));
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(2));
+        act(() => scansCalls[1].resolve({ scans: [scanFixture('scan-a', 'foo')], totalSize: 1 }));
+        await waitFor(() => expect(result.current.state.scans).toHaveLength(1));
+        expect(result.current.derived.selectedExtensions.map(scan => scan.id)).toEqual(['scan-a']);
+
+        act(() => result.current.actions.openAllowDialog());
+        act(() => result.current.actions.executeConfirmAction());
+        await waitFor(() => expect(makeScanDecision).toHaveBeenCalledTimes(1));
+        expect(makeScanDecision).toHaveBeenCalledWith({ scanIds: ['scan-a'], decision: 'allowed' });
+    });
+
+    it('deletes only checked file decisions still listed after a refresh', async () => {
+        const { service, getAllScans } = createMockService();
+        const deleteFileDecisions = vi.fn().mockResolvedValue({});
+        Object.assign(service.admin, { deleteFileDecisions });
+        const file = (id: string) => ({ id, fileName: `f${id}`, fileHash: `h${id}`, decision: 'allowed' });
+        service.admin.getFiles
+            .mockResolvedValueOnce({ files: [file('1'), file('2')], totalSize: 2 })
+            .mockResolvedValue({ files: [file('1')], totalSize: 1 });
+        const { result } = setup(service);
+        await waitFor(() => expect(getAllScans).toHaveBeenCalledTimes(1));
+
+        act(() => result.current.actions.setTab(4));
+        await waitFor(() => expect(result.current.state.files).toHaveLength(2));
+        act(() => result.current.actions.setFilesChecked(new Set(['1', '2'])));
+
+        act(() => result.current.dispatch({ type: 'TRIGGER_REFRESH' }));
+        await waitFor(() => expect(result.current.state.files).toHaveLength(1));
+        expect(result.current.derived.selectedFiles.map(f => f.id)).toEqual(['1']);
+
+        act(() => result.current.actions.openFileDialog('delete'));
+        act(() => result.current.actions.executeFileAction());
+        await waitFor(() => expect(deleteFileDecisions).toHaveBeenCalledTimes(1));
+        expect(deleteFileDecisions).toHaveBeenCalledWith({ fileIds: [1] });
+    });
+});
+
 describe('ScanProvider — tab routing', () => {
     it('lists only errored scans on the Errors tab', async () => {
         const { service, scansCalls, getAllScans } = createMockService();
