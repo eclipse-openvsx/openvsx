@@ -37,6 +37,7 @@ import { Extension, ExtensionReference, VERSION_ALIASES } from '../../extension-
 import { ExtensionListRoutes } from '../extension-list/extension-list-routes';
 import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { ExtensionDetailDownloadsMenu } from './extension-detail-downloads-menu';
+import { ExtensionDetailInstallMenu } from './extension-detail-install-menu';
 import { WeeklyDownloads } from './weekly-downloads';
 import { useExtensionReadme } from './use-extension-details';
 
@@ -394,7 +395,12 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
                         {renderResourceLink('Repository', resourceLink, extension.repository)}
                         {renderResourceLink('Bugs', resourceLink, extension.bugs)}
                         {renderResourceLink("Q'n'A", resourceLink, extension.qna)}
-                        {downloadButton}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                            {downloadButton}
+                            {extension.downloadable ? (
+                                <ExtensionDetailInstallMenu namespace={extension.namespace} name={extension.name} />
+                            ) : null}
+                        </Box>
                         {DownloadTerms &&
                         extension.downloadable &&
                         extension.downloads &&

@@ -98,4 +98,29 @@ describe('ExtensionDetailOverview', () => {
         expect(await screen.findByText('Universal')).toBeInTheDocument();
         expect(screen.queryByLabelText(/installed size is larger/i)).not.toBeInTheDocument();
     });
+
+    it('offers to install the extension in each listed client', async () => {
+        renderOverview({ downloadable: true, downloads: { universal: 'https://example.com/universal' } });
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Install' }));
+
+        // Named after its trigger, so a screen reader announces it as the Install menu.
+        const menu = await screen.findByRole('menu', { name: 'Install' });
+        const items = within(menu).getAllByRole('menuitem');
+        const hrefs = items.map(item => [item.textContent, item.getAttribute('href')]);
+        expect(hrefs).toContainEqual(['VS Code Insiders', 'vscode-insiders:extension/foo.bar']);
+        expect(hrefs).toContainEqual(['Cursor', 'cursor:extension/foo.bar']);
+        expect(hrefs).toContainEqual(['Antigravity', 'antigravity-ide:extension/foo.bar']);
+        expect(hrefs).toHaveLength(7);
+        // Alphabetical, so the order does not read as a ranking.
+        const names = items.map(item => item.textContent as string);
+        expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    });
+
+    it('offers no install menu for an extension that is not downloadable', async () => {
+        renderOverview({ downloadable: false });
+
+        expect(await screen.findByText('Resources')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Install' })).not.toBeInTheDocument();
+    });
 });

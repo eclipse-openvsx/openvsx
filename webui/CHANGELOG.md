@@ -4,6 +4,10 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ## [next] (unreleased)
 
+### Added
+
+- Add an Install menu next to Download on extension detail pages that opens the extension in Antigravity, Cursor, Kiro, Positron, VS Code Insiders, VSCodium or Windsurf, listed alphabetically (#363)
+
 ### Fixed
 
 - An extension URL with a target platform, `/extension/<namespace>/<name>/<platform>/...`, redirects to the same URL without the platform instead of showing "Extension Not Found" (#2433)
