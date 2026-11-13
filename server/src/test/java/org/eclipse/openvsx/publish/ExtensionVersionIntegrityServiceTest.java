@@ -17,6 +17,9 @@ import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.ZipFile;
 
 import com.sun.management.ThreadMXBean;
@@ -237,6 +240,33 @@ class ExtensionVersionIntegrityServiceTest {
                 var signatureFile = integrityService.createSignatureFile(packageFile, keyPair)
         ) {
             assertTrue(integrityService.verifyExtensionVersion(packageFile, signatureFile, publicKeyFile));
+        }
+    }
+
+    @Test
+    void signingWaitsWhileAnotherPackageIsInMemory() throws Exception {
+        var keyPair = keyPairService.generateKeyPair();
+        try (var packageFile = givenPackageOfSize(64 * 1024)) {
+            integrityService.packageInMemory.acquire();
+            var held = true;
+            try {
+                var signing = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return integrityService.createSignatureFile(packageFile, keyPair);
+                    } catch (IOException e) {
+                        throw new IllegalStateException(e);
+                    }
+                });
+                assertThrows(TimeoutException.class, () -> signing.get(300, TimeUnit.MILLISECONDS));
+
+                integrityService.packageInMemory.release();
+                held = false;
+                signing.get(10, TimeUnit.SECONDS).close();
+            } finally {
+                if (held) {
+                    integrityService.packageInMemory.release();
+                }
+            }
         }
     }
 
