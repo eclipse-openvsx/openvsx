@@ -192,8 +192,8 @@ module.exports = function (argv: string[]): void {
     const logoutCmd = program.command('logout <namespace>');
     logoutCmd.description('Removes a namespace from the list of known namespaces')
         .action((namespace: string) => {
-            const { debug } = program.opts();
-            logout(namespace).catch(handleError(debug));
+            const { registryUrl, debug } = program.opts();
+            logout({ namespace, registryUrl }).catch(handleError(debug));
         });
 
     // 'command:*' is deprecated in favor of catching the commander.unknownCommand error, but that
