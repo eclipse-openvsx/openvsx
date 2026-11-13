@@ -16,11 +16,11 @@ export interface InstallClient {
 
 // To list another client that installs from Open VSX, add a row here.
 export const INSTALL_CLIENTS: InstallClient[] = [
-    { name: 'VS Code', scheme: 'vscode' },
+    { name: 'VS Code Insiders', scheme: 'vscode-insiders' },
     { name: 'VSCodium', scheme: 'vscodium' },
     { name: 'Cursor', scheme: 'cursor' },
     { name: 'Windsurf', scheme: 'windsurf' },
     { name: 'Kiro', scheme: 'kiro' },
-    { name: 'Antigravity', scheme: 'antigravity' },
+    { name: 'Antigravity', scheme: 'antigravity-ide' },
     { name: 'Positron', scheme: 'positron' }
 ];
