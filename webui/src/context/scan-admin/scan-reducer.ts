@@ -279,7 +279,11 @@ export const scanReducer = (state: ScanState, action: ScanAction): ScanState => 
             return {
                 ...state,
                 scans: action.payload.scans,
-                totalScans: action.payload.totalScans
+                totalScans: action.payload.totalScans,
+                // Actions send every checked ID, so keep only rows the confirm dialog can list.
+                quarantinedChecked: Object.fromEntries(
+                    action.payload.scans.filter(scan => state.quarantinedChecked[scan.id]).map(scan => [scan.id, true])
+                )
             };
 
         case 'SET_LOADING_SCANS':
@@ -304,7 +308,10 @@ export const scanReducer = (state: ScanState, action: ScanAction): ScanState => 
             return {
                 ...state,
                 files: action.payload.files,
-                totalFiles: action.payload.totalFiles
+                totalFiles: action.payload.totalFiles,
+                filesChecked: new Set(
+                    action.payload.files.filter(file => state.filesChecked.has(file.id)).map(file => file.id)
+                )
             };
 
         case 'SET_LOADING_FILES':
