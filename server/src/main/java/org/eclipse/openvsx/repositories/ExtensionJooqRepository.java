@@ -20,6 +20,7 @@ import java.util.Map;
 import org.jooq.*;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.Extension;
@@ -188,6 +189,50 @@ public class ExtensionJooqRepository {
                 .from(updates)
                 .where(updates.field("id", Long.class).eq(extension.ID))
                 .execute();
+    }
+
+    /**
+     * Adds the given downloads to the extension's counter, and returns the new counter, or
+     * {@code null} if the extension does not exist.
+     */
+    public @Nullable Integer increaseDownloadCount(long extensionId, int downloads) {
+        return dsl.update(EXTENSION)
+                .set(EXTENSION.DOWNLOAD_COUNT, EXTENSION.DOWNLOAD_COUNT.plus(downloads))
+                .where(EXTENSION.ID.eq(extensionId))
+                .returning(EXTENSION.DOWNLOAD_COUNT)
+                .fetchOne(EXTENSION.DOWNLOAD_COUNT);
+    }
+
+    /**
+     * Adds the given downloads to each extension's counter, and returns the new counters by
+     * extension id. Extensions that do not exist are left out.
+     */
+    public Map<Long, Integer> increaseDownloadCounts(Map<Long, Integer> downloads) {
+        if (downloads.isEmpty()) {
+            return Map.of();
+        }
+
+        // locked in id order first, so that concurrent ingestions of overlapping extensions cannot deadlock
+        dsl.select(EXTENSION.ID)
+                .from(EXTENSION)
+                .where(EXTENSION.ID.in(downloads.keySet()))
+                .orderBy(EXTENSION.ID)
+                .forNoKeyUpdate()
+                .execute();
+
+        var rows = downloads.entrySet().stream()
+                .map(e -> DSL.row(e.getKey(), e.getValue()))
+                .toList();
+
+        var increments = DSL.values(rows.toArray(Row2[]::new)).as("d", "id", "downloads");
+        return dsl.update(EXTENSION)
+                .set(
+                        EXTENSION.DOWNLOAD_COUNT,
+                        EXTENSION.DOWNLOAD_COUNT.plus(increments.field("downloads", Integer.class)))
+                .from(increments)
+                .where(increments.field("id", Long.class).eq(EXTENSION.ID))
+                .returning(EXTENSION.ID, EXTENSION.DOWNLOAD_COUNT)
+                .fetchMap(EXTENSION.ID, EXTENSION.DOWNLOAD_COUNT);
     }
 
     public boolean publicIdExists(String publicId) {

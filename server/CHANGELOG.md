@@ -4,6 +4,12 @@ This change log covers only the server of Open VSX.
 
 Releases up to and including v1.2.0 were backfilled from the GitHub release notes. Those list every pull request of the repository, so they also contain web UI and CLI changes.
 
+## [next] (unreleased)
+
+### Fixed
+
+- Concurrent downloads and download-log ingestions of the same extension no longer lose increments of its download count ([#2361](https://github.com/eclipse-openvsx/openvsx/pull/2361))
+
 ## [1.4.0] - 2026-11-09
 
 ### Added
