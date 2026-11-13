@@ -21,6 +21,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
+import FindReplaceIcon from '@mui/icons-material/FindReplace';
 import InsightsIcon from '@mui/icons-material/Insights';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import SearchIcon from '@mui/icons-material/Search';
@@ -61,6 +62,7 @@ const SearchExplainAdmin = lazy(() =>
     import('./search-explain/search-explain').then(m => ({ default: m.SearchExplainAdmin }))
 );
 const StatisticsAdmin = lazy(() => import('./statistics/statistics').then(m => ({ default: m.StatisticsAdmin })));
+const NameSquatting = lazy(() => import('./name-squatting/name-squatting').then(m => ({ default: m.NameSquatting })));
 const AccessControl = lazy(() => import('./access-control/access-control').then(m => ({ default: m.AccessControl })));
 
 const navConfig: NavEntry[] = [
@@ -95,6 +97,13 @@ const navConfig: NavEntry[] = [
                 icon: <SecurityIcon />,
                 description: 'View security scan results and manage quarantined extensions',
                 permission: 'manage_scans'
+            },
+            {
+                path: AdminDashboardRoutes.NAME_SQUATTING,
+                name: 'Name Squatting',
+                icon: <FindReplaceIcon />,
+                description: "Review extensions whose names resemble another namespace's, and allow or delete them",
+                permission: 'manage_extensions'
             },
             {
                 path: AdminDashboardRoutes.SIZE_OVERRIDES,
@@ -501,6 +510,14 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                         element={
                                             <Guard user={user} permission='manage_search_index'>
                                                 <SearchExplainAdmin />
+                                            </Guard>
+                                        }
+                                    />
+                                    <Route
+                                        path='/name-squatting'
+                                        element={
+                                            <Guard user={user} permission='manage_extensions'>
+                                                <NameSquatting />
                                             </Guard>
                                         }
                                     />

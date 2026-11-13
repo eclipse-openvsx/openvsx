@@ -2,6 +2,12 @@
 
 This change log covers only the frontend library (webui) of Open VSX.
 
+## [next] (unreleased)
+
+### Added
+
+- A Name Squatting admin page, for `manage_extensions`, lists extensions in different namespaces whose name or display name resemble each other, grouped under the one published first, to allow each pair or delete either extension (published first is not proof of being the original), and an allowlist of the allowed pairs; `ExtensionRegistryService.admin` gains `getNameSquattingCollisions`, `getNameSquattingAllowlist`, `allowNameSquattingPair` and `removeNameSquattingAllow`
+
 ## [1.4.0] - 2026-11-09
 
 ### Added

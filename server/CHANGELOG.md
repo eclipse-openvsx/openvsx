@@ -4,6 +4,14 @@ This change log covers only the server of Open VSX.
 
 Releases up to and including v1.2.0 were backfilled from the GitHub release notes. Those list every pull request of the repository, so they also contain web UI and CLI changes.
 
+## [next] (unreleased)
+
+### Added
+
+- The `NAME_SIMILARITY` publish check flags a version whose extension name or display name matches or resembles another namespace's active extension, without ever blocking publication; it runs while scanning is enabled and is configured by `ovsx.scanning.name-similarity.*`
+- `GET /admin/name-squatting/collisions` looks flagged extensions, and those sharing a display name across namespaces, up again and groups each look-alike under the extension it resembles that was published first; `GET`, `POST` and `DELETE /admin/name-squatting/allowlist` manage the allowed pairs, which stop being reported; all require `manage_extensions`
+- **Upgrade:** migration `V1_86` creates the `pg_trgm` extension, which the database owner can do since PostgreSQL 13, and the `name_similarity_allow` table; `V1_87` builds trigram indexes on `extension` and `extension_version` and an index on `extension_validation_failure` that block writes to those tables while building and give up after waiting 5 s for a lock, so to avoid the pause create them `CONCURRENTLY` beforehand as `V1_87` describes
+
 ## [1.4.0] - 2026-11-09
 
 ### Added

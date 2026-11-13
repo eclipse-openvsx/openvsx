@@ -131,7 +131,7 @@ public class ExtensionValidationFailure extends TableImpl<ExtensionValidationFai
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_VALIDATION_FAILURE_DETECTED_AT, Indexes.IDX_VALIDATION_FAILURE_SCAN, Indexes.IDX_VALIDATION_FAILURE_VALIDATION_TYPE);
+        return Arrays.asList(Indexes.EXTENSION_VALIDATION_FAILURE_TYPE_DETECTED_IDX, Indexes.IDX_VALIDATION_FAILURE_DETECTED_AT, Indexes.IDX_VALIDATION_FAILURE_SCAN, Indexes.IDX_VALIDATION_FAILURE_VALIDATION_TYPE);
     }
 
     @Override

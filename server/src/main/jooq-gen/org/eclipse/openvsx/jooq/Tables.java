@@ -24,6 +24,7 @@ import org.eclipse.openvsx.jooq.tables.ExtensionVersionChange;
 import org.eclipse.openvsx.jooq.tables.FileDecision;
 import org.eclipse.openvsx.jooq.tables.FileResource;
 import org.eclipse.openvsx.jooq.tables.MigrationItem;
+import org.eclipse.openvsx.jooq.tables.NameSimilarityAllow;
 import org.eclipse.openvsx.jooq.tables.Namespace;
 import org.eclipse.openvsx.jooq.tables.NamespaceMembership;
 import org.eclipse.openvsx.jooq.tables.NamespaceSocialLinks;
@@ -150,6 +151,11 @@ public class Tables {
      * The table <code>public.migration_item</code>.
      */
     public static final MigrationItem MIGRATION_ITEM = MigrationItem.MIGRATION_ITEM;
+
+    /**
+     * The table <code>public.name_similarity_allow</code>.
+     */
+    public static final NameSimilarityAllow NAME_SIMILARITY_ALLOW = NameSimilarityAllow.NAME_SIMILARITY_ALLOW;
 
     /**
      * The table <code>public.namespace</code>.
