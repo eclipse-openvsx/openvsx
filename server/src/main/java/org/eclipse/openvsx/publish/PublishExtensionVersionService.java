@@ -53,11 +53,6 @@ public class PublishExtensionVersionService {
         this.storageUtil = storageUtil;
     }
 
-    @Transactional
-    public void deleteFileResources(ExtensionVersion extVersion) {
-        repositories.deleteFiles(extVersion);
-    }
-
     @Retryable
     public void storeResource(TempFile tempFile) {
         storageUtil.uploadFile(tempFile);
