@@ -104,7 +104,8 @@ describe('ExtensionDetailOverview', () => {
 
         await userEvent.click(await screen.findByRole('button', { name: 'Install' }));
 
-        const menu = await screen.findByRole('menu');
+        // Named after its trigger, so a screen reader announces it as the Install menu.
+        const menu = await screen.findByRole('menu', { name: 'Install' });
         const items = within(menu).getAllByRole('menuitem');
         const hrefs = items.map(item => [item.textContent, item.getAttribute('href')]);
         expect(hrefs).toContainEqual(['VS Code Insiders', 'vscode-insiders:extension/foo.bar']);
