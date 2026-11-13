@@ -1,0 +1,26 @@
+/********************************************************************************
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ ********************************************************************************/
+
+export interface InstallClient {
+    /** Name shown in the Install menu. */
+    name: string;
+    /** URI scheme the client registers; the menu links to `<scheme>:extension/<namespace>.<name>`. */
+    scheme: string;
+}
+
+// To list another client that installs from Open VSX, add a row here.
+export const INSTALL_CLIENTS: InstallClient[] = [
+    { name: 'VS Code', scheme: 'vscode' },
+    { name: 'VSCodium', scheme: 'vscodium' },
+    { name: 'Cursor', scheme: 'cursor' },
+    { name: 'Windsurf', scheme: 'windsurf' },
+    { name: 'Kiro', scheme: 'kiro' },
+    { name: 'Antigravity', scheme: 'antigravity' },
+    { name: 'Positron', scheme: 'positron' }
+];

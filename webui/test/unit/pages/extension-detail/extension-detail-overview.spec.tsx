@@ -99,12 +99,25 @@ describe('ExtensionDetailOverview', () => {
         expect(screen.queryByLabelText(/installed size is larger/i)).not.toBeInTheDocument();
     });
 
-    it('links to the extension in a compatible client', async () => {
-        renderOverview();
+    it('offers to install the extension in each listed client', async () => {
+        renderOverview({ downloadable: true, downloads: { universal: 'https://example.com/universal' } });
 
-        expect(await screen.findByRole('link', { name: 'Open in Client' })).toHaveAttribute(
-            'href',
-            'vscode:extension/foo.bar'
-        );
+        await userEvent.click(await screen.findByRole('button', { name: 'Install' }));
+
+        const menu = await screen.findByRole('menu');
+        const hrefs = within(menu)
+            .getAllByRole('menuitem')
+            .map(item => [item.textContent, item.getAttribute('href')]);
+        expect(hrefs).toContainEqual(['VS Code', 'vscode:extension/foo.bar']);
+        expect(hrefs).toContainEqual(['Cursor', 'cursor:extension/foo.bar']);
+        expect(hrefs).toContainEqual(['Antigravity', 'antigravity:extension/foo.bar']);
+        expect(hrefs).toHaveLength(7);
+    });
+
+    it('offers no install menu for an extension that is not downloadable', async () => {
+        renderOverview({ downloadable: false });
+
+        expect(await screen.findByText('Resources')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Install' })).not.toBeInTheDocument();
     });
 });

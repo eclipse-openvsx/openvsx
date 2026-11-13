@@ -6,7 +6,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 ### Added
 
-- Add an Open in Client link to extension detail pages for VS Code-compatible clients (#363)
+- Add an Install menu next to Download on extension detail pages that opens the extension in VS Code, VSCodium, Cursor, Windsurf, Kiro, Antigravity or Positron (#363)
 
 ### Fixed
 
