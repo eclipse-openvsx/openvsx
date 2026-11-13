@@ -105,13 +105,16 @@ describe('ExtensionDetailOverview', () => {
         await userEvent.click(await screen.findByRole('button', { name: 'Install' }));
 
         const menu = await screen.findByRole('menu');
-        const hrefs = within(menu)
-            .getAllByRole('menuitem')
-            .map(item => [item.textContent, item.getAttribute('href')]);
+        const items = within(menu).getAllByRole('menuitem');
+        const hrefs = items.map(item => [item.textContent, item.getAttribute('href')]);
         expect(hrefs).toContainEqual(['VS Code Insiders', 'vscode-insiders:extension/foo.bar']);
         expect(hrefs).toContainEqual(['Cursor', 'cursor:extension/foo.bar']);
         expect(hrefs).toContainEqual(['Antigravity', 'antigravity-ide:extension/foo.bar']);
-        expect(hrefs).toHaveLength(7);
+        expect(hrefs).toContainEqual(['Antigravity (older versions)', 'antigravity:extension/foo.bar']);
+        expect(hrefs).toHaveLength(8);
+        // Alphabetical, so the order does not read as a ranking.
+        const names = items.map(item => item.textContent as string);
+        expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     });
 
     it('offers no install menu for an extension that is not downloadable', async () => {

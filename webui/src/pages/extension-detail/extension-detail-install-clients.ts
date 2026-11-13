@@ -14,13 +14,15 @@ export interface InstallClient {
     scheme: string;
 }
 
-// To list another client that installs from Open VSX, add a row here.
+// Alphabetical by name, so the order carries no ranking. To list another client that installs from
+// Open VSX, add a row in its place.
 export const INSTALL_CLIENTS: InstallClient[] = [
+    { name: 'Antigravity', scheme: 'antigravity-ide' },
+    { name: 'Antigravity (older versions)', scheme: 'antigravity' },
+    { name: 'Cursor', scheme: 'cursor' },
+    { name: 'Kiro', scheme: 'kiro' },
+    { name: 'Positron', scheme: 'positron' },
     { name: 'VS Code Insiders', scheme: 'vscode-insiders' },
     { name: 'VSCodium', scheme: 'vscodium' },
-    { name: 'Cursor', scheme: 'cursor' },
-    { name: 'Windsurf', scheme: 'windsurf' },
-    { name: 'Kiro', scheme: 'kiro' },
-    { name: 'Antigravity', scheme: 'antigravity-ide' },
-    { name: 'Positron', scheme: 'positron' }
+    { name: 'Windsurf', scheme: 'windsurf' }
 ];
