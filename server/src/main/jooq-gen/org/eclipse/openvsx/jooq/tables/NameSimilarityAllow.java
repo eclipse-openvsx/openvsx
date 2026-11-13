@@ -65,12 +65,12 @@ public class NameSimilarityAllow extends TableImpl<NameSimilarityAllowRecord> {
     /**
      * The column <code>public.name_similarity_allow.extension_id</code>.
      */
-    public final TableField<NameSimilarityAllowRecord, Long> EXTENSION_ID = createField(DSL.name("extension_id"), SQLDataType.BIGINT.nullable(false), this, "");
+    public final TableField<NameSimilarityAllowRecord, Long> EXTENSION_ID = createField(DSL.name("extension_id"), SQLDataType.BIGINT, this, "");
 
     /**
      * The column <code>public.name_similarity_allow.other_extension_id</code>.
      */
-    public final TableField<NameSimilarityAllowRecord, Long> OTHER_EXTENSION_ID = createField(DSL.name("other_extension_id"), SQLDataType.BIGINT.nullable(false), this, "");
+    public final TableField<NameSimilarityAllowRecord, Long> OTHER_EXTENSION_ID = createField(DSL.name("other_extension_id"), SQLDataType.BIGINT, this, "");
 
     /**
      * The column <code>public.name_similarity_allow.field</code>.
@@ -83,9 +83,9 @@ public class NameSimilarityAllow extends TableImpl<NameSimilarityAllowRecord> {
     public final TableField<NameSimilarityAllowRecord, Float> SIMILARITY = createField(DSL.name("similarity"), SQLDataType.REAL.nullable(false), this, "");
 
     /**
-     * The column <code>public.name_similarity_allow.extension_value</code>.
+     * The column <code>public.name_similarity_allow.lookalike_value</code>.
      */
-    public final TableField<NameSimilarityAllowRecord, String> EXTENSION_VALUE = createField(DSL.name("extension_value"), SQLDataType.VARCHAR(255).nullable(false), this, "");
+    public final TableField<NameSimilarityAllowRecord, String> LOOKALIKE_VALUE = createField(DSL.name("lookalike_value"), SQLDataType.VARCHAR(255).nullable(false), this, "");
 
     /**
      * The column <code>public.name_similarity_allow.other_value</code>.
@@ -106,6 +106,16 @@ public class NameSimilarityAllow extends TableImpl<NameSimilarityAllowRecord> {
      * The column <code>public.name_similarity_allow.decided_at</code>.
      */
     public final TableField<NameSimilarityAllowRecord, LocalDateTime> DECIDED_AT = createField(DSL.name("decided_at"), SQLDataType.LOCALDATETIME(6).nullable(false), this, "");
+
+    /**
+     * The column <code>public.name_similarity_allow.namespace_id</code>.
+     */
+    public final TableField<NameSimilarityAllowRecord, Long> NAMESPACE_ID = createField(DSL.name("namespace_id"), SQLDataType.BIGINT, this, "");
+
+    /**
+     * The column <code>public.name_similarity_allow.other_namespace_id</code>.
+     */
+    public final TableField<NameSimilarityAllowRecord, Long> OTHER_NAMESPACE_ID = createField(DSL.name("other_namespace_id"), SQLDataType.BIGINT, this, "");
 
     private NameSimilarityAllow(Name alias, Table<NameSimilarityAllowRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
@@ -145,7 +155,7 @@ public class NameSimilarityAllow extends TableImpl<NameSimilarityAllowRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.NAME_SIMILARITY_ALLOW_DECIDED_BY_IDX, Indexes.NAME_SIMILARITY_ALLOW_EXTENSION_IDX, Indexes.NAME_SIMILARITY_ALLOW_OTHER_EXTENSION_IDX);
+        return Arrays.asList(Indexes.NAME_SIMILARITY_ALLOW_DECIDED_BY_IDX, Indexes.NAME_SIMILARITY_ALLOW_EXTENSION_IDX, Indexes.NAME_SIMILARITY_ALLOW_NAMESPACE_IDX, Indexes.NAME_SIMILARITY_ALLOW_OTHER_EXTENSION_IDX, Indexes.NAME_SIMILARITY_ALLOW_OTHER_NAMESPACE_IDX);
     }
 
     @Override
@@ -160,7 +170,7 @@ public class NameSimilarityAllow extends TableImpl<NameSimilarityAllowRecord> {
 
     @Override
     public List<ForeignKey<NameSimilarityAllowRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_DECIDED_BY_ID_FKEY, Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_EXTENSION_ID_FKEY, Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_OTHER_EXTENSION_ID_FKEY);
+        return Arrays.asList(Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_DECIDED_BY_ID_FKEY, Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_EXTENSION_ID_FKEY, Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_NAMESPACE_ID_FKEY, Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_OTHER_EXTENSION_ID_FKEY, Keys.NAME_SIMILARITY_ALLOW__NAME_SIMILARITY_ALLOW_OTHER_NAMESPACE_ID_FKEY);
     }
 
     @Override
@@ -168,6 +178,8 @@ public class NameSimilarityAllow extends TableImpl<NameSimilarityAllowRecord> {
         return Arrays.asList(
             Internal.createCheck(this, DSL.name("name_similarity_allow_distinct_ck"), "((extension_id <> other_extension_id))", true),
             Internal.createCheck(this, DSL.name("name_similarity_allow_field_ck"), "(((field)::text = ANY ((ARRAY['NAME'::character varying, 'DISPLAY_NAME'::character varying, 'NAMESPACE'::character varying])::text[])))", true),
+            Internal.createCheck(this, DSL.name("name_similarity_allow_kind_ck"), "(\nCASE\n    WHEN ((field)::text = 'NAMESPACE'::text) THEN ((namespace_id IS NOT NULL) AND (other_namespace_id IS NOT NULL) AND (extension_id IS NULL) AND (other_extension_id IS NULL))\n    ELSE ((extension_id IS NOT NULL) AND (other_extension_id IS NOT NULL) AND (namespace_id IS NULL) AND (other_namespace_id IS NULL))\nEND)", true),
+            Internal.createCheck(this, DSL.name("name_similarity_allow_namespace_distinct_ck"), "((namespace_id <> other_namespace_id))", true),
             Internal.createCheck(this, DSL.name("name_similarity_allow_similarity_ck"), "(((similarity >= (0)::double precision) AND (similarity <= (1)::double precision)))", true)
         );
     }

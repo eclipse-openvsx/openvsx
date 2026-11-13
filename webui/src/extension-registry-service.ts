@@ -46,6 +46,10 @@ import {
     NameSquattingAllowlist,
     NameSquattingAllowRequest,
     NameSquattingCollisions,
+    NameSquattingNamespaceAllowlist,
+    NameSquattingNamespaceAllowRequest,
+    NameSquattingNamespacePairs,
+    NameSquattingNamespaceSort,
     LogPageableList,
     Settings,
     SiteSettings,
@@ -678,7 +682,22 @@ export interface AdminService {
         size: number
     ): Promise<Readonly<NameSquattingAllowlist>>;
     allowNameSquattingPair(request: NameSquattingAllowRequest): Promise<Readonly<SuccessResult>>;
+    /** Removes an allowed pair of extensions or of namespaces. */
     removeNameSquattingAllow(id: number): Promise<Readonly<SuccessResult>>;
+    /** Namespace pairs from `offset`; the server reuses its lookup for up to a minute. */
+    getNameSquattingNamespacePairs(
+        signal: AbortSignal,
+        popularOnly: boolean,
+        sort: NameSquattingNamespaceSort,
+        offset: number,
+        size: number
+    ): Promise<Readonly<NameSquattingNamespacePairs>>;
+    getNameSquattingNamespaceAllowlist(
+        signal: AbortSignal,
+        page: number,
+        size: number
+    ): Promise<Readonly<NameSquattingNamespaceAllowlist>>;
+    allowNameSquattingNamespaces(request: NameSquattingNamespaceAllowRequest): Promise<Readonly<SuccessResult>>;
     getLogs(signal: AbortSignal, page?: number, size?: number, period?: string): Promise<Readonly<LogPageableList>>;
     getSettings(signal: AbortSignal): Promise<Readonly<Settings>>;
     updateSettings(settings: Partial<Settings>): Promise<Readonly<Settings>>;
@@ -1269,6 +1288,67 @@ export class AdminServiceImpl implements AdminService {
             method: 'DELETE',
             credentials: true,
             endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'allowlist', String(id)]),
+            headers
+        });
+    }
+
+    async getNameSquattingNamespacePairs(
+        signal: AbortSignal,
+        popularOnly: boolean,
+        sort: NameSquattingNamespaceSort,
+        offset: number,
+        size: number
+    ): Promise<Readonly<NameSquattingNamespacePairs>> {
+        return sendRequest({
+            signal,
+            credentials: true,
+            endpoint: createAbsoluteURL(
+                [this.registry.serverUrl, 'admin', 'name-squatting', 'namespaces'],
+                [
+                    { key: 'popularOnly', value: String(popularOnly) },
+                    { key: 'sort', value: sort },
+                    { key: 'offset', value: offset },
+                    { key: 'size', value: size }
+                ]
+            )
+        });
+    }
+
+    async getNameSquattingNamespaceAllowlist(
+        signal: AbortSignal,
+        page: number,
+        size: number
+    ): Promise<Readonly<NameSquattingNamespaceAllowlist>> {
+        return sendRequest({
+            signal,
+            credentials: true,
+            endpoint: createAbsoluteURL(
+                [this.registry.serverUrl, 'admin', 'name-squatting', 'namespaces', 'allowlist'],
+                [
+                    { key: 'page', value: page },
+                    { key: 'size', value: size }
+                ]
+            )
+        });
+    }
+
+    async allowNameSquattingNamespaces(request: NameSquattingNamespaceAllowRequest): Promise<Readonly<SuccessResult>> {
+        const csrfToken = await this.registry.getCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        headers[csrfToken.header] = csrfToken.value;
+        return sendRequest({
+            method: 'POST',
+            payload: request,
+            credentials: true,
+            endpoint: createAbsoluteURL([
+                this.registry.serverUrl,
+                'admin',
+                'name-squatting',
+                'namespaces',
+                'allowlist'
+            ]),
             headers
         });
     }

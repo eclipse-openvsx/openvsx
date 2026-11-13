@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import jakarta.persistence.EntityManager;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -38,6 +39,7 @@ import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.NameSquattingJson;
 import org.eclipse.openvsx.repositories.NameSimilarityJooqRepository;
+import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.scanning.NameSimilarityCheckService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -67,6 +69,9 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
 
     @Autowired
     NameSimilarityJooqRepository similarity;
+
+    @Autowired
+    RepositoryService repositories;
 
     private UserData admin;
 
@@ -273,6 +278,222 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
                 NameSquattingService
                         .isStatementTimeout(new RuntimeException(new java.sql.SQLException("other", "23505"))))
                 .isFalse();
+    }
+
+    @Test
+    void ordersANamespacePairWithTheMoreDownloadedNamespaceAsTarget() throws ErrorResultException {
+        var name = word() + "xy";
+        var lookalike = persistNamespace(oneEditFrom(name));
+        var target = persistNamespace(name);
+        persistNamespaceExtension(target, 50_000, EARLY);
+
+        assertThat(namespacePairOf(target, lookalike, false)).satisfies(pair -> {
+            assertThat(pair.target().name()).isEqualTo(target.getName());
+            assertThat(pair.target().downloads()).isEqualTo(50_000);
+            assertThat(pair.target().activeExtensions()).isEqualTo(1);
+            assertThat(pair.target().firstPublished()).isNotNull();
+            assertThat(pair.lookalike().name()).isEqualTo(lookalike.getName());
+            assertThat(pair.lookalike().firstPublished()).isNull();
+            assertThat(pair.editDistance()).isEqualTo(1);
+            assertThat(pair.popular()).isTrue();
+        });
+    }
+
+    @Test
+    void popularOnlyLeavesOutPairsWithoutAPopularTargetButCountsThem() throws ErrorResultException {
+        var popular = persistNamespacePair(50_000, 0);
+        var closeRival = persistNamespacePair(20_000, 5_000);
+        var niche = persistNamespacePair(500, 0);
+
+        var all = namespacePairs(false, NameSquattingService.NamespaceSort.DOWNLOADS);
+        var popularOnly = namespacePairs(true, NameSquattingService.NamespaceSort.DOWNLOADS);
+
+        assertThat(targets(all)).contains(popular, closeRival, niche);
+        assertThat(targets(popularOnly)).contains(popular).doesNotContain(closeRival, niche);
+        assertThat(popularOnly.pairs()).allMatch(NameSquattingJson.NamespacePair::popular);
+        assertThat(popularOnly.total()).isEqualTo(all.total());
+        assertThat(all.popularTotal()).isEqualTo(popularOnly.popularTotal()).isLessThanOrEqualTo(all.total() - 2);
+    }
+
+    @Test
+    void sortsNamespacePairsByTargetDownloadsOrByTheNewestLookalike() throws ErrorResultException {
+        var olderSquat = persistNamespacePair(90_000, 10, EARLY);
+        var newerSquat = persistNamespacePair(30_000, 10, LATE);
+
+        var byDownloads = targets(namespacePairs(false, NameSquattingService.NamespaceSort.DOWNLOADS));
+        var byNewest = targets(namespacePairs(false, NameSquattingService.NamespaceSort.NEWEST));
+
+        assertThat(byDownloads.indexOf(olderSquat)).isLessThan(byDownloads.indexOf(newerSquat));
+        assertThat(byNewest.indexOf(newerSquat)).isLessThan(byNewest.indexOf(olderSquat));
+    }
+
+    @Test
+    void pagesThroughTheNamespacePairs() throws ErrorResultException {
+        persistNamespacePair(50_000, 0);
+        persistNamespacePair(60_000, 0);
+        var all = namespacePairs(false, NameSquattingService.NamespaceSort.DOWNLOADS);
+
+        var page = service.findNamespacePairs(false, NameSquattingService.NamespaceSort.DOWNLOADS, 1, 1);
+
+        assertThat(page.pairs()).containsExactly(all.pairs().get(1));
+        assertThat(page.offset()).isEqualTo(1);
+        assertThat(page.hasMore()).isEqualTo(all.total() > 2);
+    }
+
+    @Test
+    void allowingNamespacesTakesEffectWhilePairsAreReused() throws ErrorResultException {
+        var target = persistNamespacePair(50_000, 0);
+        var lookalike = repositories.findNamespace(namespacePairOf(target, false).lookalike().name());
+
+        service.allowNamespaces(
+                namespaceAllowRequest(lookalike, repositories.findNamespace(target), "Same publisher"),
+                admin);
+        em.flush();
+        var afterAllow = service.findNamespacePairs(false, NameSquattingService.NamespaceSort.DOWNLOADS, 0, 100_000);
+
+        assertThat(targets(afterAllow)).doesNotContain(target);
+        assertThat(service.findNamespaceAllowlist(0, 100).allows())
+                .filteredOn(allow -> allow.namespace().equals(lookalike.getName()))
+                .singleElement()
+                .satisfies(allow -> {
+                    assertThat(allow.otherNamespace()).isEqualTo(target);
+                    assertThat(allow.reason()).isEqualTo("Same publisher");
+                    assertThat(allow.decidedBy()).isEqualTo(admin.getLoginName());
+                });
+
+        var allowId = service.findNamespaceAllowlist(0, 100).allows().stream()
+                .filter(allow -> allow.namespace().equals(lookalike.getName()))
+                .findFirst()
+                .orElseThrow()
+                .id();
+        service.removeAllow(allowId, admin);
+        em.flush();
+        var afterRemove = service.findNamespacePairs(false, NameSquattingService.NamespaceSort.DOWNLOADS, 0, 100_000);
+
+        assertThat(targets(afterRemove)).contains(target);
+    }
+
+    @Test
+    void allowingNamespacesTwiceKeepsOneAllowAndLeavesTheExtensionAllowlistAlone() throws ErrorResultException {
+        var target = persistNamespacePair(50_000, 0);
+        var lookalike = repositories.findNamespace(namespacePairOf(target, false).lookalike().name());
+        var targetNamespace = repositories.findNamespace(target);
+
+        service.allowNamespaces(namespaceAllowRequest(lookalike, targetNamespace, null), admin);
+        em.flush();
+        var again = service.allowNamespaces(namespaceAllowRequest(targetNamespace, lookalike, null), admin);
+        em.flush();
+
+        assertThat(again.getSuccess()).startsWith("Already allowed");
+        assertThat(service.findNamespaceAllowlist(0, 100).allows())
+                .filteredOn(allow -> allow.otherNamespace().equals(target))
+                .hasSize(1);
+        assertThat(service.findAllowlist(0, 100).groups())
+                .noneMatch(group -> group.extension().namespace().equals(target));
+    }
+
+    @Test
+    void refusesToAllowNamespacesThatAreUnknownTheSameOrUnalike() {
+        var namespace = persistNamespace(word() + "xy");
+        var unrelated = persistNamespace(word() + "xy");
+        em.flush();
+
+        assertStatus(
+                () -> service.allowNamespaces(namespaceAllowRequest(namespace, unrelated, null), admin),
+                HttpStatus.BAD_REQUEST);
+        assertStatus(
+                () -> service.allowNamespaces(namespaceAllowRequest(namespace, namespace, null), admin),
+                HttpStatus.BAD_REQUEST);
+        assertStatus(
+                () -> service.allowNamespaces(
+                        new NameSquattingJson.NamespaceAllowRequest(namespace.getName(), "missing" + word(), null),
+                        admin),
+                HttpStatus.NOT_FOUND);
+    }
+
+    private NameSquattingJson.NamespacePairs namespacePairs(
+            boolean popularOnly,
+            NameSquattingService.NamespaceSort sort
+    ) throws ErrorResultException {
+        em.flush();
+        service.forgetNamespacePairs();
+        return service.findNamespacePairs(popularOnly, sort, 0, 100_000);
+    }
+
+    private NameSquattingJson.NamespacePair namespacePairOf(Namespace target, Namespace lookalike, boolean popularOnly)
+            throws ErrorResultException {
+        return namespacePairs(popularOnly, NameSquattingService.NamespaceSort.DOWNLOADS).pairs().stream()
+                .filter(pair -> pair.target().name().equals(target.getName()))
+                .filter(pair -> pair.lookalike().name().equals(lookalike.getName()))
+                .findFirst()
+                .orElseThrow(
+                        () -> new AssertionError("no pair of " + target.getName() + " and " + lookalike.getName()));
+    }
+
+    private NameSquattingJson.NamespacePair namespacePairOf(String target, boolean popularOnly)
+            throws ErrorResultException {
+        return namespacePairs(popularOnly, NameSquattingService.NamespaceSort.DOWNLOADS).pairs().stream()
+                .filter(pair -> pair.target().name().equals(target))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no pair with target " + target));
+    }
+
+    private static List<String> targets(NameSquattingJson.NamespacePairs pairs) {
+        return pairs.pairs().stream().map(pair -> pair.target().name()).toList();
+    }
+
+    /** Two namespaces one edit apart, the target published early; returns the target's name. */
+    private String persistNamespacePair(int targetDownloads, int lookalikeDownloads) {
+        return persistNamespacePair(targetDownloads, lookalikeDownloads, LATE);
+    }
+
+    private String persistNamespacePair(int targetDownloads, int lookalikeDownloads, LocalDateTime lookalikePublished) {
+        var name = word() + "xy";
+        var target = persistNamespace(name);
+        persistNamespaceExtension(target, targetDownloads, EARLY);
+        var lookalike = persistNamespace(oneEditFrom(name));
+        if (lookalikeDownloads > 0) {
+            persistNamespaceExtension(lookalike, lookalikeDownloads, lookalikePublished);
+        }
+        return name;
+    }
+
+    private Namespace persistNamespace(String name) {
+        var namespace = new Namespace();
+        namespace.setName(name);
+        namespace.setPublicId(UUID.randomUUID().toString());
+        em.persist(namespace);
+        return namespace;
+    }
+
+    private void persistNamespaceExtension(Namespace namespace, int downloads, LocalDateTime publishedDate) {
+        var extension = new Extension();
+        extension.setName("ext" + word());
+        extension.setNamespace(namespace);
+        extension.setPublicId(UUID.randomUUID().toString());
+        extension.setActive(true);
+        extension.setDownloadCount(downloads);
+        extension.setPublishedDate(publishedDate);
+        em.persist(extension);
+    }
+
+    /** The name with its first letter swapped for a digit. */
+    private static String oneEditFrom(String name) {
+        return ThreadLocalRandom.current().nextInt(10) + name.substring(1);
+    }
+
+    private static NameSquattingJson.NamespaceAllowRequest namespaceAllowRequest(
+            Namespace lookalike,
+            Namespace other,
+            @Nullable String reason
+    ) {
+        return new NameSquattingJson.NamespaceAllowRequest(lookalike.getName(), other.getName(), reason);
+    }
+
+    private static void assertStatus(ThrowingCallable call, HttpStatus status) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(
+                ErrorResultException.class,
+                exc -> assertThat(exc.getStatus()).isEqualTo(status));
     }
 
     private NameSquattingJson.Group groupOf(Extension anchor) throws ErrorResultException {

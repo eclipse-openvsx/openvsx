@@ -41,8 +41,9 @@ const allow = (id: number, other: string, renamed = false): NameSquattingAllow =
     decidedAt: '2026-10-01T00:00:00Z'
 });
 
-const mountTab = (admin: Record<string, unknown>) => {
+const mountTab = (admin: Record<string, unknown>, route = '/') => {
     renderWithProviders(<AllowlistTab />, {
+        route,
         mainContext: { service: { admin } as unknown as ExtensionRegistryService }
     });
     return admin;
@@ -111,5 +112,48 @@ describe('AllowlistTab', () => {
 
         expect(await screen.findByText(/allowed pair not found/i)).toBeInTheDocument();
         await waitFor(() => expect(admin.getNameSquattingAllowlist).toHaveBeenCalledTimes(2));
+    });
+
+    it('lists the allowed namespace pairs once namespaces are picked, and removes the one asked', async () => {
+        const user = userEvent.setup();
+        const admin = mountTab({
+            getNameSquattingAllowlist: vi.fn().mockResolvedValue(allowlist),
+            getNameSquattingNamespaceAllowlist: vi.fn().mockResolvedValue({
+                allows: [
+                    {
+                        id: 7,
+                        namespace: 'redhaat',
+                        otherNamespace: 'redhat',
+                        similarity: 0.5,
+                        reason: 'Same organization',
+                        decidedBy: 'a.rivera',
+                        decidedAt: '2026-10-01T00:00:00Z'
+                    }
+                ],
+                page: 0,
+                hasMore: false
+            }),
+            removeNameSquattingAllow: vi.fn().mockResolvedValue({ success: 'ok' })
+        });
+        await screen.findByText('snippets-co.react-snippets');
+
+        await user.click(screen.getByRole('button', { name: 'Namespaces' }));
+        expect(await screen.findByText('Same organization')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Remove' }));
+        await user.click(screen.getByRole('button', { name: 'Remove allow' }));
+
+        await waitFor(() => expect(admin.removeNameSquattingAllow).toHaveBeenCalledWith(7));
+        await waitFor(() => expect(admin.getNameSquattingNamespaceAllowlist).toHaveBeenCalledTimes(2));
+    });
+
+    it('opens the namespace allowlist its link names', async () => {
+        mountTab(
+            {
+                getNameSquattingNamespaceAllowlist: vi.fn().mockResolvedValue({ allows: [], page: 0, hasMore: false })
+            },
+            '/?tab=allowlist&kind=namespaces'
+        );
+
+        expect(await screen.findByText('No allowed namespaces yet')).toBeInTheDocument();
     });
 });

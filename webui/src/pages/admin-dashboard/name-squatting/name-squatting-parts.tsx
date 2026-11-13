@@ -12,11 +12,13 @@
  *****************************************************************************/
 
 import { FC } from 'react';
-import { Box, Chip, Link, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Link, Typography } from '@mui/material';
 import { alpha, styled } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router';
 import type { NameSquattingExtension } from '../../../extension-registry-types';
-import { createRoute } from '../../../utils';
+import { NamespaceDetailRoutes } from '../../namespace-detail/namespace-detail-routes';
+import type { ErrorResponse } from '../../../server-request';
+import { createRoute, handleError } from '../../../utils';
 import { ExtensionDetailRoutes } from '../../extension-detail/extension-detail-routes';
 import { AdminDashboardRoutes } from '../admin-dashboard-routes';
 import { diffNames, DiffSegment } from './name-diff';
@@ -57,6 +59,22 @@ export const ExtensionIdentity: FC<{ extension: NameSquattingExtension }> = ({ e
             </Link>
         </Links>
     </Box>
+);
+
+/** Links to a namespace's public page and to the admin Namespaces page. */
+export const NamespaceLinks: FC<{ name: string }> = ({ name }) => (
+    <Links>
+        <Link
+            component={RouterLink}
+            to={createRoute([NamespaceDetailRoutes.ROOT, name])}
+            target='_blank'
+            rel='noopener'>
+            Public page
+        </Link>
+        <Link component={RouterLink} to={createRoute([AdminDashboardRoutes.NAMESPACE_ADMIN, name])}>
+            Admin
+        </Link>
+    </Links>
 );
 
 /** Column widths for a `GroupTable`, in column order. */
@@ -118,3 +136,28 @@ export const ValuePair: FC<{ first: string; second: string }> = ({ first, second
         </PairGrid>
     );
 };
+
+/** The server answers 503 when a lookup ran past its statement timeout and was stopped. */
+const isTimeout = (error: unknown): boolean => (error as Partial<ErrorResponse> | null)?.status === 503;
+
+/** A failed lookup, with a retry; a 503 is the statement timeout, which a retry may well get past. */
+export const LoadError: FC<{ error: unknown; onRetry: () => void }> = ({ error, onRetry }) => (
+    <Alert
+        severity='error'
+        sx={{ mb: 2 }}
+        action={
+            <Button color='inherit' size='small' onClick={onRetry}>
+                Try again
+            </Button>
+        }>
+        {isTimeout(error) ? (
+            <>
+                <strong>The check took too long and was stopped.</strong> Nothing was changed. Try again; if this keeps
+                happening, raise <code>ovsx.scanning.name-similarity.statement-timeout</code> in the server
+                configuration.
+            </>
+        ) : (
+            handleError(error)
+        )}
+    </Alert>
+);

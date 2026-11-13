@@ -137,7 +137,7 @@ public class NameSimilarityJooqRepository {
             }
         }
 
-        return withStatementTimeout(probe.statementTimeout(), () -> {
+        return withStatementTimeout(dsl, probe.statementTimeout(), () -> {
             applyThreshold(dsl, probe);
             var matches = new ArrayList<Match>();
             if (!probe.extensionName().isBlank()) {
@@ -285,7 +285,7 @@ public class NameSimilarityJooqRepository {
     ) {
         requireTimeout(statementTimeout);
         var needed = (int) Math.min(Integer.MAX_VALUE, (long) offset + limit);
-        return withStatementTimeout(statementTimeout, () -> {
+        return withStatementTimeout(dsl, statementTimeout, () -> {
             var flagged = walkFlagged(checkType, needed, firstChunk, maxSteps);
             if (flagged == null) {
                 flagged = allFlaggedQuery(dsl, checkType).fetch(this::toCandidate);
@@ -538,7 +538,7 @@ public class NameSimilarityJooqRepository {
      * not outlive the lookup in a caller's transaction. A cancelled statement aborts the transaction, and
      * the setting goes with it.
      */
-    private <T> T withStatementTimeout(Duration timeout, Supplier<T> work) {
+    static <T> T withStatementTimeout(DSLContext dsl, Duration timeout, Supplier<T> work) {
         var previous = dsl.select(DSL.function("current_setting", String.class, DSL.inline("statement_timeout")))
                 .fetchOne(0, String.class);
         setLocal(dsl, "statement_timeout", timeout.toMillis() + "ms");
@@ -547,12 +547,12 @@ public class NameSimilarityJooqRepository {
         return result;
     }
 
-    private static void setLocal(DSLContext tx, String setting, String value) {
+    static void setLocal(DSLContext tx, String setting, String value) {
         tx.select(DSL.function("set_config", String.class, DSL.inline(setting), DSL.val(value), DSL.inline(true)))
                 .fetch();
     }
 
-    private static void requireTimeout(Duration timeout) {
+    static void requireTimeout(Duration timeout) {
         if (timeout.isNegative() || timeout.isZero()) {
             throw new IllegalArgumentException("statement timeout must be positive: " + timeout);
         }
@@ -581,11 +581,11 @@ public class NameSimilarityJooqRepository {
         return literal.append('\'').toString();
     }
 
-    private static Field<Float> similarity(Field<String> first, Field<String> second) {
+    static Field<Float> similarity(Field<String> first, Field<String> second) {
         return DSL.function("similarity", Float.class, first, second);
     }
 
-    private static Condition trigramMatch(Field<String> indexed, Field<String> probed) {
+    static Condition trigramMatch(Field<String> indexed, Field<String> probed) {
         return DSL.condition("{0} % {1}", indexed, probed);
     }
 

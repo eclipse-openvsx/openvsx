@@ -12,6 +12,7 @@
  *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
@@ -108,13 +110,92 @@ class NameSimilarityAllowRepositoryTest extends AbstractPostgresContainerTest {
                 .hasValueSatisfying(kept -> assertThat(kept.getDecidedById()).isNull());
     }
 
+    @Test
+    void findsTheNamespacePairWhicheverWayRoundItIsAsked() {
+        var lookalike = persistNamespace();
+        var original = persistNamespace();
+        var allow = allows.save(namespaceAllow(lookalike, original));
+
+        assertThat(allows.findNamespacePair(lookalike.getId(), original.getId())).contains(allow);
+        assertThat(allows.findNamespacePair(original.getId(), lookalike.getId())).contains(allow);
+        assertThat(allows.findNamespacePair(lookalike.getId(), persistNamespace().getId())).isEmpty();
+    }
+
+    @Test
+    void storesANamespacePairOnlyOnceWhicheverWayRoundItIsAllowed() {
+        var lookalike = persistNamespace();
+        var original = persistNamespace();
+        allows.save(namespaceAllow(lookalike, original));
+        em.flush();
+
+        allows.save(namespaceAllow(original, lookalike));
+        assertThatThrownBy(em::flush).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    void namespaceAllowGoesAwayWithEitherNamespace() {
+        var lookalike = persistNamespace();
+        var original = persistNamespace();
+        var allow = allows.save(namespaceAllow(lookalike, original));
+        em.flush();
+
+        em.createNativeQuery("DELETE FROM namespace WHERE id = :id").setParameter("id", lookalike.getId())
+                .executeUpdate();
+        em.clear();
+
+        assertThat(allows.findById(allow.getId())).isEmpty();
+    }
+
+    @Test
+    void onlyANamespacePairHasTheNamespaceField() {
+        var extensionPair = allow(persistExtension(), persistExtension(), null);
+        extensionPair.setField(NameSimilarityField.NAMESPACE);
+        allows.save(extensionPair);
+        assertThatThrownBy(em::flush).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    void aNamespacePairHasNoExtensions() {
+        var mixed = namespaceAllow(persistNamespace(), persistNamespace());
+        mixed.setExtensionId(persistExtension().getId());
+        allows.save(mixed);
+        assertThatThrownBy(em::flush).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    void allowedExtensionsLeaveOutNamespacePairs() {
+        // Later than anything another test stores, so it would lead the list.
+        var namespacePair = namespaceAllow(persistNamespace(), persistNamespace());
+        namespacePair.setDecidedAt(LocalDateTime.of(2999, 1, 1, 0, 0));
+        allows.save(namespacePair);
+        var extensionPair = allows.save(allow(persistExtension(), persistExtension(), null));
+        extensionPair.setDecidedAt(LocalDateTime.of(2998, 1, 1, 0, 0));
+        em.flush();
+
+        assertThat(allows.findAllowedExtensionIds(PageRequest.of(0, 1)))
+                .containsExactly(extensionPair.getExtensionId());
+    }
+
+    private static NameSimilarityAllow namespaceAllow(Namespace lookalike, Namespace original) {
+        var allow = new NameSimilarityAllow();
+        allow.setNamespaceId(lookalike.getId());
+        allow.setOtherNamespaceId(original.getId());
+        allow.setField(NameSimilarityField.NAMESPACE);
+        allow.setSimilarity(0.5f);
+        allow.setLookalikeValue(lookalike.getName());
+        allow.setOtherValue(original.getName());
+        allow.setReason("Same publisher");
+        allow.setDecidedAt(TimeUtil.getCurrentUTC());
+        return allow;
+    }
+
     private static NameSimilarityAllow allow(Extension lookalike, Extension original, @Nullable Long decidedById) {
         var allow = new NameSimilarityAllow();
         allow.setExtensionId(lookalike.getId());
         allow.setOtherExtensionId(original.getId());
         allow.setField(NameSimilarityField.DISPLAY_NAME);
         allow.setSimilarity(0.8f);
-        allow.setExtensionValue("Python Tools");
+        allow.setLookalikeValue("Python Tools");
         allow.setOtherValue("Python");
         allow.setReason("Official fork");
         allow.setDecidedById(decidedById);
@@ -123,12 +204,16 @@ class NameSimilarityAllowRepositoryTest extends AbstractPostgresContainerTest {
     }
 
     /** Unique per call: every context shares one database. */
-    private Extension persistExtension() {
+    private Namespace persistNamespace() {
         var namespace = new Namespace();
         namespace.setName("allow-ns-" + UUID.randomUUID());
         namespace.setPublicId(UUID.randomUUID().toString());
         em.persist(namespace);
+        return namespace;
+    }
 
+    private Extension persistExtension() {
+        var namespace = persistNamespace();
         var extension = new Extension();
         extension.setName("allow-ext");
         extension.setNamespace(namespace);

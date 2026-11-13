@@ -129,8 +129,8 @@ class NameSimilarityCheckServiceTest {
         when(existing.getId()).thenReturn(99L);
         when(repositories.findExtension("python", "pyext-labs")).thenReturn(existing);
         var allow = new NameSimilarityAllow();
-        allow.setExtensionId(1);
-        allow.setOtherExtensionId(99);
+        allow.setExtensionId(1L);
+        allow.setOtherExtensionId(99L);
         when(allows.findInvolving(List.of(99L))).thenReturn(List.of(allow));
         when(similarity.findSimilar(any())).thenReturn(
                 List.of(

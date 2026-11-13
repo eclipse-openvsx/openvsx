@@ -30,7 +30,7 @@ import { pluralize } from './name-squatting-model';
 import { extensionId, useAllowNameSquattingPairs } from './use-name-squatting';
 
 /** Mirrors the server's limit, so an over-long reason is caught before anything is allowed. */
-const MAX_REASON_LENGTH = 2048;
+export const MAX_REASON_LENGTH = 2048;
 
 export interface AllowDialogProps {
     anchor: NameSquattingExtension;

@@ -27,8 +27,10 @@ import jakarta.persistence.Table;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A pair of extensions an admin has confirmed are not squatting on each other, so the pair is no
- * longer reported. A pair is stored once, whichever way round it was allowed.
+ * A pair of extensions, or of namespaces, an admin has confirmed are not squatting on each other, so
+ * the pair is no longer reported. A pair is stored once, whichever way round it was allowed.
+ * <p>
+ * A {@link NameSimilarityField#NAMESPACE} pair sets the namespace ids, any other the extension ids.
  */
 @Entity
 @Table(name = "name_similarity_allow")
@@ -42,13 +44,21 @@ public class NameSimilarityAllow implements Serializable {
     @SequenceGenerator(name = "nameSimilarityAllowSeq", sequenceName = "name_similarity_allow_seq", allocationSize = 1)
     private long id;
 
-    /** The look-alike that was allowed. */
-    @Column(name = "extension_id", nullable = false)
-    private long extensionId;
+    /** The look-alike that was allowed, for a pair of extensions. */
+    @Column(name = "extension_id")
+    private @Nullable Long extensionId;
 
     /** The extension the look-alike was allowed alongside. */
-    @Column(name = "other_extension_id", nullable = false)
-    private long otherExtensionId;
+    @Column(name = "other_extension_id")
+    private @Nullable Long otherExtensionId;
+
+    /** The look-alike that was allowed, for a pair of namespaces. */
+    @Column(name = "namespace_id")
+    private @Nullable Long namespaceId;
+
+    /** The namespace the look-alike was allowed alongside. */
+    @Column(name = "other_namespace_id")
+    private @Nullable Long otherNamespaceId;
 
     /** The field that matched most closely when the pair was allowed. */
     @Enumerated(EnumType.STRING)
@@ -60,10 +70,10 @@ public class NameSimilarityAllow implements Serializable {
     private float similarity;
 
     /** The look-alike's value of {@link #field} when the pair was allowed. */
-    @Column(name = "extension_value", nullable = false)
-    private String extensionValue;
+    @Column(name = "lookalike_value", nullable = false)
+    private String lookalikeValue;
 
-    /** The other extension's value of {@link #field} when the pair was allowed. */
+    /** The other side's value of {@link #field} when the pair was allowed. */
     @Column(name = "other_value", nullable = false)
     private String otherValue;
 
@@ -81,20 +91,36 @@ public class NameSimilarityAllow implements Serializable {
         return id;
     }
 
-    public long getExtensionId() {
+    public @Nullable Long getExtensionId() {
         return extensionId;
     }
 
-    public void setExtensionId(long extensionId) {
+    public void setExtensionId(@Nullable Long extensionId) {
         this.extensionId = extensionId;
     }
 
-    public long getOtherExtensionId() {
+    public @Nullable Long getOtherExtensionId() {
         return otherExtensionId;
     }
 
-    public void setOtherExtensionId(long otherExtensionId) {
+    public void setOtherExtensionId(@Nullable Long otherExtensionId) {
         this.otherExtensionId = otherExtensionId;
+    }
+
+    public @Nullable Long getNamespaceId() {
+        return namespaceId;
+    }
+
+    public void setNamespaceId(@Nullable Long namespaceId) {
+        this.namespaceId = namespaceId;
+    }
+
+    public @Nullable Long getOtherNamespaceId() {
+        return otherNamespaceId;
+    }
+
+    public void setOtherNamespaceId(@Nullable Long otherNamespaceId) {
+        this.otherNamespaceId = otherNamespaceId;
     }
 
     public NameSimilarityField getField() {
@@ -113,12 +139,12 @@ public class NameSimilarityAllow implements Serializable {
         this.similarity = similarity;
     }
 
-    public String getExtensionValue() {
-        return extensionValue;
+    public String getLookalikeValue() {
+        return lookalikeValue;
     }
 
-    public void setExtensionValue(String extensionValue) {
-        this.extensionValue = extensionValue;
+    public void setLookalikeValue(String lookalikeValue) {
+        this.lookalikeValue = lookalikeValue;
     }
 
     public String getOtherValue() {
