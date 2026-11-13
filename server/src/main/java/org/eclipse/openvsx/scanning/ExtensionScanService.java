@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.ExtensionProcessor;
@@ -293,7 +294,13 @@ public class ExtensionScanService {
         }
 
         // reset the scan job for retry
-        persistenceService.resetJobForRetry(scan, job);
+        try {
+            persistenceService.resetJobForRetry(scan, job);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            throw new ErrorResultException(
+                    "Cannot retry: scan job " + job.getId() + " changed concurrently, reload and try again",
+                    HttpStatus.CONFLICT);
+        }
 
         var scanner = scannerRegistry.getScanner(job.getScannerType());
         if (scanner == null) {

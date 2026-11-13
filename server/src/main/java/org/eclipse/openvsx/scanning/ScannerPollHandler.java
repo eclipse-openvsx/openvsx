@@ -20,6 +20,7 @@ import org.jobrunr.jobs.lambdas.JobRequestHandler;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import org.eclipse.openvsx.entities.ScanCheckResult;
@@ -100,8 +101,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
             logger.debug("Scan job {} status: {}", scanJobId, status);
 
             // Phase 3: Handle based on status
-            // Note: processCompletedScan() has REQUIRES_NEW, so threats save in separate tx.
-            // Other updates are single entity saves (auto-commit).
+            // Every job write is version-checked; a lost race discards this poll's result.
             if (status == Scanner.PollStatus.COMPLETED) {
                 // Fetch results (another HTTP call)
                 Scanner.Result result = pollContext.scanner().fetchResults(pollContext.submission());
@@ -165,7 +165,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
             // Sync scanner shouldn't be in pending state
             logger.warn("Sync scanner found in pending jobs: {}", job.getScannerType());
             job.setPollLeaseUntil(null);
-            scanJobRepository.save(job);
+            scanJobRepository.trySave(job);
             return null;
         }
 
@@ -209,7 +209,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
     /**
      * Save results for a completed scan.
-     * Note: processCompletedScan() has REQUIRES_NEW so threats save in separate tx.
+     * The job, its threats and the audit result commit together in completeScannerJob().
      */
     private void saveCompletedResults(long scanJobId, Scanner scanner, Scanner.Result result) {
         ScannerJob job = scanJobRepository.findById(scanJobId).orElse(null);
@@ -229,14 +229,19 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
         job.setErrorMessage(null);
         job.setPollLeaseUntil(null);
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        scanJobRepository.save(job);
 
-        // Process result: save threats, determine check result, record audit
-        var processed = persistenceService.processCompletedScan(
-                job,
-                result,
-                scanner.enforcesThreats(),
-                startedAt);
+        // Job, threats and audit result commit together, so no completion check sees COMPLETE without them
+        ExtensionScanPersistenceService.CompletedScanResult processed;
+        try {
+            processed = persistenceService.completeScannerJob(
+                    job,
+                    result,
+                    scanner.enforcesThreats(),
+                    startedAt);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            logger.debug("Scan job {} changed concurrently, discarding results", job.getId());
+            return;
+        }
 
         // Log based on result
         if (processed.threatCount() == 0) {
@@ -271,7 +276,7 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
     private void clearJobLease(long scanJobId) {
         scanJobRepository.findById(scanJobId).ifPresent(job -> {
             job.setPollLeaseUntil(null);
-            scanJobRepository.save(job);
+            scanJobRepository.trySave(job);
         });
     }
 
@@ -301,7 +306,9 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
         logger.error("Scan job {} failed at external scanner: {}", job.getId(), errorMessage);
         LocalDateTime startedAt = job.getUpdatedAt();
-        markJobFailed(job, errorMessage);
+        if (!markJobFailed(job, errorMessage)) {
+            return;
+        }
 
         // Record scanner job result for audit trail
         persistenceService.recordScannerJobResult(
@@ -361,8 +368,9 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
                     "Scan job {} exceeded max poll attempts ({}), marking as failed",
                     job.getId(),
                     maxAttempts);
-            markJobFailed(job, "Exceeded max poll attempts (" + maxAttempts + ")");
-            completionService.checkCompletionSafely(job.getScanId());
+            if (markJobFailed(job, "Exceeded max poll attempts (" + maxAttempts + ")")) {
+                completionService.checkCompletionSafely(job.getScanId());
+            }
             return;
         }
 
@@ -371,7 +379,10 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
         // accurate duration display and timeout calculation.
         job.setStatus(ScannerJob.JobStatus.PROCESSING);
         job.setPollLeaseUntil(null); // No lease needed with self-scheduling
-        scanJobRepository.save(job);
+        if (!scanJobRepository.trySave(job)) {
+            logger.debug("Scan job {} changed concurrently, not scheduling another poll", job.getId());
+            return;
+        }
 
         // Calculate delay based on poll config
         int delaySeconds = calculatePollDelay(attempts, pollConfig);
@@ -426,12 +437,14 @@ public class ScannerPollHandler implements JobRequestHandler<ScannerPollRequest>
 
     /**
      * Mark a job as failed with error message.
+     *
+     * @return false if the job changed concurrently and was left as it is
      */
-    private void markJobFailed(ScannerJob job, String errorMessage) {
+    private boolean markJobFailed(ScannerJob job, String errorMessage) {
         job.setStatus(ScannerJob.JobStatus.FAILED);
         job.setErrorMessage(errorMessage);
         job.setPollLeaseUntil(null); // Clear lease - no more polling needed
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        scanJobRepository.save(job);
+        return scanJobRepository.trySave(job);
     }
 }
