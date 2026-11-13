@@ -42,6 +42,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
 - Fix the startup failure with `bucket4j.enabled=true` by bumping bucket4j-spring-boot-starter to 0.14.0 (Spring Boot 4) and bucket4j to 8.15.0 ([#2405](https://github.com/eclipse-openvsx/openvsx/issues/2405))
 - The publisher and admin extension details show the version the registry serves as latest instead of a higher removed one ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
+- URLs built outside a web request, by background jobs, start with `ovsx.server.url` instead of coming out relative ([#1554](https://github.com/eclipse-openvsx/openvsx/issues/1554))
 
 ### Dependencies
 
