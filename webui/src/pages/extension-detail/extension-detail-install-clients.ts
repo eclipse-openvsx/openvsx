@@ -18,7 +18,6 @@ export interface InstallClient {
 // Open VSX, add a row in its place.
 export const INSTALL_CLIENTS: InstallClient[] = [
     { name: 'Antigravity', scheme: 'antigravity-ide' },
-    { name: 'Antigravity (older versions)', scheme: 'antigravity' },
     { name: 'Cursor', scheme: 'cursor' },
     { name: 'Kiro', scheme: 'kiro' },
     { name: 'Positron', scheme: 'positron' },

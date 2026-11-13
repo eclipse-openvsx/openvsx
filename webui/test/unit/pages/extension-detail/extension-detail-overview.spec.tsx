@@ -110,8 +110,7 @@ describe('ExtensionDetailOverview', () => {
         expect(hrefs).toContainEqual(['VS Code Insiders', 'vscode-insiders:extension/foo.bar']);
         expect(hrefs).toContainEqual(['Cursor', 'cursor:extension/foo.bar']);
         expect(hrefs).toContainEqual(['Antigravity', 'antigravity-ide:extension/foo.bar']);
-        expect(hrefs).toContainEqual(['Antigravity (older versions)', 'antigravity:extension/foo.bar']);
-        expect(hrefs).toHaveLength(8);
+        expect(hrefs).toHaveLength(7);
         // Alphabetical, so the order does not read as a ranking.
         const names = items.map(item => item.textContent as string);
         expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
