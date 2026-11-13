@@ -110,7 +110,7 @@ describe('ExtensionDetailOverview', () => {
             .map(item => [item.textContent, item.getAttribute('href')]);
         expect(hrefs).toContainEqual(['VS Code Insiders', 'vscode-insiders:extension/foo.bar']);
         expect(hrefs).toContainEqual(['Cursor', 'cursor:extension/foo.bar']);
-        expect(hrefs).toContainEqual(['Antigravity', 'antigravity-ide:extension/foo.bar']);
+        expect(hrefs).toContainEqual(['Antigravity', 'antigravity:extension/foo.bar']);
         expect(hrefs).toHaveLength(7);
     });
 

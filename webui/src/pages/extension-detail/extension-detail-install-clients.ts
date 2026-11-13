@@ -21,6 +21,6 @@ export const INSTALL_CLIENTS: InstallClient[] = [
     { name: 'Cursor', scheme: 'cursor' },
     { name: 'Windsurf', scheme: 'windsurf' },
     { name: 'Kiro', scheme: 'kiro' },
-    { name: 'Antigravity', scheme: 'antigravity-ide' },
+    { name: 'Antigravity', scheme: 'antigravity' },
     { name: 'Positron', scheme: 'positron' }
 ];
