@@ -31,8 +31,8 @@ const DESCRIPTIONS: Record<NameSquattingTab, string> = {
         'names shared across namespaces.',
     namespaces:
         'Namespaces whose names differ by a typo or only in separators, the one with more downloads as target. ' +
-        'Popular targets only shows pairs whose target is far more downloaded than the look-alike; turn it off to ' +
-        'review quieter pairs too. A namespace created in the last minute may not show yet.',
+        'Popular targets shows the pairs whose target is far more downloaded than the look-alike; All pairs adds ' +
+        'the quieter ones. A namespace created in the last minute may not show yet.',
     allowlist: 'Pairs admins decided are not squatting. Removing an allow reports the pair again while the names match.'
 };
 

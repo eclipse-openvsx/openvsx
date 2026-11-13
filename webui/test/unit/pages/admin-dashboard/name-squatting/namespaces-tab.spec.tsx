@@ -64,7 +64,7 @@ describe('NamespacesTab', () => {
         });
 
         await screen.findByText('redhaat');
-        const [target, lookalike, comparison] = within(screen.getAllByRole('row')[1]).getAllByRole('cell');
+        const [, target, lookalike, comparison] = within(screen.getAllByRole('row')[1]).getAllByRole('cell');
         expect(within(target).getByText('redhat')).toBeInTheDocument();
         expect(within(lookalike).getByText('redhaat')).toBeInTheDocument();
         expect(within(comparison).getByText('1 edit')).toBeInTheDocument();
@@ -73,13 +73,13 @@ describe('NamespacesTab', () => {
         expect(admin.getNameSquattingNamespacePairs).toHaveBeenCalledWith(expect.anything(), true, 'downloads', 0, 25);
     });
 
-    // Turning the filter off is how quiet, long-term squatting on niche namespaces gets reviewed.
-    it('asks for every pair once popular targets only is turned off', async () => {
+    // Showing all pairs is how quiet, long-term squatting on niche namespaces gets reviewed.
+    it('asks for every pair once all pairs are shown', async () => {
         const user = userEvent.setup();
         const admin = mountTab({ getNameSquattingNamespacePairs: vi.fn().mockResolvedValue(page([pair('redhaat')])) });
         await screen.findByText('redhaat');
 
-        await user.click(screen.getByLabelText('Popular targets only'));
+        await user.click(screen.getByRole('button', { name: 'All pairs' }));
 
         await waitFor(() =>
             expect(admin.getNameSquattingNamespacePairs).toHaveBeenLastCalledWith(
@@ -97,8 +97,7 @@ describe('NamespacesTab', () => {
         const admin = mountTab({ getNameSquattingNamespacePairs: vi.fn().mockResolvedValue(page([pair('redhaat')])) });
         await screen.findByText('redhaat');
 
-        await user.click(screen.getByRole('combobox', { name: 'Sort' }));
-        await user.click(screen.getByRole('option', { name: 'Newest look-alike first' }));
+        await user.click(screen.getByRole('button', { name: 'Newest look-alike first' }));
 
         await waitFor(() =>
             expect(admin.getNameSquattingNamespacePairs).toHaveBeenLastCalledWith(
@@ -119,7 +118,8 @@ describe('NamespacesTab', () => {
 
         await screen.findByText('redhaat');
         expect(admin.getNameSquattingNamespacePairs).toHaveBeenCalledWith(expect.anything(), false, 'newest', 0, 25);
-        expect(screen.getByLabelText('Popular targets only')).not.toBeChecked();
+        expect(screen.getByRole('button', { name: 'All pairs' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'Newest look-alike first' })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('points to the full list when no pair has a popular target', async () => {
@@ -166,7 +166,7 @@ describe('NamespacesTab', () => {
             allowNameSquattingNamespaces: vi.fn().mockResolvedValue({ success: 'ok' })
         });
 
-        await user.click(await screen.findByRole('button', { name: 'Allow…' }));
+        await user.click(await screen.findByRole('button', { name: 'Allow redhaat' }));
         await user.type(screen.getByLabelText(/reason/i), '  same organization  ');
         await user.click(screen.getByRole('button', { name: 'Allow pair' }));
 
@@ -178,5 +178,23 @@ describe('NamespacesTab', () => {
             })
         );
         await waitFor(() => expect(admin.getNameSquattingNamespacePairs).toHaveBeenCalledTimes(2));
+    });
+
+    it('allows every selected pair', async () => {
+        const user = userEvent.setup();
+        const admin = mountTab({
+            getNameSquattingNamespacePairs: vi.fn().mockResolvedValue(page([pair('redhaat'), pair('redhet')])),
+            allowNameSquattingNamespaces: vi.fn().mockResolvedValue({ success: 'ok' })
+        });
+
+        await user.click(await screen.findByRole('checkbox', { name: 'Select redhaat and redhat' }));
+        await user.click(screen.getByRole('checkbox', { name: 'Select redhet and redhat' }));
+        await user.click(screen.getByRole('button', { name: 'Allow selected' }));
+        await user.click(screen.getByRole('button', { name: 'Allow 2 pairs' }));
+
+        await waitFor(() => expect(admin.allowNameSquattingNamespaces).toHaveBeenCalledTimes(2));
+        expect(admin.allowNameSquattingNamespaces).toHaveBeenCalledWith(
+            expect.objectContaining({ namespace: 'redhet' })
+        );
     });
 });

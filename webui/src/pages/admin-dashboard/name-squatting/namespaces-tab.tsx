@@ -17,22 +17,19 @@ import {
     Button,
     Chip,
     CircularProgress,
-    FormControlLabel,
-    MenuItem,
     Paper,
     Skeleton,
     Stack,
-    Switch,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
-    TextField,
+    ToggleButton,
+    ToggleButtonGroup,
     Tooltip,
     Typography
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
 import { useSearchParams } from 'react-router';
 import type {
     NameSquattingNamespace,
@@ -42,12 +39,13 @@ import type {
 import { Timestamp } from '../../../components/timestamp';
 import { formatCompactNumber } from '../../../utils';
 import { AllowNamespacesDialog } from './allow-namespaces-dialog';
+import { AllowIconButton, RefreshControl, SelectCell, SelectionBar } from './name-squatting-controls';
 import { pluralize } from './name-squatting-model';
-import { ColumnWidths, LoadError, NamespaceLinks, SimilarityChip, ValuePair } from './name-squatting-parts';
-import { GroupCard, GroupTable, Toolbar } from './name-squatting-styles';
+import { ColumnWidths, LoadError, NamespaceIdentity, SimilarityChip, ValuePair } from './name-squatting-parts';
+import { GroupCard, GroupTable, segmentedToggle, Toolbar } from './name-squatting-styles';
 import { namespacePairKey, useNameSquattingNamespacePairs } from './use-name-squatting';
 
-const COLUMN_WIDTHS = ['24%', '24%', 'auto', '8rem'];
+const COLUMN_WIDTHS = ['3.25rem', '24%', '24%', 'auto', '4rem'];
 
 const SORT_LABELS: Record<NameSquattingNamespaceSort, string> = {
     downloads: 'Most downloaded target first',
@@ -58,14 +56,9 @@ const SORT_LABELS: Record<NameSquattingNamespaceSort, string> = {
 const TARGETS_PARAM = 'targets';
 const SORT_PARAM = 'sort';
 
-const NamespaceName = styled('span')({
-    fontFamily: 'monospace',
-    fontWeight: 600
-});
-
 const NamespaceCell: FC<{ namespace: NameSquattingNamespace }> = ({ namespace }) => (
     <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <NamespaceName>{namespace.name}</NamespaceName>
+        <NamespaceIdentity name={namespace.name} />
         <Typography variant='caption' color='text.secondary'>
             {formatCompactNumber(namespace.downloads)} downloads · {pluralize(namespace.activeExtensions, 'extension')}
         </Typography>
@@ -78,16 +71,22 @@ const NamespaceCell: FC<{ namespace: NameSquattingNamespace }> = ({ namespace })
                 'Nothing published'
             )}
         </Typography>
-        <NamespaceLinks name={namespace.name} />
     </Box>
 );
 
-const PairRow: FC<{ pair: NameSquattingNamespacePair; showPopular: boolean; onAllow: () => void }> = ({
-    pair,
-    showPopular,
-    onAllow
-}) => (
-    <TableRow>
+const PairRow: FC<{
+    pair: NameSquattingNamespacePair;
+    showPopular: boolean;
+    selected: boolean;
+    onSelect: (selected: boolean) => void;
+    onAllow: () => void;
+}> = ({ pair, showPopular, selected, onSelect, onAllow }) => (
+    <TableRow selected={selected}>
+        <SelectCell
+            checked={selected}
+            onChange={onSelect}
+            label={`Select ${pair.lookalike.name} and ${pair.target.name}`}
+        />
         <TableCell>
             <NamespaceCell namespace={pair.target} />
         </TableCell>
@@ -112,9 +111,7 @@ const PairRow: FC<{ pair: NameSquattingNamespacePair; showPopular: boolean; onAl
             <ValuePair first={pair.target.name} second={pair.lookalike.name} />
         </TableCell>
         <TableCell align='right'>
-            <Button size='small' onClick={onAllow}>
-                Allow…
-            </Button>
+            <AllowIconButton onClick={onAllow} aria-label={`Allow ${pair.lookalike.name}`} />
         </TableCell>
     </TableRow>
 );
@@ -123,10 +120,12 @@ export const NamespacesTab: FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const popularOnly = searchParams.get(TARGETS_PARAM) !== 'all';
     const sort: NameSquattingNamespaceSort = searchParams.get(SORT_PARAM) === 'newest' ? 'newest' : 'downloads';
-    const [allowTarget, setAllowTarget] = useState<NameSquattingNamespacePair>();
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+    const [allowTarget, setAllowTarget] = useState<NameSquattingNamespacePair[]>();
 
     const {
         data,
+        dataUpdatedAt,
         error,
         isPending,
         isFetching,
@@ -151,6 +150,20 @@ export const NamespacesTab: FC = () => {
             { replace: true }
         );
 
+    const pairs = data?.pairs ?? [];
+    const selectedPairs = pairs.filter(pair => selected.has(namespacePairKey(pair)));
+
+    const select = (key: string, checked: boolean) =>
+        setSelected(previous => {
+            const next = new Set(previous);
+            if (checked) {
+                next.add(key);
+            } else {
+                next.delete(key);
+            }
+            return next;
+        });
+
     const renderPairs = () => {
         if (isPending) {
             return error ? null : (
@@ -171,7 +184,7 @@ export const NamespacesTab: FC = () => {
                     </Typography>
                     <Typography color='text.secondary'>
                         {popularOnly && (data?.total ?? 0) > 0
-                            ? `Turn off "Popular targets only" to see the other ${pluralize(data?.total ?? 0, 'pair')}.`
+                            ? `Switch to "All pairs" to see the other ${pluralize(data?.total ?? 0, 'pair')}.`
                             : 'Pairs you have allowed are not shown here; you can review them on the Allowlist tab.'}
                     </Typography>
                 </Paper>
@@ -184,6 +197,7 @@ export const NamespacesTab: FC = () => {
                         <ColumnWidths widths={COLUMN_WIDTHS} />
                         <TableHead>
                             <TableRow>
+                                <TableCell />
                                 <TableCell>Target (more downloads)</TableCell>
                                 <TableCell>Look-alike</TableCell>
                                 <TableCell>How the names compare (A = target, B = look-alike)</TableCell>
@@ -196,7 +210,9 @@ export const NamespacesTab: FC = () => {
                                     key={namespacePairKey(pair)}
                                     pair={pair}
                                     showPopular={!popularOnly}
-                                    onAllow={() => setAllowTarget(pair)}
+                                    selected={selected.has(namespacePairKey(pair))}
+                                    onSelect={checked => select(namespacePairKey(pair), checked)}
+                                    onAllow={() => setAllowTarget([pair])}
                                 />
                             ))}
                         </TableBody>
@@ -211,36 +227,38 @@ export const NamespacesTab: FC = () => {
     return (
         <>
             <Toolbar>
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={popularOnly}
-                            onChange={event => setParam(TARGETS_PARAM, event.target.checked ? undefined : 'all')}
-                        />
-                    }
-                    label='Popular targets only'
-                />
-                <TextField
-                    select
+                <ToggleButtonGroup
+                    exclusive
                     size='small'
-                    label='Sort'
+                    value={popularOnly ? 'popular' : 'all'}
+                    aria-label='Show'
+                    onChange={(_event, next: string | null) =>
+                        next && setParam(TARGETS_PARAM, next === 'all' ? 'all' : undefined)
+                    }
+                    sx={segmentedToggle}>
+                    <ToggleButton value='popular'>Popular targets</ToggleButton>
+                    <ToggleButton value='all'>All pairs</ToggleButton>
+                </ToggleButtonGroup>
+                <ToggleButtonGroup
+                    exclusive
+                    size='small'
                     value={sort}
-                    onChange={event => setParam(SORT_PARAM, event.target.value === 'newest' ? 'newest' : undefined)}
-                    sx={{ minWidth: '16rem' }}>
+                    aria-label='Sort'
+                    onChange={(_event, next: string | null) =>
+                        next && setParam(SORT_PARAM, next === 'newest' ? 'newest' : undefined)
+                    }
+                    sx={segmentedToggle}>
                     {Object.entries(SORT_LABELS).map(([value, label]) => (
-                        <MenuItem key={value} value={value}>
+                        <ToggleButton key={value} value={value}>
                             {label}
-                        </MenuItem>
+                        </ToggleButton>
                     ))}
-                </TextField>
-                <Button
-                    variant='outlined'
+                </ToggleButtonGroup>
+                <RefreshControl
                     onClick={() => refetch()}
-                    disabled={isFetching}
-                    startIcon={isFetching && !isFetchingNextPage ? <CircularProgress size={16} /> : undefined}
-                    sx={{ ml: 'auto' }}>
-                    Check again
-                </Button>
+                    refreshing={isFetching && !isFetchingNextPage}
+                    updatedAt={dataUpdatedAt}
+                />
             </Toolbar>
             {error && !isFetchNextPageError && <LoadError error={error} onRetry={() => refetch()} />}
             {data && data.pairs.length > 0 && (
@@ -248,6 +266,14 @@ export const NamespacesTab: FC = () => {
                     Showing {data.pairs.length} of {pluralize(shownTotal ?? 0, 'pair')}
                     {popularOnly && ` with a popular target · ${data.total} in all`}
                 </Typography>
+            )}
+            {pairs.length > 0 && (
+                <SelectionBar
+                    selected={selectedPairs.length}
+                    total={pairs.length}
+                    onSelectAll={checked => setSelected(new Set(checked ? pairs.map(namespacePairKey) : []))}
+                    onAction={() => setAllowTarget(selectedPairs)}
+                />
             )}
             {renderPairs()}
             {error && isFetchNextPageError && <LoadError error={error} onRetry={() => fetchNextPage()} />}
@@ -261,7 +287,13 @@ export const NamespacesTab: FC = () => {
                     Load more pairs
                 </Button>
             )}
-            {allowTarget && <AllowNamespacesDialog pair={allowTarget} onClose={() => setAllowTarget(undefined)} />}
+            {allowTarget && (
+                <AllowNamespacesDialog
+                    pairs={allowTarget}
+                    onAllowed={() => setSelected(new Set())}
+                    onClose={() => setAllowTarget(undefined)}
+                />
+            )}
         </>
     );
 };

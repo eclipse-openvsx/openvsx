@@ -14,7 +14,6 @@
 import { FC, useState } from 'react';
 import {
     Box,
-    Button,
     Chip,
     IconButton,
     Stack,
@@ -23,6 +22,7 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    Tooltip,
     Typography
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
@@ -33,12 +33,15 @@ import type {
     NameSquattingGroup,
     NameSquattingLookalike
 } from '../../../extension-registry-types';
+import { DeleteIconButton } from '../../../components/delete-icon-button';
 import { Timestamp } from '../../../components/timestamp';
 import { formatCompactNumber } from '../../../utils';
 import { FIELD_LABELS, NAMESPACE_HINT_THRESHOLD, pluralize } from './name-squatting-model';
+import type { CollisionPair } from './allow-dialog';
+import { AllowIconButton, SelectCell, SelectCheckbox } from './name-squatting-controls';
 import { ColumnWidths, ExtensionIdentity, SimilarityChip, ValuePair } from './name-squatting-parts';
 import { GroupCard, GroupHeader, GroupTable, HeaderEnd } from './name-squatting-styles';
-import { extensionId } from './use-name-squatting';
+import { collisionPairKey, extensionId } from './use-name-squatting';
 
 const Facts = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -62,16 +65,30 @@ const Hint = styled(Typography)(({ theme }) => ({
     fontSize: '0.75rem'
 })) as typeof Typography;
 
-const COLUMN_WIDTHS = ['22%', 'auto', '6.5rem', '11rem', '11.5rem'];
+const COLUMN_WIDTHS = ['3.25rem', '22%', 'auto', '6.5rem', '11rem', '6.5rem'];
+
+/** Opens the delete dialog; the dialog's typed confirmation guards the delete itself. */
+const DeleteButton: FC<{ extension: NameSquattingExtension; onClick: () => void; tooltip?: string }> = ({
+    extension,
+    onClick,
+    tooltip = 'Delete extension'
+}) => (
+    <Tooltip title={tooltip}>
+        <DeleteIconButton onClick={onClick} aria-label={`Delete ${extensionId(extension)}`} />
+    </Tooltip>
+);
 
 const LookalikeRow: FC<{
     lookalike: NameSquattingLookalike;
+    selected: boolean;
+    onSelect: (selected: boolean) => void;
     onAllow: () => void;
     onDelete: () => void;
-}> = ({ lookalike, onAllow, onDelete }) => {
+}> = ({ lookalike, selected, onSelect, onAllow, onDelete }) => {
     const { extension } = lookalike;
     return (
-        <TableRow>
+        <TableRow selected={selected}>
+            <SelectCell checked={selected} onChange={onSelect} label={`Select ${extensionId(extension)}`} />
             <TableCell>
                 <ExtensionIdentity extension={extension} />
             </TableCell>
@@ -106,18 +123,9 @@ const LookalikeRow: FC<{
                 </Hint>
             </TableCell>
             <TableCell align='right'>
-                <Stack direction='row' spacing={1} justifyContent='flex-end'>
-                    <Button size='small' variant='outlined' onClick={onAllow}>
-                        Allow
-                    </Button>
-                    <Button
-                        size='small'
-                        variant='outlined'
-                        color='error'
-                        onClick={onDelete}
-                        aria-label={`Delete ${extensionId(extension)}`}>
-                        Delete…
-                    </Button>
+                <Stack direction='row' spacing={1} justifyContent='flex-end' alignItems='center'>
+                    <AllowIconButton onClick={onAllow} aria-label={`Allow ${extensionId(extension)}`} />
+                    <DeleteButton extension={extension} onClick={onDelete} />
                 </Stack>
             </TableCell>
         </TableRow>
@@ -126,7 +134,10 @@ const LookalikeRow: FC<{
 
 export interface CollisionGroupProps {
     group: NameSquattingGroup;
-    onAllow: (anchor: NameSquattingExtension, lookalikes: NameSquattingExtension[]) => void;
+    /** Keys of the selected pairs, see `collisionPairKey`. */
+    selected: ReadonlySet<string>;
+    onSelect: (keys: string[], selected: boolean) => void;
+    onAllow: (pairs: CollisionPair[]) => void;
     /** `laterCount` is how many extensions of the group were published after the one to delete. */
     onDelete: (extension: NameSquattingExtension, laterCount: number) => void;
 }
@@ -135,12 +146,22 @@ export interface CollisionGroupProps {
  * The extension published first and those published later that resemble it, a row each. Published
  * first is not proof of being the original, so either side can be deleted.
  */
-export const CollisionGroup: FC<CollisionGroupProps> = ({ group, onAllow, onDelete }) => {
+export const CollisionGroup: FC<CollisionGroupProps> = ({ group, selected, onSelect, onAllow, onDelete }) => {
     const [open, setOpen] = useState(true);
     const { anchor, lookalikes } = group;
+    const keys = lookalikes.map(lookalike => collisionPairKey(anchor, lookalike.extension));
+    const selectedCount = keys.filter(key => selected.has(key)).length;
     return (
         <GroupCard variant='outlined'>
             <GroupHeader>
+                <SelectCheckbox
+                    checked={selectedCount === keys.length}
+                    indeterminate={selectedCount > 0 && selectedCount < keys.length}
+                    onChange={event => onSelect(keys, event.target.checked)}
+                    inputProps={{ 'aria-label': `Select every extension published after ${extensionId(anchor)}` }}
+                    // the header's 16px padding less 8px: the same inset as the row checkboxes below
+                    sx={{ ml: -1 }}
+                />
                 <IconButton
                     size='small'
                     onClick={() => setOpen(!open)}
@@ -160,25 +181,18 @@ export const CollisionGroup: FC<CollisionGroupProps> = ({ group, onAllow, onDele
                 </Facts>
                 <HeaderEnd>
                     <Chip size='small' label={`${lookalikes.length} published later`} />
-                    {lookalikes.length > 1 && (
-                        <Button
-                            size='small'
-                            onClick={() =>
-                                onAllow(
-                                    anchor,
-                                    lookalikes.map(lookalike => lookalike.extension)
-                                )
-                            }>
-                            Allow all…
-                        </Button>
-                    )}
-                    <Button
-                        size='small'
-                        color='error'
+                    <AllowIconButton
+                        tooltip='Allow every pair in this group'
+                        aria-label={`Allow every extension published after ${extensionId(anchor)}`}
+                        onClick={() =>
+                            onAllow(lookalikes.map(lookalike => ({ anchor, lookalike: lookalike.extension })))
+                        }
+                    />
+                    <DeleteButton
+                        extension={anchor}
+                        tooltip='Delete this extension only'
                         onClick={() => onDelete(anchor, lookalikes.length)}
-                        aria-label={`Delete ${extensionId(anchor)}`}>
-                        Delete…
-                    </Button>
+                    />
                 </HeaderEnd>
             </GroupHeader>
             {open && (
@@ -187,19 +201,22 @@ export const CollisionGroup: FC<CollisionGroupProps> = ({ group, onAllow, onDele
                         <ColumnWidths widths={COLUMN_WIDTHS} />
                         <TableHead>
                             <TableRow>
+                                <TableCell />
                                 <TableCell>Published later</TableCell>
                                 <TableCell>Matched on (A = published first, B = published later)</TableCell>
                                 <TableCell align='right'>Downloads</TableCell>
                                 <TableCell>Published</TableCell>
-                                <TableCell align='right'>Resolve</TableCell>
+                                <TableCell />
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {lookalikes.map(lookalike => (
+                            {lookalikes.map((lookalike, index) => (
                                 <LookalikeRow
-                                    key={extensionId(lookalike.extension)}
+                                    key={keys[index]}
                                     lookalike={lookalike}
-                                    onAllow={() => onAllow(anchor, [lookalike.extension])}
+                                    selected={selected.has(keys[index])}
+                                    onSelect={checked => onSelect([keys[index]], checked)}
+                                    onAllow={() => onAllow([{ anchor, lookalike: lookalike.extension }])}
                                     onDelete={() => onDelete(lookalike.extension, 0)}
                                 />
                             ))}

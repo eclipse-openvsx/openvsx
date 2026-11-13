@@ -12,7 +12,7 @@
  *****************************************************************************/
 
 import { Box, Paper, Table } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled, Theme } from '@mui/material/styles';
 
 export const GroupCard = styled(Paper)(({ theme }) => ({
     marginBottom: theme.spacing(2),
@@ -52,3 +52,19 @@ export const Toolbar = styled(Box)(({ theme }) => ({
     gap: theme.spacing(1.5, 2),
     marginBottom: theme.spacing(2)
 }));
+
+/** `sx` of a one-of-a-few ToggleButtonGroup: the selected button filled in the secondary color, as on Extension Scans. */
+export const segmentedToggle = (theme: Theme) => ({
+    height: '2rem',
+    '& .MuiToggleButton-root': {
+        padding: theme.spacing(0, 1.5),
+        fontSize: '0.8125rem',
+        textTransform: 'none',
+        whiteSpace: 'nowrap',
+        '&.Mui-selected': {
+            backgroundColor: theme.palette.secondary.main,
+            color: theme.palette.secondary.contrastText,
+            '&:hover': { backgroundColor: theme.palette.secondary.dark }
+        }
+    }
+});

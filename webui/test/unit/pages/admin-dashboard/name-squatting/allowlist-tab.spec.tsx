@@ -88,7 +88,7 @@ describe('AllowlistTab', () => {
             removeNameSquattingAllow: vi.fn().mockResolvedValue({ success: 'ok' })
         });
 
-        await user.click(await screen.findByRole('button', { name: 'Remove all…' }));
+        await user.click(await screen.findByRole('button', { name: 'Remove all' }));
         await user.click(screen.getByRole('button', { name: 'Remove 2 allows' }));
 
         await waitFor(() => expect(admin.removeNameSquattingAllow).toHaveBeenCalledTimes(2));
@@ -107,7 +107,7 @@ describe('AllowlistTab', () => {
                 .mockRejectedValueOnce({ error: 'Allowed pair not found' })
         });
 
-        await user.click(await screen.findByRole('button', { name: 'Remove all…' }));
+        await user.click(await screen.findByRole('button', { name: 'Remove all' }));
         await user.click(screen.getByRole('button', { name: 'Remove 2 allows' }));
 
         expect(await screen.findByText(/allowed pair not found/i)).toBeInTheDocument();

@@ -67,6 +67,18 @@ describe('CollisionsTab', () => {
         expect(screen.getByText('Exact')).toBeInTheDocument();
     });
 
+    it('shows when the names were looked up, and looks them up again on request', async () => {
+        const user = userEvent.setup();
+        const admin = mountTab({
+            getNameSquattingCollisions: vi.fn().mockResolvedValue(page([lookalike('pyth0n', 'python', true)]))
+        });
+
+        expect(await screen.findByText(/^Updated /)).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Check again' }));
+
+        await waitFor(() => expect(admin.getNameSquattingCollisions).toHaveBeenCalledTimes(2));
+    });
+
     it('explains a lookup stopped by the statement timeout', async () => {
         mountTab({
             getNameSquattingCollisions: vi.fn().mockRejectedValue({ error: 'timed out', status: 503 })
@@ -124,7 +136,7 @@ describe('CollisionsTab', () => {
             allowNameSquattingPair: vi.fn().mockResolvedValue({ success: 'ok' })
         });
 
-        await user.click(await screen.findByRole('button', { name: 'Allow' }));
+        await user.click(await screen.findByRole('button', { name: 'Allow pyth0n.python' }));
         await user.type(screen.getByLabelText(/reason/i), '  same publisher  ');
         await user.click(screen.getByRole('button', { name: 'Allow pair' }));
 
@@ -140,7 +152,7 @@ describe('CollisionsTab', () => {
         await waitFor(() => expect(admin.getNameSquattingCollisions).toHaveBeenCalledTimes(2));
     });
 
-    it('allows every look-alike of a group with "Allow all"', async () => {
+    it('allows every look-alike of a group from its header', async () => {
         const user = userEvent.setup();
         const admin = mountTab({
             getNameSquattingCollisions: vi
@@ -149,11 +161,37 @@ describe('CollisionsTab', () => {
             allowNameSquattingPair: vi.fn().mockResolvedValue({ success: 'ok' })
         });
 
-        await user.click(await screen.findByRole('button', { name: 'Allow all…' }));
+        await user.click(
+            await screen.findByRole('button', { name: 'Allow every extension published after ms-python.python' })
+        );
+        // the extension both resemble is named once, its look-alikes under it
+        const list = within(screen.getByRole('list', { name: 'Pairs to allow' }));
+        expect(list.getAllByText('ms-python.python')).toHaveLength(1);
+        expect(list.getByText('labs.pythom')).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Allow 2 pairs' }));
 
         await waitFor(() => expect(admin.allowNameSquattingPair).toHaveBeenCalledTimes(2));
         expect(admin.allowNameSquattingPair).toHaveBeenCalledWith(expect.objectContaining({ namespace: 'labs' }));
+    });
+
+    // A selection made before a filter changed must not allow pairs the admin can no longer see.
+    it('allows only the selected pairs the filters still show', async () => {
+        const user = userEvent.setup();
+        const admin = mountTab({
+            getNameSquattingCollisions: vi
+                .fn()
+                .mockResolvedValue(page([lookalike('pyth0n', 'python', true), lookalike('labs', 'pythom', false)])),
+            allowNameSquattingPair: vi.fn().mockResolvedValue({ success: 'ok' })
+        });
+
+        await user.click(await screen.findByRole('checkbox', { name: 'Select all' }));
+        await user.click(screen.getByLabelText('Exact matches only'));
+        expect(screen.getByText('1 pair selected')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Allow selected' }));
+        await user.click(screen.getByRole('button', { name: 'Allow pair' }));
+
+        await waitFor(() => expect(admin.allowNameSquattingPair).toHaveBeenCalledTimes(1));
+        expect(admin.allowNameSquattingPair).toHaveBeenCalledWith(expect.objectContaining({ namespace: 'pyth0n' }));
     });
 
     // The delete endpoint removes only the versions it is named; a removed one would fail the request.

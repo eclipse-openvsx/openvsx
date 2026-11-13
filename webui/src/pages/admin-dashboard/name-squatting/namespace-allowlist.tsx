@@ -28,14 +28,14 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    TextField,
     Typography
 } from '@mui/material';
 import type { NameSquattingNamespaceAllow } from '../../../extension-registry-types';
 import { Timestamp } from '../../../components/timestamp';
 import { handleError } from '../../../utils';
+import { SearchField } from './name-squatting-controls';
 import { pluralize } from './name-squatting-model';
-import { ColumnWidths, NamespaceLinks, SimilarityChip, ValuePair } from './name-squatting-parts';
+import { ColumnWidths, NamespaceIdentity, SimilarityChip, ValuePair } from './name-squatting-parts';
 import { GroupCard, GroupTable, Toolbar } from './name-squatting-styles';
 import { useNameSquattingNamespaceAllowlist, useRemoveNameSquattingAllows } from './use-name-squatting';
 
@@ -93,7 +93,7 @@ const AllowRow: FC<{ allow: NameSquattingNamespaceAllow; onRemove: () => void }>
                 <SimilarityChip similarity={allow.similarity} exact={false} />
             </Box>
             <ValuePair first={allow.otherNamespace} second={allow.namespace} />
-            <NamespaceLinks name={allow.namespace} />
+            <NamespaceIdentity name={allow.namespace} />
         </TableCell>
         <TableCell>
             <Box>{allow.decidedBy ?? 'A former user'}</Box>
@@ -191,14 +191,11 @@ export const NamespaceAllowlist: FC = () => {
     return (
         <>
             <Toolbar>
-                <TextField
-                    size='small'
-                    type='search'
-                    placeholder='Filter by namespace'
-                    inputProps={{ 'aria-label': 'Filter allowed namespaces' }}
+                <SearchField
                     value={query}
-                    onChange={event => setQuery(event.target.value)}
-                    sx={{ minWidth: '16rem' }}
+                    onChange={setQuery}
+                    placeholder='Search namespace'
+                    label='Search allowed namespaces'
                 />
             </Toolbar>
             {error && (

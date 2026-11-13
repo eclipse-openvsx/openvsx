@@ -34,6 +34,12 @@ export const COLLISIONS_BATCH_SIZE = 25;
 export const ALLOWLIST_PAGE_SIZE = 25;
 export const NAMESPACE_PAIRS_PAGE_SIZE = 25;
 
+/**
+ * How often the live lists look the names up again while the page is visible. The server keeps its
+ * namespace pairs for a minute, so polling faster would only read the same copy.
+ */
+export const REFRESH_INTERVAL_MS = 60_000;
+
 export const nameSquattingKeys = {
     all: ['admin', 'name-squatting'] as const,
     collisions: () => [...nameSquattingKeys.all, 'collisions'] as const,
@@ -85,6 +91,10 @@ export const mergeAllowlistPages = (
     return [...groups.values()];
 };
 
+/** The key a selection holds a pair under: the extension published first and the look-alike. */
+export const collisionPairKey = (anchor: NameSquattingExtension, lookalike: NameSquattingExtension): string =>
+    `${extensionId(anchor)}/${extensionId(lookalike)}`;
+
 export const namespacePairKey = (pair: NameSquattingNamespacePair): string =>
     `${pair.target.name}/${pair.lookalike.name}`;
 
@@ -123,7 +133,8 @@ export const useNameSquattingCollisions = () => {
         initialPageParam: 0,
         getNextPageParam: lastPage => (lastPage.hasMore ? lastPage.nextOffset : undefined),
         select: mergeCollisionPages,
-        retry: false
+        retry: false,
+        refetchInterval: REFRESH_INTERVAL_MS
     });
 };
 
@@ -155,7 +166,8 @@ export const useNameSquattingNamespacePairs = (view: NamespacePairsView) => {
         initialPageParam: 0,
         getNextPageParam: lastPage => (lastPage.hasMore ? lastPage.offset + lastPage.pairs.length : undefined),
         select: mergeNamespacePairPages,
-        retry: false
+        retry: false,
+        refetchInterval: REFRESH_INTERVAL_MS
     });
 };
 
@@ -173,14 +185,20 @@ export const useNameSquattingNamespaceAllowlist = () => {
     });
 };
 
-/** Both views of the Namespaces tab and the allowlist change, so every name squatting query is refreshed. */
+/**
+ * Allows pairs of namespaces one after another. Both views of the Namespaces tab and the allowlist change,
+ * so every name squatting query is refreshed, however far it got.
+ */
 export const useAllowNameSquattingNamespaces = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (request: NameSquattingNamespaceAllowRequest) =>
-            service.admin.allowNameSquattingNamespaces(request),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: nameSquattingKeys.all })
+        mutationFn: async (requests: NameSquattingNamespaceAllowRequest[]) => {
+            for (const request of requests) {
+                await service.admin.allowNameSquattingNamespaces(request);
+            }
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: nameSquattingKeys.all })
     });
 };
 

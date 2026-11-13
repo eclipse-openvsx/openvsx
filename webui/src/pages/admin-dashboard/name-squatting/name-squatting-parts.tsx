@@ -12,8 +12,9 @@
  *****************************************************************************/
 
 import { FC } from 'react';
-import { Alert, Box, Button, Chip, Link, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Link } from '@mui/material';
 import { alpha, styled } from '@mui/material/styles';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { Link as RouterLink } from 'react-router';
 import type { NameSquattingExtension } from '../../../extension-registry-types';
 import { NamespaceDetailRoutes } from '../../namespace-detail/namespace-detail-routes';
@@ -25,56 +26,67 @@ import { diffNames, DiffSegment } from './name-diff';
 import { formatSimilarity, similarityColor } from './name-squatting-model';
 import { extensionId } from './use-name-squatting';
 
-const Mono = styled('span')(({ theme }) => ({
+const NewTab = () => (
+    <OpenInNewIcon sx={{ fontSize: '0.875rem', ml: 0.5, verticalAlign: 'middle', color: 'text.secondary' }} />
+);
+
+const monoLink = {
     fontFamily: 'monospace',
     fontSize: '0.8125rem',
-    color: theme.palette.text.secondary
-}));
+    color: 'text.secondary'
+} as const;
 
-const Links = styled(Box)(({ theme }) => ({
-    display: 'flex',
-    gap: theme.spacing(1.5),
-    fontSize: '0.8125rem'
-}));
-
-/** Display name, identifier and links to the public page and the admin Extensions page. */
+/**
+ * Display name and identifier. Throughout the page, the arrow marks the public page (a new tab) and the
+ * monospace identifier opens the admin page.
+ */
 export const ExtensionIdentity: FC<{ extension: NameSquattingExtension }> = ({ extension }) => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <Typography component='span' fontWeight={600}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+        <Link
+            component={RouterLink}
+            to={createRoute([ExtensionDetailRoutes.ROOT, extension.namespace, extension.name])}
+            target='_blank'
+            rel='noopener'
+            title='Open the public page in a new tab'
+            underline='hover'
+            color='inherit'
+            fontWeight={600}>
             {extension.displayName ?? extension.name}
-        </Typography>
-        <Mono>{extensionId(extension)}</Mono>
-        <Links>
-            <Link
-                component={RouterLink}
-                to={createRoute([ExtensionDetailRoutes.ROOT, extension.namespace, extension.name])}
-                target='_blank'
-                rel='noopener'>
-                Public page
-            </Link>
-            <Link
-                component={RouterLink}
-                to={createRoute([AdminDashboardRoutes.EXTENSION_ADMIN, extension.namespace, extension.name])}>
-                Admin
-            </Link>
-        </Links>
+            <NewTab />
+        </Link>
+        <Link
+            component={RouterLink}
+            to={createRoute([AdminDashboardRoutes.EXTENSION_ADMIN, extension.namespace, extension.name])}
+            title='Open on the admin Extensions page'
+            underline='hover'
+            sx={monoLink}>
+            {extensionId(extension)}
+        </Link>
     </Box>
 );
 
-/** Links to a namespace's public page and to the admin Namespaces page. */
-export const NamespaceLinks: FC<{ name: string }> = ({ name }) => (
-    <Links>
+/** A namespace's name, opening the admin page, and the arrow to its public page, as for extensions. */
+export const NamespaceIdentity: FC<{ name: string }> = ({ name }) => (
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Link
+            component={RouterLink}
+            to={createRoute([AdminDashboardRoutes.NAMESPACE_ADMIN, name])}
+            title='Open on the admin Namespaces page'
+            underline='hover'
+            sx={{ ...monoLink, fontSize: 'inherit', fontWeight: 600, color: 'text.primary' }}>
+            {name}
+        </Link>
         <Link
             component={RouterLink}
             to={createRoute([NamespaceDetailRoutes.ROOT, name])}
             target='_blank'
-            rel='noopener'>
-            Public page
+            rel='noopener'
+            title='Open the public page in a new tab'
+            aria-label={`Open the public page of ${name} in a new tab`}
+            sx={{ display: 'inline-flex' }}>
+            <NewTab />
         </Link>
-        <Link component={RouterLink} to={createRoute([AdminDashboardRoutes.NAMESPACE_ADMIN, name])}>
-            Admin
-        </Link>
-    </Links>
+    </Box>
 );
 
 /** Column widths for a `GroupTable`, in column order. */
@@ -136,6 +148,50 @@ export const ValuePair: FC<{ first: string; second: string }> = ({ first, second
         </PairGrid>
     );
 };
+
+// Not capped: the dialog scrolls its content itself and keeps its buttons in view.
+const PairGroups = styled('ul')(({ theme }) => ({
+    listStyle: 'none',
+    margin: 0,
+    padding: theme.spacing(1.5, 2),
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: theme.shape.borderRadius,
+    fontFamily: 'monospace',
+    fontSize: '0.875rem',
+    '& > li + li': { marginTop: theme.spacing(1.5) }
+}));
+
+const Seconds = styled('ul')(({ theme }) => ({
+    listStyle: 'none',
+    margin: theme.spacing(0.5, 0, 0, 0.5),
+    padding: theme.spacing(0, 0, 0, 1.5),
+    borderLeft: `2px solid ${theme.palette.divider}`
+}));
+
+/** Pairs grouped under their first value, in the order those first appear. */
+const groupPairs = (pairs: { first: string; second: string }[]) => {
+    const groups = new Map<string, string[]>();
+    pairs.forEach(({ first, second }) => groups.set(first, [...(groups.get(first) ?? []), second]));
+    return [...groups].map(([first, seconds]) => ({ first, seconds }));
+};
+
+/** Selected pairs, each look-alike under the name it resembles, which is named once however many do. */
+export const GroupedPairs: FC<{ pairs: { first: string; second: string }[]; label: string }> = ({ pairs, label }) => (
+    <PairGroups aria-label={label}>
+        {groupPairs(pairs).map(group => (
+            <li key={group.first}>
+                <Box component='span' sx={{ fontWeight: 600 }}>
+                    {group.first}
+                </Box>
+                <Seconds>
+                    {group.seconds.map(second => (
+                        <li key={second}>{second}</li>
+                    ))}
+                </Seconds>
+            </li>
+        ))}
+    </PairGroups>
+);
 
 /** The server answers 503 when a lookup ran past its statement timeout and was stopped. */
 const isTimeout = (error: unknown): boolean => (error as Partial<ErrorResponse> | null)?.status === 503;

@@ -18,18 +18,15 @@ import {
     Button,
     Chip,
     CircularProgress,
-    FormControlLabel,
     IconButton,
     Paper,
     Skeleton,
     Stack,
-    Switch,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
-    TextField,
     ToggleButton,
     ToggleButtonGroup,
     Typography
@@ -44,9 +41,10 @@ import type {
 } from '../../../extension-registry-types';
 import { Timestamp } from '../../../components/timestamp';
 import { handleError } from '../../../utils';
+import { FilterCheckbox, SearchField } from './name-squatting-controls';
 import { FIELD_LABELS, filterAllowlistGroups, pluralize } from './name-squatting-model';
 import { ColumnWidths, ExtensionIdentity, SimilarityChip, ValuePair } from './name-squatting-parts';
-import { GroupCard, GroupHeader, GroupTable, HeaderEnd, Toolbar } from './name-squatting-styles';
+import { GroupCard, GroupHeader, GroupTable, HeaderEnd, segmentedToggle, Toolbar } from './name-squatting-styles';
 import { NamespaceAllowlist } from './namespace-allowlist';
 import { RemoveAllowsDialog } from './remove-allows-dialog';
 import { extensionId, useNameSquattingAllowlist } from './use-name-squatting';
@@ -115,7 +113,7 @@ const AllowlistGroup: FC<{
                         last <Timestamp value={lastDecidedAt} />
                     </Typography>
                     <Button size='small' color='error' onClick={() => onRemove(extension, allows)}>
-                        {allows.length === 1 ? 'Remove…' : 'Remove all…'}
+                        {allows.length === 1 ? 'Remove' : 'Remove all'}
                     </Button>
                 </HeaderEnd>
             </GroupHeader>
@@ -204,19 +202,13 @@ const ExtensionAllowlist: FC = () => {
     return (
         <>
             <Toolbar>
-                <TextField
-                    size='small'
-                    type='search'
-                    placeholder='Filter by extension or namespace'
-                    inputProps={{ 'aria-label': 'Filter allowlist' }}
+                <SearchField
                     value={query}
-                    onChange={event => setQuery(event.target.value)}
-                    sx={{ minWidth: '16rem' }}
+                    onChange={setQuery}
+                    placeholder='Search namespace, name or display name'
+                    label='Search allowlist'
                 />
-                <FormControlLabel
-                    control={<Switch checked={renamedOnly} onChange={event => setRenamedOnly(event.target.checked)} />}
-                    label='Names changed since allowed'
-                />
+                <FilterCheckbox label='Names changed since allowed' checked={renamedOnly} onChange={setRenamedOnly} />
             </Toolbar>
             {error && (
                 <Alert
@@ -290,7 +282,7 @@ export const AllowlistTab: FC = () => {
                         { replace: true }
                     )
                 }
-                sx={{ mb: 2 }}>
+                sx={theme => ({ ...segmentedToggle(theme), mb: 2 })}>
                 <ToggleButton value='extensions'>Extensions</ToggleButton>
                 <ToggleButton value='namespaces'>Namespaces</ToggleButton>
             </ToggleButtonGroup>
