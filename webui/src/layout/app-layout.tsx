@@ -142,7 +142,6 @@ const AppLayoutContent: FunctionComponent<AppLayoutProps> = props => {
                         <Route path={PublishRoutes.ROOT} element={<PublishPage />} />
                         <Route path={NamespaceDetailRoutes.MAIN} element={<NamespaceDetail />} />
                         <Route path={ExtensionDetailRoutes.MAIN} element={<ExtensionDetail />} />
-                        <Route path={ExtensionDetailRoutes.MAIN_TARGET} element={<ExtensionDetail />} />
                         {AdditionalRoutes ?? null}
                         <Route path='*' element={<NotFound />} />
                     </Routes>

@@ -22,7 +22,7 @@ import {
     Stack,
     Tooltip
 } from '@mui/material';
-import { Link as RouteLink, useNavigate, useParams } from 'react-router';
+import { Link as RouteLink, useNavigate } from 'react-router';
 import HomeIcon from '@mui/icons-material/Home';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import BugReportIcon from '@mui/icons-material/BugReport';
@@ -44,7 +44,6 @@ const NO_README = '## No README available';
 
 export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewProps> = props => {
     const { pageSettings } = useContext(MainContext);
-    const params = useParams();
     const navigate = useNavigate();
     const { data: readmeContent, isLoading: readmeLoading } = useExtensionReadme(props.extension);
     const readme = props.extension.files.readme ? readmeContent : NO_README;
@@ -174,9 +173,6 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
         const aliasButtons = otherAliases.length
             ? otherAliases.map(alias => {
                   const arr = [ExtensionDetailRoutes.ROOT, extension.namespace, extension.name];
-                  if (params.target) {
-                      arr.push(params.target);
-                  }
                   if (alias !== 'latest') {
                       arr.push(alias);
                   }
