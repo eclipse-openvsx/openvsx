@@ -84,7 +84,10 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-jooq"
     implementation "org.springframework.boot:spring-boot-starter-data-jpa"
     implementation "org.springframework.boot:spring-boot-starter-data-elasticsearch"
-    implementation "org.springframework.boot:spring-boot-starter-data-redis"
+    // Jedis only: rate limiting and pub/sub already use it, so Spring Data Redis uses it too.
+    implementation("org.springframework.boot:spring-boot-starter-data-redis") {
+        exclude group: 'io.lettuce', module: 'lettuce-core'
+    }
     implementation "org.springframework.boot:spring-boot-starter-security"
     implementation "org.springframework.boot:spring-boot-starter-actuator"
     implementation "org.springframework.boot:spring-boot-starter-cache"
@@ -114,6 +117,9 @@ dependencies {
     implementation libs.commons.lang3
     implementation libs.bouncycastle
     implementation libs.jedis
+    // Boot's JedisConnectionConfiguration is @ConditionalOnClass(GenericObjectPool): without it no
+    // RedisConnectionFactory exists. Declared, not left to bucket4j-jedis's transitive copy.
+    implementation "org.apache.commons:commons-pool2"
     implementation libs.uuid.generator
 
     implementation libs.bucket4j.spring
