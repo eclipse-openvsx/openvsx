@@ -513,14 +513,9 @@ public class PublishExtensionVersionHandler {
     /**
      * Publish an extension - store files and optionally submit for scanning.
      */
-    @Retryable
     private void doPublish(TempFile extensionFile, ExtensionService extensionService, ExtensionScan scan) {
         var download = extensionFile.getResource();
         var extVersion = download.getExtension();
-
-        // Delete file resources in case publishAsync is retried
-        service.deleteFileResources(extVersion);
-        download.setId(0L);
 
         service.storeResource(extensionFile);
         service.persistResource(download);
