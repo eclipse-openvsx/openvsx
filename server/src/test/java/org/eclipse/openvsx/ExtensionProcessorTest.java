@@ -12,7 +12,10 @@
  *****************************************************************************/
 package org.eclipse.openvsx;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -28,9 +31,11 @@ import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
 
 import org.eclipse.openvsx.entities.FileResource;
+import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TempFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExtensionProcessorTest {
 
@@ -105,6 +110,56 @@ class ExtensionProcessorTest {
             Consumer<TempFile> consumer = _ -> count.incrementAndGet();
             processor.getFileResources(processor.getMetadata(), consumer);
             assertThat(count.get()).isEqualTo(5);
+        }
+    }
+
+    @Test
+    void testPackageJsonLargerThanDeclaredIsRejected() throws Exception {
+        try (
+                var file = writeToTempFile("util/wrong-size.zip");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            // Must surface as a read failure, not be swallowed into an "Invalid JSON" parse error.
+            assertThatThrownBy(processor::getPackageMetadata)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessageContaining("Failed to read extension/package.json: File size exceeds limit of 0 bytes.");
+        }
+    }
+
+    @Test
+    void testVsixManifestLargerThanDeclaredIsRejected() throws Exception {
+        try (
+                var file = writeZipWithUnderstatedSize("extension.vsixmanifest", "<PackageManifest/>");
+                var processor = new ExtensionProcessor(file)
+        ) {
+            // The XML parser reports the failed read differently from the JSON one, both must surface as such.
+            assertThatThrownBy(processor::getNamespace)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("Failed to read extension.vsixmanifest: File size exceeds limit of 0 bytes.");
+        }
+    }
+
+    @Test
+    void testMissingPackageJsonIsRejected() throws Exception {
+        try (
+                var file = writeZipWithoutMetadata();
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThatThrownBy(processor::getPackageMetadata)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("Entry not found: extension/package.json");
+        }
+    }
+
+    @Test
+    void testMissingVsixManifestIsRejected() throws Exception {
+        try (
+                var file = writeZipWithoutMetadata();
+                var processor = new ExtensionProcessor(file)
+        ) {
+            assertThatThrownBy(processor::getNamespace)
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("Entry not found: extension.vsixmanifest");
         }
     }
 
@@ -198,6 +253,22 @@ class ExtensionProcessorTest {
         }
     }
 
+    @Test
+    void testMalformedVsixManifestIsReportedAsXml() throws Exception {
+        try (var file = new TempFile("test", ".zip")) {
+            try (var out = new ZipOutputStream(Files.newOutputStream(file.getPath()))) {
+                out.putNextEntry(new ZipEntry("extension.vsixmanifest"));
+                out.write("<PackageManifest><Metadata>".getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+            try (var processor = new ExtensionProcessor(file)) {
+                assertThatThrownBy(processor::getExtensionName)
+                        .isInstanceOf(ErrorResultException.class)
+                        .hasMessageStartingWith("Invalid XML format in extension.vsixmanifest: ");
+            }
+        }
+    }
+
     private List<String> tags(int count) {
         // Named so that the alphabetical order the tags are stored in matches the declaration order.
         return IntStream.rangeClosed(1, count).mapToObj(i -> String.format("tag-%03d", i)).toList();
@@ -237,6 +308,41 @@ class ExtensionProcessorTest {
                 out.write(content.getBytes(StandardCharsets.UTF_8));
                 out.closeEntry();
             }
+        }
+
+        return target;
+    }
+
+    /**
+     * Writes a single-entry package whose central directory declares a size of 0, while the entry
+     * actually holds the given content.
+     */
+    private TempFile writeZipWithUnderstatedSize(String name, String content) throws IOException {
+        var target = new TempFile("test", ".zip");
+        var bytes = new ByteArrayOutputStream();
+        try (var out = new ZipOutputStream(bytes)) {
+            out.putNextEntry(new ZipEntry(name));
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+
+        // Zero the uncompressed size at offset 24 of the central directory header (signature PK\1\2).
+        var zip = ByteBuffer.wrap(bytes.toByteArray()).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < zip.limit() - 4; i++) {
+            if (zip.getInt(i) == 0x02014b50) {
+                zip.putInt(i + 24, 0);
+            }
+        }
+        Files.write(target.getPath(), zip.array());
+        return target;
+    }
+
+    // ZipOutputStream refuses to write an archive without entries.
+    private TempFile writeZipWithoutMetadata() throws IOException {
+        var target = new TempFile("test", ".zip");
+        try (var out = new ZipOutputStream(Files.newOutputStream(target.getPath()))) {
+            out.putNextEntry(new ZipEntry("extension/README.md"));
+            out.closeEntry();
         }
 
         return target;

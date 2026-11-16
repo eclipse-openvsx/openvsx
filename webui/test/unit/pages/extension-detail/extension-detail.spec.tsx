@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
-import { Route, Routes } from 'react-router';
+import { Route, Routes, useLocation } from 'react-router';
 import { ExtensionDetail, ExtensionHeaderInfo } from '../../../../src/pages/extension-detail/extension-detail';
 import { ExtensionDetailRoutes } from '../../../../src/pages/extension-detail/extension-detail-routes';
 import { ExtensionRegistryService } from '../../../../src/extension-registry-service';
@@ -110,5 +110,68 @@ describe('ExtensionDetail', () => {
         await waitFor(() =>
             expect(handleError).toHaveBeenCalledWith(failure, { title: 'Couldn’t load the extension' })
         );
+    });
+
+    describe('with a target platform in the URL', () => {
+        const LocationProbe = () => {
+            const { pathname, search, hash } = useLocation();
+            return <output aria-label='location'>{pathname + search + hash}</output>;
+        };
+
+        const renderAt = (route: string) => {
+            const getExtensionApiUrl = vi.fn(() => 'https://open-vsx.org/api/foo/bar');
+            renderWithProviders(
+                <>
+                    <Routes>
+                        <Route path={ExtensionDetailRoutes.MAIN} element={<ExtensionDetail />} />
+                    </Routes>
+                    <LocationProbe />
+                </>,
+                {
+                    route,
+                    mainContext: {
+                        service: {
+                            getExtensionDetail: vi.fn().mockRejectedValue({ error: 'Not found', status: 404 }),
+                            getExtensionApiUrl
+                        } as unknown as ExtensionRegistryService
+                    }
+                }
+            );
+            return { getExtensionApiUrl };
+        };
+
+        it.each([
+            ['/extension/foo/bar/linux-x64', '/extension/foo/bar', undefined],
+            ['/extension/foo/bar/linux-x64/1.2.3', '/extension/foo/bar/1.2.3', '1.2.3'],
+            ['/extension/foo/bar/linux-x64/reviews', '/extension/foo/bar/reviews', undefined],
+            ['/extension/foo/bar/linux-x64/changes', '/extension/foo/bar/changes', undefined]
+        ])('redirects %s to %s', async (route, redirected, version) => {
+            const { getExtensionApiUrl } = renderAt(route);
+
+            await waitFor(() => expect(screen.getByLabelText('location').textContent).toBe(redirected));
+            await waitFor(() => expect(getExtensionApiUrl).toHaveBeenCalled());
+            for (const [params] of getExtensionApiUrl.mock.calls as unknown as [Record<string, unknown>][]) {
+                expect(params).toEqual({ namespace: 'foo', name: 'bar', target: undefined, version });
+            }
+        });
+
+        it('keeps the query and fragment when it redirects', async () => {
+            renderAt('/extension/foo/bar/win32-x64/1.2.3?ref=docs#install');
+
+            await waitFor(() =>
+                expect(screen.getByLabelText('location').textContent).toBe('/extension/foo/bar/1.2.3?ref=docs#install')
+            );
+        });
+
+        it('leaves a segment that is not a platform in place', async () => {
+            const { getExtensionApiUrl } = renderAt('/extension/foo/bar/not-a-platform/reviews');
+
+            await waitFor(() =>
+                expect(getExtensionApiUrl).toHaveBeenCalledWith(
+                    expect.objectContaining({ version: 'not-a-platform/reviews' })
+                )
+            );
+            expect(screen.getByLabelText('location').textContent).toBe('/extension/foo/bar/not-a-platform/reviews');
+        });
     });
 });

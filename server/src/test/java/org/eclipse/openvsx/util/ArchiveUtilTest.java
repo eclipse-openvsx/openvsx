@@ -61,6 +61,40 @@ class ArchiveUtilTest {
     }
 
     @Test
+    void testOpenEntry() throws IOException {
+        var packageUrl = getClass().getResource("todo-tree.zip");
+        assertThat(packageUrl).isNotNull();
+
+        try (var archive = new ZipFile(packageUrl.getPath())) {
+            try (var stream = ArchiveUtil.openEntry(archive, "extension/package.json")) {
+                assertThat(stream).isNotNull();
+                assertThat(stream.readAllBytes()).hasSize(44712);
+            }
+            assertThat(ArchiveUtil.openEntry(archive, "extension/missing.json")).isNull();
+        }
+    }
+
+    @Test
+    void testOpenEntryExceedMaxEntrySize() throws IOException {
+        // an artificially crafted zip file with a file whose size is set lower as its actual content
+        var packageUrl = getClass().getResource("wrong-size.zip");
+        assertThat(packageUrl).isNotNull();
+
+        try (var archive = new ZipFile(packageUrl.getPath())) {
+            assertThatThrownBy(() -> ArchiveUtil.openEntry(archive, "extension/README.md", 8192))
+                    .isExactlyInstanceOf(ErrorResultException.class)
+                    .hasMessage("The file extension/README.md exceeds the size limit of 8 KB.");
+
+            try (var stream = ArchiveUtil.openEntry(archive, "extension/package.json", 8192)) {
+                assertThat(stream).isNotNull();
+                assertThatThrownBy(stream::readAllBytes)
+                        .isExactlyInstanceOf(IOException.class)
+                        .hasMessage("File size exceeds limit of 0 bytes.");
+            }
+        }
+    }
+
+    @Test
     void testSafePath() {
         // restricted path patterns
         assertThat(ArchiveUtil.isSafePath("\0")).isEqualTo(false);

@@ -11,42 +11,18 @@
  * SPDX-License-Identifier: EPL-2.0
  *****************************************************************************/
 
-import { createRoute, getTargetPlatforms } from '../../utils';
+import { createRoute } from '../../utils';
 
 export namespace ExtensionDetailRoutes {
     export namespace Parameters {
         export const NAMESPACE = ':namespace';
         export const NAME = ':name';
-        export const TARGET = `:target(${getTargetPlatforms().join('|')})`;
     }
 
     export const ROOT = 'extension';
     export const MAIN = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, '*']);
-    export const MAIN_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET, '*']);
     export const LATEST = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME]);
-    export const LATEST_TARGET = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, Parameters.TARGET]);
     export const PRE_RELEASE = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'pre-release']);
-    export const PRE_RELEASE_TARGET = createRoute([
-        ROOT,
-        Parameters.NAMESPACE,
-        Parameters.NAME,
-        Parameters.TARGET,
-        'pre-release'
-    ]);
     export const REVIEWS = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'reviews']);
-    export const REVIEWS_TARGET = createRoute([
-        ROOT,
-        Parameters.NAMESPACE,
-        Parameters.NAME,
-        Parameters.TARGET,
-        'reviews'
-    ]);
     export const CHANGES = createRoute([ROOT, Parameters.NAMESPACE, Parameters.NAME, 'changes']);
-    export const CHANGES_TARGET = createRoute([
-        ROOT,
-        Parameters.NAMESPACE,
-        Parameters.NAME,
-        Parameters.TARGET,
-        'changes'
-    ]);
 }
