@@ -3270,7 +3270,7 @@ class AdminAPITest {
             dependant.setVersion(createVersion(i + 1));
             dependants.add(dependant);
         }
-        when(repositories.findDependenciesReference(extension))
+        when(repositories.findNotRemovedDependenciesReference(extension))
                 .thenReturn(Streamable.of(dependants));
 
         when(repositories.findAllReviews(extension))

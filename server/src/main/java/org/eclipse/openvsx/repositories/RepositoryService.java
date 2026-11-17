@@ -400,6 +400,10 @@ public class RepositoryService {
         return extensionVersionRepo.findByDependencies(NamingUtil.toExtensionId(extension));
     }
 
+    public Streamable<ExtensionVersion> findNotRemovedDependenciesReference(Extension extension) {
+        return extensionVersionRepo.findNotRemovedByDependencies(NamingUtil.toExtensionId(extension));
+    }
+
     public Streamable<Extension> findExtensions(UserData user) {
         return extensionRepo.findDistinctByVersionsPublishedBy(user);
     }

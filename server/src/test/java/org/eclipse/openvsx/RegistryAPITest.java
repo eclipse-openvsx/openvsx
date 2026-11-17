@@ -2601,7 +2601,7 @@ class RegistryAPITest {
         dependantVersion.setExtension(dependant);
         dependantVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
         dependantVersion.setVersion("1.0.0");
-        Mockito.when(repositories.findDependenciesReference(extension))
+        Mockito.when(repositories.findNotRemovedDependenciesReference(extension))
                 .thenReturn(Streamable.of(dependantVersion));
 
         mockMvc.perform(
@@ -3627,7 +3627,7 @@ class RegistryAPITest {
                 .then(
                         (Answer<Boolean>) invocation -> ((TargetPlatformVersion[]) invocation
                                 .getRawArguments()[2]).length == versions.size());
-        Mockito.when(repositories.findDependenciesReference(extension)).thenReturn(Streamable.empty());
+        Mockito.when(repositories.findNotRemovedDependenciesReference(extension)).thenReturn(Streamable.empty());
         return token;
     }
 
