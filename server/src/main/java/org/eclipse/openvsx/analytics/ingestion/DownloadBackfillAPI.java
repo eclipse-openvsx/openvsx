@@ -41,9 +41,10 @@ import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.ErrorResultException;
 
 /**
- * Admin endpoint to backfill download analytics from an already-processed access-log file: it
+ * Admin endpoints to backfill download analytics from an already-processed access-log file: it
  * stores the events without touching the download counters, then refreshes the aggregates over the
- * file's range. Mapped only when {@code ovsx.analytics.enabled=true}.
+ * file's range, unless the caller refreshes them once it has uploaded every file of a range. Mapped
+ * only when {@code ovsx.analytics.enabled=true}.
  */
 @RestController
 @ConditionalOnProperty(name = "ovsx.analytics.enabled", havingValue = "true")
@@ -90,7 +91,12 @@ public class DownloadBackfillAPI {
             @Parameter(
                 description = "UTC date to stamp records that carry no timestamp of their own, yyyy-mm-dd",
                 example = "2026-02-09"
-            ) String fileDate
+            ) String fileDate,
+            @RequestParam(defaultValue = "true")
+            @Parameter(
+                description = "Refresh the aggregates over the days the file covers; pass false when uploading a range "
+                        + "in many files, then refresh it once with /admin/api/analytics/downloads/refresh"
+            ) boolean refresh
     ) throws IOException {
         checkAdmin(token);
 
@@ -98,10 +104,35 @@ public class DownloadBackfillAPI {
         var storageType = storageUtil.getActiveStorageType();
         var records = parser.parse(content, logFormat(format), fallbackTime(fileDate));
         var result = processor.backfill(storageType, records);
-        if (result.events() > 0) {
+        if (refresh && result.events() > 0) {
             refresher.refresh(result.from(), result.to());
         }
         return ResponseEntity.ok(BackfillResultJson.from(result));
+    }
+
+    @PostMapping(path = "/admin/api/analytics/downloads/refresh")
+    @Operation(summary = "Refreshes the download aggregates over whole UTC days (admin only)")
+    @ApiResponse(responseCode = "204", description = "The aggregates are refreshed")
+    @ApiResponse(responseCode = "400", description = "A day is missing or invalid", content = @Content())
+    @ApiResponse(responseCode = "403", description = "The caller is not an admin", content = @Content())
+    public ResponseEntity<Void> refresh(
+            @RequestParam(required = false)
+            @Parameter(description = "Admin access token; omit to authenticate with the session") String token,
+            @RequestParam
+            @Parameter(description = "First UTC day to refresh, yyyy-mm-dd", example = "2026-02-09") String from,
+            @RequestParam
+            @Parameter(description = "Last UTC day to refresh, inclusive, yyyy-mm-dd", example = "2026-02-09") String to
+    ) {
+        checkAdmin(token);
+
+        var start = startOfDay("from", from);
+        var end = startOfDay("to", to);
+        if (end.isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "to must not be before from");
+        }
+        // the refresher extends the window to the end of the day 'end' falls in
+        refresher.refresh(start, end);
+        return ResponseEntity.noContent().build();
     }
 
     private void checkAdmin(@Nullable String token) {
@@ -126,15 +157,16 @@ public class DownloadBackfillAPI {
     }
 
     private Instant fallbackTime(@Nullable String fileDate) {
-        if (fileDate == null) {
-            return Instant.now();
-        }
+        return fileDate == null ? Instant.now() : startOfDay("fileDate", fileDate);
+    }
+
+    private Instant startOfDay(String parameter, String day) {
         try {
-            return LocalDate.parse(fileDate).atStartOfDay(ZoneOffset.UTC).toInstant();
+            return LocalDate.parse(day).atStartOfDay(ZoneOffset.UTC).toInstant();
         } catch (DateTimeParseException e) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "fileDate must be a date in the format yyyy-mm-dd");
+                    parameter + " must be a date in the format yyyy-mm-dd");
         }
     }
 

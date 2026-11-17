@@ -6,6 +6,10 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 ## [next] (unreleased)
 
+### Added
+
+- Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
+
 ### Fixed
 
 - Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change

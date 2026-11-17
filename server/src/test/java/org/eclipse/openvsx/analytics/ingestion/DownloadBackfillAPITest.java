@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Drives the backfill endpoint with the same access-log fixture the parser tests use, so an upload
+ * Drives the backfill endpoints with the same access-log fixture the parser tests use, so an upload
  * exercises the real parse path; only the registry-side collaborators are mocked.
  */
 class DownloadBackfillAPITest {
@@ -113,6 +113,69 @@ class DownloadBackfillAPITest {
                                 "{\"events\":0,\"downloads\":0,\"extensions\":0,\"unresolvedRecords\":2,"
                                         + "\"from\":null,\"to\":null}",
                                 true));
+
+        verifyNoInteractions(refresher);
+    }
+
+    @Test
+    void testUploadLeavesTheAggregatesToTheCallerWhenAsked() throws Exception {
+        when(processor.backfill(eq(FileResource.STORAGE_AWS), anyList()))
+                .thenReturn(new BackfillResult(2, 3, 2, 1, Instant.parse("2025-12-03T13:00:00Z"), Instant.now()));
+
+        mockMvc.perform(
+                post("/admin/api/analytics/downloads/backfill?refresh=false")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(fixtureBytes()))
+                .andExpect(status().isOk());
+
+        verify(processor).backfill(eq(FileResource.STORAGE_AWS), anyList());
+        verifyNoInteractions(refresher);
+    }
+
+    @Test
+    void testRefreshCoversTheGivenDays() throws Exception {
+        mockMvc.perform(post("/admin/api/analytics/downloads/refresh?token=super&from=2026-09-14&to=2026-09-15"))
+                .andExpect(status().isNoContent());
+
+        verify(admins).checkAdminUser("super");
+        // the refresher takes the whole day the end falls in, so the 15th is included
+        verify(refresher).refresh(Instant.parse("2026-09-14T00:00:00Z"), Instant.parse("2026-09-15T00:00:00Z"));
+    }
+
+    @Test
+    void testRefreshOfASingleDay() throws Exception {
+        mockMvc.perform(post("/admin/api/analytics/downloads/refresh?from=2026-09-14&to=2026-09-14"))
+                .andExpect(status().isNoContent());
+
+        verify(refresher).refresh(Instant.parse("2026-09-14T00:00:00Z"), Instant.parse("2026-09-14T00:00:00Z"));
+    }
+
+    @Test
+    void testRefreshNeedsBothDays() throws Exception {
+        // an open bound would refresh every aggregate up to now
+        mockMvc.perform(post("/admin/api/analytics/downloads/refresh?from=2026-09-14"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(refresher);
+    }
+
+    @Test
+    void testRefreshOfAnInvalidOrInvertedRangeIsBadRequest() throws Exception {
+        mockMvc.perform(post("/admin/api/analytics/downloads/refresh?from=2026-09-14&to=14/09/2026"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/admin/api/analytics/downloads/refresh?from=2026-09-15&to=2026-09-14"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(refresher);
+    }
+
+    @Test
+    void testNonAdminCannotRefresh() throws Exception {
+        Mockito.doThrow(new ErrorResultException("Administration role is required.", HttpStatus.FORBIDDEN))
+                .when(admins).checkAdminUser();
+
+        mockMvc.perform(post("/admin/api/analytics/downloads/refresh?from=2026-09-14&to=2026-09-14"))
+                .andExpect(status().isForbidden());
 
         verifyNoInteractions(refresher);
     }
