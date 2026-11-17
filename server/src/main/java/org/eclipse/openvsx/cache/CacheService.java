@@ -72,7 +72,7 @@ public class CacheService {
     private final LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey;
     private final LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator;
     private final FilesCacheKeyGenerator filesCacheKeyGenerator;
-    private final NamespaceDetailsCacheKeyGenerator namespaceDetailsCacheKey = new NamespaceDetailsCacheKeyGenerator();
+    private final NamespaceDetailsCacheKeyGenerator namespaceDetailsCacheKey;
     private final AfterCommitExecutor afterCommit;
 
     public CacheService(
@@ -83,6 +83,7 @@ public class CacheService {
             LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey,
             LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator,
             FilesCacheKeyGenerator filesCacheKeyGenerator,
+            NamespaceDetailsCacheKeyGenerator namespaceDetailsCacheKey,
             AfterCommitExecutor afterCommit
     ) {
         this.cacheManager = cacheManager;
@@ -92,6 +93,7 @@ public class CacheService {
         this.latestExtensionVersionCacheKey = latestExtensionVersionCacheKey;
         this.latestExtensionVersionsByPlatformCacheKeyGenerator = latestExtensionVersionsByPlatformCacheKeyGenerator;
         this.filesCacheKeyGenerator = filesCacheKeyGenerator;
+        this.namespaceDetailsCacheKey = namespaceDetailsCacheKey;
         this.afterCommit = afterCommit;
     }
 
