@@ -584,7 +584,7 @@ public class LocalRegistryService implements IExtensionRegistry {
 
     @Override
     @Transactional
-    @Cacheable(CACHE_NAMESPACE_DETAILS_JSON)
+    @Cacheable(value = CACHE_NAMESPACE_DETAILS_JSON, keyGenerator = GENERATOR_NAMESPACE_DETAILS_JSON)
     public NamespaceDetailsJson getNamespaceDetails(String namespaceName) {
         var namespace = repositories.findNamespace(namespaceName);
         if (namespace == null) {
