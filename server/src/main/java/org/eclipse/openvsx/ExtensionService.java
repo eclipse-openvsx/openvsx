@@ -788,7 +788,8 @@ public class ExtensionService {
     }
 
     private void checkNoDependencies(Extension extension) throws ErrorResultException {
-        var dependRefs = repositories.findDependenciesReference(extension);
+        // removed versions can no longer be installed, so they do not block deleting their dependency
+        var dependRefs = repositories.findNotRemovedDependenciesReference(extension);
         if (!dependRefs.isEmpty()) {
             throw new ErrorResultException(
                     "The following extensions have a dependency on " + NamingUtil.toExtensionId(extension) + ": "

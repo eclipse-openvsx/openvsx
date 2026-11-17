@@ -1391,7 +1391,7 @@ class UserAPITest {
             dependant.setVersion(createVersion(i + 1));
             dependants.add(dependant);
         }
-        Mockito.when(repositories.findDependenciesReference(extension))
+        Mockito.when(repositories.findNotRemovedDependenciesReference(extension))
                 .thenReturn(Streamable.of(dependants));
 
         Mockito.when(repositories.findAllReviews(extension))

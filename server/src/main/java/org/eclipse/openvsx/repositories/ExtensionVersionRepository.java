@@ -75,6 +75,11 @@ public interface ExtensionVersionRepository extends Repository<ExtensionVersion,
     @Query("select ev from ExtensionVersion ev where concat(',', ev.dependencies, ',') like concat('%,', ?1, ',%')")
     Streamable<ExtensionVersion> findByDependencies(String extensionId);
 
+    @Query(
+        "select ev from ExtensionVersion ev where ev.removed = false and concat(',', ev.dependencies, ',') like concat('%,', ?1, ',%')"
+    )
+    Streamable<ExtensionVersion> findNotRemovedByDependencies(String extensionId);
+
     @Query("select min(ev.timestamp) from ExtensionVersion ev")
     LocalDateTime getOldestTimestamp();
 
