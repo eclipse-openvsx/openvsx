@@ -6,6 +6,10 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 ## [next] (unreleased)
 
+### Added
+
+- The download backfill takes `refresh=false` to leave the aggregates alone, and `POST /admin/api/analytics/downloads/refresh?from=&to=` refreshes them over whole UTC days, so a range uploaded in many files is refreshed once instead of after every file
+
 ### Fixed
 
 - Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change
