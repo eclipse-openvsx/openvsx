@@ -8,7 +8,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 ### Added
 
-- The download backfill takes `refresh=false` to leave the aggregates alone, and `POST /admin/api/analytics/downloads/refresh?from=&to=` refreshes them over whole UTC days, so a range uploaded in many files is refreshed once instead of after every file
+- Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
 
 ### Fixed
 
