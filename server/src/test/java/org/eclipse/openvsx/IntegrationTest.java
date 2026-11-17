@@ -26,6 +26,7 @@ import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRe
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -37,6 +38,7 @@ import tools.jackson.databind.JsonNode;
 import org.eclipse.openvsx.json.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.eclipse.openvsx.cache.CacheService.CACHE_NAMESPACE_DETAILS_JSON;
 
 /**
  * {@code @Isolated}: publishes a fixed "EditorConfig"/"editorconfig" namespace and extension rather than a
@@ -63,6 +65,9 @@ class IntegrationTest extends AbstractPostgresContainerTest {
     @Autowired
     TestService testService;
 
+    @Autowired
+    CacheManager cacheManager;
+
     private String apiCall(String path) {
         return "http://localhost:" + port + path;
     }
@@ -73,6 +78,8 @@ class IntegrationTest extends AbstractPostgresContainerTest {
         createNamespace();
         getNamespaceMetadata("/api/editorconfig");
         getNamespaceMetadata("/api/editorconfig/details");
+        getNamespaceMetadata("/api/EditorConfig/details");
+        namespaceDetailsCachedOnce();
         duplicateNamespaceLowercase();
         verifyToken();
         publishExtension();
@@ -152,6 +159,14 @@ class IntegrationTest extends AbstractPostgresContainerTest {
         assertThat(json).isNotNull();
         assertThat(json.get("error")).isNull();
         assertThat(json.get("name").asString()).isEqualTo("EditorConfig");
+    }
+
+    // Every spelling of a namespace must share one entry, or evicting by the stored name misses the others.
+    private void namespaceDetailsCachedOnce() {
+        var cache = cacheManager.getCache(CACHE_NAMESPACE_DETAILS_JSON);
+        assertThat(cache).isNotNull();
+        assertThat(cache.get("editorconfig")).isNotNull();
+        assertThat(cache.get("EditorConfig")).isNull();
     }
 
     private void verifyToken() {

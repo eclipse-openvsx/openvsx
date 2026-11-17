@@ -240,6 +240,35 @@ class UserServiceTest {
         verify(cache).evictNamespaceDetails(namespace);
     }
 
+    @Test
+    void shouldEvictNamespaceDetailsByTheStoredNameWhenTheDetailsAreUpdated() {
+        var user = mockUser("auth");
+        var namespace = mockNamespace();
+        Mockito.when(repositories.findNamespace("MY-NS")).thenReturn(namespace);
+        Mockito.when(repositories.isNamespaceOwner(user, namespace)).thenReturn(true);
+        Mockito.when(validator.validateNamespaceDetails(any())).thenReturn(List.of());
+
+        var details = new NamespaceDetailsJson();
+        details.setName("MY-NS");
+        users.updateNamespaceDetails(details, user);
+
+        verify(cache).evictNamespaceDetails(namespace);
+    }
+
+    @Test
+    void shouldEvictNamespaceDetailsWhenAMemberIsRemoved() {
+        var user = mockUser("auth");
+        var namespace = mockNamespace();
+        var membership = mockMembership(user, namespace, NamespaceMembership.ROLE_CONTRIBUTOR);
+        Mockito.when(repositories.findMembership(user, namespace)).thenReturn(membership);
+        Mockito.when(repositories.findTrustedPublishersByNamespaceAndCreatedBy(namespace, user))
+                .thenReturn(Streamable.empty());
+
+        users.removeNamespaceMember(namespace, user);
+
+        verify(cache).evictNamespaceDetails(namespace);
+    }
+
     private Namespace mockNamespace() {
         var namespace = new Namespace();
         namespace.setId(1);

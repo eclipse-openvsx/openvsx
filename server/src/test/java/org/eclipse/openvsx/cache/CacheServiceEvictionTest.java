@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_EXTENSION_JSON;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_LATEST_EXTENSION_VERSION;
 import static org.eclipse.openvsx.cache.CacheService.CACHE_MALICIOUS_EXTENSIONS;
+import static org.eclipse.openvsx.cache.CacheService.CACHE_NAMESPACE_DETAILS_JSON;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
@@ -61,6 +62,7 @@ class CacheServiceEvictionTest {
                 new LatestExtensionVersionCacheKeyGenerator(),
                 new LatestExtensionVersionsByPlatformCacheKeyGenerator(),
                 Mockito.mock(FilesCacheKeyGenerator.class),
+                new NamespaceDetailsCacheKeyGenerator(),
                 // inline, so these tests stay about which way an eviction goes rather than when
                 new AfterCommitExecutor() {
                     @Override
@@ -259,6 +261,19 @@ class CacheServiceEvictionTest {
         var keys = new ExtensionJsonCacheKeyGenerator();
 
         assertThat(keys.generatePrefix("Foo-Bar", "baz_qux+1~2$3")).isEqualTo("foo-bar.baz_qux+1~2$3:");
+    }
+
+    // Namespace names are looked up ignoring case, so the entry cached for one spelling must be the
+    // one evicted for the stored name.
+    @Test
+    void evictsNamespaceDetailsCachedUnderAnySpellingOfTheName() {
+        var cache = Mockito.mock(Cache.class);
+        Mockito.when(cacheManager.getCache(CACHE_NAMESPACE_DETAILS_JSON)).thenReturn(cache);
+        var cachedKey = new NamespaceDetailsCacheKeyGenerator().generate(null, null, "FOO");
+
+        service().evictNamespaceDetails(extension(0));
+
+        verify(cache).evictIfPresent(cachedKey);
     }
 
     /** Redis glob, as far as these patterns use it: {@code *} is anything, everything else is literal. */
