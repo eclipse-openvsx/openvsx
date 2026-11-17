@@ -68,10 +68,11 @@ import org.eclipse.openvsx.util.auth.AuthenticatedUser;
 public class PublishExtensionVersionHandler {
     protected final Logger logger = LoggerFactory.getLogger(PublishExtensionVersionHandler.class);
 
-    // An Error (e.g. OutOfMemoryError) is not retried.
+    // An Error (e.g. OutOfMemoryError) is not retried, also when it wraps an Exception.
     private static final RetryTemplate PUBLISH_RETRY = new RetryTemplate(
             RetryPolicy.builder()
                     .includes(Exception.class)
+                    .excludes(Error.class)
                     .maxRetries(3)
                     .delay(Duration.ofSeconds(1))
                     .build());

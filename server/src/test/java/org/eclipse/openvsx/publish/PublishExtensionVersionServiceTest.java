@@ -22,6 +22,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.resilience.annotation.RetryAnnotationBeanPostProcessor;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.entities.Extension;
@@ -37,9 +39,12 @@ import org.eclipse.openvsx.util.TempFile;
 import org.eclipse.openvsx.util.TimeUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -240,5 +245,35 @@ class PublishExtensionVersionServiceTest {
         extVersion.setRemoved(removed);
         extVersion.setExtension(extension);
         return extVersion;
+    }
+
+    @Test
+    void shouldRetryFailedUpload() throws Exception {
+        try (var tempFile = new TempFile("extension_", ".vsix")) {
+            doThrow(new IllegalStateException("storage down")).when(storageUtil).uploadFile(tempFile);
+
+            assertThatThrownBy(() -> withRetryAdvice().storeResource(tempFile))
+                    .isInstanceOf(IllegalStateException.class);
+
+            verify(storageUtil, times(4)).uploadFile(tempFile);
+        }
+    }
+
+    @Test
+    void shouldNotRetryUploadFailingWithError() throws Exception {
+        try (var tempFile = new TempFile("extension_", ".vsix")) {
+            doThrow(new AssertionError(new IllegalStateException())).when(storageUtil).uploadFile(tempFile);
+
+            assertThatThrownBy(() -> withRetryAdvice().storeResource(tempFile)).isInstanceOf(AssertionError.class);
+
+            verify(storageUtil, times(1)).uploadFile(tempFile);
+        }
+    }
+
+    private PublishExtensionVersionService withRetryAdvice() {
+        var postProcessor = new RetryAnnotationBeanPostProcessor();
+        postProcessor.setProxyTargetClass(true);
+        postProcessor.setBeanFactory(new DefaultListableBeanFactory());
+        return (PublishExtensionVersionService) postProcessor.postProcessAfterInitialization(svc, "svc");
     }
 }

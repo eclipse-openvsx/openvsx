@@ -653,18 +653,20 @@ class PublishExtensionVersionHandlerTest {
     void shouldRetryFailedPublishAndDeleteFileAfterLastAttempt() throws IOException {
         var extensionFile = buildExtensionFile();
         var scan = new ExtensionScan();
-        doAnswer(invocation -> {
+        // fails inside the processor block, after the first upload
+        when(scanService.isEnabled()).thenAnswer(invocation -> {
             assertThat(extensionFile.getPath()).exists();
-            throw new IllegalStateException("storage down");
-        }).when(publishService).storeResource(extensionFile);
+            throw new IllegalStateException("scanner down");
+        });
 
         assertThatThrownBy(() -> handler.publishAsync(extensionFile, null, scan))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("storage down");
+                .hasMessage("scanner down");
 
         verify(publishService, times(4)).deleteFileResources(extensionFile.getResource().getExtension());
         verify(publishService, times(4)).storeResource(extensionFile);
-        verify(scanService, times(1)).markScanAsErrored(scan, "Async processing failed: storage down");
+        verify(scanService, times(4)).isEnabled();
+        verify(scanService, times(1)).markScanAsErrored(scan, "Async processing failed: scanner down");
         assertThat(extensionFile.getPath()).doesNotExist();
     }
 
@@ -674,6 +676,19 @@ class PublishExtensionVersionHandlerTest {
         doThrow(new OutOfMemoryError()).when(publishService).storeResource(extensionFile);
 
         assertThatThrownBy(() -> handler.publishAsync(extensionFile, null)).isInstanceOf(OutOfMemoryError.class);
+
+        verify(publishService, times(1)).storeResource(extensionFile);
+        assertThat(extensionFile.getPath()).doesNotExist();
+    }
+
+    @Test
+    void shouldNotRetryPublishFailingWithErrorCausedByException() throws IOException {
+        var extensionFile = buildExtensionFile();
+        doThrow(new AssertionError(new IllegalStateException()))
+                .when(publishService)
+                .storeResource(extensionFile);
+
+        assertThatThrownBy(() -> handler.publishAsync(extensionFile, null)).isInstanceOf(AssertionError.class);
 
         verify(publishService, times(1)).storeResource(extensionFile);
         assertThat(extensionFile.getPath()).doesNotExist();
