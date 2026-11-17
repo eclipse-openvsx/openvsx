@@ -24,6 +24,7 @@ export interface UseDialogsReturn {
         isOpen: boolean;
         action: ConfirmActionType;
         selectedExtensions: ScanResult[];
+        isPending: boolean;
         close: () => void;
         execute: () => void;
     };
@@ -32,6 +33,7 @@ export interface UseDialogsReturn {
         isOpen: boolean;
         actionType: FileActionType;
         selectedFiles: FileDecision[];
+        isPending: boolean;
         close: () => void;
         execute: () => void;
     };
@@ -53,6 +55,7 @@ export const useDialogs = (): UseDialogsReturn => {
                 isOpen: state.confirmDialogOpen,
                 action: state.confirmAction,
                 selectedExtensions: derived.selectedExtensions,
+                isPending: derived.isConfirmActionPending,
                 close: actions.closeConfirmDialog,
                 execute: actions.executeConfirmAction
             },
@@ -60,6 +63,7 @@ export const useDialogs = (): UseDialogsReturn => {
                 isOpen: state.fileDialogOpen,
                 actionType: state.fileActionType,
                 selectedFiles: derived.selectedFiles,
+                isPending: derived.isFileActionPending,
                 close: actions.closeFileDialog,
                 execute: actions.executeFileAction
             },
@@ -74,6 +78,8 @@ export const useDialogs = (): UseDialogsReturn => {
             state.fileActionType,
             derived.selectedExtensions,
             derived.selectedFiles,
+            derived.isConfirmActionPending,
+            derived.isFileActionPending,
             actions.closeConfirmDialog,
             actions.executeConfirmAction,
             actions.closeFileDialog,

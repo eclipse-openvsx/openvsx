@@ -12,6 +12,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 
 - An extension URL with a target platform, `/extension/<namespace>/<name>/<platform>/...`, redirects to the same URL without the platform instead of showing "Extension Not Found" (#2433)
 - Scan admin allow/block and file-decision delete act only on checked rows still listed after a refresh, matching what the confirm dialog shows (#2451)
+- Scan admin allow/block and file-decision confirm dialogs show progress and can't be confirmed again or dismissed while their request is in flight, so a double click no longer sends the decision twice (#2460)
 
 ### Removed
 

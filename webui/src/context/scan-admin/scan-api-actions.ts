@@ -27,7 +27,7 @@ import { ScanState, ScanAction } from './scan-types';
  * The backend handles adding enforced threat files to the allow/block list.
  */
 export const useConfirmAction = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
-    const { mutate } = useReportedQuery(
+    const { mutate, isPending } = useReportedQuery(
         useMutation({
             mutationFn: async () => {
                 // Get selected scan IDs
@@ -65,9 +65,10 @@ export const useConfirmAction = (service: any, state: ScanState, dispatch: Dispa
         { action: 'apply the scan decision' }
     );
 
-    return useCallback(() => {
+    const execute = useCallback(() => {
         mutate();
     }, [mutate]);
+    return { execute, isPending };
 };
 
 // ============================================================================
@@ -110,7 +111,7 @@ export const useRetryFailedScannerJobsAction = (service: any, dispatch: Dispatch
  * on selected files in Allowed/Blocked Files tabs.
  */
 export const useFileAction = (service: any, state: ScanState, dispatch: Dispatch<ScanAction>) => {
-    const { mutate } = useReportedQuery(
+    const { mutate, isPending } = useReportedQuery(
         useMutation({
             mutationFn: async () => {
                 if (state.filesChecked.size === 0) {
@@ -152,7 +153,8 @@ export const useFileAction = (service: any, state: ScanState, dispatch: Dispatch
         { action: 'update the file decisions' }
     );
 
-    return useCallback(() => {
+    const execute = useCallback(() => {
         mutate();
     }, [mutate]);
+    return { execute, isPending };
 };
