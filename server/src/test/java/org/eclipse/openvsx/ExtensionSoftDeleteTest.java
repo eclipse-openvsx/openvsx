@@ -368,7 +368,7 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         var targets = TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0");
         assertThatThrownBy(() -> extensionService.deleteExtension(owner(), false, NAMESPACE, EXTENSION, targets))
                 .isInstanceOf(ErrorResultException.class)
-                .hasMessageContaining("dependant-1.0.0");
+                .hasMessageContaining("dependant-5.0.0");
 
         assertThat(versionActive("1.0.0")).isTrue();
     }
@@ -519,7 +519,7 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
             em.persist(dependant);
 
             var extVersion = new ExtensionVersion();
-            extVersion.setVersion("1.0.0");
+            extVersion.setVersion("5.0.0");
             extVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
             extVersion.setExtension(dependant);
             extVersion.setPublishedBy(em.getReference(UserData.class, ownerId));
