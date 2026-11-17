@@ -66,6 +66,9 @@ class UserServiceTest {
     @Autowired
     UserService users;
 
+    @Autowired
+    CacheService cache;
+
     @Test
     void testUpsertUserMatchingAuthId() {
         var testAuthId = "test-auth-id";
@@ -220,6 +223,21 @@ class UserServiceTest {
         users.removeNamespaceMember(namespace, leaving);
 
         verify(repositories, never()).deleteTrustedPublisher(any());
+    }
+
+    @Test
+    void shouldEvictNamespaceDetailsWhenAnOwnerSetsAMember() {
+        var owner = mockUser(1, "owner", "auth-1");
+        var target = mockUser(2, "target", "auth-2");
+        var namespace = mockNamespace();
+        // the lookup ignores case, so the request spelling need not match the cached key
+        Mockito.when(repositories.findNamespace("MY-NS")).thenReturn(namespace);
+        Mockito.when(repositories.isNamespaceOwner(owner, namespace)).thenReturn(true);
+        Mockito.when(repositories.findUserByLoginName("example", "target")).thenReturn(target);
+
+        users.setNamespaceMember(owner, "MY-NS", "example", "target", NamespaceMembership.ROLE_OWNER);
+
+        verify(cache).evictNamespaceDetails(namespace);
     }
 
     private Namespace mockNamespace() {
