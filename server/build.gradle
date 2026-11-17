@@ -108,8 +108,6 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:jcache'
 
     implementation "io.micrometer:micrometer-tracing"
-    implementation "io.micrometer:micrometer-tracing-bridge-otel"
-    implementation libs.opentelemetry.exporter.zipkin
 
     implementation libs.commons.lang3
     implementation libs.bouncycastle
