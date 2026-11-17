@@ -58,7 +58,7 @@ public class PublishExtensionVersionService {
         repositories.deleteFiles(extVersion);
     }
 
-    @Retryable
+    @Retryable(includes = Exception.class, excludes = Error.class)
     public void storeResource(TempFile tempFile) {
         storageUtil.uploadFile(tempFile);
     }

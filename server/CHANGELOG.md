@@ -9,6 +9,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Fixed
 
 - Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change
+- A failed asynchronous publish is retried again (up to 3 times, an `Error` is not retried), and the uploaded package is kept until the last attempt instead of being deleted after the first ([#2449](https://github.com/eclipse-openvsx/openvsx/issues/2449))
 
 ## [1.4.0] - 2026-11-09
 
