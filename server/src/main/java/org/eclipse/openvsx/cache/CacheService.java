@@ -63,6 +63,7 @@ public class CacheService {
     public static final String GENERATOR_LATEST_EXTENSION_VERSION = "latestExtensionVersionCacheKeyGenerator";
     public static final String GENERATOR_LATEST_EXTENSION_VERSIONS_BY_PLATFORM = "latestExtensionVersionsByPlatformCacheKeyGenerator";
     public static final String GENERATOR_FILES = "filesCacheKeyGenerator";
+    public static final String GENERATOR_NAMESPACE_DETAILS_JSON = "namespaceDetailsCacheKeyGenerator";
 
     private final CacheManager cacheManager;
     private final CacheManager fileCacheManager;
@@ -71,6 +72,7 @@ public class CacheService {
     private final LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey;
     private final LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator;
     private final FilesCacheKeyGenerator filesCacheKeyGenerator;
+    private final NamespaceDetailsCacheKeyGenerator namespaceDetailsCacheKey;
     private final AfterCommitExecutor afterCommit;
 
     public CacheService(
@@ -81,6 +83,7 @@ public class CacheService {
             LatestExtensionVersionCacheKeyGenerator latestExtensionVersionCacheKey,
             LatestExtensionVersionsByPlatformCacheKeyGenerator latestExtensionVersionsByPlatformCacheKeyGenerator,
             FilesCacheKeyGenerator filesCacheKeyGenerator,
+            NamespaceDetailsCacheKeyGenerator namespaceDetailsCacheKey,
             AfterCommitExecutor afterCommit
     ) {
         this.cacheManager = cacheManager;
@@ -90,6 +93,7 @@ public class CacheService {
         this.latestExtensionVersionCacheKey = latestExtensionVersionCacheKey;
         this.latestExtensionVersionsByPlatformCacheKeyGenerator = latestExtensionVersionsByPlatformCacheKeyGenerator;
         this.filesCacheKeyGenerator = filesCacheKeyGenerator;
+        this.namespaceDetailsCacheKey = namespaceDetailsCacheKey;
         this.afterCommit = afterCommit;
     }
 
@@ -146,7 +150,7 @@ public class CacheService {
             return; // cache is not created
         }
 
-        cache.evictIfPresent(namespaceName);
+        cache.evictIfPresent(namespaceDetailsCacheKey.generate(namespaceName));
     }
 
     public void evictExtensionJsons() {
