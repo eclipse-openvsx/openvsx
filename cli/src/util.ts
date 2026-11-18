@@ -213,9 +213,13 @@ export function validateManifest(manifest: Manifest): void {
     }
 }
 
-export function writeManifest(manifest: Manifest, packagePath?: string): Promise<void> {
-    const content = JSON.stringify(manifest, null, 4);
-    return fs.promises.writeFile(path.join(packagePath ?? process.cwd(), 'package.json'), content, 'utf-8');
+export async function writeManifest(manifest: Manifest, packagePath?: string): Promise<void> {
+    const file = path.join(packagePath ?? process.cwd(), 'package.json');
+    const existing = await fs.promises.readFile(file, 'utf-8').catch(() => undefined);
+    // Keep the existing file's indentation and trailing newline so only the changed fields show in a diff.
+    const indent = existing === undefined ? 4 : /^([ \t]+)"/m.exec(existing)?.[1] ?? '';
+    const newline = existing?.endsWith('\n') ? '\n' : '';
+    await fs.promises.writeFile(file, JSON.stringify(manifest, null, indent) + newline, 'utf-8');
 }
 
 export interface Manifest {

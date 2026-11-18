@@ -132,6 +132,19 @@ describe('file helpers', () => {
         expect(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))).toEqual(manifest);
     });
 
+    it.each([
+        ['two spaces with a trailing newline', '  ', '\n'],
+        ['tabs without a trailing newline', '\t', ''],
+        ['no indentation', '', ''],
+    ])('writeManifest keeps an existing package.json formatted with %s', async (_, indent, newline) => {
+        givenTempDir();
+        const file = path.join(dir, 'package.json');
+        const manifest = { publisher: 'p', name: 'n', version: '1.0.0' };
+        fs.writeFileSync(file, JSON.stringify(manifest, null, indent) + newline);
+        await writeManifest({ ...manifest, license: 'MIT' }, dir);
+        expect(fs.readFileSync(file, 'utf-8')).toBe(JSON.stringify({ ...manifest, license: 'MIT' }, null, indent) + newline);
+    });
+
     it('readManifest parses package.json from the package path', async () => {
         givenTempDir();
         fs.writeFileSync(path.join(dir, 'package.json'), '{"publisher":"p","name":"n","version":"1.0.0"}');
