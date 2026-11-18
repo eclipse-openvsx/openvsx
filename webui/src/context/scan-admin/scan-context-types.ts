@@ -92,6 +92,10 @@ export interface DerivedData {
     selectedFiles: FileDecision[];
     /** Total pages for current data set (scans or files depending on tab) */
     totalPages: number;
+    /** Whether the confirm dialog's allow/block request is in flight */
+    isConfirmActionPending: boolean;
+    /** Whether the file dialog's allow/block/delete request is in flight */
+    isFileActionPending: boolean;
 }
 
 // ============================================================================

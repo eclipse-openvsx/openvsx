@@ -12,7 +12,7 @@
  ********************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '../../support/test-providers';
 import { QuarantineDialog } from '../../../../src/components/scan-admin/dialogs';
 import { ScanProvider, useScanContext } from '../../../../src/context/scan-admin';
@@ -34,9 +34,10 @@ function scanFixture(overrides: Record<string, unknown> = {}) {
 }
 
 /** Renders the dialog with `scans` loaded and the first one selected for allowing. */
-async function openAllowDialog(scans: ReturnType<typeof scanFixture>[]) {
+async function openAllowDialog(scans: ReturnType<typeof scanFixture>[], admin: Record<string, unknown> = {}) {
     const service = {
         admin: {
+            ...admin,
             getAllScans: vi.fn().mockResolvedValue({ scans, totalSize: scans.length }),
             getScanFilterOptions: vi.fn().mockResolvedValue({ validationTypes: [], threatScannerNames: [] }),
             getScanCounts: vi.fn().mockResolvedValue({}),
@@ -61,6 +62,7 @@ async function openAllowDialog(scans: ReturnType<typeof scanFixture>[]) {
     await waitFor(() => expect(context.state.scans).toHaveLength(scans.length));
     act(() => context.actions.toggleQuarantinedCheck(scans[0].id, true));
     act(() => context.actions.openAllowDialog());
+    return () => context;
 }
 
 describe('QuarantineDialog', () => {
@@ -78,5 +80,31 @@ describe('QuarantineDialog', () => {
 
         expect(await screen.findByText(/Are you sure you want to allow 1 file/)).toBeTruthy();
         expect(screen.queryByText(/without a completed scan/)).toBeNull();
+    });
+
+    it('sends the decision once and keeps the dialog open until it completes', async () => {
+        let resolveDecision!: () => void;
+        const makeScanDecision = vi.fn(
+            () =>
+                new Promise<void>(resolve => {
+                    resolveDecision = resolve;
+                })
+        );
+        const context = await openAllowDialog([scanFixture()], { makeScanDecision });
+        const confirm = screen.getByRole('button', { name: 'Confirm Allow' }) as HTMLButtonElement;
+        fireEvent.click(confirm);
+        await waitFor(() => expect(confirm.disabled).toBe(true));
+        fireEvent.click(confirm);
+        const cancel = screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement;
+        expect(cancel.disabled).toBe(true);
+        fireEvent.click(cancel);
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+        expect(context().state.confirmDialogOpen).toBe(true);
+
+        await act(async () => resolveDecision());
+        await waitFor(() => expect(context().state.confirmDialogOpen).toBe(false));
+        expect(makeScanDecision).toHaveBeenCalledTimes(1);
+        expect(context().state.scanDecisions).toEqual({ '1': 'allowed' });
+        expect(context().state.quarantinedChecked).toEqual({});
     });
 });

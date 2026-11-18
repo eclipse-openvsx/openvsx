@@ -24,6 +24,7 @@ import {
     ListItemText,
     Box
 } from '@mui/material';
+import { ButtonWithProgress } from '../../button-with-progress';
 import { useDialogs } from '../../../hooks/scan-admin';
 import { useTheme } from '@mui/material/styles';
 import { FileDecision } from '../../../context/scan-admin';
@@ -37,7 +38,11 @@ export const FileDialog: FunctionComponent = () => {
     const { fileDialog } = useDialogs();
 
     return (
-        <Dialog open={fileDialog.isOpen} onClose={fileDialog.close} maxWidth='md' fullWidth>
+        <Dialog
+            open={fileDialog.isOpen}
+            onClose={fileDialog.isPending ? undefined : fileDialog.close}
+            maxWidth='md'
+            fullWidth>
             <DialogTitle>
                 {fileDialog.actionType === 'allow'
                     ? 'Confirm Allow Files'
@@ -128,12 +133,12 @@ export const FileDialog: FunctionComponent = () => {
                 </List>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>
-                <Button onClick={fileDialog.close} color='inherit'>
+                <Button onClick={fileDialog.close} color='inherit' disabled={fileDialog.isPending}>
                     Cancel
                 </Button>
-                <Button
+                <ButtonWithProgress
                     onClick={fileDialog.execute}
-                    variant='contained'
+                    working={fileDialog.isPending}
                     color={
                         fileDialog.actionType === 'allow'
                             ? 'success'
@@ -147,7 +152,7 @@ export const FileDialog: FunctionComponent = () => {
                         : fileDialog.actionType === 'block'
                           ? 'Block'
                           : 'Delete'}
-                </Button>
+                </ButtonWithProgress>
             </DialogActions>
         </Dialog>
     );
