@@ -31,14 +31,21 @@ export class VSCode {
     /** Searches the marketplace, returning the gallery's answer to the browser's own query. */
     async search(query: string): Promise<Response> {
         const page = this.current ?? (await this.restart());
-        const answer = page.waitForResponse(response => isSearchQuery(response.request().postData()));
-        // selects the previous query whichever platform's shortcuts VS Code expects
-        await page.locator('.extensions-viewlet .monaco-editor').click({ clickCount: 3 });
-        await page.keyboard.type(query);
-        const response = await answer;
+        let answered: Response | undefined;
+        // an extension page that finishes loading moves the focus into its README, which then gets
+        // the typed query, so it is typed again until VS Code sends it
+        await expect(async () => {
+            const answer = page.waitForResponse(response => isSearchQuery(response.request().postData()), {
+                timeout: 10000
+            });
+            // selects the previous query whichever platform's shortcuts VS Code expects
+            await page.locator('.extensions-viewlet .monaco-editor').click({ clickCount: 3 });
+            await page.keyboard.type(query);
+            answered = await answer;
+        }).toPass({ timeout: 60000 });
         // the previous search's results stay listed until VS Code has rendered these
         await expect(page.locator('#workbench\\.parts\\.sidebar .monaco-progress-container.active')).toHaveCount(0);
-        return response;
+        return answered!;
     }
 
     /** The search result for an extension, labelled with its name, version and publisher. */
