@@ -17,6 +17,10 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Namespace details are cached under one key whatever the case of the namespace name in the request, so a differently-cased URL no longer serves stale details after a member, details or logo change ([#2445](https://github.com/eclipse-openvsx/openvsx/issues/2445))
 - Deleting an extension is no longer refused because of removed versions of other extensions that depended on it ([#2441](https://github.com/eclipse-openvsx/openvsx/issues/2441))
 
+### Dependencies
+
+- Remove the unused `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-zipkin` dependencies and the 1.64.0 exporter pin; traces are still exported to Zipkin through Brave ([#2432](https://github.com/eclipse-openvsx/openvsx/issues/2432))
+
 ## [1.4.0] - 2026-11-09
 
 ### Added
