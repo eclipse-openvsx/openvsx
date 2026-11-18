@@ -1,5 +1,5 @@
 import { expect, Locator, Page } from '@playwright/test';
-import { test } from '../../configs/smoke-test.options';
+import { SmokeTestOptions, test } from '../../configs/smoke-test.options';
 
 test.describe('OpenVSX', () => {
     test.beforeEach(async ({ page }) => {
@@ -32,12 +32,9 @@ test.describe('OpenVSX', () => {
         page,
         extensionToOpen
     }) => {
-        // search and open the extension
-        await searchField(page).fill(extensionToOpen.searchTerm);
-        await page.getByRole('link', { name: extensionToOpen.heading }).click();
+        await openExtension(page, extensionToOpen);
 
         // check details of the extension
-        await expect(page.getByRole('heading', { name: extensionToOpen.heading, exact: true })).toBeVisible();
         await expect(page.getByRole('tab', { name: 'Overview' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'Homepage' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'Repository' })).toBeVisible();
@@ -60,9 +57,7 @@ test.describe('OpenVSX', () => {
     });
 
     test('allows to switch to an older version of an extension and back', async ({ page, extensionToOpen }) => {
-        await searchField(page).fill(extensionToOpen.searchTerm);
-        await page.getByRole('link', { name: extensionToOpen.heading }).click();
-        await expect(page.getByRole('heading', { name: extensionToOpen.heading, exact: true })).toBeVisible();
+        await openExtension(page, extensionToOpen);
         const extensionUrl = page.url();
 
         // the latest version is listed first; the older ones can load after it
@@ -81,6 +76,7 @@ test.describe('OpenVSX', () => {
         await expect(downloadLink(page)).toHaveAttribute('href', versionFileUrl(older));
 
         await versionPicker.selectOption(latest);
+        await expect(page).toHaveURL(`${extensionUrl}/${latest}`);
         await expect(versionPicker).toHaveValue(latest);
         await expect(downloadLink(page)).toHaveAttribute('href', versionFileUrl(latest));
     });
@@ -145,6 +141,20 @@ test.describe('OpenVSX home page', () => {
 /** The extension search field (nav bar on the search page). */
 function searchField(page: Page): Locator {
     return page.getByPlaceholder(/search extensions/i);
+}
+
+/** Searches for the extension and opens its page. */
+async function openExtension(page: Page, extension: SmokeTestOptions['extensionToOpen']): Promise<void> {
+    // the result can be listed before the search applies, and the grid re-renders under the click
+    const searched = page.waitForResponse(
+        response =>
+            response.url().includes('/api/-/search') &&
+            response.url().includes(encodeURIComponent(extension.searchTerm))
+    );
+    await searchField(page).fill(extension.searchTerm);
+    await searched;
+    await page.getByRole('link', { name: extension.heading }).click();
+    await expect(page.getByRole('heading', { name: extension.heading, exact: true })).toBeVisible();
 }
 
 /** The download button on an extension's page. */
