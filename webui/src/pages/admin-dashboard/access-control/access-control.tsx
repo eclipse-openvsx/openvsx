@@ -46,7 +46,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 import { UserRelationships } from '../../../extension-registry-types';
 import { ErrorResponse } from '../../../server-request';
 import { MainContext } from '../../../context';
@@ -80,6 +80,7 @@ const roleIcon = (role: string | undefined) =>
 
 export const AccessControl: FunctionComponent = () => {
     const { login: loginParam } = useParams<{ login?: string }>();
+    const providerParam = useSearchParams()[0].get('provider');
     const navigate = useNavigate();
     const { pageSettings } = useContext(MainContext);
 
@@ -123,7 +124,7 @@ export const AccessControl: FunctionComponent = () => {
     const pagesWalked = useRef(0);
     useEffect(() => {
         pagesWalked.current = 0;
-    }, [loginParam]);
+    }, [providerParam, loginParam]);
 
     // Resolve a deep-linked user once the matching page has loaded.
     useEffect(() => {
@@ -131,13 +132,13 @@ export const AccessControl: FunctionComponent = () => {
             dismissedParamRef.current = null;
             return;
         }
-        if (selected || loginParam === dismissedParamRef.current) {
+        if (selected || `${providerParam}/${loginParam}` === dismissedParamRef.current) {
             return;
         }
-        const match = users.find(u => u.user.loginName === loginParam);
+        const match = users.find(u => u.user.loginName === loginParam && u.user.provider === providerParam);
         if (match) {
             setSelected(match);
-        } else if (hasNextPage && !isFetchingNextPage && pagesWalked.current < DEEP_LINK_PAGE_LIMIT) {
+        } else if (providerParam && hasNextPage && !isFetchingNextPage && pagesWalked.current < DEEP_LINK_PAGE_LIMIT) {
             // The server matches the login as a substring, so the exact one can sit past the first
             // page. Capped, because a short or stale link matches nearly every account: without a
             // limit this walks the whole registry one page at a time, showing no progress while it
@@ -145,15 +146,15 @@ export const AccessControl: FunctionComponent = () => {
             pagesWalked.current += 1;
             void fetchNextPage();
         }
-    }, [loginParam, selected, users, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [providerParam, loginParam, selected, users, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const clearSelection = useCallback(() => {
         if (selected || loginParam) {
-            dismissedParamRef.current = loginParam ?? null;
+            dismissedParamRef.current = loginParam ? `${providerParam}/${loginParam}` : null;
             setSelected(null);
             navigate(AdminDashboardRoutes.ACCESS_CONTROL, { replace: true });
         }
-    }, [selected, loginParam, navigate]);
+    }, [selected, providerParam, loginParam, navigate]);
 
     // Nothing may replace the selection while the details card holds unsaved edits without the
     // admin saying so - the card is unmounted on a switch, taking the edits with it.
@@ -180,9 +181,10 @@ export const AccessControl: FunctionComponent = () => {
         guarded(() => {
             setSelected(value);
             setInputValue(value.user.loginName);
-            navigate(`${AdminDashboardRoutes.ACCESS_CONTROL}/${encodeURIComponent(value.user.loginName)}`, {
-                replace: true
-            });
+            navigate(
+                `${AdminDashboardRoutes.ACCESS_CONTROL}/${encodeURIComponent(value.user.loginName)}${value.user.provider ? `?provider=${encodeURIComponent(value.user.provider)}` : ''}`,
+                { replace: true }
+            );
         });
     };
 
