@@ -54,15 +54,15 @@ export const ScanProvider: FC<ScanProviderProps> = ({ children, service }) => {
     // Async API Actions
     // ========================================================================
 
-    const executeConfirmAction = useConfirmAction(service, state, dispatch);
-    const executeFileAction = useFileAction(service, state, dispatch);
+    const confirmAction = useConfirmAction(service, state, dispatch);
+    const fileAction = useFileAction(service, state, dispatch);
     const retryFailedScannerJobs = useRetryFailedScannerJobsAction(service, dispatch);
 
     // ========================================================================
     // Actions
     // ========================================================================
 
-    const actions = useScanActions(dispatch, executeConfirmAction, executeFileAction, retryFailedScannerJobs);
+    const actions = useScanActions(dispatch, confirmAction.execute, fileAction.execute, retryFailedScannerJobs);
 
     // ========================================================================
     // Derived Data (memoized)
@@ -86,9 +86,11 @@ export const ScanProvider: FC<ScanProviderProps> = ({ children, service }) => {
         () => ({
             selectedExtensions,
             selectedFiles,
-            totalPages
+            totalPages,
+            isConfirmActionPending: confirmAction.isPending,
+            isFileActionPending: fileAction.isPending
         }),
-        [selectedExtensions, selectedFiles, totalPages]
+        [selectedExtensions, selectedFiles, totalPages, confirmAction.isPending, fileAction.isPending]
     );
 
     // ========================================================================
