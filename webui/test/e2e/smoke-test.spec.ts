@@ -59,6 +59,32 @@ test.describe('OpenVSX', () => {
         expect(await (await downloadPromise).failure()).toBeFalsy();
     });
 
+    test('allows to switch to an older version of an extension and back', async ({ page, extensionToOpen }) => {
+        await searchField(page).fill(extensionToOpen.searchTerm);
+        await page.getByRole('link', { name: extensionToOpen.heading }).click();
+        await expect(page.getByRole('heading', { name: extensionToOpen.heading, exact: true })).toBeVisible();
+        const extensionUrl = page.url();
+
+        // the latest version is listed first; the older ones can load after it
+        const versionPicker = page.getByLabel('Version');
+        const versionOptions = versionPicker.getByRole('option');
+        await expect.poll(() => versionOptions.count()).toBeGreaterThan(1);
+        const [latest, older] = await versionOptions.evaluateAll(options =>
+            options.map(option => (option as HTMLOptionElement).value)
+        );
+        await expect(versionPicker).toHaveValue(latest);
+        await expect(downloadLink(page)).toHaveAttribute('href', versionFileUrl(latest));
+
+        await versionPicker.selectOption(older);
+        await expect(page).toHaveURL(`${extensionUrl}/${older}`);
+        await expect(versionPicker).toHaveValue(older);
+        await expect(downloadLink(page)).toHaveAttribute('href', versionFileUrl(older));
+
+        await versionPicker.selectOption(latest);
+        await expect(versionPicker).toHaveValue(latest);
+        await expect(downloadLink(page)).toHaveAttribute('href', versionFileUrl(latest));
+    });
+
     test('allows to search by search terms with changing number of results', async ({ page, searchTerms }) => {
         const initialResultCount = await getResultCount(page);
         for (const extensionToCheck of searchTerms) {
@@ -119,6 +145,16 @@ test.describe('OpenVSX home page', () => {
 /** The extension search field (nav bar on the search page). */
 function searchField(page: Page): Locator {
     return page.getByPlaceholder(/search extensions/i);
+}
+
+/** The download button on an extension's page. */
+function downloadLink(page: Page): Locator {
+    return page.getByRole('link', { name: 'Download' });
+}
+
+/** Matches the URL of a file of the given version, e.g. `/api/DotJoshJohnson/xml/2.5.0/file/…`. */
+function versionFileUrl(version: string): RegExp {
+    return new RegExp(`/${version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/file/`);
 }
 
 /** The category sidebar, whose entries are buttons labelled by category name. */
