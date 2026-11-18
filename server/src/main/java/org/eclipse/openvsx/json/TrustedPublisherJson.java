@@ -21,6 +21,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * A trusted publisher registration. On registration requests the {@code namespace}, {@code extension}, {@code provider}
  * and {@code registration} field are filled in by the client; the remaining fields are filled in by the server on responses.
+ * A registration that is {@code pending} is bound by presenting its {@code registrationCode} at the first publish.
  */
 @JsonInclude(Include.NON_NULL)
 public class TrustedPublisherJson extends ResultJson {
@@ -43,6 +44,14 @@ public class TrustedPublisherJson extends ResultJson {
 
     @Nullable
     private String createdTimestamp;
+
+    private Boolean pending;
+
+    @Nullable
+    private String registrationCode;
+
+    @Nullable
+    private String registrationCodeExpiry;
 
     public Long getId() {
         return id;
@@ -91,5 +100,34 @@ public class TrustedPublisherJson extends ResultJson {
 
     public void setCreatedTimestamp(@Nullable String createdTimestamp) {
         this.createdTimestamp = createdTimestamp;
+    }
+
+    public Boolean getPending() {
+        return pending;
+    }
+
+    public void setPending(Boolean pending) {
+        this.pending = pending;
+    }
+
+    /**
+     * Only returned once, in the response to the registration that created the pending registration.
+     */
+    @Nullable
+    public String getRegistrationCode() {
+        return registrationCode;
+    }
+
+    public void setRegistrationCode(@Nullable String registrationCode) {
+        this.registrationCode = registrationCode;
+    }
+
+    @Nullable
+    public String getRegistrationCodeExpiry() {
+        return registrationCodeExpiry;
+    }
+
+    public void setRegistrationCodeExpiry(@Nullable String registrationCodeExpiry) {
+        this.registrationCodeExpiry = registrationCodeExpiry;
     }
 }

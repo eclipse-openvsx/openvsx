@@ -12,10 +12,15 @@
  *****************************************************************************/
 package org.eclipse.openvsx.trustedpublishing.github;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +30,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
@@ -69,6 +77,55 @@ class GitHubTrustedPublishingProviderTest {
                         Map.of("id", 163524810));
             }
         };
+    }
+
+    /** Serves one canned answer on a local port, so that the provider's own HTTP handling is exercised. */
+    private static HttpServer server(int status, String body) throws IOException {
+        var server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            var bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private Map<String, Object> resolveAgainst(HttpServer server) {
+        var url = "http://localhost:" + server.getAddress().getPort();
+        var gh = new GitHubTrustedPublishingProviderSupport(
+                config,
+                "github",
+                "GitHub",
+                url,
+                url,
+                url + "/repos/{owner}/{repo}") {
+        };
+        try {
+            return gh.resolve("octo", "private");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void resolveReturnsTheRepositoryTheApiAnswers() throws Exception {
+        var resolved = resolveAgainst(server(200, "{\"id\":42,\"owner\":{\"id\":7}}"));
+        assertEquals(42, ((Number) resolved.get("id")).intValue());
+    }
+
+    @Test
+    void resolveTreatsA404AsAnUnknownRepository() throws Exception {
+        // GitHub also answers 404 for a private repository
+        assertNull(resolveAgainst(server(404, "{\"message\":\"Not Found\"}")));
+    }
+
+    @Test
+    void resolveFailsOnAnyOtherErrorInsteadOfRegisteringPending() throws Exception {
+        assertThrows(ErrorResultException.class, () -> resolveAgainst(server(403, "{\"message\":\"rate limit\"}")));
+        assertThrows(ErrorResultException.class, () -> resolveAgainst(server(500, "{}")));
     }
 
     @Test
@@ -131,6 +188,49 @@ class GitHubTrustedPublishingProviderTest {
         assertEquals("eclipse-openvsx/openvsx/.github/workflows/release.yml", data.get("workflow_ref"));
         assertEquals("prod", data.get("environment"));
         assertEquals(6, data.size());
+    }
+
+    private static GitHubTrustedPublishingProvider privateRepositoryProvider(TrustedPublishingConfig config) {
+        return new GitHubTrustedPublishingProvider(config) {
+            @Override
+            protected Map<String, Object> resolve(String owner, String repo) {
+                return null; // GitHub answers 404 for a private repository
+            }
+        };
+    }
+
+    @Test
+    void trustRequestForUnresolvableRepositoryLacksIds() {
+        var gh = privateRepositoryProvider(config);
+        Map<String, String> data = gh.extractRequest(
+                Map.of("owner", "eclipse-openvsx", "repo", "openvsx", "workflow", "release.yml"));
+        assertEquals("eclipse-openvsx/openvsx", data.get("repository"));
+        assertEquals("eclipse-openvsx/openvsx/.github/workflows/release.yml", data.get("workflow_ref"));
+        assertFalse(data.containsKey("repository_id"));
+        assertFalse(data.containsKey("repository_owner_id"));
+        assertTrue(gh.lacksIds(data));
+        assertFalse(gh.lacksIds(registeredClaims()));
+    }
+
+    @Test
+    void pendingRegistrationMatchesByNamesOnceBoundToTheTokenIds() {
+        var gh = privateRepositoryProvider(config);
+        var pending = new HashMap<>(registeredClaims());
+        pending.remove("repository_id");
+        pending.remove("repository_owner_id");
+        var token = tokenClaims();
+
+        var bound = gh.withIdsOf(pending, token);
+        assertEquals("226955212", bound.get("repository_id"));
+        assertEquals("163524810", bound.get("repository_owner_id"));
+        assertTrue(gh.matches(bound, token));
+
+        // a token of another workflow of the repository is not the registered one
+        var otherWorkflow = new HashMap<>(token);
+        otherWorkflow.put("workflow_ref", "eclipse-openvsx/openvsx/.github/workflows/other.yml@refs/heads/main");
+        assertFalse(gh.matches(gh.withIdsOf(pending, otherWorkflow), otherWorkflow));
+        // and a pending registration is never matched as it is, without IDs
+        assertFalse(gh.matches(pending, token));
     }
 
     @Test

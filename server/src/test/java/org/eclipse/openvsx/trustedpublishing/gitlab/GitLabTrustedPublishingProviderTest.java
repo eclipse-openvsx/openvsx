@@ -12,10 +12,15 @@
  *****************************************************************************/
 package org.eclipse.openvsx.trustedpublishing.gitlab;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +30,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import org.eclipse.openvsx.trustedpublishing.TrustedPublishingConfig;
+import org.eclipse.openvsx.util.ErrorResultException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -81,6 +88,87 @@ class GitLabTrustedPublishingProviderTest {
                         Map.of("id", 9970));
             }
         };
+    }
+
+    @Test
+    void trustRequestForUnresolvableProjectLacksIds() {
+        var gl = new GitLabTrustedPublishingProvider(
+                config,
+                GitLabTrustedPublishingProvider.PROVIDER_ID,
+                "GitLab",
+                GitLabTrustedPublishingProvider.PROVIDER_URL,
+                GitLabTrustedPublishingProvider.PROVIDER_URL) {
+            @Override
+            protected Map<String, Object> resolve(String projectPath) {
+                return null; // GitLab answers 404 for a private project
+            }
+        };
+        Map<String, String> data = gl.extractRequest(
+                Map.of("namespace", "my-group", "project", "my-project", "workflow", ".gitlab-ci.yml"));
+        assertEquals("my-group/my-project", data.get("project_path"));
+        assertFalse(data.containsKey("project_id"));
+        assertFalse(data.containsKey("namespace_id"));
+        assertTrue(gl.lacksIds(data));
+        assertFalse(gl.lacksIds(registeredClaims()));
+    }
+
+    @Test
+    void pendingRegistrationOnlyMatchesTheProjectItNames() {
+        var gl = newProvider(config);
+        var pending = registeredClaims();
+        pending.remove("project_id");
+        pending.remove("namespace_id");
+        assertTrue(gl.matchesPending(pending, tokenClaims()));
+
+        // another project running the registered project's CI configuration
+        var other = tokenClaims();
+        other.put("project_id", "1");
+        other.put("namespace_id", "2");
+        other.put("project_path", "evil/fork");
+        other.put("namespace_path", "evil");
+        assertFalse(gl.matchesPending(pending, other));
+    }
+
+    /** Serves one canned answer on a local port, so that the provider's own HTTP handling is exercised. */
+    private static HttpServer server(int status, String body) throws IOException {
+        var server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            var bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private Map<String, Object> resolveAgainst(HttpServer server) {
+        var url = "http://localhost:" + server.getAddress().getPort();
+        var gl = new GitLabTrustedPublishingProvider(config, "gitlab", "GitLab", url, url);
+        try {
+            return gl.resolve("my-group/my-project");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void resolveReturnsTheProjectTheApiAnswers() throws Exception {
+        var resolved = resolveAgainst(server(200, "{\"id\":20,\"namespace\":{\"id\":72}}"));
+        assertEquals(20, ((Number) resolved.get("id")).intValue());
+    }
+
+    @Test
+    void resolveTreatsA404AsAnUnknownProject() throws Exception {
+        // GitLab also answers 404 for a private project
+        assertNull(resolveAgainst(server(404, "{\"message\":\"404 Project Not Found\"}")));
+    }
+
+    @Test
+    void resolveFailsOnAnyOtherErrorInsteadOfRegisteringPending() throws Exception {
+        assertThrows(ErrorResultException.class, () -> resolveAgainst(server(429, "{}")));
+        assertThrows(ErrorResultException.class, () -> resolveAgainst(server(500, "{}")));
     }
 
     @Test

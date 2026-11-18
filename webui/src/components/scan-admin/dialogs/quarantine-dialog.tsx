@@ -26,6 +26,7 @@ import {
     Tooltip
 } from '@mui/material';
 import { Info as InfoIcon } from '@mui/icons-material';
+import { ButtonWithProgress } from '../../button-with-progress';
 import { useDialogs } from '../../../hooks/scan-admin';
 import { useTheme } from '@mui/material/styles';
 import { ScanResult } from '../../../context/scan-admin';
@@ -102,7 +103,11 @@ export const QuarantineDialog: FunctionComponent = () => {
     if (allErrored) {
         const count = confirmDialog.selectedExtensions.length;
         return (
-            <Dialog open={confirmDialog.isOpen} onClose={confirmDialog.close} maxWidth='md' fullWidth>
+            <Dialog
+                open={confirmDialog.isOpen}
+                onClose={confirmDialog.isPending ? undefined : confirmDialog.close}
+                maxWidth='md'
+                fullWidth>
                 <DialogTitle>Confirm Allow</DialogTitle>
                 <DialogContent>
                     <Typography variant='body1' sx={{ mb: 2 }}>
@@ -127,19 +132,26 @@ export const QuarantineDialog: FunctionComponent = () => {
                     </List>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={confirmDialog.close} color='inherit'>
+                    <Button onClick={confirmDialog.close} color='inherit' disabled={confirmDialog.isPending}>
                         Cancel
                     </Button>
-                    <Button onClick={confirmDialog.execute} variant='contained' color='success'>
+                    <ButtonWithProgress
+                        onClick={confirmDialog.execute}
+                        color='success'
+                        working={confirmDialog.isPending}>
                         Confirm Allow
-                    </Button>
+                    </ButtonWithProgress>
                 </DialogActions>
             </Dialog>
         );
     }
 
     return (
-        <Dialog open={confirmDialog.isOpen} onClose={confirmDialog.close} maxWidth='md' fullWidth>
+        <Dialog
+            open={confirmDialog.isOpen}
+            onClose={confirmDialog.isPending ? undefined : confirmDialog.close}
+            maxWidth='md'
+            fullWidth>
             <DialogTitle>{confirmDialog.action === 'allow' ? 'Confirm Allow' : 'Confirm Block'}</DialogTitle>
             <DialogContent>
                 <Typography variant='body1' sx={{ mb: 2 }}>
@@ -314,15 +326,15 @@ export const QuarantineDialog: FunctionComponent = () => {
                 </List>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>
-                <Button onClick={confirmDialog.close} color='inherit'>
+                <Button onClick={confirmDialog.close} color='inherit' disabled={confirmDialog.isPending}>
                     Cancel
                 </Button>
-                <Button
+                <ButtonWithProgress
                     onClick={confirmDialog.execute}
-                    variant='contained'
-                    color={confirmDialog.action === 'allow' ? 'success' : 'error'}>
+                    color={confirmDialog.action === 'allow' ? 'success' : 'error'}
+                    working={confirmDialog.isPending}>
                     Confirm {confirmDialog.action === 'allow' ? 'Allow' : 'Block'}
-                </Button>
+                </ButtonWithProgress>
             </DialogActions>
         </Dialog>
     );

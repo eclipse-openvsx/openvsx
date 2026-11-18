@@ -17,7 +17,6 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import AssessmentIcon from '@mui/icons-material/Assessment';
-import BarChartIcon from '@mui/icons-material/BarChart';
 import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
 import ExtensionSharpIcon from '@mui/icons-material/ExtensionSharp';
@@ -29,12 +28,9 @@ import StorageIcon from '@mui/icons-material/Storage';
 import StraightenIcon from '@mui/icons-material/Straighten';
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
 import HistoryIcon from '@mui/icons-material/History';
-import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
-import SpeedIcon from '@mui/icons-material/Speed';
-import StarIcon from '@mui/icons-material/Star';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { LoginComponent } from '../../default/login';
 import { MainContext } from '../../context';
@@ -49,16 +45,12 @@ import { AdminPage, isNavGroup, NavEntry, NavGroup, RouteEntry } from './nav-typ
 import { NamespaceAdmin } from './namespace-admin';
 import { PublisherAdmin } from './publisher-admin';
 import { ScanAdmin } from './scan-admin';
-import { Tiers } from './tiers/tiers';
 import { SizeOverrides } from './size-overrides/size-overrides';
-import { Customers } from './customers/customers';
-import { CustomerDetails } from './customers/customer-details';
 import { Logs } from './logs/logs';
 import { RuntimeSettingsPage } from './settings';
 import { Welcome } from './welcome';
 
 const ExtensionAdmin = lazy(() => import('./extension-admin').then(m => ({ default: m.ExtensionAdmin })));
-const UsageStatsView = lazy(() => import('./usage-stats/usage-stats').then(m => ({ default: m.UsageStatsView })));
 const DataConsistency = lazy(() => import('./consistency/consistency').then(m => ({ default: m.DataConsistency })));
 const CachesAdmin = lazy(() => import('./caches/caches').then(m => ({ default: m.CachesAdmin })));
 const AnalyticsStatusPage = lazy(() =>
@@ -184,33 +176,6 @@ const navConfig: NavEntry[] = [
                 icon: <HistoryIcon />,
                 description: 'Browse admin activity logs',
                 permission: 'view_reports'
-            }
-        ]
-    },
-    {
-        name: 'Rate Limiting',
-        icon: <SpeedIcon />,
-        children: [
-            {
-                path: AdminDashboardRoutes.TIERS,
-                name: 'Tiers',
-                icon: <StarIcon />,
-                description: 'Manage rate-limit tiers',
-                permission: 'manage_rate_limits'
-            },
-            {
-                path: AdminDashboardRoutes.CUSTOMERS,
-                name: 'Customers',
-                icon: <PeopleIcon />,
-                description: 'Manage rate-limit customers',
-                permission: 'manage_rate_limits'
-            },
-            {
-                path: AdminDashboardRoutes.USAGE_STATS,
-                name: 'Usage Stats',
-                icon: <BarChartIcon />,
-                description: 'Show usage stats for customers',
-                permission: 'manage_rate_limits'
             }
         ]
     },
@@ -456,50 +421,10 @@ export const AdminDashboard: FunctionComponent<AdminDashboardProps> = props => {
                                         }
                                     />
                                     <Route
-                                        path='/tiers'
-                                        element={
-                                            <Guard user={user} permission='manage_rate_limits'>
-                                                <Tiers />
-                                            </Guard>
-                                        }
-                                    />
-                                    <Route
-                                        path='/customers'
-                                        element={
-                                            <Guard user={user} permission='manage_rate_limits'>
-                                                <Customers />
-                                            </Guard>
-                                        }
-                                    />
-                                    <Route
-                                        path='/customers/:customer'
-                                        element={
-                                            <Guard user={user} permission='manage_rate_limits'>
-                                                <CustomerDetails />
-                                            </Guard>
-                                        }
-                                    />
-                                    <Route
                                         path='/statistics'
                                         element={
                                             <Guard user={user} permission='view_reports'>
                                                 <StatisticsAdmin />
-                                            </Guard>
-                                        }
-                                    />
-                                    <Route
-                                        path='/usage'
-                                        element={
-                                            <Guard user={user} permission='manage_rate_limits'>
-                                                <UsageStatsView />
-                                            </Guard>
-                                        }
-                                    />
-                                    <Route
-                                        path='/usage/:customer'
-                                        element={
-                                            <Guard user={user} permission='manage_rate_limits'>
-                                                <UsageStatsView />
                                             </Guard>
                                         }
                                     />

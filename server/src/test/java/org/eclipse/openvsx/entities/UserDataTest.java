@@ -12,7 +12,12 @@
  *****************************************************************************/
 package org.eclipse.openvsx.entities;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
+
+import org.eclipse.openvsx.admin.BuiltInPermissions;
+import org.eclipse.openvsx.admin.PermissionRegistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,8 +45,8 @@ class UserDataTest {
         var user = new UserData();
         user.setRole(UserData.Role.ADMIN);
 
-        for (var permission : Permission.values()) {
-            assertThat(user.hasPermission(permission)).isTrue();
+        for (var info : new PermissionRegistry(List.of(new BuiltInPermissions())).all()) {
+            assertThat(user.hasPermission(info.permission())).isTrue();
         }
         assertThat(user.getPermissions()).isEmpty();
     }

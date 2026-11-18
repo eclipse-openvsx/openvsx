@@ -2601,7 +2601,7 @@ class RegistryAPITest {
         dependantVersion.setExtension(dependant);
         dependantVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
         dependantVersion.setVersion("1.0.0");
-        Mockito.when(repositories.findDependenciesReference(extension))
+        Mockito.when(repositories.findNotRemovedDependenciesReference(extension))
                 .thenReturn(Streamable.of(dependantVersion));
 
         mockMvc.perform(
@@ -2645,7 +2645,7 @@ class RegistryAPITest {
                         .content(reviewJson(r -> {
                             r.setRating(3);
                         })).with(csrf().asHeader()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -2726,7 +2726,7 @@ class RegistryAPITest {
     @Test
     void testDeleteReviewNotLoggedIn() throws Exception {
         mockMvc.perform(post("/api/{namespace}/{extension}/review/delete", "foo", "bar").with(csrf()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -3627,7 +3627,7 @@ class RegistryAPITest {
                 .then(
                         (Answer<Boolean>) invocation -> ((TargetPlatformVersion[]) invocation
                                 .getRawArguments()[2]).length == versions.size());
-        Mockito.when(repositories.findDependenciesReference(extension)).thenReturn(Streamable.empty());
+        Mockito.when(repositories.findNotRemovedDependenciesReference(extension)).thenReturn(Streamable.empty());
         return token;
     }
 
@@ -3914,6 +3914,12 @@ class RegistryAPITest {
     @TestConfiguration
     @Import({ SecurityConfig.class, MockMvcAsyncConfig.class })
     static class TestConfig {
+        @Bean
+        org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
+            return new org.eclipse.openvsx.admin.PermissionRegistry(
+                    java.util.List.of(new org.eclipse.openvsx.admin.BuiltInPermissions()));
+        }
+
         @Bean
         TransactionTemplate transactionTemplate() {
             return new MockTransactionTemplate();

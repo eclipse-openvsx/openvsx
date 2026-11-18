@@ -110,8 +110,8 @@ export const ExtensionDetailView: FunctionComponent<ExtensionDetailViewProps> = 
                 <DetailRow label='Namespace' mono noWrap>
                     {extension.namespace}
                 </DetailRow>
-                <DetailRow label='Latest version' mono noWrap>
-                    {extension.version}
+                <DetailRow label='Latest version' mono noWrap empty={!hasPublishedLatest}>
+                    {hasPublishedLatest ? extension.version : '—'}
                 </DetailRow>
                 <DetailRow label='Category' noWrap>
                     {extension.categories?.join(', ') || '—'}

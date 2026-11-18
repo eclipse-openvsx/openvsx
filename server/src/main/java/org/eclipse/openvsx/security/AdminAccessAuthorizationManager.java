@@ -22,6 +22,7 @@ import org.springframework.security.authorization.AuthorizationResult;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
+import org.eclipse.openvsx.admin.PermissionRegistry;
 import org.eclipse.openvsx.entities.UserData;
 
 /**
@@ -43,8 +44,14 @@ public class AdminAccessAuthorizationManager implements AuthorizationManager<Req
     // authorization component failing closed there is better than their contexts failing to start.
     private final ObjectProvider<EntityManager> entityManagers;
 
-    public AdminAccessAuthorizationManager(ObjectProvider<EntityManager> entityManagers) {
+    private final PermissionRegistry permissionRegistry;
+
+    public AdminAccessAuthorizationManager(
+            ObjectProvider<EntityManager> entityManagers,
+            PermissionRegistry permissionRegistry
+    ) {
         this.entityManagers = entityManagers;
+        this.permissionRegistry = permissionRegistry;
     }
 
     @Override
@@ -78,6 +85,7 @@ public class AdminAccessAuthorizationManager implements AuthorizationManager<Req
         }
 
         var user = entityManager.find(UserData.class, principal.getId());
-        return user != null && (UserData.Role.ADMIN.equals(user.getRole()) || !user.getPermissions().isEmpty());
+        return user != null && (UserData.Role.ADMIN.equals(user.getRole())
+                || user.getPermissions().stream().anyMatch(permissionRegistry::isRegistered));
     }
 }

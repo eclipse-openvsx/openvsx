@@ -11,7 +11,7 @@ import { confirm } from '@inquirer/prompts';
 import { addEnvOptions } from './util';
 import { openDefaultStore } from './store';
 import { LoginOptions } from './login-options';
-import { requestPAT } from './pat';
+import { getStoredPAT, patKey, requestPAT } from './pat';
 
 export default async function login(options: LoginOptions) {
 	addEnvOptions(options);
@@ -20,7 +20,7 @@ export default async function login(options: LoginOptions) {
     }
 
 	const store = await openDefaultStore();
-	let pat = await store.get(options.namespace);
+	let pat = await getStoredPAT(store, options.namespace, options);
 	if (pat) {
 		console.log(`Namespace '${options.namespace}' is already known.`);
 		const overwrite = await confirm({
@@ -34,5 +34,5 @@ export default async function login(options: LoginOptions) {
 	}
 
 	pat = await requestPAT(options.namespace, options);
-	await store.add(options.namespace, pat);
+	await store.add(patKey(options.namespace, options), pat);
 }

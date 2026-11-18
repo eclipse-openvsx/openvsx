@@ -27,12 +27,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.adapter.ExtensionQueryParam;
 import org.eclipse.openvsx.json.ChangeNamespaceJson;
-import org.eclipse.openvsx.json.CustomerJson;
 import org.eclipse.openvsx.json.NamespaceDetailsJson;
 import org.eclipse.openvsx.json.QueryParamJson;
 import org.eclipse.openvsx.json.ReviewJson;
 import org.eclipse.openvsx.json.SettingsJson;
-import org.eclipse.openvsx.json.TierJson;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,12 +62,6 @@ class JacksonConfigDtoTest {
                         ChangeNamespaceJson.class),
                 // UserAPI#updateNamespaceDetails
                 Arguments.of("{\"verified\": null}", NamespaceDetailsJson.class),
-                // RateLimitAPI#createTier / #updateTier
-                Arguments.of("{\"capacity\": null, \"duration\": null}", TierJson.class),
-                // RateLimitAPI#createCustomer / #updateCustomer - primitives nested under .tier
-                Arguments.of(
-                        "{\"tier\": {\"capacity\": null, \"duration\": null}}",
-                        CustomerJson.class),
                 // VSCodeAPI#extensionQuery - the VS Code gallery query protocol; this app does
                 // not control the shape of what a VS Code/VSCodium client sends here
                 Arguments.of("{\"flags\": null}", ExtensionQueryParam.class),

@@ -16,14 +16,13 @@ import { PageContainer } from '../../components/page-container';
 import { DelayedLoadIndicator } from '../../components/delayed-load-indicator';
 import { UserSettingsSidebar } from './settings/user-settings-sidebar';
 import { UserSettingsMobileNav } from './settings/user-settings-mobile-nav';
-import { useActiveSettingsTab } from './settings/settings-tabs';
+import { useActiveSettingsTab, useContributedTabs, useSettingsTabs } from './settings/settings-tabs';
 import { UserSettingsTokens } from './tokens/user-settings-tokens';
 import { UserSettingsTrustedPublishers } from './trusted-publishing/user-settings-trusted-publishers';
 import { useTrustedPublishingStatus } from './trusted-publishing/use-trusted-publishers';
 import { UserSettingsProfile } from './profile/user-settings-profile';
 import { UserSettingsNamespaces } from './namespaces/user-settings-namespaces';
 import { UserSettingsExtensions } from './extensions/user-settings-extensions';
-import { UserSettingsCustomers } from './customers/user-settings-customers';
 import { MainContext } from '../../context';
 import { UserData } from '../../extension-registry-types';
 import { LoginComponent } from '../../default/login';
@@ -33,6 +32,8 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
     const { pageSettings, user, loginProviders } = useContext(MainContext);
     const { tab, namespace, extension } = useParams();
     const activeTab = useActiveSettingsTab();
+    const contributedTabs = useContributedTabs();
+    const visibleTabs = useSettingsTabs();
     const { data: trustedPublishingStatus } = useTrustedPublishingStatus();
     const trustedPublishingEnabled = trustedPublishingStatus?.enabled ?? false;
 
@@ -52,10 +53,10 @@ export const UserSettings: FunctionComponent<UserSettingsProps> = props => {
                 return <UserSettingsNamespaces selectedName={namespace} />;
             case 'extensions':
                 return <UserSettingsExtensions />;
-            case 'customers':
-                return <UserSettingsCustomers />;
             default:
-                return null;
+                return visibleTabs.some(t => t.value === activeTab)
+                    ? (contributedTabs.find(t => t.value === activeTab)?.element ?? null)
+                    : null;
         }
     };
 

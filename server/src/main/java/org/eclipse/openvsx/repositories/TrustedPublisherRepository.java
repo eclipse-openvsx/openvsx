@@ -12,6 +12,10 @@
  *****************************************************************************/
 package org.eclipse.openvsx.repositories;
 
+import java.time.LocalDateTime;
+
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.util.Streamable;
 
@@ -28,4 +32,10 @@ public interface TrustedPublisherRepository extends Repository<TrustedPublisher,
     TrustedPublisher findById(long id);
 
     void delete(TrustedPublisher trustedPublisher);
+
+    @Modifying
+    @Query(
+        "delete from TrustedPublisher tp where tp.registrationCodeHash is not null and tp.registrationCodeExpiry <= ?1"
+    )
+    int deleteExpiredPending(LocalDateTime timestamp);
 }

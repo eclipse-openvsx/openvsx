@@ -91,6 +91,17 @@ public class TrustedPublisher extends TableImpl<TrustedPublisherRecord> {
      */
     public final TableField<TrustedPublisherRecord, LocalDateTime> CREATED_TIMESTAMP = createField(DSL.name("created_timestamp"), SQLDataType.LOCALDATETIME(6).nullable(false), this, "");
 
+    /**
+     * The column <code>public.trusted_publisher.registration_code_hash</code>.
+     */
+    public final TableField<TrustedPublisherRecord, String> REGISTRATION_CODE_HASH = createField(DSL.name("registration_code_hash"), SQLDataType.VARCHAR(64), this, "");
+
+    /**
+     * The column
+     * <code>public.trusted_publisher.registration_code_expiry</code>.
+     */
+    public final TableField<TrustedPublisherRecord, LocalDateTime> REGISTRATION_CODE_EXPIRY = createField(DSL.name("registration_code_expiry"), SQLDataType.LOCALDATETIME(6), this, "");
+
     private TrustedPublisher(Name alias, Table<TrustedPublisherRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
     }

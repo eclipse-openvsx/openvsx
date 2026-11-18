@@ -20,14 +20,16 @@ import { getTrustedPublishingToken, refreshTrustedPublishingToken } from '../../
 interface FakeRegistry {
     url: string;
     exchanges: number;
+    bodies: string[];
 }
 
 // Answers the token exchange with the given statuses in order, the last one repeating.
 async function startRegistry(...responses: Array<{ status: number; body: unknown }>): Promise<FakeRegistry> {
-    const state: FakeRegistry = { url: '', exchanges: 0 };
+    const state: FakeRegistry = { url: '', exchanges: 0, bodies: [] };
     const server = http.createServer((req, res) => {
         const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
-        req.resume();
+        let body = '';
+        req.on('data', chunk => body += chunk);
         req.on('end', () => {
             if (pathname === '/api/version') {
                 // The audience lookup rides along with the exchange rather than being one of the
@@ -38,6 +40,7 @@ async function startRegistry(...responses: Array<{ status: number; body: unknown
             }
             const response = responses[Math.min(state.exchanges, responses.length - 1)];
             state.exchanges++;
+            state.bodies.push(body);
             res.writeHead(response.status, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(response.body));
         });
@@ -76,6 +79,28 @@ describe('trusted publishing token exchange', () => {
 
         expect(token).toBe('the-access-token');
         expect(registry.exchanges).toBe(2);
+    });
+
+    // A pending registration for a private repository is completed by the code its registration showed.
+    it('sends the registration code with the exchange', async () => {
+        const registry = await startRegistry({ status: 201, body: { value: 'the-access-token' } });
+
+        await getTrustedPublishingToken(new Registry({ registryUrl: registry.url }), 'private', 'ext', {
+            idToken: 'an-id-token',
+            registrationCode: 'the-code'
+        });
+
+        expect(JSON.parse(registry.bodies[0])).toMatchObject({ token: 'an-id-token', registrationCode: 'the-code' });
+    });
+
+    it('sends no registration code unless one is given', async () => {
+        const registry = await startRegistry({ status: 201, body: { value: 'the-access-token' } });
+
+        await getTrustedPublishingToken(new Registry({ registryUrl: registry.url }), 'public', 'ext', {
+            idToken: 'an-id-token'
+        });
+
+        expect(JSON.parse(registry.bodies[0])).not.toHaveProperty('registrationCode');
     });
 
     // A refusal is final: no registration matches, so trying again cannot help.

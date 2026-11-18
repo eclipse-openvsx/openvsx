@@ -82,7 +82,12 @@ export const CuratedSections: FunctionComponent<CuratedSectionsProps> = props =>
                     return null;
                 }
                 return (
-                    <Container maxWidth='xl' component='section' key={row.title}>
+                    <Container
+                        maxWidth='xl'
+                        component='section'
+                        key={row.title}
+                        aria-label={row.title}
+                        aria-busy={row.loading}>
                         <Box
                             sx={{
                                 display: 'flex',

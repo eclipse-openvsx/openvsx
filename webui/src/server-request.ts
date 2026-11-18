@@ -34,6 +34,9 @@ export interface ErrorResponse {
 /** Whether a rejection is the registry's 404, for a page that renders "not found" itself. */
 export const isNotFound = (error: unknown): boolean => (error as Partial<ErrorResponse> | null)?.status === 404;
 
+/** Whether a rejection is the registry's 401, which it answers when a request needs a login and nobody is logged in. */
+export const isUnauthorized = (error: unknown): boolean => (error as Partial<ErrorResponse> | null)?.status === 401;
+
 /**
  * RFC 9457 `application/problem+json`, which Spring returns for errors it handles itself rather
  * than through our `ResultJson` shape - a failed `@Min`/`@NotBlank` on a request parameter, say.

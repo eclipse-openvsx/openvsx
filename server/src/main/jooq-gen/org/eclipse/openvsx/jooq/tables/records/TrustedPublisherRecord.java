@@ -118,6 +118,36 @@ public class TrustedPublisherRecord extends UpdatableRecordImpl<TrustedPublisher
         return (LocalDateTime) get(6);
     }
 
+    /**
+     * Setter for <code>public.trusted_publisher.registration_code_hash</code>.
+     */
+    public void setRegistrationCodeHash(String value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.trusted_publisher.registration_code_hash</code>.
+     */
+    public String getRegistrationCodeHash() {
+        return (String) get(7);
+    }
+
+    /**
+     * Setter for
+     * <code>public.trusted_publisher.registration_code_expiry</code>.
+     */
+    public void setRegistrationCodeExpiry(LocalDateTime value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for
+     * <code>public.trusted_publisher.registration_code_expiry</code>.
+     */
+    public LocalDateTime getRegistrationCodeExpiry() {
+        return (LocalDateTime) get(8);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -141,7 +171,7 @@ public class TrustedPublisherRecord extends UpdatableRecordImpl<TrustedPublisher
     /**
      * Create a detached, initialised TrustedPublisherRecord
      */
-    public TrustedPublisherRecord(Long id, Long extensionId, String provider, JSONB registration, JSONB claims, Long createdBy, LocalDateTime createdTimestamp) {
+    public TrustedPublisherRecord(Long id, Long extensionId, String provider, JSONB registration, JSONB claims, Long createdBy, LocalDateTime createdTimestamp, String registrationCodeHash, LocalDateTime registrationCodeExpiry) {
         super(TrustedPublisher.TRUSTED_PUBLISHER);
 
         setId(id);
@@ -151,6 +181,8 @@ public class TrustedPublisherRecord extends UpdatableRecordImpl<TrustedPublisher
         setClaims(claims);
         setCreatedBy(createdBy);
         setCreatedTimestamp(createdTimestamp);
+        setRegistrationCodeHash(registrationCodeHash);
+        setRegistrationCodeExpiry(registrationCodeExpiry);
         resetChangedOnNotNull();
     }
 }

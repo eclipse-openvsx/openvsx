@@ -58,7 +58,7 @@ class UserDataPermissionsFetchTest extends AbstractPostgresContainerTest {
             // Mirrors UserService#findLoggedInUser exactly: no surrounding @Transactional.
             var reloaded = entityManager.find(UserData.class, user.getId());
 
-            assertThat(reloaded.getPermissionsAsStrings()).containsExactly("manage_extensions");
+            assertThat(reloaded.getPermissions()).containsExactly(Permission.MANAGE_EXTENSIONS);
         } finally {
             transactions.executeWithoutResult(
                     status -> entityManager.remove(entityManager.find(UserData.class, user.getId())));

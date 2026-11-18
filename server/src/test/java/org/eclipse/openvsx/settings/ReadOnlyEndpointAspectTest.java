@@ -111,7 +111,7 @@ class ReadOnlyEndpointAspectTest {
         }
 
         assertThat(unguarded).isEmpty();
-        assertThat(writes).isGreaterThan(50);
+        assertThat(writes).isGreaterThan(40);
     }
 
     private static boolean writes(RequestMethod method) {

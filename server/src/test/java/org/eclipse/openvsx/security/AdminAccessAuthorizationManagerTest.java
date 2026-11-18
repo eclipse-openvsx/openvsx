@@ -28,6 +28,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import org.eclipse.openvsx.admin.BuiltInPermissions;
+import org.eclipse.openvsx.admin.PermissionRegistry;
 import org.eclipse.openvsx.entities.Permission;
 import org.eclipse.openvsx.entities.UserData;
 
@@ -53,7 +55,9 @@ class AdminAccessAuthorizationManagerTest {
 
     private AdminAccessAuthorizationManager manager() {
         when(entityManagers.getIfAvailable()).thenReturn(entityManager);
-        return new AdminAccessAuthorizationManager(entityManagers);
+        return new AdminAccessAuthorizationManager(
+                entityManagers,
+                new PermissionRegistry(List.of(new BuiltInPermissions())));
     }
 
     private boolean authorize(Authentication authentication) {
@@ -78,6 +82,16 @@ class AdminAccessAuthorizationManagerTest {
         when(entityManager.find(UserData.class, 7L)).thenReturn(user);
 
         assertThat(authorize(authenticated(7L))).isTrue();
+    }
+
+    // A row left by a deployment that has since dropped its provider must not open /admin.
+    @Test
+    void ignoresStoredPermissionNothingRegisters() {
+        var user = new UserData();
+        user.getPermissions().add(Permission.of("manage_webhooks"));
+        when(entityManager.find(UserData.class, 7L)).thenReturn(user);
+
+        assertThat(authorize(authenticated(7L))).isFalse();
     }
 
     @Test

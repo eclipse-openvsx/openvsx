@@ -67,7 +67,7 @@ public class TrustedPublishingAPI {
     ) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         try {
             // throws when the user has no signed publisher agreement, and so has to be caught below
@@ -106,7 +106,7 @@ public class TrustedPublishingAPI {
     public ResponseEntity<TrustedPublisherListJson> getTrustedPublishers(@PathVariable String namespace) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -134,7 +134,7 @@ public class TrustedPublishingAPI {
     public ResponseEntity<ResultJson> deleteTrustedPublisher(@PathVariable String namespace, @PathVariable long id) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {
@@ -165,7 +165,11 @@ public class TrustedPublishingAPI {
 
         try {
             var json = trustedPublishing
-                    .requestPublishToken(request.getNamespace(), request.getExtension(), request.getToken());
+                    .requestPublishToken(
+                            request.getNamespace(),
+                            request.getExtension(),
+                            request.getToken(),
+                            request.getRegistrationCode());
             return new ResponseEntity<>(json, HttpStatus.CREATED);
         } catch (ErrorResultException exc) {
             return exc.toResponseEntity(AccessTokenJson.class);
@@ -182,7 +186,7 @@ public class TrustedPublishingAPI {
     public ResponseEntity<TrustedPublisherStatusJson> getTrustedPublishingStatus() {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         try {

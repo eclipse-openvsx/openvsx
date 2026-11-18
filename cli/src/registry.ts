@@ -155,10 +155,15 @@ export class Registry {
         return Math.max(this.maxPublishSize, sizeLimit);
     }
 
-    requestTrustedPublishingToken(namespace: string, extension: string, idToken: string): Promise<AccessToken> {
+    requestTrustedPublishingToken(
+        namespace: string,
+        extension: string,
+        idToken: string,
+        registrationCode?: string
+    ): Promise<AccessToken> {
         try {
             const url = this.getUrl(['api', '-', 'trusted-publishing', 'token']);
-            const request = { namespace, extension, token: idToken };
+            const request = { namespace, extension, token: idToken, registrationCode };
             return this.post(JSON.stringify(request), url, {
                 'Content-Type': 'application/json'
             }, DEFAULT_TOKEN_REQUEST_SIZE);

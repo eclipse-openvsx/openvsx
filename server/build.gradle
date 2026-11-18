@@ -108,8 +108,6 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:jcache'
 
     implementation "io.micrometer:micrometer-tracing"
-    implementation "io.micrometer:micrometer-tracing-bridge-otel"
-    implementation "io.opentelemetry:opentelemetry-exporter-zipkin"
 
     implementation libs.commons.lang3
     implementation libs.bouncycastle
@@ -118,7 +116,6 @@ dependencies {
 
     implementation libs.bucket4j.spring
     implementation libs.bucket4j.jedis
-    implementation libs.ipaddress
 
     implementation libs.jobrunr.spring
 
@@ -172,6 +169,8 @@ configurations.configureEach {
         force 'org.apache.commons:commons-compress:[1.26.0,2.0)'
         // pulled in from elasticsearch-java, resolution rule added because of CVE-2026-9563
         force 'org.eclipse.parsson:parsson:[1.1.8,2.0)'
+        // pulled in from google-cloud-storage, resolution rule added because of GHSA-xxph-c9ww-hj94
+        force 'com.google.guava:guava:33.7.2-jre'
     }
 }
 

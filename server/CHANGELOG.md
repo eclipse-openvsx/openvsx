@@ -8,10 +8,30 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 ### Added
 
+- Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
+
+### Fixed
+
+- Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change
+- A failed asynchronous publish is retried again (up to 3 times, an `Error` is not retried), and the uploaded package is kept until the last attempt instead of being deleted after the first ([#2449](https://github.com/eclipse-openvsx/openvsx/issues/2449))
+- Namespace details are cached under one key whatever the case of the namespace name in the request, so a differently-cased URL no longer serves stale details after a member, details or logo change ([#2445](https://github.com/eclipse-openvsx/openvsx/issues/2445))
+- Deleting an extension is no longer refused because of removed versions of other extensions that depended on it ([#2441](https://github.com/eclipse-openvsx/openvsx/issues/2441))
+
+### Dependencies
+
+- Remove the unused `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-zipkin` dependencies and the 1.64.0 exporter pin; traces are still exported to Zipkin through Brave ([#2432](https://github.com/eclipse-openvsx/openvsx/issues/2432))
+
+## [1.4.0] - 2026-11-09
+
+### Added
+
 - Publisher agreements without an external service: set `ovsx.publisher-agreement.version` (such as `1`, `1.0` or `1.0.0`) and `ovsx.publisher-agreement.text` to make users sign before publishing; a new major version makes signatures outdated, unless `ovsx.publisher-agreement.allowed-versions` names the versions whose signatures stay valid ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - An outdated agreement stops publishing until it is signed again, while a revoked or missing one also takes extensions offline on the startup compliance check ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - Admins can reinstate a revoked agreement with `POST /admin/publisher/{provider}/{loginName}/reinstate-agreement` and list a user's signings, revocations and reinstatements with `GET /admin/publisher/{provider}/{loginName}/agreement-history`; migration `V1_82` adds the `publisher_agreement_event` table ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.publisher-agreement.check-compliance-on-start` runs the publisher compliance check on startup for any agreement provider ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
+- `GET /admin/api/permissions` lists the permissions a deployment registers
+- `GET /admin/user/search` takes a `permission` parameter, a permission name or `any`, to list users granted it individually; admins are not matched ([#2399](https://github.com/eclipse-openvsx/openvsx/issues/2399))
+- Trusted publishing registers a repository the provider cannot look up, such as a private one, as pending until its first publish presents the single-use registration code (`registrationCode`, valid for 7 days); migration `V1_85` ([#2350](https://github.com/eclipse-openvsx/openvsx/issues/2350))
 
 ### Changed
 
@@ -21,6 +41,8 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - **Upgrade:** the `ovsx.eclipse.*` properties, their deployment descriptor entries and the Eclipse handling of `generate-properties.sh` (`ECLIPSE_CLIENT_*`, and the `ovsx.publishing.require-license=true` it set) are removed without a fallback, so `ovsx.eclipse.check-compliance-on-start` becomes `ovsx.publisher-agreement.check-compliance-on-start`; a deployment that needs Eclipse supplies a `@Primary` `PublisherAgreementProvider`, otherwise everyone may publish unless `ovsx.publisher-agreement.version` is set ([#2325](https://github.com/eclipse-openvsx/openvsx/pull/2325))
 - `ovsx.data.mirror.requests-per-second` now spaces upstream requests evenly instead of allowing a burst of up to one second of requests after an idle period ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - A failed namespace change is retried once, instead of ten times as JobRunr does by default ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
+- `Permission` is an open type that deployments extend through `PermissionProvider`; only registered permissions can be granted, open `/admin`, or reserve a user's revocation to admins, and an unknown name is a 400
+- A request that needs a logged-in user answers 401 instead of 403 when nobody is logged in, so clients can tell an expired session from a missing permission ([#2416](https://github.com/eclipse-openvsx/openvsx/pull/2416))
 
 ### Removed
 
@@ -28,17 +50,22 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - The columns `user_data.eclipse_token` and `user_data.eclipse_person_id` are dropped, with `UserData.eclipseToken`/`eclipsePersonId`, `AuthToken` and `AuthTokenConverter` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - **Upgrade:** migration `V1_83` fails, and so does the startup, while either column still holds data; a deployment that uses them copies the rows to its own table and sets both columns to `NULL` first, in a migration that sorts before `V1_83` ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
 - `AdminService.forgetUser` publishes a `UserForgottenEvent(userId)` in the erasure's transaction, whether the row is deleted or anonymized, for a deployment that keeps personal data of a user elsewhere to clear it ([#2369](https://github.com/eclipse-openvsx/openvsx/issues/2369))
+- Tier-based rate limiting, its admin and `/user/customers` endpoints, and the `ovsx.rate-limit.*` and `ovsx.caching.{customer,tier,rate-limit-token,usage}.*` settings are removed
+- **Upgrade:** migration `V1_84` drops the six rate limit tables and refuses to run while they hold rows, so move the data out and stop writing to them first; supply a `RedisClusterClient` bean (or enable bucket4j's `redis-cluster-jedis` cache) if rate limiting provided it; stored `manage_rate_limits` grants stop counting, and are dropped on the next access save, unless a `PermissionProvider` registers that name; delete the JobRunr recurring jobs `collect-usage-stats` and `calculate-daily-usage-stats` unless your deployment reschedules them under those ids; keep an every-admin-handler-authorizes check like `AdminEndpointPermissionCheckTest` in your own admin controllers
 
 ### Fixed
 
 - Moving extensions into an existing namespace no longer reverts edits made to that namespace while its files were being copied ([#2353](https://github.com/eclipse-openvsx/openvsx/pull/2353))
 - Signing the publisher agreement and the bulk revocation of publishers are refused while the registry is in read-only mode, like the other endpoints that write to the database
 - Fix the startup failure with `bucket4j.enabled=true` by bumping bucket4j-spring-boot-starter to 0.14.0 (Spring Boot 4) and bucket4j to 8.15.0 ([#2405](https://github.com/eclipse-openvsx/openvsx/issues/2405))
+- The publisher and admin extension details show the version the registry serves as latest instead of a higher removed one ([#2409](https://github.com/eclipse-openvsx/openvsx/issues/2409))
 
 ### Dependencies
 
 - Remove the direct `guava` dependency ([#2324](https://github.com/eclipse-openvsx/openvsx/pull/2324))
 - Bump Spring Boot to 4.0.9, with Jetty 12.1.14, Netty 4.2.19.Final and PostgreSQL driver 42.7.14
+- Force the transitive `guava` (from `google-cloud-storage`) from 33.5.0 to 33.7.2, fixing uncontrolled memory allocation when deserializing Guava's compact hash collections ([#2431](https://github.com/eclipse-openvsx/openvsx/pull/2431))
+- Bump OpenTelemetry from 1.63.0 to 1.67.0, fixing quadratic CPU use when parsing crafted W3C `tracestate` headers; the discontinued Zipkin exporter stays at 1.64.0 ([#2430](https://github.com/eclipse-openvsx/openvsx/pull/2430))
 
 ## [1.3.2] - 2026-10-27
 

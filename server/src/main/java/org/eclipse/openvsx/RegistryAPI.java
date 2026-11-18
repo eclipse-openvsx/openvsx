@@ -1430,7 +1430,7 @@ public class RegistryAPI {
         )
     )
     @ApiResponse(
-        responseCode = "403",
+        responseCode = "401",
         description = "User is not logged in",
         content = @Content(schema = @Schema(implementation = ResultJson.class))
     )
@@ -1439,7 +1439,7 @@ public class RegistryAPI {
     ) {
         var user = users.findLoggedInUser();
         if (user == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         if (namespace == null) {
@@ -1564,15 +1564,18 @@ public class RegistryAPI {
         )
     )
     @ApiResponse(
+        responseCode = "401",
+        description = "User is not logged in"
+    )
+    @ApiResponse(
         responseCode = "403",
-        description = "User is not logged in, has no publishing permission in the namespace, "
-                + "or has not signed a Publisher Agreement"
+        description = "User has no publishing permission in the namespace, or has not signed a Publisher Agreement"
     )
     public ResponseEntity<ExtensionJson> publish(InputStream content) {
         try {
             var user = users.findLoggedInUser();
             if (user == null) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
             }
 
             var json = local.publish(content, new LoggedInAuthentication(user));

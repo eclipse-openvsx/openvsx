@@ -12,9 +12,11 @@
  *****************************************************************************/
 package org.eclipse.openvsx.trustedpublishing;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -285,11 +287,48 @@ public abstract class TrustedPublishingProviderSupport {
     /**
      * Creates issuer specific claims from the passed in {@code registration}. This is provider specific, and
      * involves remote access, to resolve usernames and repository names to more stable, provider specific IDs.
+     * A repository the provider does not show without authentication, which includes every private one, is
+     * registered without its IDs, see {@link #idClaims()}.
      *
      * @throws ErrorResultException if the request processing fails in some way.
      */
     @NonNull
     protected abstract Map<String, String> extractRequest(Map<String, String> registration) throws ErrorResultException;
+
+    /**
+     * The registered claims that identify the repository by its provider assigned ID. A registration made for
+     * a repository that cannot be resolved lacks them until it is bound to the first verified token.
+     */
+    protected abstract Set<String> idClaims();
+
+    /**
+     * Whether the registered claims still lack the provider assigned IDs, see {@link #idClaims()}.
+     */
+    public boolean lacksIds(@NonNull Map<String, String> registered) {
+        return !registered.keySet().containsAll(idClaims());
+    }
+
+    /** The claims holding the names (not the provider assigned IDs) of what is registered. */
+    protected abstract Set<String> nameClaims();
+
+    /**
+     * Whether a registration without IDs, as far as it is known, is the one the verified token comes from: its names
+     * must equal the token's, as {@link #matches(Map, Map)} only compares IDs once those are copied over.
+     */
+    public boolean matchesPending(@NonNull Map<String, String> registered, @NonNull Map<String, String> token) {
+        return nameClaims().stream().allMatch(claim -> claimEquals(claim, registered, token))
+                && matches(withIdsOf(registered, token), token);
+    }
+
+    /**
+     * Completes the registered claims with the provider assigned IDs taken from the claims of a verified token.
+     * Whether the result is trusted is up to {@link #matches(Map, Map)}, which then compares the names.
+     */
+    public Map<String, String> withIdsOf(@NonNull Map<String, String> registered, @NonNull Map<String, String> token) {
+        var bound = new HashMap<>(registered);
+        idClaims().forEach(claim -> bound.put(claim, token.get(claim)));
+        return bound;
+    }
 
     /**
      * Decides whether the claims extracted from a presented OIDC ID token ({@code token}, produced by

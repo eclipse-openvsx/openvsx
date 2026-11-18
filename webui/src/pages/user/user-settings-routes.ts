@@ -23,5 +23,4 @@ export namespace UserSettingsRoutes {
     export const NAMESPACE_DETAIL = createRoute([ROOT, 'namespaces', ':namespace']);
     export const EXTENSIONS = createRoute([ROOT, 'extensions']);
     export const EXTENSION_SETTINGS = createRoute([ROOT, 'extensions', ':namespace', ':extension']);
-    export const CUSTOMERS = createRoute([ROOT, 'customers']);
 }

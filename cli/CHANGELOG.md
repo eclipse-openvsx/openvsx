@@ -6,11 +6,25 @@ This change log covers only the command line interface (CLI) of Open VSX.
 
 ### Fixed
 
+- `publish` to several targets or packages shows its prompts one at a time, offering the license once per package and asking for the token once per namespace, instead of opening a prompt for each target on the same terminal (#2434)
+- Stored personal access tokens are kept per registry host, so the same namespace on two registries no longer shares one token; tokens stored by earlier versions are only used for open-vsx.org (#2450)
+- Accepting the offered MIT license keeps the indentation and trailing newline of `package.json` instead of rewriting it with 4 spaces and no final newline (#2459)
+
+## [1.4.0] - 2026-11-09
+
+### Added
+
+- `publish --registrationCode` (or `OVSX_REGISTRATION_CODE`) completes the trusted publisher registration of a private repository on its first publish ([#2350](https://github.com/eclipse-openvsx/openvsx/issues/2350))
+
+### Fixed
+
 - `publish -i ext.vsix` now warns about the packaging options it ignores, as `publish ext.vsix` does, naming the file, and publishes the package once instead of once per `--target` (#2351)
 - `get` and `verify` ignore a timeout or connection reset while draining the error body of a rejected download, instead of cleaning up a partial file that was never written (#2386)
 - `publish` prints the exact byte counts next to the friendly sizes of a size limit, so a package one byte over its limit no longer reads as "1 MB exceeds the size limit of 1 MB" (#2392)
 - `publish --trusted-publishing` asks the registry which audience its ID token must carry, so trusted publishing works on a registry whose configured audience is not its URL (#2391)
 - `publish --trusted-publishing` only sends its ID token to a registry reached over https, apart from a loopback address, and a failed registry version lookup is no longer remembered (#2391)
+- `search` reports an invalid `--size` or `--offset` value as a usage error instead of crashing with a stack trace (#2414)
+- `verify-pat`, `unpublish` and `create-namespace` only store a prompted personal access token once the registry accepts it, so a mistyped token is no longer reused on every later run until `logout` (#2427)
 
 ### Removed
 

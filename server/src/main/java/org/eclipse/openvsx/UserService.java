@@ -29,7 +29,6 @@ import org.apache.tika.mime.MimeTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -50,8 +49,6 @@ import org.eclipse.openvsx.security.IdPrincipal;
 import org.eclipse.openvsx.security.OAuth2AttributesConfig;
 import org.eclipse.openvsx.storage.StorageUtilService;
 import org.eclipse.openvsx.util.*;
-
-import static org.eclipse.openvsx.cache.CacheService.CACHE_NAMESPACE_DETAILS_JSON;
 
 @Component
 public class UserService {
@@ -157,7 +154,6 @@ public class UserService {
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
-    @CacheEvict(value = { CACHE_NAMESPACE_DETAILS_JSON }, key = "#namespace.name")
     public ResultJson removeNamespaceMember(Namespace namespace, UserData user) throws ErrorResultException {
         var membership = repositories.findMembership(user, namespace);
         if (membership == null) {
@@ -174,22 +170,22 @@ public class UserService {
      * transaction, and one unremovable membership must not take the token and version deactivations with it.
      */
     @Transactional(rollbackOn = ErrorResultException.class)
-    @CacheEvict(value = { CACHE_NAMESPACE_DETAILS_JSON }, key = "#membership.namespace.name")
     public ResultJson removeNamespaceMembership(NamespaceMembership membership) {
         var namespace = membership.getNamespace();
         var user = membership.getUser();
+        cache.evictNamespaceDetails(namespace);
         entityManager.remove(membership);
         revokeTrustedPublishers(namespace, user);
         return ResultJson.success("Removed " + user.getLoginName() + " from namespace " + namespace.getName() + ".");
     }
 
     @Transactional(rollbackOn = ErrorResultException.class)
-    @CacheEvict(value = { CACHE_NAMESPACE_DETAILS_JSON }, key = "#namespace.name")
     public ResultJson addNamespaceMember(Namespace namespace, UserData user, String role) {
         if (!(role.equals(NamespaceMembership.ROLE_OWNER)
                 || role.equals(NamespaceMembership.ROLE_CONTRIBUTOR))) {
             throw new ErrorResultException("Invalid role: " + role);
         }
+        cache.evictNamespaceDetails(namespace);
         var membership = repositories.findMembership(user, namespace);
         if (membership != null) {
             if (role.equals(membership.getRole())) {
@@ -230,12 +226,12 @@ public class UserService {
     }
 
     @Transactional(rollbackOn = { ErrorResultException.class, NotFoundException.class })
-    @CacheEvict(value = { CACHE_NAMESPACE_DETAILS_JSON }, key = "#details.name")
     public ResultJson updateNamespaceDetails(NamespaceDetailsJson details, UserData user) {
         var namespace = repositories.findNamespace(details.getName());
         if (namespace == null) {
             throw new NotFoundException();
         }
+        cache.evictNamespaceDetails(namespace);
         if (!repositories.isNamespaceOwner(user, namespace)) {
             throw new ErrorResultException("You must be an owner of this namespace.");
         }
@@ -288,12 +284,12 @@ public class UserService {
     }
 
     @Transactional
-    @CacheEvict(value = { CACHE_NAMESPACE_DETAILS_JSON }, key = "#namespaceName")
     public ResultJson updateNamespaceDetailsLogo(String namespaceName, MultipartFile file, UserData user) {
         var namespace = repositories.findNamespace(namespaceName);
         if (namespace == null) {
             throw new NotFoundException();
         }
+        cache.evictNamespaceDetails(namespace);
         if (!repositories.isNamespaceOwner(user, namespace)) {
             throw new ErrorResultException("You must be an owner of this namespace.");
         }

@@ -1188,62 +1188,6 @@ Rate-limiting time to idle duration. Does not apply to Redis cache manager.
 
 Maximum amount of rate-limiting entries to keep in cache. Does not apply to Redis cache manager.
 
-| Property      | `ovsx.caching.customer.max-size`
-|---------------|--------------------------------
-| Type          | long
-| Default       | `100`
-| Compatibility | Since 0.32.0
-
-Maximum amount of rate-limiting customers to keep in cache. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.customer.tti`
-|---------------|---------------------------
-| Type          | ISO 8601 duration
-| Default       | `P1D`
-| Compatibility | Since 0.32.0
-
-Rate-limiting customer time to idle duration. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.tier.max-size`
-|---------------|----------------------------
-| Type          | long
-| Default       | `20`
-| Compatibility | Since 0.32.0
-
-Maximum amount of rate-limiting tiers to keep in cache. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.tier.tti`
-|---------------|-----------------------
-| Type          | ISO 8601 duration
-| Default       | `P1D`
-| Compatibility | Since 0.32.0
-
-Rate-limiting tier time to idle duration. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.rate-limit-token.max-size`
-|---------------|----------------------------------------
-| Type          | long
-| Default       | `1000`
-| Compatibility | Since 0.34.0
-
-Maximum amount of rate-limit tokens to keep in cache. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.rate-limit-token.ttl`
-|---------------|-----------------------------------
-| Type          | ISO 8601 duration
-| Default       | `PT1H`
-| Compatibility | Since 0.34.0
-
-Rate-limit token time to live duration. Does not apply to Redis cache manager.
-
-| Property      | `ovsx.caching.usage.ttl`
-|---------------|------------------------
-| Type          | ISO 8601 duration
-| Default       | `PT1H`
-| Compatibility | Since 0.34.0
-
-Rate-limit usage statistics time to live duration. Does not apply to Redis cache manager.
-
 | Property      | `ovsx.caching.setting.ttl`
 |---------------|--------------------------
 | Type          | ISO 8601 duration
@@ -1267,75 +1211,6 @@ Largest web resource file, in bytes, that is cached at all. A file above this is
 | Compatibility | Since 1.2.0
 
 Total size, in bytes, of the cached web resource files. Each entry weighs its file size rather than counting as one, so this bounds the disk the cache occupies rather than the number of files in it. Does not apply to Redis cache manager.
-
-## Rate Limiting
-
-Tiered rate limiting, disabled by default. A request is attributed to a customer by IP address
-or to a token, and charged against the tier that customer or token belongs to.
-
-| Property      | `ovsx.rate-limit.enabled`
-|---------------|-------------------------
-| Type          | boolean
-| Default       | `false`
-| Compatibility | Since 0.32.0
-
-Whether the tiered rate limit mechanism is enabled.
-
-| Property      | `ovsx.rate-limit.token-prefix`
-|---------------|------------------------------
-| Type          | string
-| Default       |
-| Compatibility | Since 0.34.0
-
-Prefix given to newly generated rate limit tokens, so that they can be told apart from other tokens the registry issues.
-
-| Property      | `ovsx.rate-limit.ip-address-function`
-|---------------|-------------------------------------
-| Type          | string
-| Default       | `getRemoteAddr()`
-| Compatibility | Since 0.32.0
-
-SpEL expression, evaluated against the request, that yields the client IP address a rate limit bucket is keyed on. The default takes the address of the peer the request arrived from. An expression reading a header instead - `X-Forwarded-For`, say - takes the value from the request, so behind a proxy that does not overwrite that header the client chooses its own bucket.
-
-| Property      | `ovsx.rate-limit.filters`
-|---------------|-------------------------
-| Type          | list
-| Default       |
-| Compatibility | Since 0.32.0
-
-The rate limit filters, each applying to the requests whose path matches its `url` regular expression. A filter takes `url`, `filter-order`, and the `http-content-type`, `http-status-code`, `http-response-body` and `http-response-headers` to answer a limited request with; the four response settings fall back to the `default-http-*` properties below when a filter leaves them unset.
-
-| Property      | `ovsx.rate-limit.usage-stats`
-|---------------|-----------------------------
-| Type          | object
-| Default       |
-| Compatibility | Since 0.32.0
-
-Schedules for the jobs that aggregate rate limit usage, as `job-schedule` (default `0 */10 * * * *`) and `daily-job-schedule` (default `0 10 2 * * *`), both cron expressions.
-
-| Property      | `ovsx.rate-limit.default-http-status-code`
-|---------------|------------------------------------------
-| Type          | HTTP status
-| Default       | `TOO_MANY_REQUESTS`
-| Compatibility | Since 0.32.0
-
-Status returned to a rate limited request by a filter that does not set its own.
-
-| Property      | `ovsx.rate-limit.default-http-content-type`
-|---------------|-------------------------------------------
-| Type          | string
-| Default       | `application/json`
-| Compatibility | Since 0.32.0
-
-Content type of that response.
-
-| Property      | `ovsx.rate-limit.default-http-response-body`
-|---------------|--------------------------------------------
-| Type          | string
-| Default       | `{ "message": "Too many requests!" }`
-| Compatibility | Since 0.32.0
-
-Body of that response.
 
 ## Publisher Agreement
 

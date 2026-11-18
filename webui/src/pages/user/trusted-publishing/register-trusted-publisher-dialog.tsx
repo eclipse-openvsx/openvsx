@@ -23,13 +23,19 @@ import {
     DialogTitle,
     LinearProgress,
     Link,
+    IconButton,
+    InputAdornment,
     MenuItem,
+    OutlinedInput,
     TextField,
+    Tooltip,
     Typography
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { handleError } from '../../../utils';
 import { MainContext } from '../../../context';
-import { TrustedPublisherProvider, UrlString } from '../../../extension-registry-types';
+import { Timestamp } from '../../../components/timestamp';
+import { TrustedPublisher, TrustedPublisherProvider, UrlString } from '../../../extension-registry-types';
 import { TrustedPublisherProviderIcon } from './trusted-publisher-provider-icon';
 import { ProviderKind, findRegistrationPathPair, orderRegistrationKeys, providerKind } from './registration-fields';
 import { useRegisterTrustedPublisher } from './use-trusted-publishers';
@@ -88,6 +94,69 @@ const FIELD_HELP: Partial<Record<ProviderKind, Record<string, ReactNode>>> = {
 
 const fieldHelp = (providerId: string, key: string): ReactNode => FIELD_HELP[providerKind(providerId)]?.[key];
 
+// Shown once after registering a private repository, whose registration waits for the first publish.
+const RegistrationCodeNotice: FunctionComponent<{ publisher: TrustedPublisher }> = ({ publisher }) => {
+    const [copied, setCopied] = useState(false);
+    const [copyFailed, setCopyFailed] = useState(false);
+    const code = publisher.registrationCode ?? '';
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(code);
+            setCopyFailed(false);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // no clipboard access (permission, insecure context): the code stays selectable in the field
+            setCopyFailed(true);
+        }
+    };
+    return (
+        <>
+            <Alert severity='info' sx={{ mb: 3 }}>
+                This repository could not be looked up, which is the case for private repositories, so the registration
+                is pending. It is completed by the first publish from the repository&apos;s workflow that presents the
+                registration code below.
+            </Alert>
+            <DialogContentText sx={{ mb: 2 }}>
+                Copy this code now. It will not be shown again
+                {publisher.registrationCodeExpiry ? (
+                    <>
+                        {' '}
+                        and expires <Timestamp value={publisher.registrationCodeExpiry} isFutureTime />
+                    </>
+                ) : null}
+                .
+            </DialogContentText>
+            <OutlinedInput
+                fullWidth
+                readOnly
+                value={code}
+                inputProps={{ 'aria-label': 'Registration code' }}
+                sx={{ fontFamily: 'monospace', fontSize: '0.85rem', mb: 2 }}
+                endAdornment={
+                    <InputAdornment position='end'>
+                        <Tooltip title={copied ? 'Copied!' : copyFailed ? 'Copy failed' : 'Copy'} placement='top'>
+                            <IconButton size='small' onClick={handleCopy} aria-label='Copy registration code'>
+                                <ContentCopyIcon fontSize='small' />
+                            </IconButton>
+                        </Tooltip>
+                    </InputAdornment>
+                }
+            />
+            {copyFailed && (
+                <Alert severity='warning' sx={{ mb: 2 }}>
+                    The code could not be copied. Select it in the field above and copy it manually.
+                </Alert>
+            )}
+            <DialogContentText>
+                Pass it to <code>ovsx publish</code> as <code>--registrationCode</code>, or as the environment variable{' '}
+                <code>OVSX_REGISTRATION_CODE</code>; a secret of the repository is a good place for it. Later publishes
+                do not need it.
+            </DialogContentText>
+        </>
+    );
+};
+
 export interface SelectableNamespace {
     name: string;
     // extensions a trusted publisher can still be registered for, as reported by the server
@@ -128,6 +197,7 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
     const [provider, setProvider] = useState('');
     const [extension, setExtension] = useState('');
     const [registration, setRegistration] = useState<Record<string, string>>({});
+    const [pendingPublisher, setPendingPublisher] = useState<TrustedPublisher>();
 
     useEffect(() => {
         if (open) {
@@ -135,6 +205,7 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
             setProvider(initialProvider ?? '');
             setExtension(lockedExtension ?? '');
             setRegistration({});
+            setPendingPublisher(undefined);
             resetRegistration();
         }
     }, [open, initialProvider, lockedExtension, props.namespace]);
@@ -143,8 +214,9 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
     const selectedNamespace = props.namespaces.find(ns => ns.name === namespace);
     const extensionNames = selectedNamespace?.registrableExtensions ?? [];
 
+    // The code is shown only once, so only Done closes the dialog while it is displayed.
     const handleClose = () => {
-        if (!loading) {
+        if (!loading && !pendingPublisher) {
             props.onClose();
         }
     };
@@ -182,6 +254,9 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
 
     const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (pendingPublisher) {
+            return;
+        }
         const cleaned: Record<string, string> = {};
         for (const key of orderedKeys) {
             const value = (registration[key] ?? '').trim();
@@ -194,12 +269,17 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
             return;
         }
         try {
-            await registerTrustedPublisher({
+            const registered = await registerTrustedPublisher({
                 trustedPublishingUrl,
                 request: { provider, namespace, extension, registration: cleaned }
             });
             props.onRegistered?.();
-            props.onClose();
+            if (registered.pending && registered.registrationCode) {
+                // the code is shown only now, so the dialog stays open until it is dismissed
+                setPendingPublisher(registered);
+            } else {
+                props.onClose();
+            }
         } catch {
             // shown inline via the mutation's error state
         }
@@ -276,50 +356,71 @@ export const RegisterTrustedPublisherDialog: FunctionComponent<RegisterTrustedPu
         <Dialog
             open={open}
             onClose={handleClose}
+            TransitionProps={{
+                onExited: () => {
+                    setPendingPublisher(undefined);
+                    resetRegistration();
+                }
+            }}
             fullWidth
             maxWidth='sm'
             PaperProps={{ component: 'form', onSubmit: handleRegister }}>
             <DialogTitle>Register trusted publisher</DialogTitle>
             {loading && <LinearProgress color='secondary' />}
-            <DialogContent>
-                <DialogContentText sx={{ mb: 3 }}>
-                    Establish trust between this extension and your repository using OpenID Connect (OIDC), so a CI
-                    workflow can publish without a personal access token. Publishing is allowed from any branch or tag.{' '}
-                    <TrustedPublishingDocsLink />
-                </DialogContentText>
-                {errorMessage && (
-                    <Alert severity='error' sx={{ mb: 3 }}>
-                        {errorMessage}
-                    </Alert>
-                )}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {!props.namespace && (
-                        <TextField
-                            select
-                            required
-                            fullWidth
-                            label='Namespace'
-                            value={namespaceName}
-                            onChange={e => {
-                                setNamespaceName(e.target.value);
-                                setExtension('');
-                            }}>
-                            {props.namespaces.map(ns => (
-                                <MenuItem key={ns.name} value={ns.name}>
-                                    {ns.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    )}
-                    {renderFormBody()}
-                </Box>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={handleClose}>Cancel</Button>
-                <Button type='submit' variant='contained' color='secondary' disabled={!canRegister}>
-                    Register
-                </Button>
-            </DialogActions>
+            {pendingPublisher ? (
+                <>
+                    <DialogContent>
+                        <RegistrationCodeNotice publisher={pendingPublisher} />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button type='button' variant='contained' color='secondary' onClick={props.onClose}>
+                            Done
+                        </Button>
+                    </DialogActions>
+                </>
+            ) : (
+                <>
+                    <DialogContent>
+                        <DialogContentText sx={{ mb: 3 }}>
+                            Establish trust between this extension and your repository using OpenID Connect (OIDC), so a
+                            CI workflow can publish without a personal access token. Publishing is allowed from any
+                            branch or tag. <TrustedPublishingDocsLink />
+                        </DialogContentText>
+                        {errorMessage && (
+                            <Alert severity='error' sx={{ mb: 3 }}>
+                                {errorMessage}
+                            </Alert>
+                        )}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {!props.namespace && (
+                                <TextField
+                                    select
+                                    required
+                                    fullWidth
+                                    label='Namespace'
+                                    value={namespaceName}
+                                    onChange={e => {
+                                        setNamespaceName(e.target.value);
+                                        setExtension('');
+                                    }}>
+                                    {props.namespaces.map(ns => (
+                                        <MenuItem key={ns.name} value={ns.name}>
+                                            {ns.name}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            )}
+                            {renderFormBody()}
+                        </Box>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleClose}>Cancel</Button>
+                        <Button type='submit' variant='contained' color='secondary' disabled={!canRegister}>
+                            Register
+                        </Button>
+                    </DialogActions>
+                </>
+            )}
         </Dialog>
     );
 };

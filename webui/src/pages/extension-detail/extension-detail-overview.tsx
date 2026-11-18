@@ -22,7 +22,7 @@ import {
     Stack,
     Tooltip
 } from '@mui/material';
-import { Link as RouteLink, useNavigate, useParams } from 'react-router';
+import { Link as RouteLink, useNavigate } from 'react-router';
 import HomeIcon from '@mui/icons-material/Home';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import BugReportIcon from '@mui/icons-material/BugReport';
@@ -37,6 +37,7 @@ import { Extension, ExtensionReference, VERSION_ALIASES } from '../../extension-
 import { ExtensionListRoutes } from '../extension-list/extension-list-routes';
 import { ExtensionDetailRoutes } from './extension-detail-routes';
 import { ExtensionDetailDownloadsMenu } from './extension-detail-downloads-menu';
+import { ExtensionDetailInstallMenu } from './extension-detail-install-menu';
 import { WeeklyDownloads } from './weekly-downloads';
 import { useExtensionReadme } from './use-extension-details';
 
@@ -44,7 +45,6 @@ const NO_README = '## No README available';
 
 export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewProps> = props => {
     const { pageSettings } = useContext(MainContext);
-    const params = useParams();
     const navigate = useNavigate();
     const { data: readmeContent, isLoading: readmeLoading } = useExtensionReadme(props.extension);
     const readme = props.extension.files.readme ? readmeContent : NO_README;
@@ -174,9 +174,6 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
         const aliasButtons = otherAliases.length
             ? otherAliases.map(alias => {
                   const arr = [ExtensionDetailRoutes.ROOT, extension.namespace, extension.name];
-                  if (params.target) {
-                      arr.push(params.target);
-                  }
                   if (alias !== 'latest') {
                       arr.push(alias);
                   }
@@ -398,7 +395,12 @@ export const ExtensionDetailOverview: FunctionComponent<ExtensionDetailOverviewP
                         {renderResourceLink('Repository', resourceLink, extension.repository)}
                         {renderResourceLink('Bugs', resourceLink, extension.bugs)}
                         {renderResourceLink("Q'n'A", resourceLink, extension.qna)}
-                        {downloadButton}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                            {downloadButton}
+                            {extension.downloadable ? (
+                                <ExtensionDetailInstallMenu namespace={extension.namespace} name={extension.name} />
+                            ) : null}
+                        </Box>
                         {DownloadTerms &&
                         extension.downloadable &&
                         extension.downloads &&

@@ -14,6 +14,7 @@ package org.eclipse.openvsx.publish;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +33,8 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.resilience.annotation.Retryable;
@@ -64,6 +67,15 @@ import org.eclipse.openvsx.util.auth.AuthenticatedUser;
 @Component
 public class PublishExtensionVersionHandler {
     protected final Logger logger = LoggerFactory.getLogger(PublishExtensionVersionHandler.class);
+
+    // An Error (e.g. OutOfMemoryError) is not retried, also when it wraps an Exception.
+    private static final RetryTemplate PUBLISH_RETRY = new RetryTemplate(
+            RetryPolicy.builder()
+                    .includes(Exception.class)
+                    .excludes(Error.class)
+                    .maxRetries(3)
+                    .delay(Duration.ofSeconds(1))
+                    .build());
 
     private final PublishingConfig config;
     private final PublishExtensionVersionService service;
@@ -495,13 +507,13 @@ public class PublishExtensionVersionHandler {
 
     @Async
     public void publishAsync(TempFile extensionFile, ExtensionService extensionService) {
-        doPublish(extensionFile, extensionService, null);
+        publishWithRetry(extensionFile, extensionService, null);
     }
 
     @Async
     public void publishAsync(TempFile extensionFile, ExtensionService extensionService, ExtensionScan scan) {
         try {
-            doPublish(extensionFile, extensionService, scan);
+            publishWithRetry(extensionFile, extensionService, scan);
         } catch (Exception e) {
             if (scan != null) {
                 scanService.markScanAsErrored(scan, "Async processing failed: " + e.getMessage());
@@ -510,15 +522,23 @@ public class PublishExtensionVersionHandler {
         }
     }
 
+    // Programmatic rather than @Retryable: the temp file must outlive every attempt and be deleted after the last.
+    private void publishWithRetry(TempFile extensionFile, ExtensionService extensionService, ExtensionScan scan) {
+        try {
+            PUBLISH_RETRY.invoke(() -> doPublish(extensionFile, extensionService, scan));
+        } finally {
+            IOUtils.closeQuietly(extensionFile);
+        }
+    }
+
     /**
      * Publish an extension - store files and optionally submit for scanning.
      */
-    @Retryable
     private void doPublish(TempFile extensionFile, ExtensionService extensionService, ExtensionScan scan) {
         var download = extensionFile.getResource();
         var extVersion = download.getExtension();
 
-        // Delete file resources in case publishAsync is retried
+        // Undo what a failed earlier attempt persisted
         service.deleteFileResources(extVersion);
         download.setId(0L);
 
@@ -602,8 +622,6 @@ public class PublishExtensionVersionHandler {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } finally {
-            IOUtils.closeQuietly(extensionFile);
         }
     }
 

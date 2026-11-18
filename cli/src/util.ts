@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as http from 'http';
+import { InvalidArgumentError } from 'commander';
 import { RegistryOptions } from './registry-options';
 import { TrustedPublishingOptions } from './trusted-publishing-options';
 
@@ -28,6 +29,7 @@ export function addTrustedPublishingEnvOptions(options: TrustedPublishingOptions
     options.trustedPublishing ??= parseBooleanEnv(process.env.OVSX_TRUSTED_PUBLISHING);
     options.idToken ??= process.env.OVSX_ID_TOKEN;
     options.oidcAudience ??= process.env.OVSX_OIDC_AUDIENCE;
+    options.registrationCode ??= process.env.OVSX_REGISTRATION_CODE;
 }
 
 /** How long a request may make no progress before it is abandoned; see RegistryOptions.timeout. */
@@ -66,7 +68,8 @@ function parseBooleanEnv(value?: string): boolean | undefined {
 export function parseNonNegativeInt(value: string): number {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 0) {
-        throw new Error(`Expected a non-negative whole number, got '${value}'.`);
+        // Commander prints only this error type as a usage message; anything else escapes as a stack trace.
+        throw new InvalidArgumentError(`Expected a non-negative whole number, got '${value}'.`);
     }
     return parsed;
 }
@@ -210,9 +213,13 @@ export function validateManifest(manifest: Manifest): void {
     }
 }
 
-export function writeManifest(manifest: Manifest, packagePath?: string): Promise<void> {
-    const content = JSON.stringify(manifest, null, 4);
-    return fs.promises.writeFile(path.join(packagePath ?? process.cwd(), 'package.json'), content, 'utf-8');
+export async function writeManifest(manifest: Manifest, packagePath?: string): Promise<void> {
+    const file = path.join(packagePath ?? process.cwd(), 'package.json');
+    const existing = await fs.promises.readFile(file, 'utf-8').catch(() => undefined);
+    // Keep the existing file's indentation and trailing newline so only the changed fields show in a diff.
+    const indent = existing === undefined ? 4 : /^([ \t]+)"/m.exec(existing)?.[1] ?? '';
+    const newline = existing?.endsWith('\n') ? '\n' : '';
+    await fs.promises.writeFile(file, JSON.stringify(manifest, null, indent) + newline, 'utf-8');
 }
 
 export interface Manifest {

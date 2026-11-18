@@ -22,12 +22,14 @@ export async function createNamespace(options: CreateNamespaceOptions = {}): Pro
         throw new Error('The namespace name is mandatory.');
     }
 
-    options.pat = await getPAT(options.name, options, false);
+    const { pat, save } = await getPAT(options.name, options, false);
+    options.pat = pat;
 
     const registry = new Registry(options);
     const result = await registry.createNamespace(options.name, options.pat);
     if (result.error) {
         throw new Error(result.error);
     }
+    await save();
     console.log(`\ud83d\ude80  Created namespace ${options.name}`);
 }

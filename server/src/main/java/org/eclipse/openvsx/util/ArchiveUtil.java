@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.util;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -54,6 +55,7 @@ public final class ArchiveUtil {
     }
 
     static TempFile readEntry(ZipFile archive, ZipEntry entry, long maxEntrySize) throws IOException {
+        checkEntrySize(entry, maxEntrySize);
         var fileNameIndex = entry.getName().lastIndexOf('/');
         var fileName = fileNameIndex == -1 ? entry.getName() : entry.getName().substring(fileNameIndex + 1);
         var suffixIndex = fileName.lastIndexOf('.');
@@ -61,27 +63,59 @@ public final class ArchiveUtil {
         var prefix = suffixIndex == -1 ? fileName : fileName.substring(0, suffixIndex);
         var file = new TempFile(prefix, suffix);
         try (var out = Files.newOutputStream(file.getPath())) {
-            if (entry.getSize() < 0) {
-                IOUtils.closeQuietly(file);
-                throw new ErrorResultException("The file " + entry.getName() + " has a negative size.");
-            }
-
-            if (entry.getSize() > maxEntrySize) {
-                IOUtils.closeQuietly(file);
-                var maxSize = FileUtils.byteCountToDisplaySize(maxEntrySize);
-                throw new ErrorResultException(
-                        "The file " + entry.getName() + " exceeds the size limit of " + maxSize + ".");
-            }
-
-            // Read at most the number of bytes as declared by the entry
-            try (var is = new SizeLimitInputStream(archive.getInputStream(entry), entry.getSize())) {
+            try (var is = sizeLimitedStream(archive, entry)) {
                 is.transferTo(out);
             } catch (IOException e) {
                 IOUtils.closeQuietly(file);
-                throw new ErrorResultException("Failed to read " + entry.getName() + ": " + e.getMessage());
+                throw failedToRead(entry.getName(), e);
             }
         }
         return file;
+    }
+
+    /**
+     * Opens an entry, applying the same size limits as {@link #readEntry(ZipFile, String)}. Reading past
+     * the entry's declared size fails with an {@link IOException}.
+     *
+     * @return the entry's content, or {@code null} if the archive has no such entry
+     */
+    public static @Nullable InputStream openEntry(ZipFile archive, String entryName) {
+        return openEntry(archive, entryName, MAX_ENTRY_SIZE);
+    }
+
+    static @Nullable InputStream openEntry(ZipFile archive, String entryName, long maxEntrySize) {
+        var entry = archive.getEntry(entryName);
+        if (entry == null) {
+            return null;
+        }
+
+        checkEntrySize(entry, maxEntrySize);
+        try {
+            return sizeLimitedStream(archive, entry);
+        } catch (IOException e) {
+            throw failedToRead(entry.getName(), e);
+        }
+    }
+
+    private static void checkEntrySize(ZipEntry entry, long maxEntrySize) {
+        if (entry.getSize() < 0) {
+            throw new ErrorResultException("The file " + entry.getName() + " has a negative size.");
+        }
+
+        if (entry.getSize() > maxEntrySize) {
+            var maxSize = FileUtils.byteCountToDisplaySize(maxEntrySize);
+            throw new ErrorResultException(
+                    "The file " + entry.getName() + " exceeds the size limit of " + maxSize + ".");
+        }
+    }
+
+    // Read at most the number of bytes declared by the entry, a zip header can lie about it.
+    private static InputStream sizeLimitedStream(ZipFile archive, ZipEntry entry) throws IOException {
+        return new SizeLimitInputStream(archive.getInputStream(entry), entry.getSize());
+    }
+
+    public static ErrorResultException failedToRead(String entryName, IOException e) {
+        return new ErrorResultException("Failed to read " + entryName + ": " + e.getMessage());
     }
 
     /**

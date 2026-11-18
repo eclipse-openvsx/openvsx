@@ -13,6 +13,7 @@
 package org.eclipse.openvsx;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import jakarta.persistence.EntityManager;
 import org.jobrunr.scheduling.JobRequestScheduler;
@@ -306,7 +307,7 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         persistVersion("1.0.0", TargetPlatform.NAME_UNIVERSAL, true, false); // the only active version
 
         // Simulate another extension depending on this one, so the dependency guard must reject.
-        doReturn(Streamable.of(dependantReference())).when(repositories).findDependenciesReference(any());
+        doReturn(Streamable.of(dependantReference())).when(repositories).findNotRemovedDependenciesReference(any());
 
         var targets = TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0");
         assertThatThrownBy(() -> extensionService.deleteExtension(owner(), false, NAMESPACE, EXTENSION, targets))
@@ -331,7 +332,7 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         persistVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, true, false);
 
         // Even if a dependency exists, deleting a subset must not trigger the guard.
-        doReturn(Streamable.of(dependantReference())).when(repositories).findDependenciesReference(any());
+        doReturn(Streamable.of(dependantReference())).when(repositories).findNotRemovedDependenciesReference(any());
 
         var targets = TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0");
         extensionService.deleteExtension(owner(), false, NAMESPACE, EXTENSION, targets);
@@ -342,6 +343,34 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         assertThat(versionActive("2.0.0"))
                 .as("the remaining active version must stay live")
                 .isTrue();
+    }
+
+    /**
+     * A removed version of a dependant can no longer be installed, so it must not block deleting the
+     * extension it depended on.
+     */
+    @Test
+    void deleteExtension_ignoresRemovedDependants() {
+        persistVersion("1.0.0", TargetPlatform.NAME_UNIVERSAL, true, false);
+        persistDependant(true);
+
+        var targets = TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0");
+        extensionService.deleteExtension(owner(), false, NAMESPACE, EXTENSION, targets);
+
+        assertThat(versionRemoved("1.0.0")).isTrue();
+    }
+
+    @Test
+    void deleteExtension_rejectsActiveDependants() {
+        persistVersion("1.0.0", TargetPlatform.NAME_UNIVERSAL, true, false);
+        persistDependant(false);
+
+        var targets = TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0");
+        assertThatThrownBy(() -> extensionService.deleteExtension(owner(), false, NAMESPACE, EXTENSION, targets))
+                .isInstanceOf(ErrorResultException.class)
+                .hasMessageContaining("dependant-5.0.0");
+
+        assertThat(versionActive("1.0.0")).isTrue();
     }
 
     /**
@@ -398,7 +427,7 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         persistVersion("1.0.0", TargetPlatform.NAME_UNIVERSAL, true, false);
 
         // Simulate another extension depending on this one.
-        doReturn(Streamable.of(dependantReference())).when(repositories).findDependenciesReference(any());
+        doReturn(Streamable.of(dependantReference())).when(repositories).findNotRemovedDependenciesReference(any());
 
         var targets = TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0");
         assertThatThrownBy(() -> extensionService.purgeExtensionNoWait(owner(), NAMESPACE, EXTENSION, targets))
@@ -425,7 +454,7 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         persistVersion("2.0.0", TargetPlatform.NAME_UNIVERSAL, true, false);
 
         // The extension is depended on: the guard would reject removing ALL active versions.
-        doReturn(Streamable.of(dependantReference())).when(repositories).findDependenciesReference(any());
+        doReturn(Streamable.of(dependantReference())).when(repositories).findNotRemovedDependenciesReference(any());
 
         var duplicate = new TargetPlatformVersion[] {
             TargetPlatformVersion.of(TargetPlatform.NAME_UNIVERSAL, "1.0.0"),
@@ -479,6 +508,30 @@ class ExtensionSoftDeleteTest extends AbstractPostgresContainerTest {
         extVersion.setVersion("1.0.0");
         extVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
         return extVersion;
+    }
+
+    private void persistDependant(boolean removed) {
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            var dependant = new Extension();
+            dependant.setName("dependant");
+            dependant.setNamespace(em.find(Extension.class, extensionId).getNamespace());
+            dependant.setActive(!removed);
+            em.persist(dependant);
+
+            var extVersion = new ExtensionVersion();
+            extVersion.setVersion("5.0.0");
+            extVersion.setTargetPlatform(TargetPlatform.NAME_UNIVERSAL);
+            extVersion.setExtension(dependant);
+            extVersion.setPublishedBy(em.getReference(UserData.class, ownerId));
+            extVersion.setDependencies(List.of(NAMESPACE + "." + EXTENSION));
+            extVersion.setActive(!removed);
+            extVersion.setRemoved(removed);
+            if (removed) {
+                extVersion.setRemovedTimestamp(LocalDateTime.now());
+                extVersion.setRemovedBy(em.getReference(UserData.class, ownerId));
+            }
+            em.persist(extVersion);
+        });
     }
 
     private void persistVersion(String version, String targetPlatform, boolean active, boolean removed) {
