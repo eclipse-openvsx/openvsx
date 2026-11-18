@@ -15,6 +15,7 @@ package org.eclipse.openvsx;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -32,6 +33,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.zipkin.autoconfigure.ZipkinAutoConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * Production exports traces to Zipkin through Boot's auto-configuration alone, so a dependency change
@@ -61,7 +63,6 @@ class TracingExportTest {
 
     @Test
     void exportsSpansToZipkin() {
-        var traceId = new String[1];
         new ApplicationContextRunner()
                 .withConfiguration(
                         AutoConfigurations.of(
@@ -76,12 +77,14 @@ class TracingExportTest {
                                 + zipkin.getAddress().getPort() + "/api/v2/spans")
                 .run(context -> {
                     var span = context.getBean(Tracer.class).nextSpan().name("tracing-export-test").start();
-                    traceId[0] = span.context().traceId();
                     span.end();
-                });
 
-        // closing the context flushes the asynchronous reporter
-        assertThat(received).isNotEmpty();
-        assertThat(String.join("", received)).contains("tracing-export-test").contains(traceId[0]);
+                    // the reporter sends from a background thread, and closing the context drops what is
+                    // still queued, so wait while it runs
+                    await().atMost(Duration.ofSeconds(30)).until(() -> !received.isEmpty());
+                    assertThat(String.join("", received))
+                            .contains("tracing-export-test")
+                            .contains(span.context().traceId());
+                });
     }
 }
