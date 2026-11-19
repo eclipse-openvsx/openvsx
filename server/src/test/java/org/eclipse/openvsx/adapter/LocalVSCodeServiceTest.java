@@ -85,7 +85,6 @@ public class LocalVSCodeServiceTest {
         Mockito.when(repositories.findActiveExtensionVersions(any(), any(), anyInt()))
                 .thenReturn(List.of(extensionVersion));
         Mockito.when(repositories.findLatestVersions(any(), any())).thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), anyBoolean())).thenReturn(extensionVersion);
 
         var result = vsCodeService.extensionQuery(param, 10);
         assertThat(result.results()).hasSize(1);
@@ -137,7 +136,6 @@ public class LocalVSCodeServiceTest {
                 .thenReturn(List.of(extension));
         Mockito.when(repositories.findActiveExtensionVersions(any(), any(), anyInt()))
                 .thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), eq(false))).thenReturn(extensionVersion);
 
         vsCodeService.extensionQuery(param, 10);
 
@@ -185,7 +183,6 @@ public class LocalVSCodeServiceTest {
                 repositories
                         .findLatestActiveExtensionVersionsPerTargetPlatform(any(), eq(TargetPlatform.NAME_LINUX_X64)))
                 .thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), eq(false))).thenReturn(extensionVersion);
 
         var result = vsCodeService.extensionQuery(param, 10);
 
@@ -283,13 +280,42 @@ public class LocalVSCodeServiceTest {
                 .thenReturn(List.of(extension));
         Mockito.when(repositories.findLatestActiveExtensionVersionsPerTargetPlatform(any(), isNull()))
                 .thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), eq(false))).thenReturn(extensionVersion);
 
         var result = vsCodeService.extensionQuery(param, 10);
 
         Mockito.verify(repositories, Mockito.never()).findActiveExtensionVersions(any(), any(), anyInt());
         assertThat(result.results().getFirst().extensions()).singleElement()
                 .satisfies(e -> assertThat(e.versions()).hasSize(1));
+    }
+
+    // VersionService.getLatest is cached per extension, whatever platform its list was filtered to.
+    @Test
+    void testExtensionQuery_latestVersionOnly_doesNotUseTheLatestVersionCache() {
+        var extension = mockExtension();
+        var linux = mockExtensionVersion(extension, 1, "0.2.0", TargetPlatform.NAME_LINUX_X64);
+        linux.setDisplayName("YAML for Linux");
+        var cachedForWindows = mockExtensionVersion(extension, 2, "0.2.0", TargetPlatform.NAME_WIN32_X64);
+        cachedForWindows.setDisplayName("YAML for Windows");
+
+        var criteria = List.of(
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-1"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_TARGET, TargetPlatform.NAME_LINUX_X64));
+        var filter = new ExtensionQueryParam.Filter(criteria, 0, 0, 0, 0);
+        var param = new ExtensionQueryParam(List.of(filter), FLAG_INCLUDE_LATEST_VERSION_ONLY);
+
+        Mockito.when(repositories.findActiveExtensionsByPublicId(any(), any()))
+                .thenReturn(List.of(extension));
+        Mockito.when(
+                repositories
+                        .findLatestActiveExtensionVersionsPerTargetPlatform(any(), eq(TargetPlatform.NAME_LINUX_X64)))
+                .thenReturn(List.of(linux));
+        Mockito.when(versions.getLatest(anyList(), anyBoolean())).thenReturn(cachedForWindows);
+
+        var result = vsCodeService.extensionQuery(param, 10);
+
+        assertThat(result.results().getFirst().extensions()).singleElement()
+                .extracting(ExtensionQueryResult.Extension::displayName)
+                .isEqualTo("YAML for Linux");
     }
 
     @Test
