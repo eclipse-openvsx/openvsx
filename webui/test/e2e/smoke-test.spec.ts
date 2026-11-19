@@ -81,6 +81,41 @@ test.describe('OpenVSX', () => {
         await expect(downloadLink(page)).toHaveAttribute('href', versionFileUrl(latest));
     });
 
+    test('shows the changelog and the reviews of an extension in their tabs', async ({ page, extensionToOpen }) => {
+        await openExtension(page, extensionToOpen);
+        const extensionUrl = page.url();
+
+        const changelogLoaded = page.waitForResponse(response => /CHANGELOG/i.test(response.url()) && response.ok());
+        await page.getByRole('tab', { name: 'Changes' }).click();
+        await expect(page).toHaveURL(`${extensionUrl}/changes`);
+        await expect(page.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible();
+        const changelogStart = firstLineAsText(await (await changelogLoaded).text());
+        expect(changelogStart, 'the changelog is empty').not.toBe('');
+        await expect(page.getByText(changelogStart).first()).toBeVisible();
+        await expect(page.getByText('No changelog available')).toHaveCount(0);
+
+        await page.getByRole('tab', { name: 'Ratings & Reviews' }).click();
+        await expect(page).toHaveURL(`${extensionUrl}/reviews`);
+        await expect(page.getByRole('tab', { name: 'Ratings & Reviews', selected: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'User Reviews' })).toBeVisible();
+        // the smoke tests run logged out, so the review form is replaced by a login link
+        await expect(page.getByRole('link', { name: 'Log in to Review' })).toBeVisible();
+    });
+
+    test('allows to open the namespace of an extension, which lists the extension', async ({
+        page,
+        extensionToOpen
+    }) => {
+        await openExtension(page, extensionToOpen);
+        const extensionPath = new URL(page.url()).pathname;
+        const namespace = extensionPath.split('/')[2];
+
+        // the link shows the namespace's display name, so find it by its target
+        await page.locator(`a[href$="/namespace/${namespace}"]`).click();
+        await expect(page).toHaveURL(new RegExp(`/namespace/${namespace}$`));
+        await expect(page.getByRole('link', { name: extensionToOpen.heading })).toHaveAttribute('href', extensionPath);
+    });
+
     test('allows to search by search terms with changing number of results', async ({ page, searchTerms }) => {
         const initialResultCount = await getResultCount(page);
         for (const extensionToCheck of searchTerms) {
@@ -155,6 +190,16 @@ async function openExtension(page: Page, extension: SmokeTestOptions['extensionT
     await searched;
     await page.getByRole('link', { name: extension.heading }).click();
     await expect(page.getByRole('heading', { name: extension.heading, exact: true })).toBeVisible();
+}
+
+/** The first line of a Markdown document as it reads once rendered, e.g. `### v1.4.0` becomes `v1.4.0`. */
+function firstLineAsText(markdown: string): string {
+    const firstLine = markdown.split('\n').find(line => line.trim().length > 0) ?? '';
+    return firstLine
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/^[\s#>*+-]+/, '')
+        .replace(/[*_`]/g, '')
+        .trim();
 }
 
 /** The download button on an extension's page. */
