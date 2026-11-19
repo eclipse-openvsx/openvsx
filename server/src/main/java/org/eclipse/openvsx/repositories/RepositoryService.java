@@ -708,6 +708,10 @@ public class RepositoryService {
         return extensionJooqRepo.findActiveByNameIgnoreCaseAndNamespaceNameIgnoreCase(name, namespaceName);
     }
 
+    public List<Extension> findActiveExtensionsByExtensionId(Collection<ExtensionId> extensionIds) {
+        return extensionJooqRepo.findAllActiveByExtensionId(extensionIds);
+    }
+
     public List<Extension> findActiveExtensionsById(Collection<Long> ids) {
         return extensionJooqRepo.findAllActiveById(ids);
     }
@@ -822,6 +826,13 @@ public class RepositoryService {
     ) {
         return extensionVersionJooqRepo
                 .findAllActiveByExtensionIdAndTargetPlatform(extensionIds, targetPlatform, maxPreReleaseVersions);
+    }
+
+    public List<ExtensionVersion> findLatestActiveExtensionVersionsPerTargetPlatform(
+            Collection<Long> extensionIds,
+            String targetPlatform
+    ) {
+        return extensionVersionJooqRepo.findLatestActiveByExtensionIdPerTargetPlatform(extensionIds, targetPlatform);
     }
 
     public List<FileResource> findFileResourcesByExtensionVersionIdAndType(

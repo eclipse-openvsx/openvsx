@@ -1246,8 +1246,7 @@ class VSCodeAPITest {
         Mockito.when(repositories.findActiveExtensionsByPublicId(publicIds, builtInExtensionNamespace))
                 .thenReturn(results);
 
-        Mockito.when(repositories.findActiveExtension(extension.getName(), extension.getNamespace().getName()))
-                .thenReturn(extension);
+        Mockito.when(repositories.findActiveExtensionsByExtensionId(any())).thenReturn(List.of(extension));
 
         mockExtensionVersions(extension, targetPlatform, targetPlatform);
         return extension;
@@ -1304,6 +1303,22 @@ class VSCodeAPITest {
         Mockito
                 .when(repositories.findLatestVersions(eq(Set.of(extension.getId())), eq(queryTargetPlatform)))
                 .thenReturn(latest != null ? List.of(latest) : Collections.emptyList());
+
+        var latestPerTargetPlatform = extVersions.stream()
+                .collect(
+                        Collectors.groupingBy(
+                                ev -> String.valueOf(ev.getTargetPlatform()),
+                                Collectors.minBy(ExtensionVersion.SORT_COMPARATOR)))
+                .values()
+                .stream()
+                .flatMap(Optional::stream)
+                .toList();
+        Mockito
+                .when(
+                        repositories.findLatestActiveExtensionVersionsPerTargetPlatform(
+                                eq(Set.of(extension.getId())),
+                                eq(queryTargetPlatform)))
+                .thenReturn(latestPerTargetPlatform);
 
         mockFileResources(extVersions);
     }
