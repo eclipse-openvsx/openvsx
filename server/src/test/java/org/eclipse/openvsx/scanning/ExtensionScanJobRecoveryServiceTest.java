@@ -12,8 +12,11 @@
  *****************************************************************************/
 package org.eclipse.openvsx.scanning;
 
+import java.util.List;
+import java.util.Optional;
 import javax.sql.DataSource;
 
+import org.jobrunr.jobs.lambdas.JobRequest;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
@@ -30,15 +33,21 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.util.Streamable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import org.eclipse.openvsx.AbstractPostgresContainerTest;
 import org.eclipse.openvsx.ExtensionService;
+import org.eclipse.openvsx.entities.ScanStatus;
+import org.eclipse.openvsx.entities.ScannerJob;
 import org.eclipse.openvsx.publish.PublishExtensionVersionService;
 import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.repositories.ScannerJobRepository;
+import org.eclipse.openvsx.util.TimeUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -96,6 +105,8 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
     JobRequestScheduler jobScheduler;
     @Mock
     DSLContext dsl;
+    @Mock
+    PlatformTransactionManager transactionManager;
 
     private ExtensionScanJobRecoveryService newService(DSLContext dslContext) {
         return new ExtensionScanJobRecoveryService(
@@ -109,7 +120,8 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
                 publishService,
                 extensionService,
                 jobScheduler,
-                dslContext);
+                dslContext,
+                transactionManager);
     }
 
     // Proves the actual Postgres mechanism recoverOnStartup() relies on: two separate connections
@@ -165,6 +177,139 @@ class ExtensionScanJobRecoveryServiceTest extends AbstractPostgresContainerTest 
 
         // recoverPendingJobs() is the first thing a successful acquisition leads to.
         verify(scanJobRepository).findByStatusIn(ArgumentMatchers.anyList());
+    }
+
+    private ScannerJob pendingJob(long id, String scannerType, long version) {
+        var job = new ScannerJob();
+        job.setId(id);
+        job.setScanId("scan" + id);
+        job.setScannerType(scannerType);
+        job.setStatus(ScannerJob.JobStatus.QUEUED);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "version", version);
+        return job;
+    }
+
+    @Test
+    void recoverOnStartup_aLostRaceOnOneJobDoesNotStopTheOthersNorLaterPhases() {
+        var service = Mockito.spy(newService(dsl));
+        when(scanService.isEnabled()).thenReturn(true);
+        doReturn(true).when(service).tryAcquireRecoveryLock();
+        // both jobs belong to a removed scanner, so both are marked REMOVED
+        var lost = pendingJob(1, "gone", 0);
+        var won = pendingJob(2, "gone", 0);
+        when(scanJobRepository.findByStatusIn(ArgumentMatchers.anyList())).thenReturn(List.of(lost, won));
+        when(scanJobRepository.findById(1L)).thenReturn(Optional.of(pendingJob(1, "gone", 0)));
+        when(scanJobRepository.findById(2L)).thenReturn(Optional.of(pendingJob(2, "gone", 0)));
+        when(scanJobRepository.saveAndFlush(ArgumentMatchers.argThat(j -> j != null && j.getId() == 1L)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
+        when(repositories.findExtensionScansByStatus(ArgumentMatchers.any())).thenReturn(Streamable.empty());
+
+        service.recoverOnStartup();
+
+        verify(scanJobRepository).saveAndFlush(ArgumentMatchers.argThat(j -> j != null && j.getId() == 2L));
+        // the VALIDATING phase still ran
+        verify(repositories).findExtensionScansByStatus(ScanStatus.VALIDATING);
+    }
+
+    @Test
+    void recoverOnStartup_leavesAJobAloneThatChangedSinceItWasRead() {
+        var service = Mockito.spy(newService(dsl));
+        when(scanService.isEnabled()).thenReturn(true);
+        doReturn(true).when(service).tryAcquireRecoveryLock();
+        when(scanJobRepository.findByStatusIn(ArgumentMatchers.anyList()))
+                .thenReturn(List.of(pendingJob(1, "gone", 0)));
+        // a concurrent writer bumped the version after the read
+        when(scanJobRepository.findById(1L)).thenReturn(Optional.of(pendingJob(1, "gone", 1)));
+        when(repositories.findExtensionScansByStatus(ArgumentMatchers.any())).thenReturn(Streamable.empty());
+
+        service.recoverOnStartup();
+
+        verify(scanJobRepository, never()).saveAndFlush(ArgumentMatchers.any());
+    }
+
+    @Test
+    void watchdog_doesNotFailAJobThatWasClaimedWhileReEnqueueFailed() throws Exception {
+        var scanner = Mockito.mock(Scanner.class);
+        when(scannerRegistry.getScanner("argus")).thenReturn(scanner);
+        var stale = new ScannerJob();
+        stale.setId(1);
+        stale.setScanId("scan");
+        stale.setScannerType("argus");
+        stale.setStatus(ScannerJob.JobStatus.QUEUED);
+        stale.setCreatedAt(TimeUtil.getCurrentUTC().minusMinutes(10));
+        when(
+                scanJobRepository.findByStatusAndCreatedAtBeforeAndRecoveryInProgressFalse(
+                        ArgumentMatchers.eq(ScannerJob.JobStatus.QUEUED),
+                        ArgumentMatchers.any()))
+                .thenReturn(List.of(stale));
+        doThrow(new RuntimeException("queue down")).when(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
+        // a worker picked the job up in the meantime
+        var claimed = new ScannerJob();
+        claimed.setId(1);
+        claimed.setScanId("scan");
+        claimed.setStatus(ScannerJob.JobStatus.PROCESSING);
+        when(scanJobRepository.findById(1L)).thenReturn(Optional.of(claimed));
+
+        newService(dsl).run(null);
+
+        assertThat(claimed.getStatus()).isEqualTo(ScannerJob.JobStatus.PROCESSING);
+        verify(scanJobRepository, never()).trySave(claimed);
+        verifyNoInteractions(completionService);
+    }
+
+    private ScannerJob stuckQueuedJob() {
+        var scanner = Mockito.mock(Scanner.class);
+        when(scannerRegistry.getScanner("argus")).thenReturn(scanner);
+        var job = new ScannerJob();
+        job.setId(1);
+        job.setScanId("scan");
+        job.setScannerType("argus");
+        job.setStatus(ScannerJob.JobStatus.QUEUED);
+        job.setCreatedAt(TimeUtil.getCurrentUTC().minusMinutes(10));
+        when(
+                scanJobRepository.findByStatusAndCreatedAtBeforeAndRecoveryInProgressFalse(
+                        ArgumentMatchers.eq(ScannerJob.JobStatus.QUEUED),
+                        ArgumentMatchers.any()))
+                .thenReturn(List.of(job));
+        return job;
+    }
+
+    @Test
+    void watchdog_commitsTheRecoveryFlagOnlyAfterTheEnqueue() throws Exception {
+        var job = stuckQueuedJob();
+
+        newService(dsl).run(null);
+
+        var inOrder = Mockito.inOrder(transactionManager, scanJobRepository, jobScheduler);
+        inOrder.verify(transactionManager).getTransaction(ArgumentMatchers.any());
+        inOrder.verify(scanJobRepository).saveAndFlush(job);
+        inOrder.verify(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
+        inOrder.verify(transactionManager).commit(ArgumentMatchers.any());
+        assertThat(job.isRecoveryInProgress()).isTrue();
+    }
+
+    @Test
+    void watchdog_rollsTheRecoveryFlagBackWhenTheEnqueueFails() throws Exception {
+        stuckQueuedJob();
+        doThrow(new RuntimeException("queue down")).when(jobScheduler).enqueue(ArgumentMatchers.any(JobRequest.class));
+
+        newService(dsl).run(null);
+
+        verify(transactionManager).rollback(ArgumentMatchers.any());
+        verify(transactionManager, never()).commit(ArgumentMatchers.any());
+    }
+
+    @Test
+    void watchdog_skipsAJobThatChangedConcurrently() throws Exception {
+        var job = stuckQueuedJob();
+        when(scanJobRepository.saveAndFlush(job))
+                .thenThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L));
+
+        newService(dsl).run(null);
+
+        verify(jobScheduler, never()).enqueue(ArgumentMatchers.any(JobRequest.class));
+        verify(scanJobRepository, never()).findById(ArgumentMatchers.anyLong());
+        verifyNoInteractions(completionService);
     }
 
     @Test

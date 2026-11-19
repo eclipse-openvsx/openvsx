@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.lambdas.JobRequestHandler;
@@ -26,8 +27,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import org.eclipse.openvsx.ExtensionService;
 import org.eclipse.openvsx.entities.ExtensionScan;
@@ -68,6 +72,8 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
     private final ExtensionService extensionService;
     private final JobRequestScheduler jobScheduler;
     private final DSLContext dsl;
+    private final TransactionTemplate transactionTemplate;
+    private final TransactionTemplate newTransactionTemplate;
 
     public ExtensionScanJobRecoveryService(
             ScannerJobRepository scanJobRepository,
@@ -80,7 +86,8 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             PublishExtensionVersionService publishService,
             ExtensionService extensionService,
             JobRequestScheduler jobScheduler,
-            DSLContext dsl
+            DSLContext dsl,
+            PlatformTransactionManager transactionManager
     ) {
         this.scanJobRepository = scanJobRepository;
         this.scannerRegistry = scannerRegistry;
@@ -93,6 +100,9 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
         this.extensionService = extensionService;
         this.jobScheduler = jobScheduler;
         this.dsl = dsl;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.newTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.newTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
@@ -109,22 +119,23 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
      * rollback), so there is no explicit unlock and no risk of a lock leaking onto a pooled connection.
      */
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void recoverOnStartup() {
         if (!scanService.isEnabled()) {
             return;
         }
 
-        if (!tryAcquireRecoveryLock()) {
-            logger.debug("Another instance already holds the scan recovery lock, skipping");
-            return;
-        }
+        transactionTemplate.executeWithoutResult(status -> {
+            if (!tryAcquireRecoveryLock()) {
+                logger.debug("Another instance already holds the scan recovery lock, skipping");
+                return;
+            }
 
-        logger.info("Starting scan recovery on server startup");
+            logger.info("Starting scan recovery on server startup");
 
-        recoverPendingJobs();
-        recoverValidatingScans();
-        recoverStaleScans();
+            recoverPendingJobs();
+            recoverValidatingScans();
+            recoverStaleScans();
+        });
     }
 
     // Package-private so a test can stub it via a spy without needing two real database connections
@@ -170,11 +181,13 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             if (scanner == null) {
                 // Scanner no longer exists - mark as REMOVED
                 logger.warn("Found orphaned job for removed scanner: {} scanId={}", scannerType, job.getScanId());
-                job.setStatus(ScannerJob.JobStatus.REMOVED);
-                job.setErrorMessage("Scanner '" + scannerType + "' removed from configuration");
-                job.setUpdatedAt(TimeUtil.getCurrentUTC());
-                scanJobRepository.save(job);
-                orphanedCount++;
+                if (updateIfUnchanged(job, current -> {
+                    current.setStatus(ScannerJob.JobStatus.REMOVED);
+                    current.setErrorMessage("Scanner '" + scannerType + "' removed from configuration");
+                    current.setUpdatedAt(TimeUtil.getCurrentUTC());
+                })) {
+                    orphanedCount++;
+                }
                 continue;
             }
 
@@ -196,11 +209,16 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             }
 
             // --- Sync jobs stuck in PROCESSING: reset to QUEUED ---
+            boolean queued = job.getStatus() == ScannerJob.JobStatus.QUEUED;
             if (!scanner.isAsync() && job.getStatus() == ScannerJob.JobStatus.PROCESSING) {
-                job.setStatus(ScannerJob.JobStatus.QUEUED);
-                job.setUpdatedAt(TimeUtil.getCurrentUTC());
-                job.setRecoveryInProgress(false);
-                scanJobRepository.save(job);
+                if (!updateIfUnchanged(job, current -> {
+                    current.setStatus(ScannerJob.JobStatus.QUEUED);
+                    current.setUpdatedAt(TimeUtil.getCurrentUTC());
+                    current.setRecoveryInProgress(false);
+                })) {
+                    continue;
+                }
+                queued = true;
                 syncJobsReset++;
                 logger.info("Reset stuck PROCESSING job {} to QUEUED (scanner: {})", job.getId(), scannerType);
             }
@@ -208,8 +226,7 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             // Concurrency-limited QUEUED jobs are left for the dispatcher.
             // Jobs beyond the batch limit stay QUEUED and will be picked up by
             // the watchdog on its next cycle
-            if (!scanner.isAsync() && job.getStatus() == ScannerJob.JobStatus.QUEUED
-                    && scanner.getMaxConcurrency() <= 0) {
+            if (!scanner.isAsync() && queued && scanner.getMaxConcurrency() <= 0) {
                 if (syncJobsRequeued >= MAX_PER_CYCLE) {
                     syncJobsDeferred++;
                     continue;
@@ -242,6 +259,28 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
         }
         if (syncJobsDeferred > 0) {
             logger.info("Deferred {} QUEUED sync jobs to watchdog (batch limit: {})", syncJobsDeferred, MAX_PER_CYCLE);
+        }
+    }
+
+    /**
+     * Apply {@code change} to the job in a transaction of its own, unless the job changed since it was
+     * observed. A lost race then affects this job only, not the surrounding recovery pass.
+     *
+     * @return false if the job changed or vanished and was left as it is
+     */
+    private boolean updateIfUnchanged(ScannerJob observed, Consumer<ScannerJob> change) {
+        try {
+            return Boolean.TRUE.equals(newTransactionTemplate.execute(status -> {
+                var current = scanJobRepository.findById(observed.getId()).orElse(null);
+                if (current == null || current.getVersion() != observed.getVersion()) {
+                    return false;
+                }
+                change.accept(current);
+                scanJobRepository.saveAndFlush(current);
+                return true;
+            }));
+        } catch (ObjectOptimisticLockingFailureException e) {
+            return false;
         }
     }
 
@@ -539,7 +578,6 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
      * Monitor stuck jobs and timeouts.
      */
     @Job(name = "Scan job watchdog", retries = 0)
-    @Transactional
     public void run(HandlerJobRequest<?> jobRequest) throws Exception {
         recoverStuckQueuedJobs();
         checkTimeouts();
@@ -579,25 +617,37 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             processed++;
 
             if (job.getCreatedAt().isBefore(oneHourAgo)) {
-                markFailed(job, "Stuck in QUEUED for over 1 hour");
-                completionService.checkCompletionSafely(job.getScanId());
+                if (markFailed(job, "Stuck in QUEUED for over 1 hour")) {
+                    completionService.checkCompletionSafely(job.getScanId());
+                }
             } else {
                 try {
-                    job.setRecoveryInProgress(true);
-                    job.setUpdatedAt(TimeUtil.getCurrentUTC());
-                    scanJobRepository.save(job);
+                    // The flag is rolled back if the enqueue throws. JobRunr is not part of this transaction,
+                    // so a failed commit can enqueue twice; claimForProcessing makes that harmless.
+                    transactionTemplate.executeWithoutResult(status -> {
+                        job.setRecoveryInProgress(true);
+                        job.setUpdatedAt(TimeUtil.getCurrentUTC());
+                        scanJobRepository.saveAndFlush(job);
 
-                    jobScheduler.enqueue(
-                            new ScannerInvocationRequest(
-                                    job.getScannerType(),
-                                    job.getExtensionVersionId(),
-                                    job.getScanId()));
+                        jobScheduler.enqueue(
+                                new ScannerInvocationRequest(
+                                        job.getScannerType(),
+                                        job.getExtensionVersionId(),
+                                        job.getScanId()));
+                    });
                     logger.info("Re-enqueued stuck job: scanId={}, scanner={}", job.getScanId(), job.getScannerType());
+                } catch (ObjectOptimisticLockingFailureException e) {
+                    logger.debug("Stuck job {} changed concurrently, skipping", job.getId());
                 } catch (Exception e) {
                     logger.error("Failed to re-enqueue job {}", job.getScanId());
-                    job.setRecoveryInProgress(false);
-                    markFailed(job, "Recovery failed: " + e.getMessage());
-                    completionService.checkCompletionSafely(job.getScanId());
+                    // A worker may have claimed the job meanwhile; only a still-QUEUED job is failed.
+                    scanJobRepository.findById(job.getId())
+                            .filter(current -> current.getStatus() == ScannerJob.JobStatus.QUEUED)
+                            .ifPresent(current -> {
+                                if (markFailed(current, "Recovery failed: " + e.getMessage())) {
+                                    completionService.checkCompletionSafely(current.getScanId());
+                                }
+                            });
                 }
             }
         }
@@ -626,12 +676,14 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
             long activeMinutes = Duration.between(baseline, now).toMinutes();
 
             if (activeMinutes >= timeoutMinutes) {
-                markFailed(
+                if (!markFailed(
                         job,
                         String.format(
                                 "Timeout: exceeded %d min limit (active: %d min)",
                                 timeoutMinutes,
-                                activeMinutes));
+                                activeMinutes))) {
+                    continue;
+                }
                 completionService.checkCompletionSafely(job.getScanId());
                 timedOut++;
                 logger.error(
@@ -665,12 +717,14 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
                 int maxWait = scanner.getMaxQueueWaitMinutes();
                 long waitMinutes = Duration.between(job.getCreatedAt(), now).toMinutes();
                 if (waitMinutes >= maxWait) {
-                    markFailed(
+                    if (!markFailed(
                             job,
                             String.format(
                                     "Queued too long: waited %d min (limit: %d min)",
                                     waitMinutes,
-                                    maxWait));
+                                    maxWait))) {
+                        continue;
+                    }
                     completionService.checkCompletionSafely(job.getScanId());
                     timedOut++;
                     logger.warn(
@@ -687,11 +741,14 @@ public class ExtensionScanJobRecoveryService implements JobRequestHandler<Handle
         }
     }
 
-    private void markFailed(ScannerJob job, String errorMessage) {
+    /**
+     * @return false if the job changed since it was loaded and was left as it is
+     */
+    private boolean markFailed(ScannerJob job, String errorMessage) {
         job.setStatus(ScannerJob.JobStatus.FAILED);
         job.setErrorMessage(errorMessage);
         job.setPollLeaseUntil(null);
         job.setUpdatedAt(TimeUtil.getCurrentUTC());
-        scanJobRepository.save(job);
+        return scanJobRepository.trySave(job);
     }
 }
