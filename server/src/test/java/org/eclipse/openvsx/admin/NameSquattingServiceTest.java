@@ -14,6 +14,7 @@ package org.eclipse.openvsx.admin;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -33,11 +34,14 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionValidationFailure;
 import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.NameSimilarityAllow;
+import org.eclipse.openvsx.entities.NameSimilarityField;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.ScanStatus;
 import org.eclipse.openvsx.entities.UserData;
 import org.eclipse.openvsx.json.NameSquattingJson;
 import org.eclipse.openvsx.repositories.NameSimilarityJooqRepository;
+import org.eclipse.openvsx.scanning.NameSimilarityCheckConfig;
 import org.eclipse.openvsx.scanning.NameSimilarityCheckService;
 import org.eclipse.openvsx.util.ErrorResultException;
 import org.eclipse.openvsx.util.TargetPlatform;
@@ -67,6 +71,9 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
 
     @Autowired
     NameSimilarityJooqRepository similarity;
+
+    @Autowired
+    NameSimilarityCheckConfig check;
 
     private UserData admin;
 
@@ -133,6 +140,80 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
 
         assertThat(placements).containsExactly(earliest.getName());
         assertThat(placements).doesNotContain(later.getName());
+    }
+
+    @Test
+    void keepsALookalikeUnderTheSameAnchorOnEveryPage() throws ErrorResultException {
+        var word = word();
+        var earliest = persistExtension(word + " Tools", EARLY);
+        var middle = persistExtension(word + " Tools", MIDDLE);
+        var latest = persistExtension(word + " Tools", LATE);
+        flag(middle, LATE.plusDays(1));
+        em.flush();
+        var candidates = similarity.findCandidates(NameSimilarityCheckService.CHECK_TYPE, 0, 100_000, TIMEOUT)
+                .stream()
+                .map(NameSimilarityJooqRepository.Candidate::extensionId)
+                .toList();
+
+        // One page looks the middle extension up, another the earliest.
+        var anchors = new ArrayList<String>();
+        for (var candidate : List.of(middle, earliest)) {
+            service.findCollisions(candidates.indexOf(candidate.getId()), 1).groups().stream()
+                    .filter(
+                            group -> group.lookalikes().stream()
+                                    .anyMatch(found -> found.extension().name().equals(latest.getName())))
+                    .forEach(group -> anchors.add(group.anchor().name()));
+        }
+
+        assertThat(anchors).containsExactly(earliest.getName(), earliest.getName());
+    }
+
+    @Test
+    void allowsAPairBeyondTheMatchLimit() throws ErrorResultException {
+        var word = word();
+        var lookalike = persistExtension(word + " Tools", LATE);
+        var others = new ArrayList<Extension>();
+        for (var i = 0; i <= check.getMaxMatches() * 2; i++) {
+            others.add(persistExtension(word + " Tools", EARLY.plusDays(i)));
+        }
+        em.flush();
+
+        var result = service.allow(allowRequest(lookalike, others.getLast(), null), admin);
+
+        assertThat(result.getSuccess()).startsWith("Allowed");
+    }
+
+    @Test
+    void pagesTheAllowlistWithoutSkippingAnyone() {
+        var expected = new ArrayList<String>();
+        for (var i = 0; i < 5; i++) {
+            var word = word();
+            var lookalike = persistExtension(word + " Formater", LATE);
+            var original = persistExtension(word + " Formatter", EARLY);
+            var allow = new NameSimilarityAllow();
+            allow.setExtensionId(lookalike.getId());
+            allow.setOtherExtensionId(original.getId());
+            allow.setField(NameSimilarityField.DISPLAY_NAME);
+            allow.setSimilarity(0.8f);
+            allow.setExtensionValue(word + " Formater");
+            allow.setOtherValue(word + " Formatter");
+            // Far ahead of any other allow, so these lead the list.
+            allow.setDecidedAt(LocalDateTime.of(3000 - i, 1, 1, 0, 0));
+            em.persist(allow);
+            expected.add(lookalike.getName());
+        }
+        em.flush();
+
+        var listed = new ArrayList<String>();
+        var hasMore = new ArrayList<Boolean>();
+        for (var page = 0; page < 3; page++) {
+            var allowlist = service.findAllowlist(page, 2);
+            allowlist.groups().forEach(group -> listed.add(group.extension().name()));
+            hasMore.add(allowlist.hasMore());
+        }
+
+        assertThat(listed.subList(0, 5)).containsExactlyElementsOf(expected);
+        assertThat(hasMore.subList(0, 2)).containsOnly(true);
     }
 
     @Test

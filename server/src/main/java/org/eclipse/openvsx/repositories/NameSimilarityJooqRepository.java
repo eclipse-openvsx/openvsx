@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import jakarta.transaction.Transactional;
@@ -28,6 +29,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.ResultQuery;
+import org.jooq.SortField;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.jspecify.annotations.Nullable;
@@ -71,6 +73,12 @@ public class NameSimilarityJooqRepository {
      * What to look for: the names of one extension, which need not exist yet. Extensions in the same
      * namespace never match. A normalized value shorter than {@code minFuzzyLength} only matches exactly,
      * as trigram scores of very short strings say little.
+     *
+     * @param onlyExtensionIds     when not empty, the only extensions that may match
+     * @param excludedExtensionIds extensions that never match
+     * @param earliestFirst        whether the limit keeps the extensions published first, in the order of
+     *                             published date (unknown first) and then id; otherwise which it keeps is
+     *                             unspecified, which spares sorting every hit
      */
     public record Probe(
             String namespaceName,
@@ -80,7 +88,10 @@ public class NameSimilarityJooqRepository {
             float displayNameThreshold,
             int minFuzzyLength,
             int limit,
-            Duration statementTimeout
+            Duration statementTimeout,
+            Set<Long> onlyExtensionIds,
+            Set<Long> excludedExtensionIds,
+            boolean earliestFirst
     ) {
         public Probe {
             requireThreshold(nameThreshold);
@@ -89,6 +100,83 @@ public class NameSimilarityJooqRepository {
                 throw new IllegalArgumentException("limit must be positive: " + limit);
             }
             requireTimeout(statementTimeout);
+            onlyExtensionIds = Set.copyOf(onlyExtensionIds);
+            excludedExtensionIds = Set.copyOf(excludedExtensionIds);
+        }
+
+        public Probe(
+                String namespaceName,
+                String extensionName,
+                Collection<String> displayNames,
+                float nameThreshold,
+                float displayNameThreshold,
+                int minFuzzyLength,
+                int limit,
+                Duration statementTimeout
+        ) {
+            this(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    Set.of(),
+                    Set.of(),
+                    false);
+        }
+
+        /** This probe, matching only the given extensions. */
+        public Probe onlyExtensions(Collection<Long> extensionIds) {
+            if (extensionIds.isEmpty()) {
+                throw new IllegalArgumentException("extensionIds must not be empty");
+            }
+            return new Probe(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    Set.copyOf(extensionIds),
+                    excludedExtensionIds,
+                    earliestFirst);
+        }
+
+        /** This probe, never matching the given extensions. */
+        public Probe excluding(Collection<Long> extensionIds) {
+            return new Probe(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    onlyExtensionIds,
+                    Set.copyOf(extensionIds),
+                    earliestFirst);
+        }
+
+        /** This probe, keeping the extensions published first when the limit cuts matches off. */
+        public Probe keepingEarliestFirst() {
+            return new Probe(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    onlyExtensionIds,
+                    excludedExtensionIds,
+                    true);
         }
 
         private static void requireThreshold(float threshold) {
@@ -124,7 +212,8 @@ public class NameSimilarityJooqRepository {
 
     /**
      * Find the active extensions outside the probe's namespace that match it, up to {@code limit} per
-     * field and display name. Which matches are cut off beyond the limit is unspecified.
+     * field and display name. Which matches are cut off beyond the limit is unspecified unless the probe
+     * asks for the earliest first.
      * <p>
      * Transactional because the similarity threshold and the timeout are settings local to the transaction.
      */
@@ -176,7 +265,8 @@ public class NameSimilarityJooqRepository {
                 DSL.select(EXTENSION.ID, lowerName)
                         .from(EXTENSION)
                         .where(EXTENSION.ACTIVE.isTrue())
-                        .and(exactOnly ? lowerName.eq(probed) : trigramMatch(lowerName, probed)));
+                        .and(exactOnly ? lowerName.eq(probed) : trigramMatch(lowerName, probed))
+                        .and(onlyIn(EXTENSION.ID, probe)));
         var hitId = hit.field("extension_id", Long.class);
         var hitNormalized = hit.field("normalized", String.class);
         var similarity = similarity(hitNormalized, probed);
@@ -197,6 +287,8 @@ public class NameSimilarityJooqRepository {
                 .join(NAMESPACE).on(NAMESPACE.ID.eq(EXTENSION.NAMESPACE_ID))
                 .where(exactOnly ? DSL.noCondition() : similarity.ge(probe.nameThreshold()))
                 .and(DSL.lower(NAMESPACE.NAME).ne(DSL.lower(DSL.val(probe.namespaceName()))))
+                .and(notExcluded(probe))
+                .orderBy(earliestFirst(probe))
                 .limit(probe.limit());
     }
 
@@ -209,7 +301,8 @@ public class NameSimilarityJooqRepository {
                 DSL.select(EXTENSION_VERSION.EXTENSION_ID, EXTENSION_VERSION.DISPLAY_NAME, candidate)
                         .from(EXTENSION_VERSION)
                         .where(EXTENSION_VERSION.ACTIVE.isTrue())
-                        .and(exactOnly ? candidate.eq(probed) : trigramMatch(candidate, probed)));
+                        .and(exactOnly ? candidate.eq(probed) : trigramMatch(candidate, probed))
+                        .and(onlyIn(EXTENSION_VERSION.EXTENSION_ID, probe)));
         var hitId = hit.field("extension_id", Long.class);
         var hitDisplayName = hit.field("display_name", String.class);
         var hitNormalized = hit.field("normalized", String.class);
@@ -233,6 +326,7 @@ public class NameSimilarityJooqRepository {
                 .where(EXTENSION.ACTIVE.isTrue())
                 .and(exactOnly ? DSL.noCondition() : similarity.ge(probe.displayNameThreshold()))
                 .and(DSL.lower(NAMESPACE.NAME).ne(DSL.lower(DSL.val(probe.namespaceName()))))
+                .and(notExcluded(probe))
                 .groupBy(
                         EXTENSION.ID,
                         NAMESPACE.NAME,
@@ -240,7 +334,24 @@ public class NameSimilarityJooqRepository {
                         hitNormalized,
                         EXTENSION.PUBLISHED_DATE,
                         EXTENSION.DOWNLOAD_COUNT)
+                .orderBy(earliestFirst(probe))
                 .limit(probe.limit());
+    }
+
+    private static Condition onlyIn(Field<Long> extensionId, Probe probe) {
+        return probe.onlyExtensionIds().isEmpty() ? DSL.noCondition() : extensionId.in(probe.onlyExtensionIds());
+    }
+
+    private static Condition notExcluded(Probe probe) {
+        return probe.excludedExtensionIds().isEmpty()
+                ? DSL.noCondition()
+                : EXTENSION.ID.notIn(probe.excludedExtensionIds());
+    }
+
+    private static List<SortField<?>> earliestFirst(Probe probe) {
+        return probe.earliestFirst()
+                ? List.of(EXTENSION.PUBLISHED_DATE.asc().nullsFirst(), EXTENSION.ID.asc())
+                : List.of();
     }
 
     private static Field<Float> namespaceSimilarity(Probe probe) {

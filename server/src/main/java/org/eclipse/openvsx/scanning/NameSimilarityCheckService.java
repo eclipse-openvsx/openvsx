@@ -121,7 +121,17 @@ public class NameSimilarityCheckService implements PublishCheck {
 
     /** Matches of the given names against other namespaces' active extensions, in no particular order. */
     public List<Match> findMatches(String namespaceName, String extensionName, Collection<String> displayNames) {
-        var probe = new Probe(
+        return findMatches(probe(namespaceName, extensionName, displayNames));
+    }
+
+    /** Matches of a probe, which {@link #probe} configures as the check does. */
+    public List<Match> findMatches(Probe probe) {
+        return new ArrayList<>(similarity.findSimilar(probe));
+    }
+
+    /** A probe of the given names with the check's thresholds, limit and timeout. */
+    public Probe probe(String namespaceName, String extensionName, Collection<String> displayNames) {
+        return new Probe(
                 namespaceName,
                 extensionName,
                 displayNames,
@@ -130,7 +140,6 @@ public class NameSimilarityCheckService implements PublishCheck {
                 config.getMinFuzzyLength(),
                 config.getMaxMatches(),
                 config.getStatementTimeout());
-        return new ArrayList<>(similarity.findSimilar(probe));
     }
 
     /** For each of the given extensions, the extensions it has been allowed alongside. */
