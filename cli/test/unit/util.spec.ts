@@ -133,16 +133,19 @@ describe('file helpers', () => {
     });
 
     it.each([
-        ['two spaces with a trailing newline', '  ', '\n'],
-        ['tabs without a trailing newline', '\t', ''],
-        ['no indentation', '', ''],
-    ])('writeManifest keeps an existing package.json formatted with %s', async (_, indent, newline) => {
+        ['two spaces with a trailing newline', '  ', '\n', '\n'],
+        ['tabs without a trailing newline', '\t', '\n', ''],
+        ['no indentation', '', '\n', ''],
+        ['CRLF line endings and a trailing newline', '  ', '\r\n', '\r\n'],
+        ['CRLF line endings without a trailing newline', '\t', '\r\n', ''],
+    ])('writeManifest keeps an existing package.json formatted with %s', async (_, indent, eol, newline) => {
         givenTempDir();
         const file = path.join(dir, 'package.json');
         const manifest = { publisher: 'p', name: 'n', version: '1.0.0' };
-        fs.writeFileSync(file, JSON.stringify(manifest, null, indent) + newline);
+        const format = (m: object) => JSON.stringify(m, null, indent).replace(/\n/g, eol) + newline;
+        fs.writeFileSync(file, format(manifest));
         await writeManifest({ ...manifest, license: 'MIT' }, dir);
-        expect(fs.readFileSync(file, 'utf-8')).toBe(JSON.stringify({ ...manifest, license: 'MIT' }, null, indent) + newline);
+        expect(fs.readFileSync(file, 'utf-8')).toBe(format({ ...manifest, license: 'MIT' }));
     });
 
     it('readManifest parses package.json from the package path', async () => {
