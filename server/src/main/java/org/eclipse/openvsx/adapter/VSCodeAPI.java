@@ -105,7 +105,7 @@ public class VSCodeAPI {
             @Parameter(description = "Parameters of the extension query") ExtensionQueryParam param
     ) {
         var size = validatedPageSize(param);
-        return extensionQueryRequestHandler.getResult(param, size, DEFAULT_PAGE_SIZE);
+        return extensionQueryRequestHandler.getResult(param, size, defaultPageSize());
     }
 
     @GetMapping(
@@ -132,7 +132,7 @@ public class VSCodeAPI {
         }
 
         var size = validatedPageSize(param);
-        var result = extensionQueryRequestHandler.getResult(param, size, DEFAULT_PAGE_SIZE);
+        var result = extensionQueryRequestHandler.getResult(param, size, defaultPageSize());
 
         return ResponseEntity.ok()
                 // support caching the result of extensionquery upto 5 min and force the client to revalidate
@@ -142,19 +142,33 @@ public class VSCodeAPI {
                 .body(result);
     }
 
+    private int defaultPageSize() {
+        return Math.min(DEFAULT_PAGE_SIZE, limits.getMaxSearchPageSize());
+    }
+
     private int validatedPageSize(ExtensionQueryParam param) {
+        var defaultPageSize = defaultPageSize();
         if (param.filters() == null || param.filters().isEmpty()) {
-            return DEFAULT_PAGE_SIZE;
+            return defaultPageSize;
         }
 
-        var filter = param.filters().getFirst();
+        // Only the first filter is used locally, but UpstreamVSCodeService forwards them all.
+        for (var filter : param.filters()) {
+            validate(filter, defaultPageSize);
+        }
+
+        var pageSize = param.filters().getFirst().pageSize();
+        return pageSize > 0 ? pageSize : defaultPageSize;
+    }
+
+    private void validate(ExtensionQueryParam.Filter filter, int defaultPageSize) {
         if (filter.criteria() != null && filter.criteria().size() > limits.getMaxCriteria()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "A filter must not have more than " + limits.getMaxCriteria() + " criteria");
         }
 
-        var size = filter.pageSize() > 0 ? filter.pageSize() : DEFAULT_PAGE_SIZE;
+        var size = filter.pageSize() > 0 ? filter.pageSize() : defaultPageSize;
         // A lookup by id or name pages nothing; VS Code sets its pageSize to the number of extensions.
         var isLookup = !filter.findCriteria(FILTER_EXTENSION_ID).isEmpty()
                 || !filter.findCriteria(FILTER_EXTENSION_NAME).isEmpty();
@@ -163,11 +177,12 @@ public class VSCodeAPI {
                     HttpStatus.BAD_REQUEST,
                     "The page size must not exceed " + limits.getMaxSearchPageSize());
         }
-        if (((long) filter.pageNumber() - 1) * size > Integer.MAX_VALUE) {
+
+        // The search adds offset and size as ints.
+        var page = Math.max(0L, (long) filter.pageNumber() - 1);
+        if ((page + 1) * size > Integer.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The page number is too large");
         }
-
-        return size;
     }
 
     /**

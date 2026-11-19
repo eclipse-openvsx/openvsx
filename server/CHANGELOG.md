@@ -12,7 +12,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 ### Changed
 
-- `/vscode/gallery/extensionquery` answers 400 to a filter with more criteria than `ovsx.extension-query.max-criteria` (1000), a search (no extension id or name criteria) with a page size above `ovsx.extension-query.max-search-page-size` (100), or a page offset beyond 2^31 - 1, instead of doing the work ([#1305](https://github.com/eclipse-openvsx/openvsx/issues/1305))
+- `/vscode/gallery/extensionquery` answers 400 when any filter has more criteria than `ovsx.extension-query.max-criteria` (1000), searches (no extension id or name criteria) with a page size above `ovsx.extension-query.max-search-page-size` (100), or asks for a page that ends beyond result 2^31 - 1, instead of doing the work ([#1305](https://github.com/eclipse-openvsx/openvsx/issues/1305))
 
 ### Fixed
 

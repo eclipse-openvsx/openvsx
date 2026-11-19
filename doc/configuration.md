@@ -652,7 +652,7 @@ How many of an extension's pre-release versions an `extensionquery` response lis
 | Default       | `1000`
 | Compatibility | Since 1.5.0
 
-The most criteria an `extensionquery` filter may have; a query with more is answered with 400. VS Code sends one criterion per installed extension, all in one query, so keep this above the largest set of extensions a user installs. Must be greater than zero.
+The most criteria each `extensionquery` filter may have; a query with more is answered with 400. VS Code sends one criterion per installed extension, all in one query, so keep this above the largest set of extensions a user installs. Must be greater than zero.
 
 | Property      | `ovsx.extension-query.max-search-page-size`
 |---------------|--------------------------------------------
@@ -660,7 +660,7 @@ The most criteria an `extensionquery` filter may have; a query with more is answ
 | Default       | `100`
 | Compatibility | Since 1.5.0
 
-The largest page size of an `extensionquery` search, that is a query without extension id or name criteria; a larger one is answered with 400. VS Code searches with 50. Must be greater than zero.
+The largest page size of an `extensionquery` search, that is a query without extension id or name criteria; a larger one is answered with 400. A query without a page size gets 20, or this limit if it is lower. VS Code searches with 50. Must be greater than zero.
 
 ## Migrations
 

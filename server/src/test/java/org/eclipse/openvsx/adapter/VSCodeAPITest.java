@@ -46,6 +46,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.MockMvcAsyncConfig;
@@ -266,6 +267,60 @@ class VSCodeAPITest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(status().reason("The page number is too large"));
+        // the offset fits in an int, but not the window that ends one page later
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(List.of(target), 21474837, 100))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page number is too large"));
+    }
+
+    @Test
+    void testExtensionQueryLimitsApplyToEveryFilter() throws Exception {
+        var target = "{\"filterType\":8,\"value\":\"Microsoft.VisualStudio.Code\"}";
+        var small = extensionFilter(List.of(target), 1, 10);
+        var names = IntStream.range(0, 1001)
+                .mapToObj(i -> "{\"filterType\":7,\"value\":\"ns.ext" + i + "\"}")
+                .toList();
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content("{\"filters\":[" + small + "," + extensionFilter(names, 1, 1001) + "],\"flags\":950}")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("A filter must not have more than 1000 criteria"));
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(
+                                "{\"filters\":[" + small + "," + extensionFilter(List.of(target), 1, 101)
+                                        + "],\"flags\":950}")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page size must not exceed 100"));
+    }
+
+    @Test
+    void testExtensionQueryDefaultPageSizeStaysWithinTheSearchLimit() {
+        var limits = Mockito.mock(ExtensionQueryLimitsConfig.class);
+        Mockito.when(limits.getMaxCriteria()).thenReturn(1000);
+        Mockito.when(limits.getMaxSearchPageSize()).thenReturn(10);
+        var handler = Mockito.mock(IExtensionQueryRequestHandler.class);
+        var api = new VSCodeAPI(
+                Mockito.mock(LocalVSCodeService.class),
+                Mockito.mock(UpstreamVSCodeService.class),
+                handler,
+                Mockito.mock(JsonMapper.class),
+                limits);
+
+        var noFilters = new ExtensionQueryParam(List.of(), 0);
+        api.extensionQuery(noFilters);
+        Mockito.verify(handler).getResult(noFilters, 10, 10);
+
+        var noPageSize = new ExtensionQueryParam(
+                List.of(new ExtensionQueryParam.Filter(List.of(), 1, 0, 0, 0)),
+                0);
+        api.extensionQuery(noPageSize);
+        Mockito.verify(handler).getResult(noPageSize, 10, 10);
     }
 
     @Test
@@ -290,8 +345,12 @@ class VSCodeAPITest {
     }
 
     private static String extensionQuery(List<String> criteria, int pageNumber, int pageSize) {
-        return "{\"filters\":[{\"criteria\":[" + String.join(",", criteria) + "],\"pageNumber\":" + pageNumber
-                + ",\"pageSize\":" + pageSize + ",\"sortBy\":0,\"sortOrder\":0}],\"flags\":950}";
+        return "{\"filters\":[" + extensionFilter(criteria, pageNumber, pageSize) + "],\"flags\":950}";
+    }
+
+    private static String extensionFilter(List<String> criteria, int pageNumber, int pageSize) {
+        return "{\"criteria\":[" + String.join(",", criteria) + "],\"pageNumber\":" + pageNumber
+                + ",\"pageSize\":" + pageSize + ",\"sortBy\":0,\"sortOrder\":0}";
     }
 
     @Test
