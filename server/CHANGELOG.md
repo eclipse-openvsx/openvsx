@@ -16,6 +16,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - A failed asynchronous publish is retried again (up to 3 times, an `Error` is not retried), and the uploaded package is kept until the last attempt instead of being deleted after the first ([#2449](https://github.com/eclipse-openvsx/openvsx/issues/2449))
 - Namespace details are cached under one key whatever the case of the namespace name in the request, so a differently-cased URL no longer serves stale details after a member, details or logo change ([#2445](https://github.com/eclipse-openvsx/openvsx/issues/2445))
 - Deleting an extension is no longer refused because of removed versions of other extensions that depended on it ([#2441](https://github.com/eclipse-openvsx/openvsx/issues/2441))
+- `/vscode/gallery/extensionquery` with `IncludeLatestVersionOnly` loads one version per extension and target platform instead of every active version, which VS Code's update check still did, and looks up extensions by name in one query ([#1305](https://github.com/eclipse-openvsx/openvsx/issues/1305))
 
 ### Dependencies
 

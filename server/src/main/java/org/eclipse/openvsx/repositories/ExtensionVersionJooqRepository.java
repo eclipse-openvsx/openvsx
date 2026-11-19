@@ -31,6 +31,7 @@ import org.jooq.JoinType;
 import org.jooq.Record;
 import org.jooq.Row1;
 import org.jooq.Row2;
+import org.jooq.SelectConditionStep;
 import org.jooq.SelectQuery;
 import org.jooq.Table;
 import org.jooq.TableField;
@@ -90,46 +91,11 @@ public class ExtensionVersionJooqRepository {
             // plain, unaliased columns and maps them the same way every other unranked query in this
             // class does (see toExtensionVersion), rather than the aliasing/remapping machinery below,
             // which exists only to make the capped path's CTE possible.
-            var query = dsl.select(
-                    NAMESPACE.ID,
-                    NAMESPACE.NAME,
-                    EXTENSION.ID,
-                    EXTENSION.NAME,
-                    EXTENSION_VERSION.ID,
-                    EXTENSION_VERSION.VERSION,
-                    EXTENSION_VERSION.POTENTIALLY_MALICIOUS,
-                    EXTENSION_VERSION.REMOVED,
-                    EXTENSION_VERSION.TARGET_PLATFORM,
-                    EXTENSION_VERSION.PREVIEW,
-                    EXTENSION_VERSION.PRE_RELEASE,
-                    EXTENSION_VERSION.TIMESTAMP,
-                    EXTENSION_VERSION.DISPLAY_NAME,
-                    EXTENSION_VERSION.DESCRIPTION,
-                    EXTENSION_VERSION.ENGINES,
-                    EXTENSION_VERSION.CATEGORIES,
-                    EXTENSION_VERSION.TAGS,
-                    EXTENSION_VERSION.EXTENSION_KIND,
-                    EXTENSION_VERSION.REPOSITORY,
-                    EXTENSION_VERSION.SPONSOR_LINK,
-                    EXTENSION_VERSION.GALLERY_COLOR,
-                    EXTENSION_VERSION.GALLERY_THEME,
-                    EXTENSION_VERSION.LOCALIZED_LANGUAGES,
-                    EXTENSION_VERSION.DEPENDENCIES,
-                    EXTENSION_VERSION.BUNDLED_EXTENSIONS,
-                    SIGNATURE_KEY_PAIR.PUBLIC_ID)
-                    .from(EXTENSION_VERSION)
-                    .join(EXTENSION).on(EXTENSION.ID.eq(EXTENSION_VERSION.EXTENSION_ID))
-                    .join(NAMESPACE).on(NAMESPACE.ID.eq(EXTENSION.NAMESPACE_ID))
-                    .leftJoin(SIGNATURE_KEY_PAIR)
-                    .on(SIGNATURE_KEY_PAIR.ID.eq(EXTENSION_VERSION.SIGNATURE_KEY_PAIR_ID))
-                    .where(EXTENSION_VERSION.ACTIVE.eq(true))
-                    .and(EXTENSION_VERSION.EXTENSION_ID.in(extensionIds));
-
+            var condition = EXTENSION_VERSION.EXTENSION_ID.in(extensionIds);
             if (targetPlatform != null) {
-                query = query.and(EXTENSION_VERSION.TARGET_PLATFORM.eq(targetPlatform));
+                condition = condition.and(EXTENSION_VERSION.TARGET_PLATFORM.eq(targetPlatform));
             }
-
-            return query.fetch().map(this::toExtensionVersion);
+            return selectActive(condition).fetch().map(this::toExtensionVersion);
         }
 
         // Capped: rank pre-releases with a single denseRank() window function (over all target
@@ -202,6 +168,82 @@ public class ExtensionVersionJooqRepository {
         }
 
         return query.fetch().map(this::toRankedExtensionVersion);
+    }
+
+    /**
+     * The latest active version of each extension per target platform, in the order of {@code
+     * ExtensionVersion.SORT_COMPARATOR}: one index seek per (extension, platform), however long the history.
+     */
+    public List<ExtensionVersion> findLatestActiveByExtensionIdPerTargetPlatform(
+            Collection<Long> extensionIds,
+            String targetPlatform
+    ) {
+        if (extensionIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        var ids = DSL.values(extensionIds.stream().map(DSL::row).toArray(Row1[]::new)).as("ids", "id");
+        // The platforms are a fixed set, so seeking each one beats scanning the history for the ones in use.
+        var platformNames = targetPlatform != null ? List.of(targetPlatform) : TargetPlatform.TARGET_PLATFORM_NAMES;
+        var platforms = DSL.values(
+                platformNames.stream()
+                        .map(name -> DSL.row(name, TargetPlatform.isUniversal(name)))
+                        .toArray(Row2[]::new))
+                .as("platforms", "name", "universal");
+        // extension_version_by_target_platform_order_by_idx serves this as a seek
+        var latest = dsl.select(EXTENSION_VERSION.ID)
+                .from(EXTENSION_VERSION)
+                .where(EXTENSION_VERSION.EXTENSION_ID.eq(ids.field("id", Long.class)))
+                .and(EXTENSION_VERSION.UNIVERSAL_TARGET_PLATFORM.eq(platforms.field("universal", Boolean.class)))
+                .and(EXTENSION_VERSION.TARGET_PLATFORM.eq(platforms.field("name", String.class)))
+                .and(EXTENSION_VERSION.ACTIVE.eq(true))
+                .orderBy(
+                        EXTENSION_VERSION.SEMVER_MAJOR.desc(),
+                        EXTENSION_VERSION.SEMVER_MINOR.desc(),
+                        EXTENSION_VERSION.SEMVER_PATCH.desc(),
+                        EXTENSION_VERSION.SEMVER_IS_PRE_RELEASE.asc(),
+                        EXTENSION_VERSION.TIMESTAMP.desc())
+                .limit(1)
+                .asTable("latest");
+        var latestIds = dsl.select(latest.field(EXTENSION_VERSION.ID)).from(ids, platforms, DSL.lateral(latest));
+        return selectActive(EXTENSION_VERSION.ID.in(latestIds)).fetch().map(this::toExtensionVersion);
+    }
+
+    private SelectConditionStep<Record> selectActive(Condition condition) {
+        return dsl.select(
+                NAMESPACE.ID,
+                NAMESPACE.NAME,
+                EXTENSION.ID,
+                EXTENSION.NAME,
+                EXTENSION_VERSION.ID,
+                EXTENSION_VERSION.VERSION,
+                EXTENSION_VERSION.POTENTIALLY_MALICIOUS,
+                EXTENSION_VERSION.REMOVED,
+                EXTENSION_VERSION.TARGET_PLATFORM,
+                EXTENSION_VERSION.PREVIEW,
+                EXTENSION_VERSION.PRE_RELEASE,
+                EXTENSION_VERSION.TIMESTAMP,
+                EXTENSION_VERSION.DISPLAY_NAME,
+                EXTENSION_VERSION.DESCRIPTION,
+                EXTENSION_VERSION.ENGINES,
+                EXTENSION_VERSION.CATEGORIES,
+                EXTENSION_VERSION.TAGS,
+                EXTENSION_VERSION.EXTENSION_KIND,
+                EXTENSION_VERSION.REPOSITORY,
+                EXTENSION_VERSION.SPONSOR_LINK,
+                EXTENSION_VERSION.GALLERY_COLOR,
+                EXTENSION_VERSION.GALLERY_THEME,
+                EXTENSION_VERSION.LOCALIZED_LANGUAGES,
+                EXTENSION_VERSION.DEPENDENCIES,
+                EXTENSION_VERSION.BUNDLED_EXTENSIONS,
+                SIGNATURE_KEY_PAIR.PUBLIC_ID)
+                .from(EXTENSION_VERSION)
+                .join(EXTENSION).on(EXTENSION.ID.eq(EXTENSION_VERSION.EXTENSION_ID))
+                .join(NAMESPACE).on(NAMESPACE.ID.eq(EXTENSION.NAMESPACE_ID))
+                .leftJoin(SIGNATURE_KEY_PAIR)
+                .on(SIGNATURE_KEY_PAIR.ID.eq(EXTENSION_VERSION.SIGNATURE_KEY_PAIR_ID))
+                .where(EXTENSION_VERSION.ACTIVE.eq(true))
+                .and(condition);
     }
 
     public Page<String> findActiveVersionStringsSorted(
