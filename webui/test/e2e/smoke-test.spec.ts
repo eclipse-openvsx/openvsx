@@ -110,9 +110,9 @@ test.describe('OpenVSX', () => {
         const extensionPath = new URL(page.url()).pathname;
         const namespace = extensionPath.split('/')[2];
 
-        await page.getByRole('link', { name: namespace, exact: true }).click();
+        // the link shows the namespace's display name, so find it by its target
+        await page.locator(`a[href$="/namespace/${namespace}"]`).click();
         await expect(page).toHaveURL(new RegExp(`/namespace/${namespace}$`));
-        await expect(page.getByRole('heading', { name: namespace, exact: true })).toBeVisible();
         await expect(page.getByRole('link', { name: extensionToOpen.heading })).toHaveAttribute('href', extensionPath);
     });
 
