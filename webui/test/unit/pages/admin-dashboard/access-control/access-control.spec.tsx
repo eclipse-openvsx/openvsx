@@ -14,7 +14,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router';
+import { Route, Routes, useLocation } from 'react-router';
 import { renderWithProviders } from '../../../support/test-providers';
 import { AccessControl } from '../../../../../src/pages/admin-dashboard/access-control/access-control';
 import { AdminDashboardRoutes } from '../../../../../src/pages/admin-dashboard/admin-dashboard-routes';
@@ -29,15 +29,26 @@ function serviceWith(users: UserSearchResult): ExtensionRegistryService {
     return { serverUrl: 'https://open-vsx.org', admin } as ExtensionRegistryService;
 }
 
+const CurrentPath = () => {
+    const { pathname, search } = useLocation();
+    return <span data-testid='path'>{pathname + search}</span>;
+};
+
 // AccessControl is normally mounted under this nested route by admin-dashboard.tsx; reproduce that
 // here so useParams()/navigate() behave as they do in the app, not a route of convenience.
-function renderAccessControl(service: ExtensionRegistryService, login: string) {
+function renderAccessControl(service: ExtensionRegistryService, login: string, provider: string | null = 'github') {
     return renderWithProviders(
-        <Routes>
-            <Route path={AdminDashboardRoutes.ACCESS_CONTROL} element={<AccessControl />} />
-            <Route path={`${AdminDashboardRoutes.ACCESS_CONTROL}/:login`} element={<AccessControl />} />
-        </Routes>,
-        { route: `${AdminDashboardRoutes.ACCESS_CONTROL}/${login}`, mainContext: { service } }
+        <>
+            <CurrentPath />
+            <Routes>
+                <Route path={AdminDashboardRoutes.ACCESS_CONTROL} element={<AccessControl />} />
+                <Route path={`${AdminDashboardRoutes.ACCESS_CONTROL}/:login`} element={<AccessControl />} />
+            </Routes>
+        </>,
+        {
+            route: `${AdminDashboardRoutes.ACCESS_CONTROL}/${login}${provider ? `?provider=${provider}` : ''}`,
+            mainContext: { service }
+        }
     );
 }
 
@@ -68,6 +79,70 @@ describe('AccessControl', () => {
 
         expect(await screen.findByRole('button', { name: 'Admin' })).toBeInTheDocument();
         expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
+    });
+
+    it('resolves a deep link to the account of the linked provider when another shares its login', async () => {
+        const sameLogin: UserSearchResult = {
+            ...OCTOCAT,
+            content: [
+                {
+                    user: {
+                        loginName: 'octocat',
+                        tokensUrl: '',
+                        createTokenUrl: '',
+                        provider: 'github',
+                        role: 'admin'
+                    },
+                    namespaces: []
+                },
+                {
+                    user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'eclipse' },
+                    namespaces: []
+                }
+            ]
+        };
+        renderAccessControl(serviceWith(sameLogin), 'octocat', 'eclipse');
+
+        expect(await screen.findByRole('button', { name: 'No role' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it.each([
+        { title: 'with its provider', provider: 'eclipse', query: '?provider=eclipse' },
+        { title: 'with no provider when it has none', provider: undefined, query: '' }
+    ])('links to a picked user $title', async ({ provider, query }) => {
+        const otherProvider: UserSearchResult = {
+            ...TWO_USERS,
+            content: [
+                TWO_USERS.content[0],
+                { ...TWO_USERS.content[1], user: { ...TWO_USERS.content[1].user, provider } }
+            ]
+        };
+        renderAccessControl(serviceWith(otherProvider), 'octocat');
+        await screen.findByRole('checkbox', { name: 'Manage extensions' });
+
+        await userEvent.click(screen.getByPlaceholderText('Search by login or display name...'));
+        await userEvent.click(await screen.findByRole('option', { name: /hubot/ }));
+
+        await waitFor(() =>
+            expect(screen.getByTestId('path').textContent).toBe(`${AdminDashboardRoutes.ACCESS_CONTROL}/hubot${query}`)
+        );
+    });
+
+    it('selects no one from a deep link without a provider', async () => {
+        const getUsers = vi.fn().mockResolvedValue({ ...OCTOCAT, page: { ...OCTOCAT.page, totalPages: 3 } });
+        const service = {
+            serverUrl: 'https://open-vsx.org',
+            admin: {
+                getUsers,
+                getPermissions: vi.fn().mockResolvedValue([{ value: 'manage_extensions', label: 'Manage extensions' }])
+            } as unknown as AdminService
+        } as ExtensionRegistryService;
+        renderAccessControl(service, 'octocat', null);
+
+        expect(await screen.findByText(/No user found/)).toBeInTheDocument();
+        expect(screen.queryByRole('checkbox', { name: 'Manage extensions' })).not.toBeInTheDocument();
+        // No later page can match either, so none is loaded.
+        expect(getUsers).toHaveBeenCalledTimes(1);
     });
 
     // Dropping the selection unmounts the details card and takes the draft with it, so it has to be
