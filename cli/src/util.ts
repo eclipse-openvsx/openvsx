@@ -216,10 +216,12 @@ export function validateManifest(manifest: Manifest): void {
 export async function writeManifest(manifest: Manifest, packagePath?: string): Promise<void> {
     const file = path.join(packagePath ?? process.cwd(), 'package.json');
     const existing = await fs.promises.readFile(file, 'utf-8').catch(() => undefined);
-    // Keep the existing file's indentation and trailing newline so only the changed fields show in a diff.
+    // Keep the existing file's indentation, line endings and trailing newline so only the changed fields show in a diff.
     const indent = existing === undefined ? 4 : /^([ \t]+)"/m.exec(existing)?.[1] ?? '';
-    const newline = existing?.endsWith('\n') ? '\n' : '';
-    await fs.promises.writeFile(file, JSON.stringify(manifest, null, indent) + newline, 'utf-8');
+    const eol = existing?.includes('\r\n') ? '\r\n' : '\n';
+    const content = JSON.stringify(manifest, null, indent).replace(/\n/g, eol);
+    const newline = existing?.endsWith('\n') ? eol : '';
+    await fs.promises.writeFile(file, content + newline, 'utf-8');
 }
 
 export interface Manifest {

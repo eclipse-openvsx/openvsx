@@ -10,7 +10,7 @@ export interface SmokeTestOptions {
     minNumberOfExtensions: number;
     /**
      * Configuration for testing searching, opening, and downloading a specific extension.
-     * The chosen extension must have more than 1,000 downloads and multiple versions.
+     * The chosen extension must have more than 1,000 downloads, multiple versions and a changelog.
      */
     extensionToOpen: {
         /** The search query used to find the extension in the registry. */
