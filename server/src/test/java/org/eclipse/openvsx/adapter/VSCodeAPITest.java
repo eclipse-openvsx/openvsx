@@ -29,6 +29,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.persistence.EntityManager;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.ObjectProvider;
@@ -299,28 +300,37 @@ class VSCodeAPITest {
                 .andExpect(status().reason("The page size must not exceed 100"));
     }
 
+    // UpstreamVSCodeService posts the query as it gets it, so it must carry the page number and size.
     @Test
-    void testExtensionQueryDefaultPageSizeStaysWithinTheSearchLimit() {
+    void testExtensionQueryForwardsAnExplicitPageNumberAndSize() {
         var limits = Mockito.mock(ExtensionQueryLimitsConfig.class);
         Mockito.when(limits.getMaxCriteria()).thenReturn(1000);
         Mockito.when(limits.getMaxSearchPageSize()).thenReturn(10);
-        var handler = Mockito.mock(IExtensionQueryRequestHandler.class);
+        var local = Mockito.mock(LocalVSCodeService.class);
+        var upstream = Mockito.mock(UpstreamVSCodeService.class);
+        Mockito.when(upstream.isValid()).thenReturn(true);
+        var empty = new ExtensionQueryResult(List.of(new ExtensionQueryResult.ResultItem(List.of(), List.of())));
+        Mockito.when(local.extensionQuery(any(), anyInt())).thenReturn(empty);
+        Mockito.when(upstream.extensionQuery(any(), anyInt())).thenReturn(empty);
         var api = new VSCodeAPI(
-                Mockito.mock(LocalVSCodeService.class),
-                Mockito.mock(UpstreamVSCodeService.class),
-                handler,
-                Mockito.mock(JsonMapper.class),
+                local,
+                upstream,
+                new DefaultExtensionQueryRequestHandler(local, upstream),
+                JsonMapper.builder().build(),
                 limits);
 
-        var noFilters = new ExtensionQueryParam(List.of(), 0);
-        api.extensionQuery(noFilters);
-        Mockito.verify(handler).getResult(noFilters, 10, 10);
+        api.extensionQuery(new ExtensionQueryParam(null, 0));
+        api.extensionQueryAsGet(
+                "{\"filters\":[{\"criteria\":[],\"pageNumber\":" + Integer.MIN_VALUE
+                        + ",\"pageSize\":0,\"sortBy\":0,\"sortOrder\":0}],\"flags\":0}");
 
-        var noPageSize = new ExtensionQueryParam(
-                List.of(new ExtensionQueryParam.Filter(List.of(), 1, 0, 0, 0)),
-                0);
-        api.extensionQuery(noPageSize);
-        Mockito.verify(handler).getResult(noPageSize, 10, 10);
+        var forwarded = ArgumentCaptor.forClass(ExtensionQueryParam.class);
+        Mockito.verify(upstream, Mockito.times(2)).extensionQuery(forwarded.capture(), anyInt());
+        assertThat(forwarded.getAllValues()).allSatisfy(
+                param -> assertThat(param.filters()).singleElement().satisfies(filter -> {
+                    assertThat(filter.pageNumber()).isEqualTo(1);
+                    assertThat(filter.pageSize()).isEqualTo(10);
+                }));
     }
 
     @Test

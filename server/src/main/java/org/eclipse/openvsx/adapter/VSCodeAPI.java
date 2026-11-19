@@ -104,8 +104,9 @@ public class VSCodeAPI {
             @RequestBody
             @Parameter(description = "Parameters of the extension query") ExtensionQueryParam param
     ) {
-        var size = validatedPageSize(param);
-        return extensionQueryRequestHandler.getResult(param, size, defaultPageSize());
+        var validated = validated(param);
+        return extensionQueryRequestHandler
+                .getResult(validated, validated.filters().getFirst().pageSize(), defaultPageSize());
     }
 
     @GetMapping(
@@ -131,8 +132,9 @@ public class VSCodeAPI {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid extension query" + describe(ex));
         }
 
-        var size = validatedPageSize(param);
-        var result = extensionQueryRequestHandler.getResult(param, size, defaultPageSize());
+        var validated = validated(param);
+        var result = extensionQueryRequestHandler
+                .getResult(validated, validated.filters().getFirst().pageSize(), defaultPageSize());
 
         return ResponseEntity.ok()
                 // support caching the result of extensionquery upto 5 min and force the client to revalidate
@@ -146,29 +148,35 @@ public class VSCodeAPI {
         return Math.min(DEFAULT_PAGE_SIZE, limits.getMaxSearchPageSize());
     }
 
-    private int validatedPageSize(ExtensionQueryParam param) {
+    /**
+     * The query with a page number of at least 1 and a page size in every filter, checked against the limits.
+     * It is what gets forwarded upstream, so the upstream registry's own defaults never apply.
+     */
+    private ExtensionQueryParam validated(ExtensionQueryParam param) {
         var defaultPageSize = defaultPageSize();
-        if (param.filters() == null || param.filters().isEmpty()) {
-            return defaultPageSize;
-        }
-
-        // Only the first filter is used locally, but UpstreamVSCodeService forwards them all.
-        for (var filter : param.filters()) {
-            validate(filter, defaultPageSize);
-        }
-
-        var pageSize = param.filters().getFirst().pageSize();
-        return pageSize > 0 ? pageSize : defaultPageSize;
+        var filters = param.filters() == null || param.filters().isEmpty()
+                ? List.of(new ExtensionQueryParam.Filter(List.of(), 1, defaultPageSize, 0, 0))
+                : param.filters().stream()
+                        .map(
+                                filter -> new ExtensionQueryParam.Filter(
+                                        filter.criteria(),
+                                        Math.max(1, filter.pageNumber()),
+                                        filter.pageSize() > 0 ? filter.pageSize() : defaultPageSize,
+                                        filter.sortBy(),
+                                        filter.sortOrder()))
+                        .toList();
+        filters.forEach(this::validate);
+        return new ExtensionQueryParam(filters, param.flags());
     }
 
-    private void validate(ExtensionQueryParam.Filter filter, int defaultPageSize) {
+    private void validate(ExtensionQueryParam.Filter filter) {
         if (filter.criteria() != null && filter.criteria().size() > limits.getMaxCriteria()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "A filter must not have more than " + limits.getMaxCriteria() + " criteria");
         }
 
-        var size = filter.pageSize() > 0 ? filter.pageSize() : defaultPageSize;
+        var size = filter.pageSize();
         // A lookup by id or name pages nothing; VS Code sets its pageSize to the number of extensions.
         var isLookup = !filter.findCriteria(FILTER_EXTENSION_ID).isEmpty()
                 || !filter.findCriteria(FILTER_EXTENSION_NAME).isEmpty();
@@ -178,9 +186,8 @@ public class VSCodeAPI {
                     "The page size must not exceed " + limits.getMaxSearchPageSize());
         }
 
-        // The search adds offset and size as ints.
-        var page = Math.max(0L, (long) filter.pageNumber() - 1);
-        if ((page + 1) * size > Integer.MAX_VALUE) {
+        // The search computes where the page ends, pageNumber * size, as an int.
+        if ((long) filter.pageNumber() * size > Integer.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The page number is too large");
         }
     }
