@@ -646,6 +646,22 @@ Whether to update public ids on startup from the upstream registry instance.
 
 How many of an extension's pre-release versions an `extensionquery` response lists. Regular releases are never capped. A negative value, the default, caps nothing.
 
+| Property      | `ovsx.extension-query.max-criteria`
+|---------------|------------------------------------
+| Type          | int
+| Default       | `1000`
+| Compatibility | Since 1.5.0
+
+The most criteria an `extensionquery` filter may have; a query with more is answered with 400. VS Code sends one criterion per installed extension, all in one query, so keep this above the largest set of extensions a user installs. Must be greater than zero.
+
+| Property      | `ovsx.extension-query.max-search-page-size`
+|---------------|--------------------------------------------
+| Type          | int
+| Default       | `100`
+| Compatibility | Since 1.5.0
+
+The largest page size of an `extensionquery` search, that is a query without extension id or name criteria; a larger one is answered with 400. VS Code searches with 50. Must be greater than zero.
+
 ## Migrations
 
 | Property      | `ovsx.migrations.delay.seconds`

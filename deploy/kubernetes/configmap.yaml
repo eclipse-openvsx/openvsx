@@ -134,6 +134,10 @@ data:
       #    url: https://openvsx.example
       integrity:
         key-pair: create
+      extension-query:
+        # one over these limits is answered with 400; VS Code sends one criterion per installed extension, all in one query
+        max-criteria: 1000
+        max-search-page-size: 100
       storage:
         local:
           directory: /tmp/extensions

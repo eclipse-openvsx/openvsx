@@ -10,6 +10,10 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 
 - Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
 
+### Changed
+
+- `/vscode/gallery/extensionquery` answers 400 to a filter with more criteria than `ovsx.extension-query.max-criteria` (1000), a search (no extension id or name criteria) with a page size above `ovsx.extension-query.max-search-page-size` (100), or a page offset beyond 2^31 - 1, instead of doing the work ([#1305](https://github.com/eclipse-openvsx/openvsx/issues/1305))
+
 ### Fixed
 
 - Adding, removing or changing a namespace member through `/user/namespace/{namespace}/role` now refreshes the cached namespace details, so the `verified` flag no longer stays stale after an owner change
