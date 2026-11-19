@@ -122,9 +122,14 @@ export const useRemoveNameSquattingAllows = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (ids: number[]) => {
             for (const id of ids) {
-                await service.admin.removeNameSquattingAllow(id);
+                try {
+                    await service.admin.removeNameSquattingAllow(id);
+                } catch (error) {
+                    if (typeof error !== 'object' || error === null || !('status' in error) || error.status !== 404) {
+                        throw error;
+                    }
+                }
             }
         },
         onSettled: () => queryClient.invalidateQueries({ queryKey: nameSquattingKeys.all })
