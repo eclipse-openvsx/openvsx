@@ -123,6 +123,7 @@ public class NameSquattingService {
 
     private NameSquattingJson.Collisions lookUpCollisions(int offset, int size) {
         var pairs = new LinkedHashMap<Long, Pair>();
+        var probed = new HashSet<Long>();
         var cursor = offset;
         var hasMore = true;
         for (var batch = 0; batch < MAX_BATCHES && hasMore && pairs.size() < size; batch++) {
@@ -133,8 +134,9 @@ public class NameSquattingService {
                     check.getStatementTimeout());
             cursor += candidates.size();
             hasMore = candidates.size() == size;
-            collectPairs(candidates, pairs);
+            collectPairs(candidates, pairs, probed);
         }
+        anchorAtTheEarliest(pairs, probed);
 
         var lookalikeIds = pairs.keySet();
         var lookalikes = byId(similarity.findNames(lookalikeIds));
@@ -157,9 +159,9 @@ public class NameSquattingService {
 
     /**
      * Look the candidates up and add their pairs to {@code pairs}, keyed by look-alike, which keeps each
-     * look-alike under the earliest published extension it resembles.
+     * look-alike under the earliest published extension it resembles. The candidates join {@code probed}.
      */
-    private void collectPairs(List<Candidate> candidates, Map<Long, Pair> pairs) {
+    private void collectPairs(List<Candidate> candidates, Map<Long, Pair> pairs, Set<Long> probed) {
         if (candidates.isEmpty()) {
             return;
         }
@@ -173,12 +175,8 @@ public class NameSquattingService {
             if (candidateNames == null || !candidateNames.active()) {
                 continue;
             }
-            var partners = allowed.getOrDefault(candidate.extensionId(), Set.of());
-            check.findMatches(candidateNames.namespaceName(), candidateNames.name(), candidateNames.displayNames())
-                    .stream()
-                    .filter(match -> !partners.contains(match.extensionId()))
-                    .collect(Collectors.groupingBy(Match::extensionId))
-                    .forEach((otherId, matches) -> found.add(new Found(candidate, candidateNames, otherId, matches)));
+            probed.add(candidate.extensionId());
+            found.addAll(lookUp(candidate, candidateNames, allowed.getOrDefault(candidate.extensionId(), Set.of())));
         }
 
         var others = byId(similarity.findNames(found.stream().map(Found::otherId).toList()));
@@ -189,6 +187,57 @@ public class NameSquattingService {
                 pairs.merge(pair.lookalikeId(), pair, Pair::earlierAnchor);
             }
         }
+    }
+
+    /**
+     * Look up from their own side the look-alikes that were only found from their anchor's, so each sits
+     * under the earliest extension it resembles whichever page found it, and pages agree on its group.
+     */
+    private void anchorAtTheEarliest(Map<Long, Pair> pairs, Set<Long> probed) {
+        var unprobed = pairs.keySet().stream().filter(id -> !probed.contains(id)).toList();
+        if (unprobed.isEmpty()) {
+            return;
+        }
+        var names = byId(similarity.findNames(unprobed));
+        var allowed = check.allowedPartners(unprobed);
+
+        var found = new ArrayList<Found>();
+        for (var lookalikeId : unprobed) {
+            var lookalikeNames = names.get(lookalikeId);
+            if (lookalikeNames != null) {
+                var candidate = new Candidate(lookalikeId, pairs.get(lookalikeId).flaggedAt());
+                found.addAll(lookUp(candidate, lookalikeNames, allowed.getOrDefault(lookalikeId, Set.of())));
+            }
+        }
+
+        var others = byId(similarity.findNames(found.stream().map(Found::otherId).toList()));
+        for (var match : found) {
+            var other = others.get(match.otherId());
+            if (other == null) {
+                continue;
+            }
+            var pair = Pair.of(match, other);
+            // Extensions published after the look-alike resemble it, but are not on this page.
+            if (pair.lookalikeId() == match.candidate().extensionId()) {
+                pairs.merge(pair.lookalikeId(), pair, Pair::earlierAnchor);
+            }
+        }
+    }
+
+    /**
+     * The candidate's matches, one {@link Found} per other extension. The earliest published are looked
+     * up first, so the limit on matches never cuts off the extension the candidate should be grouped under.
+     */
+    private List<Found> lookUp(Candidate candidate, ExtensionNames names, Set<Long> allowedPartners) {
+        var probe = check.probe(names.namespaceName(), names.name(), names.displayNames())
+                .excluding(allowedPartners)
+                .keepingEarliestFirst();
+        return check.findMatches(probe).stream()
+                .collect(Collectors.groupingBy(Match::extensionId, LinkedHashMap::new, Collectors.toList()))
+                .entrySet()
+                .stream()
+                .map(entry -> new Found(candidate, names, entry.getKey(), entry.getValue()))
+                .toList();
     }
 
     /** Allow the look-alike alongside the other extension, so the pair is no longer reported. */
@@ -209,25 +258,28 @@ public class NameSquattingService {
             return ResultJson.success("Already allowed " + toId(lookalike) + " alongside " + toId(other));
         }
 
-        var lookalikeNames = similarity.findNames(List.of(lookalike.getId())).getFirst();
-        var closest = check
-                .findMatches(lookalikeNames.namespaceName(), lookalikeNames.name(), lookalikeNames.displayNames())
-                .stream()
-                .filter(match -> match.extensionId() == other.getId())
-                .min(NameSimilarityCheckService.CLOSEST_FIRST)
-                .orElseThrow(
-                        () -> new ErrorResultException(
-                                toId(lookalike) + " no longer resembles " + toId(other)
-                                        + ", so there is nothing to allow",
-                                HttpStatus.BAD_REQUEST));
+        var names = byId(similarity.findNames(List.of(lookalike.getId(), other.getId())));
+        // The dashboard may have found the pair from either side, and short values only match exactly
+        // when they are the ones probed.
+        var reversed = false;
+        var closest = closestMatch(names.get(lookalike.getId()), other.getId());
+        if (closest == null) {
+            reversed = true;
+            closest = closestMatch(names.get(other.getId()), lookalike.getId());
+        }
+        if (closest == null) {
+            throw new ErrorResultException(
+                    toId(lookalike) + " no longer resembles " + toId(other) + ", so there is nothing to allow",
+                    HttpStatus.BAD_REQUEST);
+        }
 
         var allow = new NameSimilarityAllow();
         allow.setExtensionId(lookalike.getId());
         allow.setOtherExtensionId(other.getId());
         allow.setField(closest.field());
         allow.setSimilarity(closest.similarity());
-        allow.setExtensionValue(closest.probeValue());
-        allow.setOtherValue(closest.value());
+        allow.setExtensionValue(reversed ? closest.value() : closest.probeValue());
+        allow.setOtherValue(reversed ? closest.probeValue() : closest.value());
         allow.setReason(reason);
         allow.setDecidedById(admin.getId());
         allow.setDecidedAt(TimeUtil.getCurrentUTC());
@@ -236,6 +288,16 @@ public class NameSquattingService {
         var result = ResultJson.success("Allowed " + toId(lookalike) + " alongside " + toId(other));
         logs.logAction(admin, result);
         return result;
+    }
+
+    /** The closest match of the probed extension with the other, looked up for the other alone. */
+    private @Nullable Match closestMatch(@Nullable ExtensionNames probed, long otherId) {
+        if (probed == null) {
+            return null;
+        }
+        var probe = check.probe(probed.namespaceName(), probed.name(), probed.displayNames())
+                .onlyExtensions(List.of(otherId));
+        return check.findMatches(probe).stream().min(NameSimilarityCheckService.CLOSEST_FIRST).orElse(null);
     }
 
     /** Remove an allow, so the pair is reported again while the two still resemble each other. */
@@ -256,10 +318,9 @@ public class NameSquattingService {
     /** The allowed look-alikes, the most recently allowed first, each with every pair it was allowed in. */
     @Transactional
     public NameSquattingJson.Allowlist findAllowlist(int page, int size) {
-        // One more than asked tells whether there is a next page.
-        var extensionIds = allows.findAllowedExtensionIds(PageRequest.of(page, size + 1));
-        var hasMore = extensionIds.size() > size;
-        var pageIds = hasMore ? extensionIds.subList(0, size) : extensionIds;
+        var slice = allows.findAllowedExtensionIds(PageRequest.of(page, size));
+        var pageIds = slice.getContent();
+        var hasMore = slice.hasNext();
 
         var pageAllows = allows.findByExtensionIdInOrderByDecidedAtDesc(pageIds);
         var involved = new HashSet<Long>(pageIds);

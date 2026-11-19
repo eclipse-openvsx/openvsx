@@ -201,6 +201,44 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     }
 
     @Test
+    void earliestFirstKeepsTheExtensionsPublishedFirstWithinTheLimit() {
+        var word = word();
+        var extensions = sameDisplayName(word + " Tools", 4);
+        // Created last, published first, so the order they were stored in does not decide.
+        for (var i = 0; i < extensions.size(); i++) {
+            extensions.get(i).setPublishedDate(PUBLISHED.minusDays(i));
+        }
+
+        var matches = find(limited(word + " Tools", 2).keepingEarliestFirst(), extensions.toArray(Extension[]::new));
+
+        assertThat(matches).extracting(Match::extensionId)
+                .containsExactly(extensions.get(3).getId(), extensions.get(2).getId());
+    }
+
+    @Test
+    void onlyExtensionsFiltersBeforeTheLimit() {
+        var word = word();
+        var extensions = sameDisplayName(word + " Tools", 4);
+        var wanted = extensions.getLast();
+
+        var matches = find(limited(word + " Tools", 1).onlyExtensions(List.of(wanted.getId())), wanted);
+
+        assertThat(matches).extracting(Match::extensionId).containsExactly(wanted.getId());
+    }
+
+    @Test
+    void excludedExtensionsNeverMatch() {
+        var word = word();
+        var extensions = sameDisplayName(word + " Tools", 2);
+
+        var matches = find(
+                limited(word + " Tools", 50).excluding(List.of(extensions.getFirst().getId())),
+                extensions.toArray(Extension[]::new));
+
+        assertThat(matches).extracting(Match::extensionId).containsExactly(extensions.getLast().getId());
+    }
+
+    @Test
     void displayNameLookupUsesTheTrigramIndex() {
         var probe = probe("other", "x" + word(), word() + " Tools", 0.7f);
         NameSimilarityJooqRepository.applyThreshold(dsl, probe);
@@ -220,6 +258,20 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
         var plan = dsl.explain(NameSimilarityJooqRepository.namesQuery(dsl, probe)).plan();
 
         assertSearchesTrigramIndex(plan, "extension_name_trgm_idx");
+    }
+
+    @Test
+    void earliestFirstLookupsStillUseTheTrigramIndexes() {
+        var probe = probe("other", "x" + word(), null, 0.7f).keepingEarliestFirst();
+        NameSimilarityJooqRepository.applyThreshold(dsl, probe);
+        disablePlansThatBypassTrigramIndexes();
+
+        assertSearchesTrigramIndex(
+                dsl.explain(NameSimilarityJooqRepository.namesQuery(dsl, probe)).plan(),
+                "extension_name_trgm_idx");
+        assertSearchesTrigramIndex(
+                dsl.explain(NameSimilarityJooqRepository.displayNamesQuery(dsl, probe, word() + " Tools")).plan(),
+                "extension_version_display_name_trgm_idx");
     }
 
     @Test
@@ -467,6 +519,20 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
             word.append((char) ('a' + random.nextInt(26)));
         }
         return word.toString();
+    }
+
+    /** Extensions in namespaces of their own sharing one display name, in the order they were stored. */
+    private List<Extension> sameDisplayName(String displayName, int count) {
+        var extensions = new ArrayList<Extension>();
+        for (var i = 0; i < count; i++) {
+            extensions.add(persistExtension(namespace(), "x" + word(), displayName));
+        }
+        return extensions;
+    }
+
+    /** A probe of the display name alone, from a namespace of no fixture, keeping at most {@code limit}. */
+    private static Probe limited(String displayName, int limit) {
+        return new Probe("other", "x" + word(), List.of(displayName), 0.7f, 0.7f, 4, limit, TIMEOUT);
     }
 
     private Namespace namespace() {
