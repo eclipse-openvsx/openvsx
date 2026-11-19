@@ -292,7 +292,8 @@ public class LocalVSCodeService implements IVSCodeService {
                 .collect(Collectors.groupingBy(ev -> ev.getExtension().getId()))
                 .values()
                 .stream()
-                .map(list -> versions.getLatest(list, false))
+                // not VersionService.getLatest: its cache key ignores the platform this list is filtered to
+                .map(list -> list.stream().min(ExtensionVersion.SORT_COMPARATOR).orElseThrow())
                 .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
     }
 

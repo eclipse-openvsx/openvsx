@@ -17,6 +17,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 - Namespace details are cached under one key whatever the case of the namespace name in the request, so a differently-cased URL no longer serves stale details after a member, details or logo change ([#2445](https://github.com/eclipse-openvsx/openvsx/issues/2445))
 - Deleting an extension is no longer refused because of removed versions of other extensions that depended on it ([#2441](https://github.com/eclipse-openvsx/openvsx/issues/2441))
 - `/vscode/gallery/extensionquery` with `IncludeLatestVersionOnly` loads one version per extension and target platform instead of every active version, which VS Code's update check still did, and looks up extensions by name in one query ([#1305](https://github.com/eclipse-openvsx/openvsx/issues/1305))
+- `/vscode/gallery/extensionquery` for one target platform no longer returns the display name, description, tags, categories or preview flag of another platform's latest version, which the latest-version cache could serve ([#2466](https://github.com/eclipse-openvsx/openvsx/pull/2466))
 
 ### Dependencies
 
