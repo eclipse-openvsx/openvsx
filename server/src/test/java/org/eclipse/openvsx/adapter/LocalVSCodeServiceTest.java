@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -35,7 +36,9 @@ import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.SignatureKeyPair;
 import org.eclipse.openvsx.publish.ExtensionVersionIntegrityService;
 import org.eclipse.openvsx.repositories.RepositoryService;
+import org.eclipse.openvsx.search.ISearchService;
 import org.eclipse.openvsx.search.SearchExplainService;
+import org.eclipse.openvsx.search.SearchResult;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.*;
 import org.eclipse.openvsx.util.ExtensionId;
@@ -52,7 +55,6 @@ import static org.mockito.ArgumentMatchers.*;
     types = {
         VSCodeAPI.class,
         SimpleMeterRegistry.class,
-        SearchUtilService.class,
         SearchExplainService.class,
         StorageUtilService.class,
         ExtensionVersionIntegrityService.class,
@@ -67,6 +69,9 @@ public class LocalVSCodeServiceTest {
 
     @MockitoBean
     VersionService versions;
+
+    @MockitoBean
+    SearchUtilService search;
 
     @Autowired
     LocalVSCodeService vsCodeService;
@@ -343,6 +348,19 @@ public class LocalVSCodeServiceTest {
                                         new ExtensionId("redhat", "java")))));
         Mockito.verify(repositories, Mockito.never()).findActiveExtension(any(), any());
         assertThat(result.results().getFirst().extensions()).hasSize(1);
+    }
+
+    @Test
+    void testExtensionQuery_minimalPageNumber_readsTheFirstPage() {
+        Mockito.when(search.isEnabled()).thenReturn(true);
+        Mockito.when(search.search(any())).thenReturn(new SearchResult());
+        var filter = new ExtensionQueryParam.Filter(List.of(), Integer.MIN_VALUE, 10, 0, 0);
+
+        vsCodeService.extensionQuery(new ExtensionQueryParam(List.of(filter), 0), 10);
+
+        var options = ArgumentCaptor.forClass(ISearchService.Options.class);
+        Mockito.verify(search).search(options.capture());
+        assertThat(options.getValue().requestedOffset()).isZero();
     }
 
     // ---------- UTILITY ----------//

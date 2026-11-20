@@ -154,6 +154,10 @@ ovsx:
     update-on-start: true
   integrity:
     key-pair: create # create, renew, delete, 'undefined'
+  extension-query:
+    # one over these limits is answered with 400; VS Code sends one criterion per installed extension, all in one query
+    max-criteria: 1000
+    max-search-page-size: 100
   registry:
     version: <OPENVSX_VERSION>
   # Set this in any deployment reachable from the open web, or the URLs in a response are derived

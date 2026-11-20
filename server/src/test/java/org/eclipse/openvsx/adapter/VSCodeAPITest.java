@@ -22,12 +22,14 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.zip.ZipFile;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.persistence.EntityManager;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.ObjectProvider;
@@ -45,6 +47,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.eclipse.openvsx.ExtensionValidator;
 import org.eclipse.openvsx.MockMvcAsyncConfig;
@@ -233,6 +236,131 @@ class VSCodeAPITest {
         assertThat(reason).startsWith("Invalid extension query:");
         assertThat(reason).doesNotContainPattern("[\\r\\n]");
         assertThat(reason.length()).isLessThanOrEqualTo(250);
+    }
+
+    @Test
+    void testExtensionQuerySearchPageSizeLimit() throws Exception {
+        var target = "{\"filterType\":8,\"value\":\"Microsoft.VisualStudio.Code\"}";
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(List.of(target), 1, 100))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(List.of(target), 1, 101))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page size must not exceed 100"));
+
+        var query = URLEncoder.encode(extensionQuery(List.of(target), 1, 101), StandardCharsets.UTF_8);
+        mockMvc.perform(get(URI.create("/vscode/gallery/extensionquery?q=" + query)))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page size must not exceed 100"));
+    }
+
+    @Test
+    void testExtensionQueryPageNumberOverflow() throws Exception {
+        var target = "{\"filterType\":8,\"value\":\"Microsoft.VisualStudio.Code\"}";
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(List.of(target), Integer.MAX_VALUE, 100))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page number is too large"));
+        // the offset fits in an int, but not the window that ends one page later
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(List.of(target), 21474837, 100))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page number is too large"));
+    }
+
+    @Test
+    void testExtensionQueryLimitsApplyToEveryFilter() throws Exception {
+        var target = "{\"filterType\":8,\"value\":\"Microsoft.VisualStudio.Code\"}";
+        var small = extensionFilter(List.of(target), 1, 10);
+        var names = IntStream.range(0, 1001)
+                .mapToObj(i -> "{\"filterType\":7,\"value\":\"ns.ext" + i + "\"}")
+                .toList();
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content("{\"filters\":[" + small + "," + extensionFilter(names, 1, 1001) + "],\"flags\":950}")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("A filter must not have more than 1000 criteria"));
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(
+                                "{\"filters\":[" + small + "," + extensionFilter(List.of(target), 1, 101)
+                                        + "],\"flags\":950}")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("The page size must not exceed 100"));
+    }
+
+    // UpstreamVSCodeService posts the query as it gets it, so it must carry the page number and size.
+    @Test
+    void testExtensionQueryForwardsAnExplicitPageNumberAndSize() {
+        var limits = Mockito.mock(ExtensionQueryLimitsConfig.class);
+        Mockito.when(limits.getMaxCriteria()).thenReturn(1000);
+        Mockito.when(limits.getMaxSearchPageSize()).thenReturn(10);
+        var local = Mockito.mock(LocalVSCodeService.class);
+        var upstream = Mockito.mock(UpstreamVSCodeService.class);
+        Mockito.when(upstream.isValid()).thenReturn(true);
+        var empty = new ExtensionQueryResult(List.of(new ExtensionQueryResult.ResultItem(List.of(), List.of())));
+        Mockito.when(local.extensionQuery(any(), anyInt())).thenReturn(empty);
+        Mockito.when(upstream.extensionQuery(any(), anyInt())).thenReturn(empty);
+        var api = new VSCodeAPI(
+                local,
+                upstream,
+                new DefaultExtensionQueryRequestHandler(local, upstream),
+                JsonMapper.builder().build(),
+                limits);
+
+        api.extensionQuery(new ExtensionQueryParam(null, 0));
+        api.extensionQueryAsGet(
+                "{\"filters\":[{\"criteria\":[],\"pageNumber\":" + Integer.MIN_VALUE
+                        + ",\"pageSize\":0,\"sortBy\":0,\"sortOrder\":0}],\"flags\":0}");
+
+        var forwarded = ArgumentCaptor.forClass(ExtensionQueryParam.class);
+        Mockito.verify(upstream, Mockito.times(2)).extensionQuery(forwarded.capture(), anyInt());
+        assertThat(forwarded.getAllValues()).allSatisfy(
+                param -> assertThat(param.filters()).singleElement().satisfies(filter -> {
+                    assertThat(filter.pageNumber()).isEqualTo(1);
+                    assertThat(filter.pageSize()).isEqualTo(10);
+                }));
+    }
+
+    @Test
+    void testExtensionQueryLookupCriteriaLimit() throws Exception {
+        // a lookup sets pageSize to the number of extensions, so only the criteria count limits it
+        var names = IntStream.range(0, 1000)
+                .mapToObj(i -> "{\"filterType\":7,\"value\":\"ns.ext" + i + "\"}")
+                .collect(Collectors.toCollection(ArrayList::new));
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(names, 1, names.size()))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        names.add("{\"filterType\":8,\"value\":\"Microsoft.VisualStudio.Code\"}");
+        mockMvc.perform(
+                post("/vscode/gallery/extensionquery")
+                        .content(extensionQuery(names, 1, names.size()))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("A filter must not have more than 1000 criteria"));
+    }
+
+    private static String extensionQuery(List<String> criteria, int pageNumber, int pageSize) {
+        return "{\"filters\":[" + extensionFilter(criteria, pageNumber, pageSize) + "],\"flags\":950}";
+    }
+
+    private static String extensionFilter(List<String> criteria, int pageNumber, int pageSize) {
+        return "{\"criteria\":[" + String.join(",", criteria) + "],\"pageNumber\":" + pageNumber
+                + ",\"pageSize\":" + pageSize + ",\"sortBy\":0,\"sortOrder\":0}";
     }
 
     @Test
@@ -1647,7 +1775,7 @@ class VSCodeAPITest {
     }
 
     @TestConfiguration
-    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class })
+    @Import({ SecurityConfig.class, MockMvcAsyncConfig.class, JacksonConfig.class, ExtensionQueryLimitsConfig.class })
     static class TestConfig {
         @Bean
         org.eclipse.openvsx.admin.PermissionRegistry permissionRegistry() {
