@@ -47,13 +47,13 @@ function findMatchingVersion(registry: Registry, extension: Extension, constrain
     if (!constraint || semver.satisfies(extension.version, constraint)) {
         return Promise.resolve(extension);
     }
-    for (const version of Object.keys(extension.allVersions)) {
-        if (!isAlias(extension, version) && semver.satisfies(version, constraint)) {
-            try {
-                return registry.getJson(new URL(extension.allVersions[version]));
-            } catch (err) {
-                return rejectError(err);
-            }
+    const versions = Object.keys(extension.allVersions).filter(version => !isAlias(extension, version));
+    const version = semver.maxSatisfying(versions, constraint);
+    if (version) {
+        try {
+            return registry.getJson(new URL(extension.allVersions[version]));
+        } catch (err) {
+            return rejectError(err);
         }
     }
     return Promise.reject(new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`));

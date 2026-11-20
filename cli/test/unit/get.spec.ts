@@ -23,9 +23,9 @@ interface RegistryStub {
     close: () => Promise<void>;
 }
 
-/** Serves `acme/tool` at 2.0.0 (latest) and 1.0.0, plus the download for each. */
+/** Serves `acme/tool` at 2.0.0 (latest) and `olderVersions` (default 1.0.0), plus the download for each. */
 async function startRegistryStub(overrides: Record<string, unknown> = {}): Promise<RegistryStub> {
-    const { downloadName, ...extra } = overrides as { downloadName?: string };
+    const { downloadName, olderVersions = ['1.0.0'], ...extra } = overrides as { downloadName?: string; olderVersions?: string[] };
     let base = '';
     const metadata = (version: string) => ({
         namespace: 'acme',
@@ -34,11 +34,7 @@ async function startRegistryStub(overrides: Record<string, unknown> = {}): Promi
         targetPlatform: 'universal',
         versionAlias: ['latest'],
         files: { download: `${base}/file/${downloadName ?? `acme.tool-${version}.vsix`}` },
-        allVersions: {
-            latest: `${base}/api/acme/tool/latest`,
-            '2.0.0': `${base}/api/acme/tool/2.0.0`,
-            '1.0.0': `${base}/api/acme/tool/1.0.0`
-        },
+        allVersions: Object.fromEntries(['latest', '2.0.0', ...olderVersions].map(v => [v, `${base}/api/acme/tool/${v}`])),
         ...extra
     });
     const server = http.createServer((req, res) => {
@@ -48,7 +44,8 @@ async function startRegistryStub(overrides: Record<string, unknown> = {}): Promi
             res.end(VSIX);
             return;
         }
-        const version = url.pathname === '/api/acme/tool/1.0.0' ? '1.0.0' : '2.0.0';
+        const requested = url.pathname.substring('/api/acme/tool/'.length);
+        const version = olderVersions.includes(requested) ? requested : '2.0.0';
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(metadata(version)));
     });
@@ -192,6 +189,16 @@ describe('get', () => {
             await get({ version: '1.0.0' });
 
             expect(read('acme.tool-1.0.0.vsix')).toBe(VSIX);
+        });
+
+        it('fetches the highest matching version when the registry lists versions out of order', async () => {
+            await get({ version: '^1.0.0' }, { olderVersions: ['1.0.0', '1.2.0', '1.1.0'] });
+            expect(fs.readdirSync(cwd)).toEqual(['acme.tool-1.2.0.vsix']);
+        });
+
+        it('fetches the highest matching pre-release when the registry sorts pre-releases as strings', async () => {
+            await get({ version: '>=1.0.0-beta.1 <1.0.0' }, { olderVersions: ['1.0.0-beta.1', '1.0.0-beta.2'] });
+            expect(fs.readdirSync(cwd)).toEqual(['acme.tool-1.0.0-beta.2.vsix']);
         });
 
         it('rejects when no published version satisfies the constraint', async () => {
