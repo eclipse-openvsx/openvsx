@@ -946,6 +946,8 @@ The origins allowed to read the registry API, the VS Code gallery adapter and th
 Since v0.28.0 Open VSX uses Spring Data Redis for caching. Previous Open VSX versions used Ehcache.<br/>
 You can use the standard Spring Data Redis application properties to configure a connection.
 
+The connection uses Jedis, so `spring.data.redis.lettuce.*` properties are ignored without an error; configure the pool with `spring.data.redis.jedis.pool.*`.
+
 | Property      | `ovsx.redis.embedded`
 |---------------|-------------------------
 | Type          | boolean
