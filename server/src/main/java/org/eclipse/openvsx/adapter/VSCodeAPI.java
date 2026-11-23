@@ -45,6 +45,7 @@ import org.eclipse.openvsx.util.NotFoundException;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.UrlUtil;
 
+import static org.eclipse.openvsx.adapter.ExtensionQueryParam.Criterion.*;
 import static org.eclipse.openvsx.adapter.ExtensionQueryResult.ExtensionFile.*;
 import static org.eclipse.openvsx.util.TargetPlatform.*;
 
@@ -59,18 +60,21 @@ public class VSCodeAPI {
     private final List<IVSCodeService> registries;
     private final IExtensionQueryRequestHandler extensionQueryRequestHandler;
     private final JsonMapper jsonMapper;
+    private final ExtensionQueryLimitsConfig limits;
 
     public VSCodeAPI(
             LocalVSCodeService local,
             UpstreamVSCodeService upstream,
             IExtensionQueryRequestHandler extensionQueryRequestHandler,
-            JsonMapper jsonMapper
+            JsonMapper jsonMapper,
+            ExtensionQueryLimitsConfig limits
     ) {
         this.local = local;
         this.upstream = upstream;
         this.registries = setupRegistries();
         this.extensionQueryRequestHandler = extensionQueryRequestHandler;
         this.jsonMapper = jsonMapper;
+        this.limits = limits;
     }
 
     private List<IVSCodeService> setupRegistries() {
@@ -100,15 +104,9 @@ public class VSCodeAPI {
             @RequestBody
             @Parameter(description = "Parameters of the extension query") ExtensionQueryParam param
     ) {
-        var size = 0;
-        if (param.filters() != null && !param.filters().isEmpty()) {
-            size = param.filters().getFirst().pageSize();
-        }
-        if (size <= 0) {
-            size = DEFAULT_PAGE_SIZE;
-        }
-
-        return extensionQueryRequestHandler.getResult(param, size, DEFAULT_PAGE_SIZE);
+        var validated = validated(param);
+        return extensionQueryRequestHandler
+                .getResult(validated, validated.filters().getFirst().pageSize(), defaultPageSize());
     }
 
     @GetMapping(
@@ -134,15 +132,9 @@ public class VSCodeAPI {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid extension query" + describe(ex));
         }
 
-        var size = 0;
-        if (param.filters() != null && !param.filters().isEmpty()) {
-            size = param.filters().getFirst().pageSize();
-        }
-        if (size <= 0) {
-            size = DEFAULT_PAGE_SIZE;
-        }
-
-        var result = extensionQueryRequestHandler.getResult(param, size, DEFAULT_PAGE_SIZE);
+        var validated = validated(param);
+        var result = extensionQueryRequestHandler
+                .getResult(validated, validated.filters().getFirst().pageSize(), defaultPageSize());
 
         return ResponseEntity.ok()
                 // support caching the result of extensionquery upto 5 min and force the client to revalidate
@@ -150,6 +142,54 @@ public class VSCodeAPI {
                 // from caching the same queries
                 .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic().mustRevalidate())
                 .body(result);
+    }
+
+    private int defaultPageSize() {
+        return Math.min(DEFAULT_PAGE_SIZE, limits.getMaxSearchPageSize());
+    }
+
+    /**
+     * The query with a page number of at least 1 and a page size in every filter, checked against the limits.
+     * It is what gets forwarded upstream, so the upstream registry's own defaults never apply.
+     */
+    private ExtensionQueryParam validated(ExtensionQueryParam param) {
+        var defaultPageSize = defaultPageSize();
+        var filters = param.filters() == null || param.filters().isEmpty()
+                ? List.of(new ExtensionQueryParam.Filter(List.of(), 1, defaultPageSize, 0, 0))
+                : param.filters().stream()
+                        .map(
+                                filter -> new ExtensionQueryParam.Filter(
+                                        filter.criteria(),
+                                        Math.max(1, filter.pageNumber()),
+                                        filter.pageSize() > 0 ? filter.pageSize() : defaultPageSize,
+                                        filter.sortBy(),
+                                        filter.sortOrder()))
+                        .toList();
+        filters.forEach(this::validate);
+        return new ExtensionQueryParam(filters, param.flags());
+    }
+
+    private void validate(ExtensionQueryParam.Filter filter) {
+        if (filter.criteria() != null && filter.criteria().size() > limits.getMaxCriteria()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A filter must not have more than " + limits.getMaxCriteria() + " criteria");
+        }
+
+        var size = filter.pageSize();
+        // A lookup by id or name pages nothing; VS Code sets its pageSize to the number of extensions.
+        var isLookup = !filter.findCriteria(FILTER_EXTENSION_ID).isEmpty()
+                || !filter.findCriteria(FILTER_EXTENSION_NAME).isEmpty();
+        if (!isLookup && size > limits.getMaxSearchPageSize()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "The page size must not exceed " + limits.getMaxSearchPageSize());
+        }
+
+        // The search computes where the page ends, pageNumber * size, as an int.
+        if ((long) filter.pageNumber() * size > Integer.MAX_VALUE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The page number is too large");
+        }
     }
 
     /**

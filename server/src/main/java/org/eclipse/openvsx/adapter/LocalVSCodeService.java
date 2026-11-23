@@ -153,7 +153,7 @@ public class LocalVSCodeService implements IVSCodeService {
             var targetCriterion = filter.findCriterion(FILTER_TARGET);
             targetPlatform = TargetPlatform.isValid(targetCriterion) ? targetCriterion : null;
 
-            pageNumber = Math.max(0, filter.pageNumber() - 1);
+            pageNumber = Math.max(1, filter.pageNumber()) - 1;
             pageSize = filter.pageSize() > 0 ? filter.pageSize() : defaultPageSize;
             sortOrder = getSortOrder(filter.sortOrder());
             sortBy = getSortBy(filter.sortBy());
