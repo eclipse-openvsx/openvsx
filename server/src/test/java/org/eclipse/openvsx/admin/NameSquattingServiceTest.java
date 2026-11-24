@@ -169,18 +169,44 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
 
     @Test
     void stopsAtItsBudgetAfterOneCandidateAndResumesFromTheNext() throws ErrorResultException {
-        var word = word();
-        var original = persistExtension(word + " Formatter", EARLY);
-        flag(persistExtension(word + " Formater", LATE), LATE.plusDays(1));
-        flag(original, LATE.plusDays(2));
+        var newer = word();
+        var newerOriginal = persistExtension(newer + " Formatter", EARLY);
+        var newerLookalike = persistExtension(newer + " Formater", LATE);
+        var older = word();
+        var olderOriginal = persistExtension(older + " Highlighter", EARLY);
+        var olderLookalike = persistExtension(older + " Hightlighter", LATE);
+        flag(newerLookalike, LATE.plusDays(2));
+        flag(olderLookalike, LATE.plusDays(1));
         em.flush();
+        var candidates = candidates(0, null, 100_000);
+        var start = cursorAt(candidates, newerLookalike.getId());
 
-        var first = service.findCollisions(FIRST, 100, Duration.ZERO);
+        var first = service.findCollisions(start, 100, Duration.ZERO);
         var second = service.findCollisions(first.next(), 100, Duration.ZERO);
 
-        assertThat(first.next()).isEqualTo(new NameSquattingJson.Cursor(1, null));
+        assertThat(first.next()).isEqualTo(new NameSquattingJson.Cursor(start.offset() + 1, null));
         assertThat(first.hasMore()).isTrue();
-        assertThat(second.next()).isEqualTo(new NameSquattingJson.Cursor(2, null));
+        assertThat(anchorNames(first)).contains(newerOriginal.getName()).doesNotContain(olderOriginal.getName());
+        assertThat(anchorNames(second)).contains(olderOriginal.getName()).doesNotContain(newerOriginal.getName());
+    }
+
+    @Test
+    void anchorsEveryLookalikeAtTheEarliestEvenOutOfBudget() throws ErrorResultException {
+        var word = word();
+        var earliest = persistExtension(word + " Tools", EARLY);
+        var middle = persistExtension(word + " Tools", MIDDLE);
+        var latest = persistExtension(word + " Tools", LATE);
+        flag(middle, LATE.plusDays(1));
+        em.flush();
+
+        var page = service.findCollisions(cursorAt(candidates(0, null, 100_000), middle.getId()), 1, Duration.ZERO);
+
+        assertThat(page.groups())
+                .filteredOn(
+                        group -> group.lookalikes().stream()
+                                .anyMatch(found -> found.extension().name().equals(latest.getName())))
+                .extracting(group -> group.anchor().name())
+                .containsExactly(earliest.getName());
     }
 
     @Test
@@ -422,6 +448,10 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
                 .filter(group -> group.extension().name().equals(extension.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no allowlist group for " + extension.getName()));
+    }
+
+    private static List<String> anchorNames(NameSquattingJson.Collisions collisions) {
+        return collisions.groups().stream().map(group -> group.anchor().name()).toList();
     }
 
     private static List<String> lookalikeNames(NameSquattingJson.Collisions collisions) {

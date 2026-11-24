@@ -167,6 +167,31 @@ describe('CollisionsTab', () => {
         expect(admin.getNameSquattingCollisions).toHaveBeenCalledTimes(1);
     });
 
+    // A batch requested before the allow would write back the pages as they were when it started.
+    it('drops a batch that was loading when a pair was allowed, so the pair stays off the list', async () => {
+        const user = userEvent.setup();
+        let resolveNext: (page: NameSquattingCollisions) => void = () => undefined;
+        const admin = mountTab({
+            getNameSquattingCollisions: vi
+                .fn()
+                .mockResolvedValueOnce(page([lookalike('pyth0n', 'python', true)], true))
+                .mockReturnValueOnce(new Promise(resolve => (resolveNext = resolve)))
+                .mockResolvedValue(page([lookalike('labs', 'pythom', false)])),
+            allowNameSquattingPair: vi.fn().mockResolvedValue({ success: 'ok' })
+        });
+
+        await user.click(await screen.findByRole('button', { name: 'Load more groups' }));
+        await user.click(screen.getByRole('button', { name: 'Allow' }));
+        await user.click(screen.getByRole('button', { name: 'Allow pair' }));
+        await waitFor(() => expect(admin.allowNameSquattingPair).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        resolveNext(page([lookalike('labs', 'pythom', false)]));
+        await user.click(await screen.findByRole('button', { name: 'Load more groups' }));
+
+        expect(await screen.findByRole('row', { name: /labs\.pythom/ })).toBeInTheDocument();
+        expect(screen.queryByRole('row', { name: /pyth0n\.python/ })).not.toBeInTheDocument();
+    });
+
     it('keeps every match of a look-alike that shares one field more than once', async () => {
         const twoDisplayNames: NameSquattingLookalike = {
             ...lookalike('pyth0n', 'python', false),

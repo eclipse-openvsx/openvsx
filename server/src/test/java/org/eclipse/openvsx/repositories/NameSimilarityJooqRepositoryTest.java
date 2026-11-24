@@ -440,28 +440,6 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
                 sharesDisplayName);
     }
 
-    private record FlaggedFixture(
-            String checkType,
-            Extension reflagged,
-            Extension tiedEarlier,
-            Extension tiedLater,
-            Extension manyMatches,
-            Extension otherCase,
-            Extension inactive,
-            Extension sharesDisplayName
-    ) {
-        Set<Long> ids() {
-            return Set.of(
-                    reflagged.getId(),
-                    tiedEarlier.getId(),
-                    tiedLater.getId(),
-                    manyMatches.getId(),
-                    otherCase.getId(),
-                    inactive.getId(),
-                    sharesDisplayName.getId());
-        }
-    }
-
     private static List<Candidate> ofInterest(List<Candidate> candidates, FlaggedFixture fixture) {
         return candidates.stream().filter(candidate -> fixture.ids().contains(candidate.extensionId())).toList();
     }
@@ -610,5 +588,27 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
             em.persist(publisher);
         }
         return publisher;
+    }
+
+    private record FlaggedFixture(
+            String checkType,
+            Extension reflagged,
+            Extension tiedEarlier,
+            Extension tiedLater,
+            Extension manyMatches,
+            Extension otherCase,
+            Extension inactive,
+            Extension sharesDisplayName
+    ) {
+        Set<Long> ids() {
+            return Set.of(
+                    reflagged.getId(),
+                    tiedEarlier.getId(),
+                    tiedLater.getId(),
+                    manyMatches.getId(),
+                    otherCase.getId(),
+                    inactive.getId(),
+                    sharesDisplayName.getId());
+        }
     }
 }

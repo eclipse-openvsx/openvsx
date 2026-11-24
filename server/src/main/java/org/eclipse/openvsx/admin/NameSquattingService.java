@@ -115,18 +115,15 @@ public class NameSquattingService {
     }
 
     /**
-     * Candidates are looked up until half the {@code budget} has passed, at least one per request so the
-     * pages advance, and look-alikes anchored until all of it has; a lookup already running may finish.
+     * No candidate lookup starts once half the {@code budget} has passed, though every request looks at
+     * least one up so pages advance. The look-alikes found are always anchored, as cutting that short would
+     * list one under two anchors across pages.
      */
     NameSquattingJson.Collisions findCollisions(NameSquattingJson.Cursor cursor, int size, Duration budget)
             throws ErrorResultException {
-        var start = System.nanoTime();
-        var deadlines = new Deadlines(start + budget.toNanos() / 2, start + budget.toNanos());
-        return stoppingAtTimeout(() -> lookUpCollisions(cursor, size, deadlines));
+        var deadline = System.nanoTime() + budget.toNanos() / 2;
+        return stoppingAtTimeout(() -> lookUpCollisions(cursor, size, deadline));
     }
-
-    /** When to stop looking up candidates, and when to stop anchoring their look-alikes, as nano times. */
-    private record Deadlines(long candidates, long anchoring) {}
 
     private static boolean passed(long deadline) {
         return System.nanoTime() - deadline > 0;
@@ -150,7 +147,7 @@ public class NameSquattingService {
     private NameSquattingJson.Collisions lookUpCollisions(
             NameSquattingJson.Cursor from,
             int size,
-            Deadlines deadlines
+            long deadline
     ) {
         var pairs = new LinkedHashMap<Long, Pair>();
         var probed = new HashSet<Long>();
@@ -158,7 +155,7 @@ public class NameSquattingService {
         var afterId = from.afterId();
         var hasMore = true;
         for (var batch = 0; batch < MAX_BATCHES && hasMore && pairs.size() < size; batch++) {
-            if (batch > 0 && passed(deadlines.candidates())) {
+            if (batch > 0 && passed(deadline)) {
                 break;
             }
             var candidates = similarity.findCandidates(
@@ -167,7 +164,7 @@ public class NameSquattingService {
                     afterId,
                     size,
                     check.getStatementTimeout());
-            var lookedUp = collectPairs(candidates, pairs, probed, deadlines.candidates());
+            var lookedUp = collectPairs(candidates, pairs, probed, deadline);
             // Flagged candidates come first and are counted; those sharing a display name are keyed by id.
             for (var candidate : candidates.subList(0, lookedUp)) {
                 if (candidate.flaggedAt() != null) {
@@ -181,7 +178,7 @@ public class NameSquattingService {
                 break;
             }
         }
-        anchorAtTheEarliest(pairs, probed, deadlines.anchoring());
+        anchorAtTheEarliest(pairs, probed);
 
         var lookalikeIds = pairs.keySet();
         var lookalikes = byId(similarity.findNames(lookalikeIds));
@@ -245,9 +242,8 @@ public class NameSquattingService {
     /**
      * Look up from their own side the look-alikes that were only found from their anchor's, so each sits
      * under the earliest extension it resembles whichever page found it, and pages agree on its group.
-     * Those left once the deadline passes stay under the anchor they were found from.
      */
-    private void anchorAtTheEarliest(Map<Long, Pair> pairs, Set<Long> probed, long deadline) {
+    private void anchorAtTheEarliest(Map<Long, Pair> pairs, Set<Long> probed) {
         var unprobed = pairs.keySet().stream().filter(id -> !probed.contains(id)).toList();
         if (unprobed.isEmpty()) {
             return;
@@ -257,9 +253,6 @@ public class NameSquattingService {
 
         var found = new ArrayList<Found>();
         for (var lookalikeId : unprobed) {
-            if (passed(deadline)) {
-                break;
-            }
             var lookalikeNames = names.get(lookalikeId);
             if (lookalikeNames != null) {
                 var candidate = new Candidate(lookalikeId, pairs.get(lookalikeId).flaggedAt());
@@ -351,14 +344,6 @@ public class NameSquattingService {
         logs.logAction(admin, result);
         return result;
     }
-
-    /** How a pair being allowed compares, with each value on its own side. */
-    private record AllowedMatch(
-            NameSimilarityField field,
-            float similarity,
-            String lookalikeValue,
-            String otherValue
-    ) {}
 
     /**
      * The closest match of the pair, looked up from the look-alike's side and then from the other's: the
@@ -517,6 +502,14 @@ public class NameSquattingService {
                 pair.namespaceSimilarity(),
                 pair.flaggedAt() != null ? TimeUtil.toUTCString(pair.flaggedAt()) : null);
     }
+
+    /** How a pair being allowed compares, with each value on its own side. */
+    private record AllowedMatch(
+            NameSimilarityField field,
+            float similarity,
+            String lookalikeValue,
+            String otherValue
+    ) {}
 
     /** A candidate's matches with one other extension, as looked up from the candidate's side. */
     private record Found(Candidate candidate, ExtensionNames candidateNames, long otherId, List<Match> matches) {}

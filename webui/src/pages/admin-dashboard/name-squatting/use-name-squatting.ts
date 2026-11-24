@@ -133,7 +133,7 @@ export const withoutAllowedPair = (
 
 /**
  * Allows pairs one after another, taking each off the loaded collisions once the server has allowed it,
- * so pairs allowed before a failure leave too. The collisions are only marked stale: refetching every
+ * so pairs allowed before a failure leave too; a batch still loading is dropped, to be loaded again. The collisions are only marked stale: refetching every
  * loaded page would look all their candidates up again.
  */
 export const useAllowNameSquattingPairs = () => {
@@ -143,6 +143,8 @@ export const useAllowNameSquattingPairs = () => {
         mutationFn: async (requests: NameSquattingAllowRequest[]) => {
             for (const request of requests) {
                 await service.admin.allowNameSquattingPair(request);
+                // A batch already loading would write back the pages as they were when it started.
+                await queryClient.cancelQueries({ queryKey: nameSquattingKeys.collisions() });
                 queryClient.setQueryData<InfiniteData<NameSquattingCollisions, NameSquattingCursor>>(
                     nameSquattingKeys.collisions(),
                     data => data && withoutAllowedPair(data, request)

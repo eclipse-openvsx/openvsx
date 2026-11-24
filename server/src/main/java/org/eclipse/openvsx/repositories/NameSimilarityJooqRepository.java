@@ -65,152 +65,17 @@ public class NameSimilarityJooqRepository {
     /** {@link #DISPLAY_NAME_TRIM_CHARS} as the Unicode escape string literal V1_87 spells out. */
     static final String DISPLAY_NAME_TRIM_LITERAL = toUnicodeEscapeLiteral(DISPLAY_NAME_TRIM_CHARS);
 
+    /** The first step of the walk over flagged extensions reads this many failures, each later one twice as many. */
+    static final int WALK_FIRST_CHUNK = 1024;
+
+    /** Steps the walk takes before it gives up and looks every flagged extension up in one go. */
+    static final int WALK_MAX_STEPS = 4;
+
     private final DSLContext dsl;
 
     public NameSimilarityJooqRepository(DSLContext dsl) {
         this.dsl = dsl;
     }
-
-    /**
-     * What to look for: the names of one extension, which need not exist yet. Extensions in the same
-     * namespace never match. A normalized value shorter than {@code minFuzzyLength} only matches exactly,
-     * as trigram scores of very short strings say little.
-     *
-     * @param onlyExtensionIds     when not empty, the only extensions that may match
-     * @param excludedExtensionIds extensions that never match
-     * @param earliestFirst        whether the limit keeps the extensions published first, in the order of
-     *                             published date (unknown first) and then id; otherwise which it keeps is
-     *                             unspecified, which spares sorting every hit
-     */
-    public record Probe(
-            String namespaceName,
-            String extensionName,
-            Collection<String> displayNames,
-            float nameThreshold,
-            float displayNameThreshold,
-            int minFuzzyLength,
-            int limit,
-            Duration statementTimeout,
-            Set<Long> onlyExtensionIds,
-            Set<Long> excludedExtensionIds,
-            boolean earliestFirst
-    ) {
-        public Probe {
-            requireThreshold(nameThreshold);
-            requireThreshold(displayNameThreshold);
-            if (limit < 1) {
-                throw new IllegalArgumentException("limit must be positive: " + limit);
-            }
-            requireTimeout(statementTimeout);
-            onlyExtensionIds = Set.copyOf(onlyExtensionIds);
-            excludedExtensionIds = Set.copyOf(excludedExtensionIds);
-        }
-
-        public Probe(
-                String namespaceName,
-                String extensionName,
-                Collection<String> displayNames,
-                float nameThreshold,
-                float displayNameThreshold,
-                int minFuzzyLength,
-                int limit,
-                Duration statementTimeout
-        ) {
-            this(
-                    namespaceName,
-                    extensionName,
-                    displayNames,
-                    nameThreshold,
-                    displayNameThreshold,
-                    minFuzzyLength,
-                    limit,
-                    statementTimeout,
-                    Set.of(),
-                    Set.of(),
-                    false);
-        }
-
-        /** This probe, matching only the given extensions. */
-        public Probe onlyExtensions(Collection<Long> extensionIds) {
-            if (extensionIds.isEmpty()) {
-                throw new IllegalArgumentException("extensionIds must not be empty");
-            }
-            return new Probe(
-                    namespaceName,
-                    extensionName,
-                    displayNames,
-                    nameThreshold,
-                    displayNameThreshold,
-                    minFuzzyLength,
-                    limit,
-                    statementTimeout,
-                    Set.copyOf(extensionIds),
-                    excludedExtensionIds,
-                    earliestFirst);
-        }
-
-        /** This probe, never matching the given extensions. */
-        public Probe excluding(Collection<Long> extensionIds) {
-            return new Probe(
-                    namespaceName,
-                    extensionName,
-                    displayNames,
-                    nameThreshold,
-                    displayNameThreshold,
-                    minFuzzyLength,
-                    limit,
-                    statementTimeout,
-                    onlyExtensionIds,
-                    Set.copyOf(extensionIds),
-                    earliestFirst);
-        }
-
-        /** This probe, keeping the extensions published first when the limit cuts matches off. */
-        public Probe keepingEarliestFirst() {
-            return new Probe(
-                    namespaceName,
-                    extensionName,
-                    displayNames,
-                    nameThreshold,
-                    displayNameThreshold,
-                    minFuzzyLength,
-                    limit,
-                    statementTimeout,
-                    onlyExtensionIds,
-                    excludedExtensionIds,
-                    true);
-        }
-
-        private static void requireThreshold(float threshold) {
-            if (!(threshold > 0 && threshold <= 1)) {
-                throw new IllegalArgumentException("similarity threshold must be in (0, 1]: " + threshold);
-            }
-        }
-    }
-
-    /**
-     * One active extension that matched a probe on one field.
-     *
-     * @param value               the matched extension's value of {@code field}, as published
-     * @param probeValue          the probed value it matched
-     * @param similarity          trigram similarity of the normalized values, from 0 to 1
-     * @param exact               whether the normalized values are equal, which a similarity of 1 does
-     *                            not imply: trigrams are a set, so repeating a word does not change them
-     * @param namespaceSimilarity trigram similarity of the two namespace names
-     */
-    public record Match(
-            long extensionId,
-            String namespaceName,
-            String extensionName,
-            NameSimilarityField field,
-            String value,
-            String probeValue,
-            float similarity,
-            boolean exact,
-            float namespaceSimilarity,
-            LocalDateTime publishedDate,
-            int downloadCount
-    ) {}
 
     /**
      * Find the active extensions outside the probe's namespace that match it, up to {@code limit} per
@@ -357,20 +222,6 @@ public class NameSimilarityJooqRepository {
     private static Field<Float> namespaceSimilarity(Probe probe) {
         return similarity(DSL.lower(NAMESPACE.NAME), DSL.lower(DSL.val(probe.namespaceName())));
     }
-
-    /**
-     * An active extension worth looking up again.
-     *
-     * @param flaggedAt when a check last flagged one of its versions, {@code null} for an extension that
-     *                  only shares a display name with another namespace's
-     */
-    public record Candidate(long extensionId, @Nullable LocalDateTime flaggedAt) {}
-
-    /** The first step of the walk over flagged extensions reads this many failures, each later one twice as many. */
-    static final int WALK_FIRST_CHUNK = 1024;
-
-    /** Steps the walk takes before it gives up and looks every flagged extension up in one go. */
-    static final int WALK_MAX_STEPS = 4;
 
     /**
      * The active extensions a publish check of type {@code checkType} flagged, most recently flagged
@@ -598,22 +449,6 @@ public class NameSimilarityJooqRepository {
         return new Candidate(record.get(0, Long.class), record.get(1, LocalDateTime.class));
     }
 
-    /**
-     * The names of an extension.
-     *
-     * @param displayNames the distinct display names of its active versions
-     */
-    public record ExtensionNames(
-            long id,
-            String namespaceName,
-            String name,
-            boolean active,
-            @Nullable LocalDateTime publishedDate,
-            int downloadCount,
-            int activeVersionCount,
-            List<String> displayNames
-    ) {}
-
     /** The names of the given extensions, active or not, in no particular order. */
     public List<ExtensionNames> findNames(Collection<Long> extensionIds) {
         if (extensionIds.isEmpty()) {
@@ -747,4 +582,169 @@ public class NameSimilarityJooqRepository {
                 record.get(EXTENSION.PUBLISHED_DATE),
                 record.get(EXTENSION.DOWNLOAD_COUNT));
     }
+
+    /**
+     * What to look for: the names of one extension, which need not exist yet. Extensions in the same
+     * namespace never match. A normalized value shorter than {@code minFuzzyLength} only matches exactly,
+     * as trigram scores of very short strings say little.
+     *
+     * @param onlyExtensionIds     when not empty, the only extensions that may match
+     * @param excludedExtensionIds extensions that never match
+     * @param earliestFirst        whether the limit keeps the extensions published first, in the order of
+     *                             published date (unknown first) and then id; otherwise which it keeps is
+     *                             unspecified, which spares sorting every hit
+     */
+    public record Probe(
+            String namespaceName,
+            String extensionName,
+            Collection<String> displayNames,
+            float nameThreshold,
+            float displayNameThreshold,
+            int minFuzzyLength,
+            int limit,
+            Duration statementTimeout,
+            Set<Long> onlyExtensionIds,
+            Set<Long> excludedExtensionIds,
+            boolean earliestFirst
+    ) {
+        public Probe {
+            requireThreshold(nameThreshold);
+            requireThreshold(displayNameThreshold);
+            if (limit < 1) {
+                throw new IllegalArgumentException("limit must be positive: " + limit);
+            }
+            requireTimeout(statementTimeout);
+            onlyExtensionIds = Set.copyOf(onlyExtensionIds);
+            excludedExtensionIds = Set.copyOf(excludedExtensionIds);
+        }
+
+        public Probe(
+                String namespaceName,
+                String extensionName,
+                Collection<String> displayNames,
+                float nameThreshold,
+                float displayNameThreshold,
+                int minFuzzyLength,
+                int limit,
+                Duration statementTimeout
+        ) {
+            this(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    Set.of(),
+                    Set.of(),
+                    false);
+        }
+
+        /** This probe, matching only the given extensions. */
+        public Probe onlyExtensions(Collection<Long> extensionIds) {
+            if (extensionIds.isEmpty()) {
+                throw new IllegalArgumentException("extensionIds must not be empty");
+            }
+            return new Probe(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    Set.copyOf(extensionIds),
+                    excludedExtensionIds,
+                    earliestFirst);
+        }
+
+        /** This probe, never matching the given extensions. */
+        public Probe excluding(Collection<Long> extensionIds) {
+            return new Probe(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    onlyExtensionIds,
+                    Set.copyOf(extensionIds),
+                    earliestFirst);
+        }
+
+        /** This probe, keeping the extensions published first when the limit cuts matches off. */
+        public Probe keepingEarliestFirst() {
+            return new Probe(
+                    namespaceName,
+                    extensionName,
+                    displayNames,
+                    nameThreshold,
+                    displayNameThreshold,
+                    minFuzzyLength,
+                    limit,
+                    statementTimeout,
+                    onlyExtensionIds,
+                    excludedExtensionIds,
+                    true);
+        }
+
+        private static void requireThreshold(float threshold) {
+            if (!(threshold > 0 && threshold <= 1)) {
+                throw new IllegalArgumentException("similarity threshold must be in (0, 1]: " + threshold);
+            }
+        }
+    }
+
+    /**
+     * One active extension that matched a probe on one field.
+     *
+     * @param value               the matched extension's value of {@code field}, as published
+     * @param probeValue          the probed value it matched
+     * @param similarity          trigram similarity of the normalized values, from 0 to 1
+     * @param exact               whether the normalized values are equal, which a similarity of 1 does
+     *                            not imply: trigrams are a set, so repeating a word does not change them
+     * @param namespaceSimilarity trigram similarity of the two namespace names
+     */
+    public record Match(
+            long extensionId,
+            String namespaceName,
+            String extensionName,
+            NameSimilarityField field,
+            String value,
+            String probeValue,
+            float similarity,
+            boolean exact,
+            float namespaceSimilarity,
+            LocalDateTime publishedDate,
+            int downloadCount
+    ) {}
+
+    /**
+     * An active extension worth looking up again.
+     *
+     * @param flaggedAt when a check last flagged one of its versions, {@code null} for an extension that
+     *                  only shares a display name with another namespace's
+     */
+    public record Candidate(long extensionId, @Nullable LocalDateTime flaggedAt) {}
+
+    /**
+     * The names of an extension.
+     *
+     * @param displayNames the distinct display names of its active versions
+     */
+    public record ExtensionNames(
+            long id,
+            String namespaceName,
+            String name,
+            boolean active,
+            @Nullable LocalDateTime publishedDate,
+            int downloadCount,
+            int activeVersionCount,
+            List<String> displayNames
+    ) {}
 }
