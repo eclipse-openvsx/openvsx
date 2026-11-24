@@ -128,8 +128,10 @@ describe('AccessControl', () => {
         );
     });
 
-    it('selects no one from a deep link without a provider', async () => {
-        const getUsers = vi.fn().mockResolvedValue({ ...OCTOCAT, page: { ...OCTOCAT.page, totalPages: 3 } });
+    it('selects no account with a provider from a deep link without one', async () => {
+        const getUsers = vi.fn((_signal: AbortSignal, { page }: { page: number }) =>
+            Promise.resolve({ ...OCTOCAT, page: { ...OCTOCAT.page, number: page, totalPages: 3 } })
+        );
         const service = {
             serverUrl: 'https://open-vsx.org',
             admin: {
@@ -139,10 +141,34 @@ describe('AccessControl', () => {
         } as ExtensionRegistryService;
         renderAccessControl(service, 'octocat', null);
 
+        await waitFor(() => expect(getUsers).toHaveBeenCalledTimes(3));
         expect(await screen.findByText(/No user found/)).toBeInTheDocument();
         expect(screen.queryByRole('checkbox', { name: 'Manage extensions' })).not.toBeInTheDocument();
-        // No later page can match either, so none is loaded.
-        expect(getUsers).toHaveBeenCalledTimes(1);
+    });
+
+    // A forgotten user's tombstone has no provider, so the server leaves the field out.
+    it('resolves a deep link without a provider to an account that has none on a later page', async () => {
+        const tombstone = (loginName: string) => ({
+            user: { loginName, tokensUrl: '', createTokenUrl: '' },
+            namespaces: []
+        });
+        const getUsers = vi.fn((_signal: AbortSignal, { page }: { page: number }) =>
+            Promise.resolve({
+                content: [tombstone(page === 0 ? 'deleted-user-70' : 'deleted-user-7')],
+                page: { number: page, size: 25, totalElements: 2, totalPages: 2 }
+            })
+        );
+        const service = {
+            serverUrl: 'https://open-vsx.org',
+            admin: {
+                getUsers,
+                getPermissions: vi.fn().mockResolvedValue([{ value: 'manage_extensions', label: 'Manage extensions' }])
+            } as unknown as AdminService
+        } as ExtensionRegistryService;
+        renderAccessControl(service, 'deleted-user-7', null);
+
+        expect(await screen.findByRole('checkbox', { name: 'Manage extensions' })).toBeInTheDocument();
+        expect(getUsers).toHaveBeenCalledTimes(2);
     });
 
     // Dropping the selection unmounts the details card and takes the draft with it, so it has to be

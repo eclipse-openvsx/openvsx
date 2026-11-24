@@ -135,10 +135,10 @@ export const AccessControl: FunctionComponent = () => {
         if (selected || `${providerParam}/${loginParam}` === dismissedParamRef.current) {
             return;
         }
-        const match = users.find(u => u.user.loginName === loginParam && u.user.provider === providerParam);
+        const match = users.find(u => u.user.loginName === loginParam && (u.user.provider ?? null) === providerParam);
         if (match) {
             setSelected(match);
-        } else if (providerParam && hasNextPage && !isFetchingNextPage && pagesWalked.current < DEEP_LINK_PAGE_LIMIT) {
+        } else if (hasNextPage && !isFetchingNextPage && pagesWalked.current < DEEP_LINK_PAGE_LIMIT) {
             // The server matches the login as a substring, so the exact one can sit past the first
             // page. Capped, because a short or stale link matches nearly every account: without a
             // limit this walks the whole registry one page at a time, showing no progress while it

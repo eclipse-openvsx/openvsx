@@ -103,7 +103,9 @@ export const PublisherAdmin: FunctionComponent = () => {
         if (selected || `${providerParam}/${publisherParam}` === dismissedParamRef.current) {
             return;
         }
-        const match = publishers.find(p => p.user.loginName === publisherParam && p.user.provider === providerParam);
+        const match = publishers.find(
+            p => p.user.loginName === publisherParam && (p.user.provider ?? null) === providerParam
+        );
         if (match) {
             setSelected(match);
         }
