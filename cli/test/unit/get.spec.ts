@@ -23,9 +23,17 @@ interface RegistryStub {
     close: () => Promise<void>;
 }
 
-/** Serves `acme/tool` at 2.0.0 (latest) and `olderVersions` (default 1.0.0), plus the download for each. */
+/**
+ * Serves `acme/tool` at 2.0.0 (latest) and `olderVersions` (default 1.0.0), plus the download for each.
+ * `unlistedVersions` are left out of `allVersions` and only reachable through version-references,
+ * which lists every version once per entry of `targets`.
+ */
 async function startRegistryStub(overrides: Record<string, unknown> = {}): Promise<RegistryStub> {
-    const { downloadName, olderVersions = ['1.0.0'], ...extra } = overrides as { downloadName?: string; olderVersions?: string[] };
+    const { downloadName, olderVersions = ['1.0.0'], unlistedVersions = [], targets = ['universal'], ...extra } = overrides as {
+        downloadName?: string; olderVersions?: string[]; unlistedVersions?: string[]; targets?: string[]
+    };
+    const references = ['2.0.0', ...olderVersions, ...unlistedVersions]
+        .flatMap(version => targets.map(targetPlatform => ({ version, targetPlatform })));
     let base = '';
     const metadata = (version: string) => ({
         namespace: 'acme',
@@ -44,9 +52,18 @@ async function startRegistryStub(overrides: Record<string, unknown> = {}): Promi
             res.end(VSIX);
             return;
         }
-        const requested = url.pathname.substring('/api/acme/tool/'.length);
-        const version = olderVersions.includes(requested) ? requested : '2.0.0';
         res.writeHead(200, { 'Content-Type': 'application/json' });
+        if (url.pathname === '/api/acme/tool/version-references') {
+            const size = Number(url.searchParams.get('size'));
+            const offset = Number(url.searchParams.get('offset'));
+            const versions = references.slice(offset, offset + size).map(reference => ({
+                ...reference, url: `${base}/api/acme/tool/${reference.version}`, files: {}
+            }));
+            res.end(JSON.stringify({ offset, totalSize: references.length, versions }));
+            return;
+        }
+        const requested = url.pathname.substring('/api/acme/tool/'.length);
+        const version = [...olderVersions, ...unlistedVersions].includes(requested) ? requested : '2.0.0';
         res.end(JSON.stringify(metadata(version)));
     });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -244,6 +261,17 @@ describe('get', () => {
         it('fetches the highest matching pre-release when the registry sorts pre-releases as strings', async () => {
             await get({ version: '>=1.0.0-beta.1 <1.0.0' }, { olderVersions: ['1.0.0-beta.1', '1.0.0-beta.2'] });
             expect(fs.readdirSync(cwd)).toEqual(['acme.tool-1.0.0-beta.2.vsix']);
+        });
+
+        it('fetches a version missing from allVersions from the version references', async () => {
+            const unlistedVersions = Array.from({ length: 150 }, (_, i) => `0.${149 - i}.0`);
+            await get({ version: '0.0.0' }, { unlistedVersions });
+            expect(fs.readdirSync(cwd)).toEqual(['acme.tool-0.0.0.vsix']);
+        });
+
+        it('fetches the highest version matching a range from the version references', async () => {
+            await get({ version: '^0.1.0' }, { unlistedVersions: ['0.1.0', '0.1.2', '0.1.1'], targets: ['linux-x64', 'win32-x64'] });
+            expect(fs.readdirSync(cwd)).toEqual(['acme.tool-0.1.2.vsix']);
         });
 
         it('rejects when no published version satisfies the constraint', async () => {

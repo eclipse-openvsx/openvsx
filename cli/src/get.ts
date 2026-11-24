@@ -15,6 +15,8 @@ import { Registry, Extension } from "./registry";
 import { matchExtensionId, addEnvOptions, rejectError } from './util';
 import { GetOptions } from './get-options';
 
+const VERSION_PAGE_SIZE = 100;
+
 /**
  * Downloads an extension or its metadata.
  */
@@ -31,7 +33,7 @@ export async function getExtension(options: GetOptions): Promise<void> {
         throw new Error(extension.error);
     }
 
-    const matchingVersion = await findMatchingVersion(registry, extension, options.version);
+    const matchingVersion = await findMatchingVersion(registry, extension, options.version, options.target);
     if (matchingVersion.error) {
         throw new Error(matchingVersion.error);
     }
@@ -43,20 +45,48 @@ export async function getExtension(options: GetOptions): Promise<void> {
     }
 }
 
-function findMatchingVersion(registry: Registry, extension: Extension, constraint?: string): Promise<Extension> {
+async function findMatchingVersion(registry: Registry, extension: Extension, constraint?: string, target?: string): Promise<Extension> {
     if (!constraint || semver.satisfies(extension.version, constraint)) {
-        return Promise.resolve(extension);
+        return extension;
     }
     const versions = Object.keys(extension.allVersions).filter(version => !isAlias(extension, version));
     const version = semver.maxSatisfying(versions, constraint);
     if (version) {
         try {
-            return registry.getJson(new URL(extension.allVersions[version]));
+            return await registry.getJson(new URL(extension.allVersions[version]));
         } catch (err) {
             return rejectError(err);
         }
     }
-    return Promise.reject(new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`));
+    // allVersions only lists the highest versions the server returns, so look further back.
+    const olderVersion = semver.maxSatisfying(await getAllVersions(registry, extension, target), constraint);
+    if (olderVersion) {
+        return registry.getMetadata(extension.namespace, extension.name, target, olderVersion);
+    }
+    throw new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`);
+}
+
+/** Best-effort: a registry without the version-references endpoint yields no versions. */
+async function getAllVersions(registry: Registry, extension: Extension, target?: string): Promise<string[]> {
+    const versions = new Set<string>();
+    let offset = 0;
+    try {
+        for (;;) {
+            const page = await registry.getVersionReferences(extension.namespace, extension.name, target, VERSION_PAGE_SIZE, offset);
+            if (page.error) {
+                break;
+            }
+            const references = page.versions ?? [];
+            references.forEach(reference => versions.add(reference.version));
+            offset += references.length;
+            if (references.length === 0 || offset >= page.totalSize) {
+                break;
+            }
+        }
+    } catch {
+        // Fall through with what has been collected.
+    }
+    return [...versions];
 }
 
 function isAlias(extension: Extension, version: string): boolean {
