@@ -9,9 +9,9 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Added
 
 - Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
-- The `NAME_SIMILARITY` publish check flags a version whose extension name or display name matches or resembles another namespace's active extension, without ever blocking publication; it runs while scanning is enabled and is configured by `ovsx.scanning.name-similarity.*`
-- `GET /admin/name-squatting/collisions` looks flagged extensions, and those sharing a display name across namespaces, up again and groups each look-alike under the extension it resembles that was published first; `GET`, `POST` and `DELETE /admin/name-squatting/allowlist` manage the allowed pairs, which stop being reported; all require `manage_extensions`
-- **Upgrade:** migration `V1_86` creates the `pg_trgm` extension, which the database owner can do since PostgreSQL 13, and the `name_similarity_allow` table; `V1_87` builds trigram indexes on `extension` and `extension_version` and an index on `extension_validation_failure` that block writes to those tables while building and give up after waiting 5 s for a lock, so to avoid the pause create them `CONCURRENTLY` beforehand as `V1_87` describes
+- The `NAME_SIMILARITY` publish check flags a version whose name or display name resembles another namespace's active extension, without blocking publication; configured by `ovsx.scanning.name-similarity.*` ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
+- `/admin/name-squatting/collisions` and `/admin/name-squatting/allowlist` let admins with `manage_extensions` review look-alike extensions and allow pairs that are not squatting ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
+- **Upgrade:** `V1_86` creates the `pg_trgm` extension and `V1_87` builds indexes that block writes while building; [doc/deployment.md](../doc/deployment.md#building-the-name-similarity-indexes-without-a-write-pause) builds them `CONCURRENTLY` beforehand ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
 
 ### Fixed
 

@@ -156,3 +156,28 @@ sudo ln -s /etc/nginx/sites-available/openvsx /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+## Building the Name Similarity Indexes Without a Write Pause
+
+Migration `V1_87` builds three indexes without `CONCURRENTLY`, because `CREATE INDEX CONCURRENTLY` waits for every open transaction, Flyway's own included, and so never returns inside a migration. Each build blocks writes to its table until it completes, and gives up after waiting 5 s for a lock, to be retried on the next start.
+
+To avoid the pause, create the indexes before upgrading; `IF NOT EXISTS` then turns the migration into a no-op:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS extension_version_display_name_trgm_idx
+    ON public.extension_version
+    USING gin (lower(btrim(display_name, U&' \00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000')) gin_trgm_ops)
+    WHERE active;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS extension_name_trgm_idx
+    ON public.extension
+    USING gin (lower(name) gin_trgm_ops)
+    WHERE active;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS extension_validation_failure_type_detected_idx
+    ON public.extension_validation_failure (validation_type, detected_at DESC, scan_id DESC);
+```
+
+A failed `CONCURRENTLY` build leaves an invalid index behind that `IF NOT EXISTS` will not replace, so drop it before retrying.
