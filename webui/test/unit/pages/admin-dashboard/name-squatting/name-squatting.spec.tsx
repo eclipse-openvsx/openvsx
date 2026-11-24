@@ -21,7 +21,7 @@ import { renderWithProviders } from '../../../support/test-providers';
 const service = () =>
     ({
         admin: {
-            getNameSquattingCollisions: vi.fn().mockResolvedValue({ groups: [], nextOffset: 0, hasMore: false }),
+            getNameSquattingCollisions: vi.fn().mockResolvedValue({ groups: [], next: { offset: 0 }, hasMore: false }),
             getNameSquattingAllowlist: vi.fn().mockResolvedValue({ groups: [], page: 0, hasMore: false })
         }
     }) as unknown as ExtensionRegistryService;

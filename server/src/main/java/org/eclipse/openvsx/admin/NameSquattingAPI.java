@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -86,8 +87,11 @@ public class NameSquattingAPI {
     )
     public ResponseEntity<NameSquattingJson.Collisions> getCollisions(
             @RequestParam(defaultValue = "0")
-            @Parameter(description = "The nextOffset of the previous page, 0 for the first")
+            @Parameter(description = "The next.offset of the previous page, 0 for the first")
             @Min(value = 0, message = "parameter must not be negative") int offset,
+            @RequestParam(required = false)
+            @Parameter(description = "The next.afterId of the previous page, when it has one")
+            @Nullable Long afterId,
             @RequestParam(defaultValue = "25")
             @Parameter(description = "How many candidates to look up per batch")
             @Min(value = 1, message = "parameter must be positive")
@@ -95,7 +99,7 @@ public class NameSquattingAPI {
     ) {
         admins.checkPermission(Permission.MANAGE_EXTENSIONS);
         try {
-            return ResponseEntity.ok(nameSquatting.findCollisions(offset, size));
+            return ResponseEntity.ok(nameSquatting.findCollisions(new NameSquattingJson.Cursor(offset, afterId), size));
         } catch (ErrorResultException exc) {
             throw toResponseStatus(exc);
         }

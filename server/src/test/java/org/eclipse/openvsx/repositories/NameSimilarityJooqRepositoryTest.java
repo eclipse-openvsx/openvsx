@@ -41,6 +41,7 @@ import org.eclipse.openvsx.entities.Extension;
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ExtensionValidationFailure;
 import org.eclipse.openvsx.entities.ExtensionVersion;
+import org.eclipse.openvsx.entities.NameSimilarityAllow;
 import org.eclipse.openvsx.entities.NameSimilarityField;
 import org.eclipse.openvsx.entities.Namespace;
 import org.eclipse.openvsx.entities.ScanStatus;
@@ -52,6 +53,7 @@ import org.eclipse.openvsx.util.TargetPlatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.eclipse.openvsx.jooq.Tables.NAME_SIMILARITY_ALLOW;
 
 /**
  * Every test class shares one database, and these lookups scan all of it, so fixtures carry random
@@ -241,7 +243,7 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     @Test
     void displayNameLookupUsesTheTrigramIndex() {
         var probe = probe("other", "x" + word(), word() + " Tools", 0.7f);
-        NameSimilarityJooqRepository.applyThreshold(dsl, probe);
+        NameSimilarityJooqRepository.applySettings(dsl, probe);
         disablePlansThatBypassTrigramIndexes();
 
         var plan = dsl.explain(NameSimilarityJooqRepository.displayNamesQuery(dsl, probe, word() + " Tools")).plan();
@@ -252,7 +254,7 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     @Test
     void extensionNameLookupUsesTheTrigramIndex() {
         var probe = probe("other", "x" + word(), null, 0.7f);
-        NameSimilarityJooqRepository.applyThreshold(dsl, probe);
+        NameSimilarityJooqRepository.applySettings(dsl, probe);
         disablePlansThatBypassTrigramIndexes();
 
         var plan = dsl.explain(NameSimilarityJooqRepository.namesQuery(dsl, probe)).plan();
@@ -263,7 +265,7 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     @Test
     void earliestFirstLookupsStillUseTheTrigramIndexes() {
         var probe = probe("other", "x" + word(), null, 0.7f).keepingEarliestFirst();
-        NameSimilarityJooqRepository.applyThreshold(dsl, probe);
+        NameSimilarityJooqRepository.applySettings(dsl, probe);
         disablePlansThatBypassTrigramIndexes();
 
         assertSearchesTrigramIndex(
@@ -315,15 +317,43 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     }
 
     @Test
-    void putsTheStatementTimeoutBackAfterALookup() {
-        dsl.execute("SET LOCAL statement_timeout = '42s'");
+    void appliesTheStatementTimeoutAndThresholdOfTheProbe() {
+        NameSimilarityJooqRepository.applySettings(dsl, probe("other", "x" + word(), null, 0.55f));
 
-        repo.findSimilar(probe("other", "x" + word(), word() + " Tools", 0.7f));
+        assertThat(currentSetting("statement_timeout")).isEqualTo("10s");
+        assertThat(currentSetting("pg_trgm.similarity_threshold")).isEqualTo("0.55");
+    }
 
+    @Test
+    void insertsAnAllowOnlyOnceWhicheverWayRoundTheRaceGoes() {
+        var lookalike = persistExtension(namespace(), "x" + word(), word());
+        var original = persistExtension(namespace(), "x" + word(), word());
+        em.flush();
+
+        assertThat(repo.insertAllow(allow(lookalike, original))).isTrue();
+        assertThat(repo.insertAllow(allow(original, lookalike))).isFalse();
         assertThat(
-                dsl.select(DSL.function("current_setting", String.class, DSL.inline("statement_timeout")))
-                        .fetchOne(0, String.class))
-                .isEqualTo("42s");
+                dsl.fetchCount(
+                        NAME_SIMILARITY_ALLOW,
+                        NAME_SIMILARITY_ALLOW.EXTENSION_ID.in(lookalike.getId(), original.getId())))
+                .isEqualTo(1);
+    }
+
+    private String currentSetting(String setting) {
+        return dsl.select(DSL.function("current_setting", String.class, DSL.inline(setting)))
+                .fetchOne(0, String.class);
+    }
+
+    private static NameSimilarityAllow allow(Extension extension, Extension other) {
+        var allow = new NameSimilarityAllow();
+        allow.setExtensionId(extension.getId());
+        allow.setOtherExtensionId(other.getId());
+        allow.setField(NameSimilarityField.DISPLAY_NAME);
+        allow.setSimilarity(1f);
+        allow.setExtensionValue("value");
+        allow.setOtherValue("value");
+        allow.setDecidedAt(PUBLISHED);
+        return allow;
     }
 
     @Test
@@ -331,7 +361,7 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
         var fixture = flaggedFixture();
 
         // One failure per step, so the walk resumes inside a scan and between scans flagged at one instant.
-        var walked = repo.findCandidates(fixture.checkType(), 0, 100_000, TIMEOUT, 1, 1_000);
+        var walked = repo.findCandidates(fixture.checkType(), 0, null, 100_000, TIMEOUT, 1, 1_000);
 
         assertThat(ofInterest(walked, fixture)).containsExactly(
                 new Candidate(fixture.reflagged().getId(), FLAGGED),
@@ -346,8 +376,8 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     void walkAndOneGoLookupAgree() {
         var fixture = flaggedFixture();
 
-        var walked = repo.findCandidates(fixture.checkType(), 0, 100_000, TIMEOUT, 1, 1_000);
-        var inOneGo = repo.findCandidates(fixture.checkType(), 0, 100_000, TIMEOUT, 1, 1);
+        var walked = repo.findCandidates(fixture.checkType(), 0, null, 100_000, TIMEOUT, 1, 1_000);
+        var inOneGo = repo.findCandidates(fixture.checkType(), 0, null, 100_000, TIMEOUT, 1, 1);
 
         assertThat(ofInterest(inOneGo, fixture)).isEqualTo(ofInterest(walked, fixture)).hasSize(6);
     }
@@ -356,7 +386,7 @@ class NameSimilarityJooqRepositoryTest extends AbstractPostgresContainerTest {
     void pagesThroughTheFlaggedExtensions() {
         var fixture = flaggedFixture();
 
-        var page = repo.findCandidates(fixture.checkType(), 1, 2, TIMEOUT, 1, 3);
+        var page = repo.findCandidates(fixture.checkType(), 1, null, 2, TIMEOUT, 1, 3);
 
         assertThat(page).extracting(Candidate::extensionId)
                 .containsExactly(fixture.tiedLater().getId(), fixture.tiedEarlier().getId());

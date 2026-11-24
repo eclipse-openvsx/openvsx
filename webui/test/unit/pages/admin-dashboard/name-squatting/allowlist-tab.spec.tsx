@@ -112,4 +112,27 @@ describe('AllowlistTab', () => {
         expect(await screen.findByText(/allowed pair not found/i)).toBeInTheDocument();
         await waitFor(() => expect(admin.getNameSquattingAllowlist).toHaveBeenCalledTimes(2));
     });
+
+    it('retries a partial removal past the allows already removed', async () => {
+        const user = userEvent.setup();
+        const admin = mountTab({
+            getNameSquattingAllowlist: vi.fn().mockResolvedValue(allowlist),
+            removeNameSquattingAllow: vi
+                .fn()
+                .mockResolvedValueOnce({ success: 'ok' })
+                .mockRejectedValueOnce({ error: 'Server error', status: 500 })
+                .mockRejectedValueOnce({ error: 'Allowed pair not found: 1', status: 404 })
+                .mockResolvedValueOnce({ success: 'ok' })
+        });
+
+        await user.click(await screen.findByRole('button', { name: 'Remove all…' }));
+        await user.click(screen.getByRole('button', { name: 'Remove 2 allows' }));
+        expect(await screen.findByText(/server error/i)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Remove 2 allows' }));
+
+        await waitFor(() => expect(admin.removeNameSquattingAllow).toHaveBeenCalledTimes(4));
+        expect(admin.removeNameSquattingAllow).toHaveBeenLastCalledWith(2);
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
 });

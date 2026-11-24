@@ -21,7 +21,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import jakarta.transaction.Transactional;
 import org.jooq.Condition;
@@ -35,6 +34,7 @@ import org.jooq.impl.SQLDataType;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
+import org.eclipse.openvsx.entities.NameSimilarityAllow;
 import org.eclipse.openvsx.entities.NameSimilarityField;
 
 import static org.eclipse.openvsx.jooq.Tables.EXTENSION;
@@ -42,6 +42,7 @@ import static org.eclipse.openvsx.jooq.Tables.EXTENSION_SCAN;
 import static org.eclipse.openvsx.jooq.Tables.EXTENSION_VALIDATION_FAILURE;
 import static org.eclipse.openvsx.jooq.Tables.EXTENSION_VERSION;
 import static org.eclipse.openvsx.jooq.Tables.NAMESPACE;
+import static org.eclipse.openvsx.jooq.Tables.NAME_SIMILARITY_ALLOW;
 
 /**
  * Trigram lookups of the active extensions whose name or display name matches or resembles a given
@@ -49,7 +50,8 @@ import static org.eclipse.openvsx.jooq.Tables.NAMESPACE;
  * <p>
  * Results come back in no particular order: ordering by similarity in SQL makes the planner give up
  * the trigram indexes, so callers sort what they get. Each lookup sets a statement timeout local to its
- * transaction; a cancelled statement aborts that transaction, so callers should not hold one open.
+ * transaction and leaves it set, and a cancelled statement aborts that transaction, so callers must not
+ * hold one open.
  */
 @Component
 public class NameSimilarityJooqRepository {
@@ -226,28 +228,26 @@ public class NameSimilarityJooqRepository {
             }
         }
 
-        return withStatementTimeout(probe.statementTimeout(), () -> {
-            applyThreshold(dsl, probe);
-            var matches = new ArrayList<Match>();
-            if (!probe.extensionName().isBlank()) {
-                matches.addAll(
-                        namesQuery(dsl, probe)
-                                .fetch(record -> toMatch(record, NameSimilarityField.NAME, probe.extensionName())));
-            }
-            for (var displayName : displayNames) {
-                matches.addAll(
-                        displayNamesQuery(dsl, probe, displayName)
-                                .fetch(record -> toMatch(record, NameSimilarityField.DISPLAY_NAME, displayName)));
-            }
-            return matches;
-        });
+        applySettings(dsl, probe);
+        var matches = new ArrayList<Match>();
+        if (!probe.extensionName().isBlank()) {
+            matches.addAll(
+                    namesQuery(dsl, probe)
+                            .fetch(record -> toMatch(record, NameSimilarityField.NAME, probe.extensionName())));
+        }
+        for (var displayName : displayNames) {
+            matches.addAll(
+                    displayNamesQuery(dsl, probe, displayName)
+                            .fetch(record -> toMatch(record, NameSimilarityField.DISPLAY_NAME, displayName)));
+        }
+        return matches;
     }
 
-    /** The % operator compares against this setting. */
-    static void applyThreshold(DSLContext tx, Probe probe) {
+    /** The probe's statement timeout, and the threshold the % operator compares against. */
+    static void applySettings(DSLContext tx, Probe probe) {
         setLocal(
                 tx,
-                "pg_trgm.similarity_threshold",
+                probe.statementTimeout(),
                 Float.toString(Math.min(probe.nameThreshold(), probe.displayNameThreshold())));
     }
 
@@ -374,46 +374,59 @@ public class NameSimilarityJooqRepository {
 
     /**
      * The active extensions a publish check of type {@code checkType} flagged, most recently flagged
-     * first, followed by the others whose display name another namespace's active extension shares.
-     * Flagged extensions flagged at the same instant follow the scan that flagged them last, newest first.
+     * first, followed by the others whose display name another namespace's active extension shares, by
+     * id. Flagged extensions flagged at the same instant follow the scan that flagged them last, newest
+     * first.
      * <p>
      * The second kind costs a pass over every active version, so it is only looked for once a page
      * reaches past the flagged ones.
+     *
+     * @param offset  where to start in the flagged extensions, unless {@code afterId} is given
+     * @param afterId the last extension sharing a display name already listed, to list those after it
+     *                and none of the flagged ones; it does not shift when extensions before it go away
      */
     @Transactional
-    public List<Candidate> findCandidates(String checkType, int offset, int limit, Duration statementTimeout) {
-        return findCandidates(checkType, offset, limit, statementTimeout, WALK_FIRST_CHUNK, WALK_MAX_STEPS);
+    public List<Candidate> findCandidates(
+            String checkType,
+            int offset,
+            @Nullable Long afterId,
+            int limit,
+            Duration statementTimeout
+    ) {
+        return findCandidates(checkType, offset, afterId, limit, statementTimeout, WALK_FIRST_CHUNK, WALK_MAX_STEPS);
     }
 
     @Transactional
     List<Candidate> findCandidates(
             String checkType,
             int offset,
+            @Nullable Long afterId,
             int limit,
             Duration statementTimeout,
             int firstChunk,
             int maxSteps
     ) {
         requireTimeout(statementTimeout);
-        var needed = (int) Math.min(Integer.MAX_VALUE, (long) offset + limit);
-        return withStatementTimeout(statementTimeout, () -> {
-            var flagged = walkFlagged(checkType, needed, firstChunk, maxSteps);
-            if (flagged == null) {
-                flagged = allFlaggedQuery(dsl, checkType).fetch(this::toCandidate);
-            }
-            if (flagged.size() >= needed) {
-                return List.copyOf(flagged.subList(offset, needed));
-            }
+        // Past the flagged extensions, every one of them is needed, as the shared ones exclude them.
+        var needed = afterId != null ? Integer.MAX_VALUE : (int) Math.min(Integer.MAX_VALUE, (long) offset + limit);
+        setLocal(dsl, statementTimeout, null);
+        var flagged = walkFlagged(checkType, needed, firstChunk, maxSteps);
+        if (flagged == null) {
+            flagged = allFlaggedQuery(dsl, checkType).fetch(this::toCandidate);
+        }
+        if (afterId == null && flagged.size() >= needed) {
+            return List.copyOf(flagged.subList(offset, needed));
+        }
 
-            // Short of the page, the flagged list is complete, so it is also what the shared ones exclude.
-            var candidates = new ArrayList<>(flagged.subList(Math.min(offset, flagged.size()), flagged.size()));
-            var flaggedIds = flagged.stream().map(Candidate::extensionId).toList();
-            var sharedOffset = Math.max(0, offset - flagged.size());
-            candidates.addAll(
-                    sharedDisplayNameQuery(dsl, flaggedIds, sharedOffset, limit - candidates.size())
-                            .fetch(record -> new Candidate(record.get(0, Long.class), null)));
-            return candidates;
-        });
+        // Short of the page, the flagged list is complete, so it is also what the shared ones exclude.
+        var candidates = afterId != null
+                ? new ArrayList<Candidate>()
+                : new ArrayList<>(flagged.subList(Math.min(offset, flagged.size()), flagged.size()));
+        var flaggedIds = flagged.stream().map(Candidate::extensionId).toList();
+        candidates.addAll(
+                sharedDisplayNameQuery(dsl, flaggedIds, afterId, limit - candidates.size())
+                        .fetch(record -> new Candidate(record.get(0, Long.class), null)));
+        return candidates;
     }
 
     /**
@@ -532,13 +545,13 @@ public class NameSimilarityJooqRepository {
 
     /**
      * The active extensions outside {@code excludedIds} whose display name another namespace's active
-     * extension shares once normalized, by id. One pass over the active versions normalizes each name
-     * once and dedupes it per extension before grouping.
+     * extension shares once normalized, by id, after {@code afterId} when given. One pass over the active
+     * versions normalizes each name once and dedupes it per extension before grouping.
      */
     static ResultQuery<? extends Record> sharedDisplayNameQuery(
             DSLContext tx,
             Collection<Long> excludedIds,
-            int offset,
+            @Nullable Long afterId,
             int limit
     ) {
         var names = DSL.name("names").fields("extension_id", "namespace_id", "normalized").as(
@@ -576,8 +589,8 @@ public class NameSimilarityJooqRepository {
                 .from(names)
                 .join(shared).on(sharedNormalized.eq(namesNormalized))
                 .where(namesExtensionId.notIn(excluded))
+                .and(afterId == null ? DSL.noCondition() : namesExtensionId.gt(afterId))
                 .orderBy(namesExtensionId)
-                .offset(offset)
                 .limit(limit);
     }
 
@@ -645,22 +658,42 @@ public class NameSimilarityJooqRepository {
     }
 
     /**
-     * Run {@code work} with the statement timeout set, then put the previous one back, so the timeout does
-     * not outlive the lookup in a caller's transaction. A cancelled statement aborts the transaction, and
-     * the setting goes with it.
+     * Store the allow unless the pair is already allowed, whichever way round, which the unique
+     * name_similarity_allow_pair_idx (V1_86) decides even when two admins allow it at once.
+     *
+     * @return whether the allow was stored
      */
-    private <T> T withStatementTimeout(Duration timeout, Supplier<T> work) {
-        var previous = dsl.select(DSL.function("current_setting", String.class, DSL.inline("statement_timeout")))
-                .fetchOne(0, String.class);
-        setLocal(dsl, "statement_timeout", timeout.toMillis() + "ms");
-        var result = work.get();
-        setLocal(dsl, "statement_timeout", previous);
-        return result;
+    public boolean insertAllow(NameSimilarityAllow allow) {
+        var table = NAME_SIMILARITY_ALLOW;
+        return dsl.insertInto(table)
+                .set(table.EXTENSION_ID, allow.getExtensionId())
+                .set(table.OTHER_EXTENSION_ID, allow.getOtherExtensionId())
+                .set(table.FIELD, allow.getField().name())
+                .set(table.SIMILARITY, allow.getSimilarity())
+                .set(table.EXTENSION_VALUE, allow.getExtensionValue())
+                .set(table.OTHER_VALUE, allow.getOtherValue())
+                .set(table.REASON, allow.getReason())
+                .set(table.DECIDED_BY_ID, allow.getDecidedById())
+                .set(table.DECIDED_AT, allow.getDecidedAt())
+                .onConflictDoNothing()
+                .execute() == 1;
     }
 
-    private static void setLocal(DSLContext tx, String setting, String value) {
-        tx.select(DSL.function("set_config", String.class, DSL.inline(setting), DSL.val(value), DSL.inline(true)))
-                .fetch();
+    /**
+     * Set the statement timeout, and the similarity threshold unless {@code null}, until the transaction
+     * ends, in one round trip. The settings are not put back, so the caller must not share the transaction.
+     */
+    private static void setLocal(DSLContext tx, Duration statementTimeout, @Nullable String similarityThreshold) {
+        var settings = new ArrayList<Field<?>>();
+        settings.add(setConfig("statement_timeout", statementTimeout.toMillis() + "ms"));
+        if (similarityThreshold != null) {
+            settings.add(setConfig("pg_trgm.similarity_threshold", similarityThreshold));
+        }
+        tx.select(settings).fetch();
+    }
+
+    private static Field<String> setConfig(String setting, String value) {
+        return DSL.function("set_config", String.class, DSL.inline(setting), DSL.val(value), DSL.inline(true));
     }
 
     private static void requireTimeout(Duration timeout) {

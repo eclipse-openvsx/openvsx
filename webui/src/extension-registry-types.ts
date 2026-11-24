@@ -646,10 +646,17 @@ export interface NameSquattingGroup {
     lookalikes: NameSquattingLookalike[];
 }
 
+/** Where a page of collisions ended; pass it back unchanged to load the next one. */
+export interface NameSquattingCursor {
+    /** Flagged extensions listed so far. */
+    offset: number;
+    /** The last extension listed for sharing a display name, absent until the flagged ones run out. */
+    afterId?: number;
+}
+
 export interface NameSquattingCollisions {
     groups: NameSquattingGroup[];
-    /** Pass as `offset` to load the next groups. */
-    nextOffset: number;
+    next: NameSquattingCursor;
     hasMore: boolean;
 }
 

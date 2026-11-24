@@ -64,12 +64,20 @@ public final class NameSquattingJson {
     @Schema(name = "NameSquattingGroup", description = "An extension and the later extensions that resemble it")
     public record Group(Extension anchor, List<Lookalike> lookalikes) {}
 
-    @Schema(name = "NameSquattingCollisions")
-    public record Collisions(
-            List<Group> groups,
-            @Schema(description = "Pass as offset to load the next groups") int nextOffset,
-            boolean hasMore
+    @Schema(
+        name = "NameSquattingCursor",
+        description = "Where a page of collisions ended: pass both fields back to load the next one"
+    )
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Cursor(
+            @Schema(description = "Flagged extensions listed so far") int offset,
+            @Schema(
+                description = "The last extension listed for sharing a display name, absent until the flagged ones run out"
+            ) @Nullable Long afterId
     ) {}
+
+    @Schema(name = "NameSquattingCollisions")
+    public record Collisions(List<Group> groups, Cursor next, boolean hasMore) {}
 
     @Schema(
         name = "NameSquattingAllowRequest",

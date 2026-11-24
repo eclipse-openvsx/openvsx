@@ -14,11 +14,13 @@
 import { useContext } from 'react';
 import { InfiniteData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MainContext } from '../../../context';
+import { isNotFound } from '../../../server-request';
 import type {
     NameSquattingAllowlist,
     NameSquattingAllowlistGroup,
     NameSquattingAllowRequest,
     NameSquattingCollisions,
+    NameSquattingCursor,
     NameSquattingExtension,
     NameSquattingGroup,
     TargetPlatformVersion
@@ -38,7 +40,9 @@ export const extensionId = (extension: Pick<NameSquattingExtension, 'namespace' 
     `${extension.namespace}.${extension.name}`;
 
 /** Joins the batches into one list; an anchor resembled in two batches is shown as one group. */
-export const mergeCollisionPages = (data: InfiniteData<NameSquattingCollisions, number>): NameSquattingGroup[] => {
+export const mergeCollisionPages = (
+    data: InfiniteData<NameSquattingCollisions, NameSquattingCursor>
+): NameSquattingGroup[] => {
     const groups = new Map<string, NameSquattingGroup>();
     for (const group of data.pages.flatMap(page => page.groups)) {
         const key = extensionId(group.anchor);
@@ -81,8 +85,8 @@ export const useNameSquattingCollisions = () => {
         queryKey: nameSquattingKeys.collisions(),
         queryFn: ({ signal, pageParam }) =>
             service.admin.getNameSquattingCollisions(signal, pageParam, COLLISIONS_BATCH_SIZE),
-        initialPageParam: 0,
-        getNextPageParam: lastPage => (lastPage.hasMore ? lastPage.nextOffset : undefined),
+        initialPageParam: { offset: 0 } as NameSquattingCursor,
+        getNextPageParam: lastPage => (lastPage.hasMore ? lastPage.next : undefined),
         select: mergeCollisionPages,
         retry: false
     });
@@ -100,9 +104,37 @@ export const useNameSquattingAllowlist = () => {
     });
 };
 
+/** The loaded collision pages without the look-alike of the allowed pair, and without groups left empty. */
+export const withoutAllowedPair = (
+    data: InfiniteData<NameSquattingCollisions, NameSquattingCursor>,
+    request: NameSquattingAllowRequest
+): InfiniteData<NameSquattingCollisions, NameSquattingCursor> => {
+    const anchor = `${request.otherNamespace}.${request.otherExtension}`;
+    const allowed = `${request.namespace}.${request.extension}`;
+    return {
+        ...data,
+        pages: data.pages.map(page => ({
+            ...page,
+            groups: page.groups
+                .map(group =>
+                    extensionId(group.anchor) === anchor
+                        ? {
+                              ...group,
+                              lookalikes: group.lookalikes.filter(
+                                  lookalike => extensionId(lookalike.extension) !== allowed
+                              )
+                          }
+                        : group
+                )
+                .filter(group => group.lookalikes.length > 0)
+        }))
+    };
+};
+
 /**
- * Allows pairs one after another. Settling rather than succeeding refreshes both lists, so pairs
- * allowed before a failure leave the Collisions tab too.
+ * Allows pairs one after another, taking each off the loaded collisions once the server has allowed it,
+ * so pairs allowed before a failure leave too. The collisions are only marked stale: refetching every
+ * loaded page would look all their candidates up again.
  */
 export const useAllowNameSquattingPairs = () => {
     const { service } = useContext(MainContext);
@@ -111,22 +143,34 @@ export const useAllowNameSquattingPairs = () => {
         mutationFn: async (requests: NameSquattingAllowRequest[]) => {
             for (const request of requests) {
                 await service.admin.allowNameSquattingPair(request);
+                queryClient.setQueryData<InfiniteData<NameSquattingCollisions, NameSquattingCursor>>(
+                    nameSquattingKeys.collisions(),
+                    data => data && withoutAllowedPair(data, request)
+                );
             }
         },
-        onSettled: () => queryClient.invalidateQueries({ queryKey: nameSquattingKeys.all })
+        onSettled: () =>
+            Promise.all([
+                queryClient.invalidateQueries({ queryKey: nameSquattingKeys.collisions(), refetchType: 'none' }),
+                queryClient.invalidateQueries({ queryKey: nameSquattingKeys.allowlist() })
+            ])
     });
 };
 
-/** Removes allows one after another; like allowing, refreshes both lists however far it got. */
+/**
+ * Removes allows one after another; like allowing, refreshes both lists however far it got. An allow
+ * already gone counts as removed, so retrying after a partial failure reaches the rest.
+ */
 export const useRemoveNameSquattingAllows = () => {
     const { service } = useContext(MainContext);
     const queryClient = useQueryClient();
     return useMutation({
+        mutationFn: async (ids: number[]) => {
             for (const id of ids) {
                 try {
                     await service.admin.removeNameSquattingAllow(id);
                 } catch (error) {
-                    if (typeof error !== 'object' || error === null || !('status' in error) || error.status !== 404) {
+                    if (!isNotFound(error)) {
                         throw error;
                     }
                 }

@@ -46,6 +46,7 @@ import {
     NameSquattingAllowlist,
     NameSquattingAllowRequest,
     NameSquattingCollisions,
+    NameSquattingCursor,
     LogPageableList,
     Settings,
     SiteSettings,
@@ -666,10 +667,10 @@ export interface AdminService {
     createSizeOverride(override: SizeOverride): Promise<Readonly<SizeOverride>>;
     updateSizeOverride(id: number, override: SizeOverride): Promise<Readonly<SizeOverride>>;
     deleteSizeOverride(id: number): Promise<Readonly<SuccessResult>>;
-    /** Looks the name squatting candidates up again, `size` at a time from `offset`; `nextOffset` continues. */
+    /** Looks the name squatting candidates up again, `size` at a time from `cursor`; the page's `next` continues. */
     getNameSquattingCollisions(
         signal: AbortSignal,
-        offset: number,
+        cursor: NameSquattingCursor,
         size: number
     ): Promise<Readonly<NameSquattingCollisions>>;
     getNameSquattingAllowlist(
@@ -1210,19 +1211,18 @@ export class AdminServiceImpl implements AdminService {
 
     async getNameSquattingCollisions(
         signal: AbortSignal,
-        offset: number,
+        cursor: NameSquattingCursor,
         size: number
     ): Promise<Readonly<NameSquattingCollisions>> {
+        const query = [{ key: 'offset', value: cursor.offset }];
+        if (cursor.afterId !== undefined) {
+            query.push({ key: 'afterId', value: cursor.afterId });
+        }
+        query.push({ key: 'size', value: size });
         return sendRequest({
             signal,
             credentials: true,
-            endpoint: createAbsoluteURL(
-                [this.registry.serverUrl, 'admin', 'name-squatting', 'collisions'],
-                [
-                    { key: 'offset', value: offset },
-                    { key: 'size', value: size }
-                ]
-            )
+            endpoint: createAbsoluteURL([this.registry.serverUrl, 'admin', 'name-squatting', 'collisions'], query)
         });
     }
 

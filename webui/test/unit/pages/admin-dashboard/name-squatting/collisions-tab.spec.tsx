@@ -44,7 +44,7 @@ const anchor = ext('ms-python', 'python', 'Python');
 
 const page = (lookalikes: NameSquattingLookalike[], hasMore = false): NameSquattingCollisions => ({
     groups: [{ anchor, lookalikes }],
-    nextOffset: 25,
+    next: { offset: 25, afterId: hasMore ? 7 : undefined },
     hasMore
 });
 
@@ -77,7 +77,7 @@ describe('CollisionsTab', () => {
 
     it('says nothing was found rather than nothing matched when the server found nothing', async () => {
         mountTab({
-            getNameSquattingCollisions: vi.fn().mockResolvedValue({ groups: [], nextOffset: 0, hasMore: false })
+            getNameSquattingCollisions: vi.fn().mockResolvedValue({ groups: [], next: { offset: 0 }, hasMore: false })
         });
 
         expect(await screen.findByText('No similar names found')).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe('CollisionsTab', () => {
         expect(screen.getByText('pyth0n.python')).toBeInTheDocument();
     });
 
-    it('loads the next batch from the offset the server returned', async () => {
+    it('loads the next batch from the cursor the server returned', async () => {
         const user = userEvent.setup();
         const admin = mountTab({
             getNameSquattingCollisions: vi
@@ -110,7 +110,11 @@ describe('CollisionsTab', () => {
         await user.click(await screen.findByRole('button', { name: 'Load more groups' }));
 
         expect(await screen.findByText('labs.pythom')).toBeInTheDocument();
-        expect(admin.getNameSquattingCollisions).toHaveBeenLastCalledWith(expect.anything(), 25, 25);
+        expect(admin.getNameSquattingCollisions).toHaveBeenLastCalledWith(
+            expect.anything(),
+            { offset: 25, afterId: 7 },
+            25
+        );
         // the anchor of both batches stays one group
         expect(screen.getAllByText('ms-python.python')).toHaveLength(1);
     });
@@ -137,7 +141,48 @@ describe('CollisionsTab', () => {
                 reason: 'same publisher'
             })
         );
-        await waitFor(() => expect(admin.getNameSquattingCollisions).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(screen.queryByText('pyth0n.python')).not.toBeInTheDocument());
+        expect(admin.getNameSquattingCollisions).toHaveBeenCalledTimes(1);
+    });
+
+    // Refetching would look every loaded candidate up again on the server.
+    it('takes the pairs allowed before a failure off the list without refetching it', async () => {
+        const user = userEvent.setup();
+        const admin = mountTab({
+            getNameSquattingCollisions: vi
+                .fn()
+                .mockResolvedValue(page([lookalike('pyth0n', 'python', true), lookalike('labs', 'pythom', false)])),
+            allowNameSquattingPair: vi
+                .fn()
+                .mockResolvedValueOnce({ success: 'ok' })
+                .mockRejectedValueOnce({ error: 'Server error', status: 500 })
+        });
+
+        await user.click(await screen.findByRole('button', { name: 'Allow all…' }));
+        await user.click(screen.getByRole('button', { name: 'Allow 2 pairs' }));
+
+        expect(await screen.findByText(/server error/i)).toBeInTheDocument();
+        expect(screen.queryByRole('row', { name: /pyth0n\.python/, hidden: true })).not.toBeInTheDocument();
+        expect(screen.getByRole('row', { name: /labs\.pythom/, hidden: true })).toBeInTheDocument();
+        expect(admin.getNameSquattingCollisions).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps every match of a look-alike that shares one field more than once', async () => {
+        const twoDisplayNames: NameSquattingLookalike = {
+            ...lookalike('pyth0n', 'python', false),
+            matches: [
+                { field: 'DISPLAY_NAME', value: 'Python', lookalikeValue: 'Pyth0n', similarity: 0.8, exact: false },
+                { field: 'DISPLAY_NAME', value: 'Python', lookalikeValue: 'Pythonn', similarity: 0.9, exact: false }
+            ]
+        };
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        mountTab({ getNameSquattingCollisions: vi.fn().mockResolvedValue(page([twoDisplayNames])) });
+
+        const row = await screen.findByRole('row', { name: /pyth0n\.python/ });
+
+        expect(within(row).getAllByText(/^Display name$/)).toHaveLength(2);
+        expect(consoleError.mock.calls.flat().join(' ')).not.toMatch(/same key/);
+        consoleError.mockRestore();
     });
 
     it('allows every look-alike of a group with "Allow all"', async () => {

@@ -130,10 +130,14 @@ describe('merging pages', () => {
     it('shows an anchor resembled in two batches as one group, each look-alike once', () => {
         const [first, second] = group.lookalikes;
         const merged = mergeCollisionPages({
-            pageParams: [0, 25],
+            pageParams: [{ offset: 0 }, { offset: 25 }],
             pages: [
-                { groups: [{ anchor: group.anchor, lookalikes: [first] }], nextOffset: 25, hasMore: true },
-                { groups: [{ anchor: group.anchor, lookalikes: [first, second] }], nextOffset: 50, hasMore: false }
+                { groups: [{ anchor: group.anchor, lookalikes: [first] }], next: { offset: 25 }, hasMore: true },
+                {
+                    groups: [{ anchor: group.anchor, lookalikes: [first, second] }],
+                    next: { offset: 50 },
+                    hasMore: false
+                }
             ]
         });
 

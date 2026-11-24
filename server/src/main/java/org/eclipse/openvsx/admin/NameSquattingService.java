@@ -13,6 +13,7 @@
 package org.eclipse.openvsx.admin;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
@@ -98,7 +100,7 @@ public class NameSquattingService {
     }
 
     /**
-     * The look-alikes of the candidates from {@code offset} on, grouped under the extension each resembles
+     * The look-alikes of the candidates from {@code cursor} on, grouped under the extension each resembles
      * that was published first. Groups follow the order of their most recently flagged candidate; a page
      * may hold more than {@code size} look-alikes, or fewer once candidates run out.
      * <p>
@@ -107,9 +109,33 @@ public class NameSquattingService {
      *
      * @throws ErrorResultException with 503 when a lookup ran out of its statement timeout
      */
-    public NameSquattingJson.Collisions findCollisions(int offset, int size) throws ErrorResultException {
+    public NameSquattingJson.Collisions findCollisions(NameSquattingJson.Cursor cursor, int size)
+            throws ErrorResultException {
+        return findCollisions(cursor, size, check.getStatementTimeout());
+    }
+
+    /**
+     * Candidates are looked up until half the {@code budget} has passed, at least one per request so the
+     * pages advance, and look-alikes anchored until all of it has; a lookup already running may finish.
+     */
+    NameSquattingJson.Collisions findCollisions(NameSquattingJson.Cursor cursor, int size, Duration budget)
+            throws ErrorResultException {
+        var start = System.nanoTime();
+        var deadlines = new Deadlines(start + budget.toNanos() / 2, start + budget.toNanos());
+        return stoppingAtTimeout(() -> lookUpCollisions(cursor, size, deadlines));
+    }
+
+    /** When to stop looking up candidates, and when to stop anchoring their look-alikes, as nano times. */
+    private record Deadlines(long candidates, long anchoring) {}
+
+    private static boolean passed(long deadline) {
+        return System.nanoTime() - deadline > 0;
+    }
+
+    /** Run the lookups, answering 503 when one ran out of its statement timeout. */
+    private <T> T stoppingAtTimeout(Supplier<T> lookups) throws ErrorResultException {
         try {
-            return lookUpCollisions(offset, size);
+            return lookups.get();
         } catch (RuntimeException exc) {
             if (!isStatementTimeout(exc)) {
                 throw exc;
@@ -121,22 +147,41 @@ public class NameSquattingService {
         }
     }
 
-    private NameSquattingJson.Collisions lookUpCollisions(int offset, int size) {
+    private NameSquattingJson.Collisions lookUpCollisions(
+            NameSquattingJson.Cursor from,
+            int size,
+            Deadlines deadlines
+    ) {
         var pairs = new LinkedHashMap<Long, Pair>();
         var probed = new HashSet<Long>();
-        var cursor = offset;
+        var offset = from.offset();
+        var afterId = from.afterId();
         var hasMore = true;
         for (var batch = 0; batch < MAX_BATCHES && hasMore && pairs.size() < size; batch++) {
+            if (batch > 0 && passed(deadlines.candidates())) {
+                break;
+            }
             var candidates = similarity.findCandidates(
                     NameSimilarityCheckService.CHECK_TYPE,
-                    cursor,
+                    offset,
+                    afterId,
                     size,
                     check.getStatementTimeout());
-            cursor += candidates.size();
-            hasMore = candidates.size() == size;
-            collectPairs(candidates, pairs, probed);
+            var lookedUp = collectPairs(candidates, pairs, probed, deadlines.candidates());
+            // Flagged candidates come first and are counted; those sharing a display name are keyed by id.
+            for (var candidate : candidates.subList(0, lookedUp)) {
+                if (candidate.flaggedAt() != null) {
+                    offset++;
+                } else {
+                    afterId = candidate.extensionId();
+                }
+            }
+            hasMore = lookedUp < candidates.size() || candidates.size() == size;
+            if (lookedUp < candidates.size()) {
+                break;
+            }
         }
-        anchorAtTheEarliest(pairs, probed);
+        anchorAtTheEarliest(pairs, probed, deadlines.anchoring());
 
         var lookalikeIds = pairs.keySet();
         var lookalikes = byId(similarity.findNames(lookalikeIds));
@@ -154,29 +199,36 @@ public class NameSquattingService {
                                         .map(pair -> toJson(pair, lookalikes.get(pair.lookalikeId())))
                                         .toList()))
                 .toList();
-        return new NameSquattingJson.Collisions(json, cursor, hasMore);
+        return new NameSquattingJson.Collisions(json, new NameSquattingJson.Cursor(offset, afterId), hasMore);
     }
 
     /**
      * Look the candidates up and add their pairs to {@code pairs}, keyed by look-alike, which keeps each
      * look-alike under the earliest published extension it resembles. The candidates join {@code probed}.
+     *
+     * @return how many candidates were looked up, in order, before the deadline passed
      */
-    private void collectPairs(List<Candidate> candidates, Map<Long, Pair> pairs, Set<Long> probed) {
+    private int collectPairs(List<Candidate> candidates, Map<Long, Pair> pairs, Set<Long> probed, long deadline) {
         if (candidates.isEmpty()) {
-            return;
+            return 0;
         }
         var ids = candidates.stream().map(Candidate::extensionId).toList();
         var names = byId(similarity.findNames(ids));
         var allowed = check.allowedPartners(ids);
 
         var found = new ArrayList<Found>();
+        var lookedUp = 0;
         for (var candidate : candidates) {
             var candidateNames = names.get(candidate.extensionId());
-            if (candidateNames == null || !candidateNames.active()) {
-                continue;
+            if (candidateNames != null && candidateNames.active()) {
+                if (!probed.isEmpty() && passed(deadline)) {
+                    break;
+                }
+                probed.add(candidate.extensionId());
+                found.addAll(
+                        lookUp(candidate, candidateNames, allowed.getOrDefault(candidate.extensionId(), Set.of())));
             }
-            probed.add(candidate.extensionId());
-            found.addAll(lookUp(candidate, candidateNames, allowed.getOrDefault(candidate.extensionId(), Set.of())));
+            lookedUp++;
         }
 
         var others = byId(similarity.findNames(found.stream().map(Found::otherId).toList()));
@@ -187,13 +239,15 @@ public class NameSquattingService {
                 pairs.merge(pair.lookalikeId(), pair, Pair::earlierAnchor);
             }
         }
+        return lookedUp;
     }
 
     /**
      * Look up from their own side the look-alikes that were only found from their anchor's, so each sits
      * under the earliest extension it resembles whichever page found it, and pages agree on its group.
+     * Those left once the deadline passes stay under the anchor they were found from.
      */
-    private void anchorAtTheEarliest(Map<Long, Pair> pairs, Set<Long> probed) {
+    private void anchorAtTheEarliest(Map<Long, Pair> pairs, Set<Long> probed, long deadline) {
         var unprobed = pairs.keySet().stream().filter(id -> !probed.contains(id)).toList();
         if (unprobed.isEmpty()) {
             return;
@@ -203,6 +257,9 @@ public class NameSquattingService {
 
         var found = new ArrayList<Found>();
         for (var lookalikeId : unprobed) {
+            if (passed(deadline)) {
+                break;
+            }
             var lookalikeNames = names.get(lookalikeId);
             if (lookalikeNames != null) {
                 var candidate = new Candidate(lookalikeId, pairs.get(lookalikeId).flaggedAt());
@@ -240,8 +297,14 @@ public class NameSquattingService {
                 .toList();
     }
 
-    /** Allow the look-alike alongside the other extension, so the pair is no longer reported. */
-    @Transactional(rollbackOn = ErrorResultException.class)
+    /**
+     * Allow the look-alike alongside the other extension, so the pair is no longer reported.
+     * <p>
+     * Deliberately not transactional, like {@link #findCollisions}: the lookups run in transactions of
+     * their own, and the insert is a single statement.
+     *
+     * @throws ErrorResultException with 503 when a lookup ran out of its statement timeout
+     */
     public ResultJson allow(NameSquattingJson.AllowRequest request, UserData admin) throws ErrorResultException {
         var reason = request.reason() == null || request.reason().isBlank() ? null : request.reason().strip();
         if (reason != null && reason.length() > MAX_REASON_LENGTH) {
@@ -249,45 +312,67 @@ public class NameSquattingService {
                     "The reason must not be longer than " + MAX_REASON_LENGTH + " characters",
                     HttpStatus.BAD_REQUEST);
         }
-        var lookalike = findExtension(request.namespace(), request.extension());
-        var other = findExtension(request.otherNamespace(), request.otherExtension());
-        if (lookalike.getId() == other.getId()) {
+        var lookalikeId = findExtension(request.namespace(), request.extension()).getId();
+        var otherId = findExtension(request.otherNamespace(), request.otherExtension()).getId();
+        if (lookalikeId == otherId) {
             throw new ErrorResultException("An extension cannot be allowed alongside itself", HttpStatus.BAD_REQUEST);
         }
-        if (allows.findPair(lookalike.getId(), other.getId()).isPresent()) {
-            return ResultJson.success("Already allowed " + toId(lookalike) + " alongside " + toId(other));
+        var names = byId(similarity.findNames(List.of(lookalikeId, otherId)));
+        var pairName = toId(names.get(lookalikeId)) + " alongside " + toId(names.get(otherId));
+        var alreadyAllowed = ResultJson.success("Already allowed " + pairName);
+        if (allows.findPair(lookalikeId, otherId).isPresent()) {
+            return alreadyAllowed;
         }
 
-        var names = byId(similarity.findNames(List.of(lookalike.getId(), other.getId())));
-        // The dashboard may have found the pair from either side, and short values only match exactly
-        // when they are the ones probed.
-        var reversed = false;
-        var closest = closestMatch(names.get(lookalike.getId()), other.getId());
-        if (closest == null) {
-            reversed = true;
-            closest = closestMatch(names.get(other.getId()), lookalike.getId());
-        }
+        var closest = stoppingAtTimeout(() -> closestEitherWay(names, lookalikeId, otherId));
         if (closest == null) {
             throw new ErrorResultException(
-                    toId(lookalike) + " no longer resembles " + toId(other) + ", so there is nothing to allow",
+                    toId(names.get(lookalikeId)) + " no longer resembles " + toId(names.get(otherId))
+                            + ", so there is nothing to allow",
                     HttpStatus.BAD_REQUEST);
         }
 
         var allow = new NameSimilarityAllow();
-        allow.setExtensionId(lookalike.getId());
-        allow.setOtherExtensionId(other.getId());
+        allow.setExtensionId(lookalikeId);
+        allow.setOtherExtensionId(otherId);
         allow.setField(closest.field());
         allow.setSimilarity(closest.similarity());
-        allow.setExtensionValue(reversed ? closest.value() : closest.probeValue());
-        allow.setOtherValue(reversed ? closest.probeValue() : closest.value());
+        allow.setExtensionValue(closest.lookalikeValue());
+        allow.setOtherValue(closest.otherValue());
         allow.setReason(reason);
         allow.setDecidedById(admin.getId());
         allow.setDecidedAt(TimeUtil.getCurrentUTC());
-        allows.save(allow);
+        // Another admin may have allowed the pair since findPair.
+        if (!similarity.insertAllow(allow)) {
+            return alreadyAllowed;
+        }
 
-        var result = ResultJson.success("Allowed " + toId(lookalike) + " alongside " + toId(other));
+        var result = ResultJson.success("Allowed " + pairName);
         logs.logAction(admin, result);
         return result;
+    }
+
+    /** How a pair being allowed compares, with each value on its own side. */
+    private record AllowedMatch(
+            NameSimilarityField field,
+            float similarity,
+            String lookalikeValue,
+            String otherValue
+    ) {}
+
+    /**
+     * The closest match of the pair, looked up from the look-alike's side and then from the other's: the
+     * dashboard may have found it from either, and short values only match exactly when they are probed.
+     */
+    private @Nullable AllowedMatch closestEitherWay(Map<Long, ExtensionNames> names, long lookalikeId, long otherId) {
+        var closest = closestMatch(names.get(lookalikeId), otherId);
+        if (closest != null) {
+            return new AllowedMatch(closest.field(), closest.similarity(), closest.probeValue(), closest.value());
+        }
+        closest = closestMatch(names.get(otherId), lookalikeId);
+        return closest == null
+                ? null
+                : new AllowedMatch(closest.field(), closest.similarity(), closest.value(), closest.probeValue());
     }
 
     /** The closest match of the probed extension with the other, looked up for the other alone. */
@@ -405,10 +490,6 @@ public class NameSquattingService {
 
     private static Map<Long, ExtensionNames> byId(List<ExtensionNames> names) {
         return names.stream().collect(Collectors.toMap(ExtensionNames::id, Function.identity()));
-    }
-
-    private static String toId(Extension extension) {
-        return extension.getNamespace().getName() + "." + extension.getName();
     }
 
     private static String toId(@Nullable ExtensionNames names) {

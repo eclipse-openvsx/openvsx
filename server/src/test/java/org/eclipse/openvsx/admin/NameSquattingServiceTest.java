@@ -63,6 +63,8 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
     private static final LocalDateTime LATE = LocalDateTime.of(2026, 10, 1, 0, 0);
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
+    private static final NameSquattingJson.Cursor FIRST = new NameSquattingJson.Cursor(0, null);
+
     @Autowired
     EntityManager em;
 
@@ -131,7 +133,7 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
         flag(lookalike, LATE.plusDays(1));
         em.flush();
 
-        var placements = service.findCollisions(0, 100).groups().stream()
+        var placements = service.findCollisions(FIRST, 100).groups().stream()
                 .filter(
                         group -> group.lookalikes().stream()
                                 .anyMatch(found -> found.extension().name().equals(lookalike.getName())))
@@ -150,15 +152,12 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
         var latest = persistExtension(word + " Tools", LATE);
         flag(middle, LATE.plusDays(1));
         em.flush();
-        var candidates = similarity.findCandidates(NameSimilarityCheckService.CHECK_TYPE, 0, 100_000, TIMEOUT)
-                .stream()
-                .map(NameSimilarityJooqRepository.Candidate::extensionId)
-                .toList();
+        var candidates = candidates(0, null, 100_000);
 
         // One page looks the middle extension up, another the earliest.
         var anchors = new ArrayList<String>();
         for (var candidate : List.of(middle, earliest)) {
-            service.findCollisions(candidates.indexOf(candidate.getId()), 1).groups().stream()
+            service.findCollisions(cursorAt(candidates, candidate.getId()), 1).groups().stream()
                     .filter(
                             group -> group.lookalikes().stream()
                                     .anyMatch(found -> found.extension().name().equals(latest.getName())))
@@ -166,6 +165,22 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
         }
 
         assertThat(anchors).containsExactly(earliest.getName(), earliest.getName());
+    }
+
+    @Test
+    void stopsAtItsBudgetAfterOneCandidateAndResumesFromTheNext() throws ErrorResultException {
+        var word = word();
+        var original = persistExtension(word + " Formatter", EARLY);
+        flag(persistExtension(word + " Formater", LATE), LATE.plusDays(1));
+        flag(original, LATE.plusDays(2));
+        em.flush();
+
+        var first = service.findCollisions(FIRST, 100, Duration.ZERO);
+        var second = service.findCollisions(first.next(), 100, Duration.ZERO);
+
+        assertThat(first.next()).isEqualTo(new NameSquattingJson.Cursor(1, null));
+        assertThat(first.hasMore()).isTrue();
+        assertThat(second.next()).isEqualTo(new NameSquattingJson.Cursor(2, null));
     }
 
     @Test
@@ -227,7 +242,7 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
         service.allow(allowRequest(lookalike, original, "Official fork"), admin);
         em.flush();
 
-        assertThat(lookalikeNames(service.findCollisions(0, 100))).doesNotContain(lookalike.getName());
+        assertThat(lookalikeNames(service.findCollisions(FIRST, 100))).doesNotContain(lookalike.getName());
         assertThat(allowlistGroupOf(lookalike).allows()).singleElement().satisfies(allow -> {
             assertThat(allow.other().name()).isEqualTo(original.getName());
             assertThat(allow.field()).isEqualTo("DISPLAY_NAME");
@@ -307,7 +322,7 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
         flag(flagged, LATE.plusDays(1));
         em.flush();
 
-        var candidates = similarity.findCandidates(NameSimilarityCheckService.CHECK_TYPE, 0, 100_000, TIMEOUT);
+        var candidates = similarity.findCandidates(NameSimilarityCheckService.CHECK_TYPE, 0, null, 100_000, TIMEOUT);
 
         var ids = candidates.stream().map(NameSimilarityJooqRepository.Candidate::extensionId).toList();
         assertThat(ids).contains(original.getId(), grandfathered.getId(), flagged.getId());
@@ -325,23 +340,37 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
         flag(persistExtension(word() + " Other", LATE), LATE.plusDays(1));
         flag(persistExtension(word() + " Else", LATE), LATE.plusDays(2));
         em.flush();
-        var all = similarity.findCandidates(NameSimilarityCheckService.CHECK_TYPE, 0, 100_000, TIMEOUT);
+        var all = candidates(0, null, 100_000);
         var flaggedCount = (int) all.stream().filter(candidate -> candidate.flaggedAt() != null).count();
 
-        var acrossTheBoundary = similarity.findCandidates(
-                NameSimilarityCheckService.CHECK_TYPE,
-                flaggedCount - 1,
-                2,
-                TIMEOUT);
-        var pastIt = similarity.findCandidates(
-                NameSimilarityCheckService.CHECK_TYPE,
-                flaggedCount + 1,
-                1,
-                TIMEOUT);
+        var acrossTheBoundary = candidates(flaggedCount - 1, null, 2);
+        var pastIt = candidates(flaggedCount, all.get(flaggedCount).extensionId(), 1);
 
         assertThat(acrossTheBoundary).containsExactly(all.get(flaggedCount - 1), all.get(flaggedCount));
         assertThat(acrossTheBoundary.get(1).flaggedAt()).isNull();
         assertThat(pastIt).containsExactly(all.get(flaggedCount + 1));
+    }
+
+    @Test
+    void sharedDisplayNamesResumeAfterTheLastOneListedWhenAnEarlierOneGoesAway() {
+        var word = word();
+        var first = persistExtension(word + " Tools", EARLY);
+        var second = persistExtension(word + " Tools", MIDDLE);
+        var third = persistExtension(word + " Tools", LATE);
+        em.flush();
+        var all = candidates(0, null, 100_000);
+        var flaggedCount = (int) all.stream().filter(candidate -> candidate.flaggedAt() != null).count();
+        var afterSecond = cursorAt(all, third.getId());
+
+        first.setActive(false);
+        em.flush();
+
+        assertThat(candidates(afterSecond.offset(), afterSecond.afterId(), 1))
+                .extracting(NameSimilarityJooqRepository.Candidate::extensionId)
+                .containsExactly(third.getId());
+        assertThat(all.subList(flaggedCount, all.size()))
+                .extracting(NameSimilarityJooqRepository.Candidate::extensionId)
+                .containsSubsequence(first.getId(), second.getId(), third.getId());
     }
 
     @Test
@@ -356,9 +385,33 @@ class NameSquattingServiceTest extends AbstractPostgresContainerTest {
                 .isFalse();
     }
 
+    private List<NameSimilarityJooqRepository.Candidate> candidates(int offset, @Nullable Long afterId, int limit) {
+        return similarity.findCandidates(NameSimilarityCheckService.CHECK_TYPE, offset, afterId, limit, TIMEOUT);
+    }
+
+    /** The cursor a page would have ended on just before the extension among the candidates. */
+    private static NameSquattingJson.Cursor cursorAt(
+            List<NameSimilarityJooqRepository.Candidate> candidates,
+            long extensionId
+    ) {
+        var offset = 0;
+        Long afterId = null;
+        for (var candidate : candidates) {
+            if (candidate.extensionId() == extensionId) {
+                return new NameSquattingJson.Cursor(offset, afterId);
+            }
+            if (candidate.flaggedAt() != null) {
+                offset++;
+            } else {
+                afterId = candidate.extensionId();
+            }
+        }
+        throw new AssertionError("not a candidate: " + extensionId);
+    }
+
     private NameSquattingJson.Group groupOf(Extension anchor) throws ErrorResultException {
         em.flush();
-        return service.findCollisions(0, 100).groups().stream()
+        return service.findCollisions(FIRST, 100).groups().stream()
                 .filter(group -> group.anchor().name().equals(anchor.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no group for " + anchor.getName()));

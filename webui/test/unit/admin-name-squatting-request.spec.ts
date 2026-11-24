@@ -22,13 +22,24 @@ describe('admin name squatting requests', () => {
     afterEach(() => vi.unstubAllGlobals());
 
     it('asks for the collisions batch at the offset it was given', async () => {
-        const fetchMock = stubFetch(jsonResponse({ groups: [], nextOffset: 0, hasMore: false }));
+        const fetchMock = stubFetch(jsonResponse({ groups: [], next: { offset: 0 }, hasMore: false }));
         const service = new ExtensionRegistryService('https://registry.test');
 
-        await service.admin.getNameSquattingCollisions(new AbortController().signal, 50, 25);
+        await service.admin.getNameSquattingCollisions(new AbortController().signal, { offset: 50 }, 25);
 
         expect(String(fetchMock.mock.calls[0][0])).toBe(
             'https://registry.test/admin/name-squatting/collisions?offset=50&size=25'
+        );
+    });
+
+    it('passes the id to resume after once the cursor has one', async () => {
+        const fetchMock = stubFetch(jsonResponse({ groups: [], next: { offset: 0 }, hasMore: false }));
+        const service = new ExtensionRegistryService('https://registry.test');
+
+        await service.admin.getNameSquattingCollisions(new AbortController().signal, { offset: 50, afterId: 7 }, 25);
+
+        expect(String(fetchMock.mock.calls[0][0])).toBe(
+            'https://registry.test/admin/name-squatting/collisions?offset=50&afterId=7&size=25'
         );
     });
 

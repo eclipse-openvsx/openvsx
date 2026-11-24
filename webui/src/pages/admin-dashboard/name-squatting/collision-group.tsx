@@ -77,7 +77,7 @@ const LookalikeRow: FC<{
             </TableCell>
             <TableCell>
                 {lookalike.matches.map(match => (
-                    <MatchRow key={match.field}>
+                    <MatchRow key={`${match.field}:${match.value}:${match.lookalikeValue}`}>
                         <Stack spacing={0.5} alignItems='flex-start'>
                             <SimilarityChip similarity={match.similarity} exact={match.exact} />
                             <Hint component='span'>{FIELD_LABELS[match.field]}</Hint>

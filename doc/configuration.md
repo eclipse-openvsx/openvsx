@@ -928,7 +928,7 @@ Most matches looked up per field and name, which bounds the work a very generic 
 | Default       | `10s`
 | Compatibility | Since 1.5.0
 
-How long one lookup may run before the database cancels it, for the publish check and the dashboard alike. A cancelled check fails without blocking publication; a cancelled dashboard lookup answers 503 and suggests raising this value. Must be positive.
+How long one lookup may run before the database cancels it, for the publish check and the dashboard alike. A cancelled check fails without blocking publication; a cancelled dashboard lookup answers 503 and suggests raising this value. A dashboard page also stops starting new lookups once it has run this long, and the next page continues where it stopped. Must be positive.
 
 ## OAuth2
 
