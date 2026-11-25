@@ -20,6 +20,7 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Dependencies
 
 - Remove the unused `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-zipkin` dependencies and the 1.64.0 exporter pin; traces are still exported to Zipkin through Brave ([#2432](https://github.com/eclipse-openvsx/openvsx/issues/2432))
+- Bump Spring Boot to 4.0.10, with Jackson 2.21.8 and 3.1.8, Jetty 12.1.15 and Netty 4.2.20.Final
 
 ## [1.4.0] - 2026-11-09
 
