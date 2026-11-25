@@ -124,7 +124,7 @@ class NameSimilarityCheckServiceTest {
     }
 
     @Test
-    void leavesOutExtensionsAllowedAlongsideAnExistingExtension() {
+    void excludesExtensionsAllowedAlongsideAnExistingExtension() {
         var existing = mock(Extension.class);
         when(existing.getId()).thenReturn(99L);
         when(repositories.findExtension("python", "pyext-labs")).thenReturn(existing);
@@ -132,11 +132,13 @@ class NameSimilarityCheckServiceTest {
         allow.setExtensionId(1);
         allow.setOtherExtensionId(99);
         when(allows.findInvolving(List.of(99L))).thenReturn(List.of(allow));
-        when(similarity.findSimilar(any())).thenReturn(
-                List.of(
-                        match(1, NameSimilarityField.NAME, "python", "python", 1f, true)));
+        when(similarity.findSimilar(any())).thenReturn(List.of());
 
-        assertThat(check.check(context("pyext-labs", "python", "Pythom")).passed()).isTrue();
+        check.check(context("pyext-labs", "python", "Pythom"));
+
+        var probe = ArgumentCaptor.forClass(Probe.class);
+        verify(similarity).findSimilar(probe.capture());
+        assertThat(probe.getValue().excludedExtensionIds()).containsExactly(1L);
     }
 
     private static PublishCheck.Context context(String namespace, String name, String displayName) {

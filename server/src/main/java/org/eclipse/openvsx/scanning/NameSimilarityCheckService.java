@@ -105,12 +105,11 @@ public class NameSimilarityCheckService implements PublishCheck {
                 ? List.<String>of()
                 : List.of(displayName);
 
-        var matches = findMatches(namespaceName, extensionName, displayNames);
         var existing = repositories.findExtension(extensionName, namespaceName);
-        if (existing != null) {
-            var allowed = allowedPartners(List.of(existing.getId())).getOrDefault(existing.getId(), Set.of());
-            matches.removeIf(match -> allowed.contains(match.extensionId()));
-        }
+        var allowed = existing == null
+                ? Set.<Long>of()
+                : allowedPartners(List.of(existing.getId())).getOrDefault(existing.getId(), Set.of());
+        var matches = findMatches(probe(namespaceName, extensionName, displayNames).excluding(allowed));
 
         var closest = closestPerExtension(matches);
         if (closest.isEmpty()) {
