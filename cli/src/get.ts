@@ -72,7 +72,7 @@ async function printMetadata(registry: Registry, extension: Extension, output?: 
     let filePath: string | undefined;
     const stats = fs.statSync(output, { throwIfNoEntry: false });
     if (stats?.isDirectory() || !stats && output.endsWith(path.sep)) {
-        const fileName = `${extension.namespace}.${extension.name}-${extension.version}.json`;
+        const fileName = checkFileName(`${extension.namespace}.${extension.name}-${extension.version}.json`);
         filePath = path.resolve(process.cwd(), output, fileName);
     } else {
         filePath = path.resolve(process.cwd(), output);
@@ -86,21 +86,41 @@ async function download(registry: Registry, extension: Extension, output?: strin
     if (!downloadUrl) {
         throw new Error(`Extension ${extension.namespace}.${extension.name} does not provide a download URL.`);
     }
-    const fileNameIndex = downloadUrl.lastIndexOf('/');
-    const fileName = decodeURIComponent(downloadUrl.substring(fileNameIndex + 1));
     let filePath: string | undefined;
     if (output) {
         const stats = fs.statSync(output, { throwIfNoEntry: false });
         if (stats?.isDirectory() || !stats && output.endsWith(path.sep)) {
-            filePath = path.resolve(process.cwd(), output, fileName);
+            filePath = path.resolve(process.cwd(), output, downloadFileName(downloadUrl));
         } else {
             filePath = path.resolve(process.cwd(), output);
         }
     } else {
-        filePath = path.resolve(process.cwd(), fileName);
+        filePath = path.resolve(process.cwd(), downloadFileName(downloadUrl));
     }
     await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
     const target = extension.targetPlatform !== 'universal' ? '@' + extension.targetPlatform : '';
     console.log(`Downloading ${extension.namespace}.${extension.name}-${extension.version}${target} to ${filePath}`);
     await registry.download(filePath, new URL(downloadUrl));
+}
+
+function downloadFileName(downloadUrl: string): string {
+    const encoded = downloadUrl.substring(downloadUrl.lastIndexOf('/') + 1);
+    let fileName: string;
+    try {
+        fileName = decodeURIComponent(encoded);
+    } catch {
+        throw new Error(`The registry returned an invalid file name: ${encoded}`);
+    }
+    return checkFileName(fileName);
+}
+
+/**
+ * Rejects a file name from the registry that is not a plain name, so the file cannot be written
+ * outside the target directory.
+ */
+function checkFileName(fileName: string): string {
+    if (fileName === '' || fileName === '.' || fileName === '..' || /[/\\:\0]/.test(fileName)) {
+        throw new Error(`The registry returned an invalid file name: ${fileName}`);
+    }
+    return fileName;
 }
