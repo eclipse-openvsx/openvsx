@@ -109,18 +109,18 @@ function downloadFileName(downloadUrl: string): string {
     try {
         fileName = decodeURIComponent(encoded);
     } catch {
-        throw new Error(`The registry returned an invalid file name: ${encoded}`);
+        throw new Error(`The registry returned an invalid file name: ${JSON.stringify(encoded)}`);
     }
     return checkFileName(fileName);
 }
 
 /**
  * Rejects a file name from the registry that is not a plain name, so the file cannot be written
- * outside the target directory.
+ * outside the target directory. Windows trims trailing dots and spaces and maps reserved names to devices.
  */
 function checkFileName(fileName: string): string {
-    if (fileName === '' || fileName === '.' || fileName === '..' || /[/\\:\0]/.test(fileName)) {
-        throw new Error(`The registry returned an invalid file name: ${fileName}`);
+    if (fileName === '' || /[/\\:\0]|[. ]$/.test(fileName) || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(fileName)) {
+        throw new Error(`The registry returned an invalid file name: ${JSON.stringify(fileName)}`);
     }
     return fileName;
 }
