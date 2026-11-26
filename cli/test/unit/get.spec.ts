@@ -148,7 +148,8 @@ describe('get', () => {
             ['a name with a trailing dot', 'tool.vsix.'],
             ['a name with a trailing space', 'tool.vsix%20'],
             ['a Windows device name', 'NUL'],
-            ['a Windows device name with an extension', 'com1.vsix']
+            ['a Windows device name with an extension', 'com1.vsix'],
+            ['a control character', '%1B%5B2J.vsix']
         ])('rejects a download file name that is %s', async (_, downloadName) => {
             fs.mkdirSync(path.join(cwd, 'out'));
 

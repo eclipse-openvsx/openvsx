@@ -119,7 +119,8 @@ function downloadFileName(downloadUrl: string): string {
  * outside the target directory. Windows trims trailing dots and spaces and maps reserved names to devices.
  */
 function checkFileName(fileName: string): string {
-    if (fileName === '' || /[/\\:\0]|[. ]$/.test(fileName) || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(fileName)) {
+    // eslint-disable-next-line no-control-regex -- matching control characters is the point
+    if (fileName === '' || /[/\\:\x00-\x1f\x7f]|[. ]$/.test(fileName) || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(fileName)) {
         throw new Error(`The registry returned an invalid file name: ${JSON.stringify(fileName)}`);
     }
     return fileName;
