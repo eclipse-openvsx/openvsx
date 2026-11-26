@@ -10,7 +10,7 @@ This change log covers only the command line interface (CLI) of Open VSX.
 - Stored personal access tokens are kept per registry host, so the same namespace on two registries no longer shares one token; tokens stored by earlier versions are only used for open-vsx.org (#2450)
 - Accepting the offered MIT license keeps the indentation, line endings and trailing newline of `package.json` instead of rewriting it with 4 spaces, LF line endings and no final newline (#2459, #2464)
 - `get -v <range>` downloads the highest version that satisfies the range instead of the first match in the registry's version list, which could be an older pre-release (#2468)
-- `get` rejects a file name from the registry that is not a plain name (such as `..%2F` or `..\`), instead of writing the download or metadata outside the output directory
+- `get` rejects a file name from the registry that is not a plain name (such as `..%2F` or `..\`), instead of writing the download or metadata outside the output directory (#2474)
 
 ## [1.4.0] - 2026-11-09
 
