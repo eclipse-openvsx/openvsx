@@ -416,5 +416,14 @@ tasks.register('perfTestAll') {
     dependsOn 'perfTestRegistryApi', 'perfTestVscodeAdapter'
 }
 
+tasks.register('perfStressReadMix', GatlingRunTask) {
+    description = 'Runs a stepped, read-only load against baseUrl and writes an HTML report'
+    group = 'Performance testing'
+    simulationClassName = 'org.eclipse.openvsx.ReadMixStressSimulation'
+    nonInteractive = true
+    // gatling.conf disables reports, but comparing runs needs them
+    systemProperties = ['gatling.charting.noReports': 'false']
+}
+
 apply from: 'dependencies.gradle'
 apply from: 'test-extensions.gradle'
