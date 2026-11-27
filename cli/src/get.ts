@@ -11,9 +11,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as semver from 'semver';
-import { Registry, Extension } from "./registry";
-import { matchExtensionId, addEnvOptions, rejectError } from './util';
+import { Registry, Extension, Versions } from "./registry";
+import { matchExtensionId, addEnvOptions, rejectError, StatusError } from './util';
 import { GetOptions } from './get-options';
+
+const VERSION_PAGE_SIZE = 100;
 
 /**
  * Downloads an extension or its metadata.
@@ -31,7 +33,7 @@ export async function getExtension(options: GetOptions): Promise<void> {
         throw new Error(extension.error);
     }
 
-    const matchingVersion = await findMatchingVersion(registry, extension, options.version);
+    const matchingVersion = await findMatchingVersion(registry, extension, options.version, options.target);
     if (matchingVersion.error) {
         throw new Error(matchingVersion.error);
     }
@@ -43,20 +45,55 @@ export async function getExtension(options: GetOptions): Promise<void> {
     }
 }
 
-function findMatchingVersion(registry: Registry, extension: Extension, constraint?: string): Promise<Extension> {
+async function findMatchingVersion(registry: Registry, extension: Extension, constraint?: string, target?: string): Promise<Extension> {
     if (!constraint || semver.satisfies(extension.version, constraint)) {
-        return Promise.resolve(extension);
+        return extension;
     }
     const versions = Object.keys(extension.allVersions).filter(version => !isAlias(extension, version));
     const version = semver.maxSatisfying(versions, constraint);
     if (version) {
         try {
-            return registry.getJson(new URL(extension.allVersions[version]));
+            return await registry.getJson(new URL(extension.allVersions[version]));
         } catch (err) {
             return rejectError(err);
         }
     }
-    return Promise.reject(new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`));
+    // allVersions only lists the highest versions the server returns, so look further back.
+    const allVersions = await getAllVersions(registry, extension, target);
+    const olderVersion = semver.maxSatisfying(Object.keys(allVersions), constraint);
+    if (olderVersion) {
+        return registry.getJson(new URL(allVersions[olderVersion]));
+    }
+    throw new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`);
+}
+
+/**
+ * Maps every published version to its metadata URL. A registry that answers the first page with 404
+ * has no versions endpoint and yields no versions.
+ */
+async function getAllVersions(registry: Registry, extension: Extension, target?: string): Promise<{ [version: string]: string }> {
+    const versions: { [version: string]: string } = {};
+    let offset = 0;
+    for (;;) {
+        let page: Versions;
+        try {
+            page = await registry.getVersions(extension.namespace, extension.name, target, VERSION_PAGE_SIZE, offset);
+        } catch (err) {
+            if (offset === 0 && (err as StatusError).status === 404) {
+                return {};
+            }
+            throw err;
+        }
+        if (page.error) {
+            throw new Error(page.error);
+        }
+        const pageVersions = Object.entries(page.versions ?? {});
+        pageVersions.forEach(([version, url]) => versions[version] = url);
+        offset += pageVersions.length;
+        if (pageVersions.length === 0 || offset >= page.totalSize) {
+            return versions;
+        }
+    }
 }
 
 function isAlias(extension: Extension, version: string): boolean {

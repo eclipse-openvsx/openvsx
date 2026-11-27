@@ -23,15 +23,24 @@ interface RegistryStub {
     close: () => Promise<void>;
 }
 
-/** Serves `acme/tool` at 2.0.0 (latest) and `olderVersions` (default 1.0.0), plus the download for each. */
+/**
+ * Serves `acme/tool` at 2.0.0 (latest) and `olderVersions` (default 1.0.0), plus the download for each.
+ * `unlistedVersions` are left out of `allVersions` and only reachable through the URLs the versions
+ * endpoint returns. `versionsFailure` answers the versions page at its offset with its status and an
+ * `{ error }` body.
+ */
 async function startRegistryStub(overrides: Record<string, unknown> = {}): Promise<RegistryStub> {
-    const { downloadName, olderVersions = ['1.0.0'], ...extra } = overrides as { downloadName?: string; olderVersions?: string[] };
+    const { downloadName, olderVersions = ['1.0.0'], unlistedVersions = [], versionsFailure, ...extra } = overrides as {
+        downloadName?: string; olderVersions?: string[]; unlistedVersions?: string[];
+        versionsFailure?: { offset: number; status: number }
+    };
+    const allVersions = ['2.0.0', ...olderVersions, ...unlistedVersions];
     let base = '';
-    const metadata = (version: string) => ({
+    const metadata = (version: string, targetPlatform = 'universal') => ({
         namespace: 'acme',
         name: 'tool',
         version,
-        targetPlatform: 'universal',
+        targetPlatform,
         versionAlias: ['latest'],
         files: { download: `${base}/file/${downloadName ?? `acme.tool-${version}.vsix`}` },
         allVersions: Object.fromEntries(['latest', '2.0.0', ...olderVersions].map(v => [v, `${base}/api/acme/tool/${v}`])),
@@ -44,9 +53,29 @@ async function startRegistryStub(overrides: Record<string, unknown> = {}): Promi
             res.end(VSIX);
             return;
         }
+        const versionsPath = url.pathname.match(/^\/api\/acme\/tool(?:\/([\w-]+))?\/versions$/);
+        if (versionsPath) {
+            const size = Number(url.searchParams.get('size'));
+            const offset = Number(url.searchParams.get('offset'));
+            if (versionsFailure?.offset === offset) {
+                res.writeHead(versionsFailure.status, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: `Versions failed at offset ${offset}` }));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            const target = versionsPath[1] ?? 'universal';
+            const versions = Object.fromEntries(allVersions.slice(offset, offset + size).map(v => [v, `${base}/listed/${target}/${v}`]));
+            res.end(JSON.stringify({ offset, totalSize: allVersions.length, versions }));
+            return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        const listed = url.pathname.match(/^\/listed\/([\w-]+)\/(.+)$/);
+        if (listed) {
+            res.end(JSON.stringify(metadata(listed[2], listed[1])));
+            return;
+        }
         const requested = url.pathname.substring('/api/acme/tool/'.length);
         const version = olderVersions.includes(requested) ? requested : '2.0.0';
-        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(metadata(version)));
     });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -74,7 +103,7 @@ describe('get', () => {
         fs.rmSync(cwd, { recursive: true, force: true });
     });
 
-    async function get(options: { extensionId?: string; version?: string; output?: string; metadata?: boolean },
+    async function get(options: { extensionId?: string; version?: string; target?: string; output?: string; metadata?: boolean },
                        overrides: Record<string, unknown> = {}): Promise<void> {
         const stub = await startRegistryStub(overrides);
         stubs.push(stub);
@@ -244,6 +273,39 @@ describe('get', () => {
         it('fetches the highest matching pre-release when the registry sorts pre-releases as strings', async () => {
             await get({ version: '>=1.0.0-beta.1 <1.0.0' }, { olderVersions: ['1.0.0-beta.1', '1.0.0-beta.2'] });
             expect(fs.readdirSync(cwd)).toEqual(['acme.tool-1.0.0-beta.2.vsix']);
+        });
+
+        it('fetches a version missing from allVersions from the URL the versions endpoint returns', async () => {
+            const unlistedVersions = Array.from({ length: 150 }, (_, i) => `0.${149 - i}.0`);
+            await get({ version: '0.0.0' }, { unlistedVersions });
+            expect(fs.readdirSync(cwd)).toEqual(['acme.tool-0.0.0.vsix']);
+        });
+
+        it('fetches the highest version matching a range from the versions endpoint', async () => {
+            await get({ version: '^0.1.0' }, { unlistedVersions: ['0.1.0', '0.1.2', '0.1.1'] });
+            expect(fs.readdirSync(cwd)).toEqual(['acme.tool-0.1.2.vsix']);
+        });
+
+        it('looks up the versions of the requested target platform', async () => {
+            await get({ version: '0.0.0', target: 'linux-x64', metadata: true }, { unlistedVersions: ['0.0.0'] });
+
+            expect(JSON.parse(log.mock.calls[0][0] as string)).toMatchObject({ version: '0.0.0', targetPlatform: 'linux-x64' });
+        });
+
+        it('rejects as unmatched when the registry has no versions endpoint', async () => {
+            await expect(get({ version: '0.0.0' }, { unlistedVersions: ['0.0.0'], versionsFailure: { offset: 0, status: 404 } }))
+                .rejects.toThrow("has no published version matching '0.0.0'");
+        });
+
+        it.each([
+            ['a server error on the first page', { offset: 0, status: 500 }],
+            ['a 404 on a later page', { offset: 100, status: 404 }],
+            ['a server error on a later page', { offset: 100, status: 500 }],
+            ['an error in a successful response', { offset: 100, status: 200 }]
+        ])('surfaces %s instead of reporting no matching version', async (_, versionsFailure) => {
+            const unlistedVersions = Array.from({ length: 150 }, (_, i) => `0.${149 - i}.0`);
+            await expect(get({ version: '0.0.0' }, { unlistedVersions, versionsFailure }))
+                .rejects.toThrow(`Versions failed at offset ${versionsFailure.offset}`);
         });
 
         it('rejects when no published version satisfies the constraint', async () => {
