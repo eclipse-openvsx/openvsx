@@ -242,6 +242,26 @@ export class Registry {
     }
 
     /**
+     * Returns a page of an extension's published version numbers, newest first, each mapped to its
+     * metadata URL. Unlike `getVersionReferences`, each version appears once whatever its target platforms.
+     */
+    getVersions(namespace: string, extension: string, target: string | undefined, size: number, offset: number): Promise<Versions> {
+        try {
+            const segments = ['api', namespace, extension];
+            if (target) {
+                segments.push(target);
+            }
+            segments.push('versions');
+            return this.getJson(this.getUrl(segments, {
+                size: String(size),
+                offset: String(offset)
+            }));
+        } catch (err) {
+            return rejectError(err);
+        }
+    }
+
+    /**
      * Full-text search across the registry. Returns the purpose-built summary shape rather than
      * whole extension records, so a page of results stays small.
      */
@@ -531,6 +551,12 @@ export interface VersionReference {
     version: string;
     targetPlatform?: string;
     engines?: { [engine: string]: string };
+}
+
+export interface Versions extends Response {
+    offset: number;
+    totalSize: number;
+    versions?: { [version: string]: string };
 }
 
 export interface VersionReferences extends Response {

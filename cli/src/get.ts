@@ -11,7 +11,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as semver from 'semver';
-import { Registry, Extension, VersionReferences } from "./registry";
+import { Registry, Extension, Versions } from "./registry";
 import { matchExtensionId, addEnvOptions, rejectError, StatusError } from './util';
 import { GetOptions } from './get-options';
 
@@ -59,35 +59,39 @@ async function findMatchingVersion(registry: Registry, extension: Extension, con
         }
     }
     // allVersions only lists the highest versions the server returns, so look further back.
-    const olderVersion = semver.maxSatisfying(await getAllVersions(registry, extension, target), constraint);
+    const allVersions = await getAllVersions(registry, extension, target);
+    const olderVersion = semver.maxSatisfying(Object.keys(allVersions), constraint);
     if (olderVersion) {
-        return registry.getMetadata(extension.namespace, extension.name, target, olderVersion);
+        return registry.getJson(new URL(allVersions[olderVersion]));
     }
     throw new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`);
 }
 
-/** A registry that answers the first page with 404 has no version-references endpoint and yields no versions. */
-async function getAllVersions(registry: Registry, extension: Extension, target?: string): Promise<string[]> {
-    const versions = new Set<string>();
+/**
+ * Maps every published version to its metadata URL. A registry that answers the first page with 404
+ * has no versions endpoint and yields no versions.
+ */
+async function getAllVersions(registry: Registry, extension: Extension, target?: string): Promise<{ [version: string]: string }> {
+    const versions: { [version: string]: string } = {};
     let offset = 0;
     for (;;) {
-        let page: VersionReferences;
+        let page: Versions;
         try {
-            page = await registry.getVersionReferences(extension.namespace, extension.name, target, VERSION_PAGE_SIZE, offset);
+            page = await registry.getVersions(extension.namespace, extension.name, target, VERSION_PAGE_SIZE, offset);
         } catch (err) {
             if (offset === 0 && (err as StatusError).status === 404) {
-                return [];
+                return {};
             }
             throw err;
         }
         if (page.error) {
             throw new Error(page.error);
         }
-        const references = page.versions ?? [];
-        references.forEach(reference => versions.add(reference.version));
-        offset += references.length;
-        if (references.length === 0 || offset >= page.totalSize) {
-            return [...versions];
+        const pageVersions = Object.entries(page.versions ?? {});
+        pageVersions.forEach(([version, url]) => versions[version] = url);
+        offset += pageVersions.length;
+        if (pageVersions.length === 0 || offset >= page.totalSize) {
+            return versions;
         }
     }
 }
