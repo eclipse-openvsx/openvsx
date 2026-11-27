@@ -213,6 +213,20 @@ public class ScanJobRecord extends UpdatableRecordImpl<ScanJobRecord> {
         return (String) get(12);
     }
 
+    /**
+     * Setter for <code>public.scan_job.version</code>.
+     */
+    public void setVersion(Long value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.scan_job.version</code>.
+     */
+    public Long getVersion() {
+        return (Long) get(13);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -236,7 +250,7 @@ public class ScanJobRecord extends UpdatableRecordImpl<ScanJobRecord> {
     /**
      * Create a detached, initialised ScanJobRecord
      */
-    public ScanJobRecord(Long id, String scanId, String scannerType, Long extensionVersionId, String externalJobId, String status, Boolean recoveryInProgress, LocalDateTime createdAt, LocalDateTime updatedAt, String errorMessage, LocalDateTime pollLeaseUntil, Integer pollAttempts, String fileHashesJson) {
+    public ScanJobRecord(Long id, String scanId, String scannerType, Long extensionVersionId, String externalJobId, String status, Boolean recoveryInProgress, LocalDateTime createdAt, LocalDateTime updatedAt, String errorMessage, LocalDateTime pollLeaseUntil, Integer pollAttempts, String fileHashesJson, Long version) {
         super(ScanJob.SCAN_JOB);
 
         setId(id);
@@ -252,6 +266,7 @@ public class ScanJobRecord extends UpdatableRecordImpl<ScanJobRecord> {
         setPollLeaseUntil(pollLeaseUntil);
         setPollAttempts(pollAttempts);
         setFileHashesJson(fileHashesJson);
+        setVersion(version);
         resetChangedOnNotNull();
     }
 }

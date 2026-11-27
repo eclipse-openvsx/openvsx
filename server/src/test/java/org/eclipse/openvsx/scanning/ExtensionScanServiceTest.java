@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import org.eclipse.openvsx.entities.ExtensionScan;
 import org.eclipse.openvsx.entities.ScanStatus;
@@ -111,6 +112,23 @@ class ExtensionScanServiceTest {
         assertThat(request.getScannerType()).isEqualTo("CLAMAV_REST");
         assertThat(request.getExtensionVersionId()).isEqualTo(987L);
         assertThat(request.getScanId()).isEqualTo("77");
+    }
+
+    @Test
+    void retryFailedJobs_throwsConflict_whenTheJobChangedConcurrently() {
+        var scan = scanWithStatus(77L, ScanStatus.ERRORED);
+        var failedJob = job("77", ScannerJob.JobStatus.FAILED);
+        when(scanJobRepository.findByScanId("77")).thenReturn(List.of(failedJob));
+        doThrow(new ObjectOptimisticLockingFailureException(ScannerJob.class, 1L))
+                .when(persistenceService).resetJobForRetry(scan, failedJob);
+
+        assertThatThrownBy(() -> svc.retryFailedJobs(scan))
+                .isInstanceOf(ErrorResultException.class)
+                .satisfies(
+                        e -> assertThat(((ErrorResultException) e).getStatus())
+                                .isEqualTo(HttpStatus.CONFLICT));
+
+        verifyNoInteractions(jobScheduler);
     }
 
     @Test
