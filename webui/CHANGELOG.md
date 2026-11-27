@@ -7,6 +7,7 @@ This change log covers only the frontend library (webui) of Open VSX.
 ### Added
 
 - Add an Install menu next to Download on extension detail pages that opens the extension in Antigravity, Cursor, Kiro, Positron, VS Code Insiders, VSCodium or Windsurf, listed alphabetically (#363)
+- A Name Squatting admin page to review look-alike extensions and allow pairs; `ExtensionRegistryService.admin` gains `getNameSquattingCollisions`, `getNameSquattingAllowlist`, `allowNameSquattingPair` and `removeNameSquattingAllow` ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
 
 ### Fixed
 

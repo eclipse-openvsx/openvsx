@@ -18,6 +18,7 @@ export namespace AdminDashboardRoutes {
     export const EXTENSION_ADMIN = createRoute([ROOT, 'extensions']);
     export const PUBLISHER_ADMIN = createRoute([ROOT, 'publisher']);
     export const SCANS_ADMIN = createRoute([ROOT, 'scans']);
+    export const NAME_SQUATTING = createRoute([ROOT, 'name-squatting']);
     export const SIZE_OVERRIDES = createRoute([ROOT, 'size-overrides']);
     export const SETTINGS = createRoute([ROOT, 'settings']);
     export const LOGS = createRoute([ROOT, 'logs']);

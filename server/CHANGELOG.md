@@ -9,6 +9,9 @@ Releases up to and including v1.2.0 were backfilled from the GitHub release note
 ### Added
 
 - Backfill uploads can skip the aggregate refresh (`refresh=false`), and `POST /admin/api/analytics/downloads/refresh` refreshes a range of days once ([#2454](https://github.com/eclipse-openvsx/openvsx/pull/2454))
+- The `NAME_SIMILARITY` publish check flags a version whose name or display name resembles another namespace's active extension, without blocking publication; configured by `ovsx.scanning.name-similarity.*` ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
+- `/admin/name-squatting/collisions` and `/admin/name-squatting/allowlist` let admins with `manage_extensions` review look-alike extensions and allow pairs that are not squatting ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
+- **Upgrade:** `V1_86` creates the `pg_trgm` extension and `V1_87` builds indexes that block writes while building; [doc/deployment.md](../doc/deployment.md#building-the-name-similarity-indexes-without-a-write-pause) builds them `CONCURRENTLY` beforehand ([#2437](https://github.com/eclipse-openvsx/openvsx/pull/2437))
 
 ### Fixed
 
