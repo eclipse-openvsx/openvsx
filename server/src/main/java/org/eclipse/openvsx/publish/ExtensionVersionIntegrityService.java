@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.concurrent.Semaphore;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -57,6 +58,9 @@ public class ExtensionVersionIntegrityService {
 
     private final EntityManager entityManager;
     private final JsonMapper jsonMapper;
+
+    // shortcut: one package in memory at a time across signing and verifying, raise if throughput suffers
+    final Semaphore packageInMemory = new Semaphore(1);
 
     @Value("${ovsx.integrity.key-pair:}")
     String keyPairMode;
@@ -115,9 +119,14 @@ public class ExtensionVersionIntegrityService {
             // One array rather than a read loop into Ed25519Signer, for the reason spelled out on
             // createSignatureFile below: the streaming signer buffers the whole message anyway, and does
             // it in a structure that doubles as it grows.
-            var message = Files.readAllBytes(extensionFile.getPath());
-            verified = ed25519PublicKey
-                    .verify(Ed25519.Algorithm.Ed25519, null, message, 0, message.length, signature, 0);
+            packageInMemory.acquireUninterruptibly();
+            try {
+                var message = Files.readAllBytes(extensionFile.getPath());
+                verified = ed25519PublicKey
+                        .verify(Ed25519.Algorithm.Ed25519, null, message, 0, message.length, signature, 0);
+            } finally {
+                packageInMemory.release();
+            }
         } catch (IOException e) {
             throw new ErrorResultException("Failed to verify extension file", e);
         }
@@ -195,9 +204,14 @@ public class ExtensionVersionIntegrityService {
      */
     TempFile createSignatureFile(TempFile extensionFile, SignatureKeyPair keyPair) throws IOException {
         var privateKeyParameters = new Ed25519PrivateKeyParameters(keyPair.getPrivateKey(), 0);
-        var message = Files.readAllBytes(extensionFile.getPath());
         var signature = new byte[Ed25519PrivateKeyParameters.SIGNATURE_SIZE];
-        privateKeyParameters.sign(Ed25519.Algorithm.Ed25519, null, message, 0, message.length, signature, 0);
+        packageInMemory.acquireUninterruptibly();
+        try {
+            var message = Files.readAllBytes(extensionFile.getPath());
+            privateKeyParameters.sign(Ed25519.Algorithm.Ed25519, null, message, 0, message.length, signature, 0);
+        } finally {
+            packageInMemory.release();
+        }
 
         var signatureFile = new TempFile("signature", ".sig");
         Files.write(signatureFile.getPath(), signature);
