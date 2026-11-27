@@ -136,6 +136,43 @@ describe('get', () => {
             await expect(get({ output: path.join('blocker', 'sub', 'a.vsix') })).rejects.toMatchObject({ code: expect.stringMatching(/^(ENOTDIR|EEXIST)$/) });
         });
 
+        it.each([
+            ['an encoded relative path', '..%2F..%2Fescaped.vsix'],
+            ['an encoded absolute path', '%2Ftmp%2Fescaped.vsix'],
+            ['a backslash path', '..\\..\\escaped.vsix'],
+            ['an encoded backslash path', '..%5C..%5Cescaped.vsix'],
+            ['a drive-relative path', 'C%3Aescaped.vsix'],
+            ['a parent directory', '..'],
+            ['an empty name', ''],
+            ['a malformed escape', 'bad%E0%A4%A.vsix'],
+            ['a name with a trailing dot', 'tool.vsix.'],
+            ['a name with a trailing space', 'tool.vsix%20'],
+            ['a Windows device name', 'NUL'],
+            ['a Windows device name with an extension', 'com1.vsix'],
+            ['a control character', '%1B%5B2J.vsix']
+        ])('rejects a download file name that is %s', async (_, downloadName) => {
+            fs.mkdirSync(path.join(cwd, 'out'));
+
+            await expect(get({ output: 'out' }, { downloadName })).rejects.toThrow('The registry returned an invalid file name');
+            expect(fs.readdirSync(cwd)).toEqual(['out']);
+            expect(fs.readdirSync(path.join(cwd, 'out'))).toEqual([]);
+        });
+
+        it('rejects a download file name that leaves the current directory when no output is given', async () => {
+            await expect(get({}, { downloadName: '..%2Fescaped.vsix' })).rejects.toThrow('The registry returned an invalid file name');
+            expect(fs.readdirSync(cwd)).toEqual([]);
+        });
+
+        it('quotes the rejected file name so control characters are not printed raw', async () => {
+            await expect(get({}, { downloadName: '..%2F%1B%5B2J.vsix' })).rejects.toThrow('"../\\u001b[2J.vsix"');
+        });
+
+        it('ignores the file name from the registry when the output path names a file', async () => {
+            await get({ output: 'custom.vsix' }, { downloadName: '..%2Fescaped.vsix' });
+
+            expect(read('custom.vsix')).toBe(VSIX);
+        });
+
         it('rejects when the extension has no download URL', async () => {
             await expect(get({}, { files: {} })).rejects.toThrow('does not provide a download URL');
         });
@@ -162,6 +199,14 @@ describe('get', () => {
             await get({ metadata: true, output: 'meta' + path.sep });
 
             expect(JSON.parse(read('meta', 'acme.tool-2.0.0.json'))).toMatchObject({ version: '2.0.0' });
+        });
+
+        it('rejects a file name from the registry that leaves the directory', async () => {
+            fs.mkdirSync(path.join(cwd, 'out'));
+
+            await expect(get({ metadata: true, output: 'out' }, { name: '../../escaped' })).rejects.toThrow('The registry returned an invalid file name');
+            expect(fs.readdirSync(cwd)).toEqual(['out']);
+            expect(fs.readdirSync(path.join(cwd, 'out'))).toEqual([]);
         });
 
         it('writes to the given file path and creates its parents', async () => {
