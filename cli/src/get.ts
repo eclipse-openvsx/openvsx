@@ -11,8 +11,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as semver from 'semver';
-import { Registry, Extension } from "./registry";
-import { matchExtensionId, addEnvOptions, rejectError } from './util';
+import { Registry, Extension, VersionReferences } from "./registry";
+import { matchExtensionId, addEnvOptions, rejectError, StatusError } from './util';
 import { GetOptions } from './get-options';
 
 const VERSION_PAGE_SIZE = 100;
@@ -66,27 +66,30 @@ async function findMatchingVersion(registry: Registry, extension: Extension, con
     throw new Error(`Extension ${extension.namespace}.${extension.name} has no published version matching '${constraint}'`);
 }
 
-/** Best-effort: a registry without the version-references endpoint yields no versions. */
+/** A registry that answers the first page with 404 has no version-references endpoint and yields no versions. */
 async function getAllVersions(registry: Registry, extension: Extension, target?: string): Promise<string[]> {
     const versions = new Set<string>();
     let offset = 0;
-    try {
-        for (;;) {
-            const page = await registry.getVersionReferences(extension.namespace, extension.name, target, VERSION_PAGE_SIZE, offset);
-            if (page.error) {
-                break;
+    for (;;) {
+        let page: VersionReferences;
+        try {
+            page = await registry.getVersionReferences(extension.namespace, extension.name, target, VERSION_PAGE_SIZE, offset);
+        } catch (err) {
+            if (offset === 0 && (err as StatusError).status === 404) {
+                return [];
             }
-            const references = page.versions ?? [];
-            references.forEach(reference => versions.add(reference.version));
-            offset += references.length;
-            if (references.length === 0 || offset >= page.totalSize) {
-                break;
-            }
+            throw err;
         }
-    } catch {
-        // Fall through with what has been collected.
+        if (page.error) {
+            throw new Error(page.error);
+        }
+        const references = page.versions ?? [];
+        references.forEach(reference => versions.add(reference.version));
+        offset += references.length;
+        if (references.length === 0 || offset >= page.totalSize) {
+            return [...versions];
+        }
     }
-    return [...versions];
 }
 
 function isAlias(extension: Extension, version: string): boolean {

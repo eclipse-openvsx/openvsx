@@ -26,11 +26,13 @@ interface RegistryStub {
 /**
  * Serves `acme/tool` at 2.0.0 (latest) and `olderVersions` (default 1.0.0), plus the download for each.
  * `unlistedVersions` are left out of `allVersions` and only reachable through version-references,
- * which lists every version once per entry of `targets`.
+ * which lists every version once per entry of `targets`. `referencesFailure` answers the page at its
+ * offset with its status and an `{ error }` body.
  */
 async function startRegistryStub(overrides: Record<string, unknown> = {}): Promise<RegistryStub> {
-    const { downloadName, olderVersions = ['1.0.0'], unlistedVersions = [], targets = ['universal'], ...extra } = overrides as {
-        downloadName?: string; olderVersions?: string[]; unlistedVersions?: string[]; targets?: string[]
+    const { downloadName, olderVersions = ['1.0.0'], unlistedVersions = [], targets = ['universal'], referencesFailure, ...extra } = overrides as {
+        downloadName?: string; olderVersions?: string[]; unlistedVersions?: string[]; targets?: string[];
+        referencesFailure?: { offset: number; status: number }
     };
     const references = ['2.0.0', ...olderVersions, ...unlistedVersions]
         .flatMap(version => targets.map(targetPlatform => ({ version, targetPlatform })));
@@ -52,16 +54,22 @@ async function startRegistryStub(overrides: Record<string, unknown> = {}): Promi
             res.end(VSIX);
             return;
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
         if (url.pathname === '/api/acme/tool/version-references') {
             const size = Number(url.searchParams.get('size'));
             const offset = Number(url.searchParams.get('offset'));
+            if (referencesFailure?.offset === offset) {
+                res.writeHead(referencesFailure.status, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: `Version references failed at offset ${offset}` }));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
             const versions = references.slice(offset, offset + size).map(reference => ({
                 ...reference, url: `${base}/api/acme/tool/${reference.version}`, files: {}
             }));
             res.end(JSON.stringify({ offset, totalSize: references.length, versions }));
             return;
         }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         const requested = url.pathname.substring('/api/acme/tool/'.length);
         const version = [...olderVersions, ...unlistedVersions].includes(requested) ? requested : '2.0.0';
         res.end(JSON.stringify(metadata(version)));
@@ -272,6 +280,22 @@ describe('get', () => {
         it('fetches the highest version matching a range from the version references', async () => {
             await get({ version: '^0.1.0' }, { unlistedVersions: ['0.1.0', '0.1.2', '0.1.1'], targets: ['linux-x64', 'win32-x64'] });
             expect(fs.readdirSync(cwd)).toEqual(['acme.tool-0.1.2.vsix']);
+        });
+
+        it('rejects as unmatched when the registry has no version references endpoint', async () => {
+            await expect(get({ version: '0.0.0' }, { unlistedVersions: ['0.0.0'], referencesFailure: { offset: 0, status: 404 } }))
+                .rejects.toThrow("has no published version matching '0.0.0'");
+        });
+
+        it.each([
+            ['a server error on the first page', { offset: 0, status: 500 }],
+            ['a 404 on a later page', { offset: 100, status: 404 }],
+            ['a server error on a later page', { offset: 100, status: 500 }],
+            ['an error in a successful response', { offset: 100, status: 200 }]
+        ])('surfaces %s instead of reporting no matching version', async (_, referencesFailure) => {
+            const unlistedVersions = Array.from({ length: 150 }, (_, i) => `0.${149 - i}.0`);
+            await expect(get({ version: '0.0.0' }, { unlistedVersions, referencesFailure }))
+                .rejects.toThrow(`Version references failed at offset ${referencesFailure.offset}`);
         });
 
         it('rejects when no published version satisfies the constraint', async () => {
