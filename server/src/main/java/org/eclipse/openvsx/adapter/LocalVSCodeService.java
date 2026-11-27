@@ -165,15 +165,12 @@ public class LocalVSCodeService implements IVSCodeService {
             extensionsList = repositories
                     .findActiveExtensionsByPublicId(extensionIds, BuiltInExtensionUtil.getBuiltInNamespace());
         } else if (!extensionNames.isEmpty()) {
-            extensionsList = extensionNames.stream()
+            var ids = extensionNames.stream()
                     .map(NamingUtil::fromExtensionId)
                     .filter(Objects::nonNull)
                     .filter(extensionId -> !BuiltInExtensionUtil.isBuiltIn(extensionId.namespace()))
-                    .map(
-                            extensionId -> repositories
-                                    .findActiveExtension(extensionId.extension(), extensionId.namespace()))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                    .toList();
+            extensionsList = repositories.findActiveExtensionsByExtensionId(ids);
         } else if (!search.isEnabled()) {
             extensionsList = Collections.emptyList();
         } else {
@@ -215,53 +212,23 @@ public class LocalVSCodeService implements IVSCodeService {
         var extensionsMap = extensionsList.stream()
                 .collect(Collectors.toMap(Extension::getId, Function.identity(), (a, b) -> a));
 
-        var canSkipFullFetchForLatestOnly = targetPlatform != null
-                && test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)
-                && !test(flags, FLAG_INCLUDE_VERSIONS)
-                && !test(flags, FLAG_INCLUDE_VERSION_PROPERTIES);
-
-        // "latest" is computed separately below without needing this list; when it's the only thing
-        // requested for a concrete target platform, the bulk findLatestVersions query below already
-        // returns exactly that per-extension row, so the full active-version fetch can be skipped.
-        var needsVersionList = !canSkipFullFetchForLatestOnly
-                && (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)
-                        || test(flags, FLAG_INCLUDE_VERSIONS)
-                        || test(flags, FLAG_INCLUDE_VERSION_PROPERTIES));
-        List<ExtensionVersion> allActiveExtensionVersions = needsVersionList
-                ? repositories
-                        .findActiveExtensionVersions(extensionsMap.keySet(), targetPlatform, maxPreReleaseVersions)
-                : Collections.emptyList();
-
-        // Reuse the already-fetched list for "latest" only when it's uncapped (complete) - a pre-release
-        // cap ranks across all target platforms combined, so a capped list can miss the true latest for
-        // this platform; that case queries the database directly instead.
-        Map<Long, ExtensionVersion> latestVersions;
-        if (needsVersionList && maxPreReleaseVersions < 0) {
-            latestVersions = allActiveExtensionVersions.stream()
-                    .collect(Collectors.groupingBy(ev -> ev.getExtension().getId()))
-                    .values()
-                    .stream()
-                    .map(list -> versions.getLatest(list, false))
-                    .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
-        } else {
-            latestVersions = repositories.findLatestVersions(extensionsMap.keySet(), targetPlatform).stream()
-                    .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
-        }
-
         List<ExtensionVersion> extensionVersions;
-        if (canSkipFullFetchForLatestOnly) {
-            extensionVersions = new ArrayList<>(latestVersions.values());
-        } else if (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)) {
-            extensionVersions = allActiveExtensionVersions.stream()
-                    .collect(Collectors.groupingBy(ev -> ev.getExtension().getId() + "@" + ev.getTargetPlatform()))
-                    .values()
-                    .stream()
-                    .map(list -> versions.getLatest(list, true))
-                    .collect(Collectors.toList());
-        } else if (needsVersionList) {
-            extensionVersions = allActiveExtensionVersions;
+        Map<Long, ExtensionVersion> latestVersions;
+        if (test(flags, FLAG_INCLUDE_LATEST_VERSION_ONLY)) {
+            // VS Code's update check: one row per (extension, platform), however long the version history
+            extensionVersions = repositories
+                    .findLatestActiveExtensionVersionsPerTargetPlatform(extensionsMap.keySet(), targetPlatform);
+            latestVersions = latestPerExtension(extensionVersions);
+        } else if (test(flags, FLAG_INCLUDE_VERSIONS) || test(flags, FLAG_INCLUDE_VERSION_PROPERTIES)) {
+            extensionVersions = repositories
+                    .findActiveExtensionVersions(extensionsMap.keySet(), targetPlatform, maxPreReleaseVersions);
+            // A capped list can miss this platform's latest: the pre-release cap ranks across all platforms.
+            latestVersions = maxPreReleaseVersions < 0
+                    ? latestPerExtension(extensionVersions)
+                    : findLatestVersions(extensionsMap.keySet(), targetPlatform);
         } else {
             extensionVersions = Collections.emptyList();
+            latestVersions = findLatestVersions(extensionsMap.keySet(), targetPlatform);
         }
 
         var comparator = Comparator.<ExtensionVersion, Long>comparing(ev -> ev.getExtension().getId())
@@ -318,6 +285,21 @@ public class LocalVSCodeService implements IVSCodeService {
         }
 
         return toQueryResult(extensionQueryResults, totalCount);
+    }
+
+    private Map<Long, ExtensionVersion> latestPerExtension(List<ExtensionVersion> extensionVersions) {
+        return extensionVersions.stream()
+                .collect(Collectors.groupingBy(ev -> ev.getExtension().getId()))
+                .values()
+                .stream()
+                // not VersionService.getLatest: its cache key ignores the platform this list is filtered to
+                .map(list -> list.stream().min(ExtensionVersion.SORT_COMPARATOR).orElseThrow())
+                .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
+    }
+
+    private Map<Long, ExtensionVersion> findLatestVersions(Collection<Long> extensionIds, String targetPlatform) {
+        return repositories.findLatestVersions(extensionIds, targetPlatform).stream()
+                .collect(Collectors.toMap(ev -> ev.getExtension().getId(), ev -> ev));
     }
 
     private String createFileUrl(List<FileResource> singleResource, String fileBaseUrl) {

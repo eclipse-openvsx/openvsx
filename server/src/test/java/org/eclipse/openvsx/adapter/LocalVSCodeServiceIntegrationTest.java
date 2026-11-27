@@ -15,6 +15,7 @@ package org.eclipse.openvsx.adapter;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -171,5 +172,59 @@ class LocalVSCodeServiceIntegrationTest extends AbstractPostgresContainerTest {
         var queried = result.results().getFirst().extensions().getFirst();
         assertThat(queried.versions()).singleElement().extracting(ExtensionQueryResult.ExtensionVersion::version)
                 .isEqualTo(expectedLatest.getVersion());
+    }
+
+    // VS Code's update check takes the latest per platform in SQL; it must pick what
+    // ExtensionVersion.SORT_COMPARATOR picks from the full active-version list.
+    @Test
+    void latestPerTargetPlatformMatchesLatestOfAllActiveVersions() {
+        var extension = persistExtension("it-ns3", "multi-platform");
+        var other = persistExtension("it-ns4", "other");
+        var t = LocalDateTime.now().minusDays(10);
+        persistVersion(extension, "1.0.0", TargetPlatform.NAME_UNIVERSAL, false, t);
+        persistVersion(extension, "1.1.0", TargetPlatform.NAME_UNIVERSAL, true, t.plusDays(1));
+        persistVersion(extension, "1.0.0", TargetPlatform.NAME_LINUX_X64, false, t.plusDays(2));
+        // newest by timestamp, but semver wins
+        persistVersion(extension, "0.9.0", TargetPlatform.NAME_LINUX_X64, true, t.plusDays(5));
+        // same major.minor.patch: the semver release beats the semver pre-release
+        persistVersion(extension, "2.0.0", TargetPlatform.NAME_WIN32_X64, false, t.plusDays(3));
+        persistVersion(extension, "2.0.0-next.1", TargetPlatform.NAME_WIN32_X64, true, t.plusDays(4));
+        persistVersion(extension, "3.0.0", TargetPlatform.NAME_DARWIN_ARM64, false, t);
+        persistVersion(extension, "4.0.0", TargetPlatform.NAME_DARWIN_ARM64, false, t).setActive(false);
+        persistVersion(other, "0.0.1", TargetPlatform.NAME_UNIVERSAL, false, t);
+        persistVersion(other, "0.0.2", TargetPlatform.NAME_UNIVERSAL, false, t.plusDays(1));
+        em.flush();
+
+        var ids = Set.of(extension.getId(), other.getId());
+        var expected = repositories.findActiveExtensionVersions(ids, null, -1).stream()
+                .collect(
+                        Collectors.groupingBy(
+                                ev -> ev.getExtension().getId() + "@" + ev.getTargetPlatform(),
+                                Collectors.collectingAndThen(
+                                        Collectors.minBy(ExtensionVersion.SORT_COMPARATOR),
+                                        ev -> ev.orElseThrow().getVersion())));
+        var actual = repositories.findLatestActiveExtensionVersionsPerTargetPlatform(ids, null).stream()
+                .collect(
+                        Collectors.toMap(
+                                ev -> ev.getExtension().getId() + "@" + ev.getTargetPlatform(),
+                                ExtensionVersion::getVersion));
+        assertThat(actual).isEqualTo(expected).hasSize(5);
+
+        var criteria = List.of(
+                new Criterion(FILTER_EXTENSION_NAME, "IT-NS3.Multi-Platform"),
+                new Criterion(FILTER_EXTENSION_NAME, "it-ns4.other"),
+                new Criterion(FILTER_TARGET, "Microsoft.VisualStudio.Code"));
+        var flags = FLAG_INCLUDE_LATEST_VERSION_ONLY | FLAG_INCLUDE_VERSION_PROPERTIES | FLAG_INCLUDE_FILES
+                | FLAG_INCLUDE_ASSET_URI | FLAG_INCLUDE_STATISTICS | FLAG_INCLUDE_CATEGORY_AND_TAGS;
+        var param = new ExtensionQueryParam(List.of(new ExtensionQueryParam.Filter(criteria, 1, 100, 0, 0)), flags);
+        var result = service.extensionQuery(param, 100).results().getFirst().extensions();
+
+        assertThat(result).extracting(ExtensionQueryResult.Extension::extensionName)
+                .containsExactlyInAnyOrder("multi-platform", "other");
+        var multiPlatform = result.stream().filter(e -> e.extensionName().equals("multi-platform")).findFirst()
+                .orElseThrow();
+        assertThat(multiPlatform.versions())
+                .extracting(v -> v.version() + "@" + v.targetPlatform())
+                .containsExactly("3.0.0@darwin-arm64", "2.0.0@win32-x64", "1.1.0@universal", "1.0.0@linux-x64");
     }
 }

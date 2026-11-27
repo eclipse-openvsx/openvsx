@@ -61,6 +61,15 @@ public class ExtensionJooqRepository {
         return fetch(query);
     }
 
+    public List<Extension> findAllActiveByExtensionId(Collection<ExtensionId> extensionIds) {
+        var names = extensionIds.stream()
+                .map(id -> DSL.row(DSL.lower(id.namespace()), DSL.lower(id.extension())))
+                .toList();
+        var query = findAllActive();
+        query.addConditions(DSL.row(DSL.lower(NAMESPACE.NAME), DSL.lower(EXTENSION.NAME)).in(names));
+        return fetch(query);
+    }
+
     public Extension findActiveByNameIgnoreCaseAndNamespaceNameIgnoreCase(String name, String namespaceName) {
         var query = findAllActive();
         query.addConditions(

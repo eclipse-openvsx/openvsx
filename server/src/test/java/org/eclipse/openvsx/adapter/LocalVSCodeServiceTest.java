@@ -38,6 +38,7 @@ import org.eclipse.openvsx.repositories.RepositoryService;
 import org.eclipse.openvsx.search.SearchExplainService;
 import org.eclipse.openvsx.search.SearchUtilService;
 import org.eclipse.openvsx.storage.*;
+import org.eclipse.openvsx.util.ExtensionId;
 import org.eclipse.openvsx.util.TargetPlatform;
 import org.eclipse.openvsx.util.VersionService;
 import org.eclipse.openvsx.web.WebUiProperties;
@@ -84,7 +85,6 @@ public class LocalVSCodeServiceTest {
         Mockito.when(repositories.findActiveExtensionVersions(any(), any(), anyInt()))
                 .thenReturn(List.of(extensionVersion));
         Mockito.when(repositories.findLatestVersions(any(), any())).thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), anyBoolean())).thenReturn(extensionVersion);
 
         var result = vsCodeService.extensionQuery(param, 10);
         assertThat(result.results()).hasSize(1);
@@ -136,7 +136,6 @@ public class LocalVSCodeServiceTest {
                 .thenReturn(List.of(extension));
         Mockito.when(repositories.findActiveExtensionVersions(any(), any(), anyInt()))
                 .thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), eq(false))).thenReturn(extensionVersion);
 
         vsCodeService.extensionQuery(param, 10);
 
@@ -168,7 +167,7 @@ public class LocalVSCodeServiceTest {
     }
 
     @Test
-    void testExtensionQuery_latestVersionOnlyWithTargetPlatform_skipsActiveVersionsFetch() {
+    void testExtensionQuery_latestVersionOnlyWithTargetPlatform_fetchesLatestPerTargetPlatform() {
         var extension = mockExtension();
         var extensionVersion = mockExtensionVersion(extension, 1, "0.1.0", TargetPlatform.NAME_LINUX_X64);
 
@@ -180,13 +179,15 @@ public class LocalVSCodeServiceTest {
 
         Mockito.when(repositories.findActiveExtensionsByPublicId(any(), any()))
                 .thenReturn(List.of(extension));
-        Mockito.when(repositories.findLatestVersions(any(), eq(TargetPlatform.NAME_LINUX_X64)))
+        Mockito.when(
+                repositories
+                        .findLatestActiveExtensionVersionsPerTargetPlatform(any(), eq(TargetPlatform.NAME_LINUX_X64)))
                 .thenReturn(List.of(extensionVersion));
 
         var result = vsCodeService.extensionQuery(param, 10);
 
         Mockito.verify(repositories, Mockito.never()).findActiveExtensionVersions(any(), any(), anyInt());
-        Mockito.verify(repositories, Mockito.times(1)).findLatestVersions(any(), eq(TargetPlatform.NAME_LINUX_X64));
+        Mockito.verify(repositories, Mockito.never()).findLatestVersions(any(), any());
         assertThat(result.results()).hasSize(1);
     }
 
@@ -261,26 +262,87 @@ public class LocalVSCodeServiceTest {
         assertThat(queried.displayName()).isEqualTo(latestForPlatform.getDisplayName());
     }
 
+    // VS Code's update check: its FILTER_TARGET is not a platform, and it asks for version properties.
     @Test
-    void testExtensionQuery_latestVersionOnlyNoTargetPlatform_stillFetchesActiveVersions() {
+    void testExtensionQuery_vsCodeUpdateCheck_doesNotFetchEveryActiveVersion() {
         var extension = mockExtension();
-        var extensionVersion = mockExtensionVersion(extension, 1, "0.1.0", "linux");
+        var extensionVersion = mockExtensionVersion(extension, 1, "0.1.0", TargetPlatform.NAME_UNIVERSAL);
 
-        var criterion = new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-1");
-        var filter = new ExtensionQueryParam.Filter(List.of(criterion), 0, 0, 0, 0);
+        var criteria = List.of(
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-1"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_TARGET, "Microsoft.VisualStudio.Code"));
+        var filter = new ExtensionQueryParam.Filter(criteria, 0, 0, 0, 0);
+        var flags = FLAG_INCLUDE_LATEST_VERSION_ONLY | FLAG_INCLUDE_VERSION_PROPERTIES | FLAG_INCLUDE_FILES
+                | FLAG_INCLUDE_ASSET_URI | FLAG_INCLUDE_STATISTICS | FLAG_INCLUDE_CATEGORY_AND_TAGS;
+        var param = new ExtensionQueryParam(List.of(filter), flags);
+
+        Mockito.when(repositories.findActiveExtensionsByPublicId(any(), any()))
+                .thenReturn(List.of(extension));
+        Mockito.when(repositories.findLatestActiveExtensionVersionsPerTargetPlatform(any(), isNull()))
+                .thenReturn(List.of(extensionVersion));
+
+        var result = vsCodeService.extensionQuery(param, 10);
+
+        Mockito.verify(repositories, Mockito.never()).findActiveExtensionVersions(any(), any(), anyInt());
+        assertThat(result.results().getFirst().extensions()).singleElement()
+                .satisfies(e -> assertThat(e.versions()).hasSize(1));
+    }
+
+    // VersionService.getLatest is cached per extension, whatever platform its list was filtered to.
+    @Test
+    void testExtensionQuery_latestVersionOnly_doesNotUseTheLatestVersionCache() {
+        var extension = mockExtension();
+        var linux = mockExtensionVersion(extension, 1, "0.2.0", TargetPlatform.NAME_LINUX_X64);
+        linux.setDisplayName("YAML for Linux");
+        var cachedForWindows = mockExtensionVersion(extension, 2, "0.2.0", TargetPlatform.NAME_WIN32_X64);
+        cachedForWindows.setDisplayName("YAML for Windows");
+
+        var criteria = List.of(
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_ID, "test-1"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_TARGET, TargetPlatform.NAME_LINUX_X64));
+        var filter = new ExtensionQueryParam.Filter(criteria, 0, 0, 0, 0);
         var param = new ExtensionQueryParam(List.of(filter), FLAG_INCLUDE_LATEST_VERSION_ONLY);
 
         Mockito.when(repositories.findActiveExtensionsByPublicId(any(), any()))
                 .thenReturn(List.of(extension));
-        Mockito.when(repositories.findActiveExtensionVersions(any(), any(), anyInt()))
-                .thenReturn(List.of(extensionVersion));
-        Mockito.when(versions.getLatest(anyList(), anyBoolean())).thenReturn(extensionVersion);
+        Mockito.when(
+                repositories
+                        .findLatestActiveExtensionVersionsPerTargetPlatform(any(), eq(TargetPlatform.NAME_LINUX_X64)))
+                .thenReturn(List.of(linux));
+        Mockito.when(versions.getLatest(anyList(), anyBoolean())).thenReturn(cachedForWindows);
 
-        vsCodeService.extensionQuery(param, 10);
+        var result = vsCodeService.extensionQuery(param, 10);
 
-        // Deliberate limitation, not an oversight: without a concrete target platform, the
-        // fast path does not apply, so the full active-version fetch still runs.
-        Mockito.verify(repositories, Mockito.times(1)).findActiveExtensionVersions(any(), any(), anyInt());
+        assertThat(result.results().getFirst().extensions()).singleElement()
+                .extracting(ExtensionQueryResult.Extension::displayName)
+                .isEqualTo("YAML for Linux");
+    }
+
+    @Test
+    void testExtensionQuery_extensionNames_areLookedUpInOneQuery() {
+        var extension = mockExtension();
+        var extensionVersion = mockExtensionVersion(extension, 1, "0.1.0", TargetPlatform.NAME_UNIVERSAL);
+
+        var criteria = List.of(
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_NAME, "redhat.vscode-yaml"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_NAME, "redhat.java"),
+                new ExtensionQueryParam.Criterion(Criterion.FILTER_EXTENSION_NAME, "not-an-extension-id"));
+        var filter = new ExtensionQueryParam.Filter(criteria, 0, 0, 0, 0);
+        var param = new ExtensionQueryParam(List.of(filter), 0);
+
+        Mockito.when(repositories.findActiveExtensionsByExtensionId(any())).thenReturn(List.of(extension));
+        Mockito.when(repositories.findLatestVersions(any(), any())).thenReturn(List.of(extensionVersion));
+
+        var result = vsCodeService.extensionQuery(param, 10);
+
+        Mockito.verify(repositories).findActiveExtensionsByExtensionId(
+                argThat(
+                        ids -> ids.size() == 2 && ids.containsAll(
+                                List.of(
+                                        new ExtensionId("redhat", "vscode-yaml"),
+                                        new ExtensionId("redhat", "java")))));
+        Mockito.verify(repositories, Mockito.never()).findActiveExtension(any(), any());
+        assertThat(result.results().getFirst().extensions()).hasSize(1);
     }
 
     // ---------- UTILITY ----------//
