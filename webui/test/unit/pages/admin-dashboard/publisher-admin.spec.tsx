@@ -9,9 +9,9 @@
  ********************************************************************************/
 
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router';
+import { Route, Routes, useLocation } from 'react-router';
 import { renderWithProviders } from '../../support/test-providers';
 import { PublisherAdmin } from '../../../../src/pages/admin-dashboard/publisher-admin';
 import { AdminDashboardRoutes } from '../../../../src/pages/admin-dashboard/admin-dashboard-routes';
@@ -41,15 +41,30 @@ function serviceWith(forgetUser: AdminService['forgetUser']): ExtensionRegistryS
     return { serverUrl: 'https://open-vsx.org', admin } as ExtensionRegistryService;
 }
 
+const CurrentPath = () => {
+    const { pathname, search } = useLocation();
+    return <span data-testid='path'>{pathname + search}</span>;
+};
+
 // PublisherAdmin is normally mounted under this nested route by admin-dashboard.tsx; reproduce
 // that here so useParams()/navigate() behave as they do in the app, not a route of convenience.
-function renderPublisherAdmin(service: ExtensionRegistryService, publisher: string) {
+function renderPublisherAdmin(
+    service: ExtensionRegistryService,
+    publisher: string,
+    provider: string | null = 'github'
+) {
     return renderWithProviders(
-        <Routes>
-            <Route path={AdminDashboardRoutes.PUBLISHER_ADMIN} element={<PublisherAdmin />} />
-            <Route path={`${AdminDashboardRoutes.PUBLISHER_ADMIN}/:publisher`} element={<PublisherAdmin />} />
-        </Routes>,
-        { route: `${AdminDashboardRoutes.PUBLISHER_ADMIN}/${publisher}`, mainContext: { service } }
+        <>
+            <CurrentPath />
+            <Routes>
+                <Route path={AdminDashboardRoutes.PUBLISHER_ADMIN} element={<PublisherAdmin />} />
+                <Route path={`${AdminDashboardRoutes.PUBLISHER_ADMIN}/:publisher`} element={<PublisherAdmin />} />
+            </Routes>
+        </>,
+        {
+            route: `${AdminDashboardRoutes.PUBLISHER_ADMIN}/${publisher}${provider ? `?provider=${provider}` : ''}`,
+            mainContext: { service }
+        }
     );
 }
 
@@ -72,5 +87,82 @@ describe('PublisherAdmin', () => {
         // param not yet cleared) briefly renders the unrelated "no publisher found" branch.
         expect(await screen.findByText(/search for a user/i)).toBeInTheDocument();
         expect(screen.queryByText('Danger Zone')).not.toBeInTheDocument();
+    });
+
+    it('resolves a deep link to the account of the linked provider when another shares its login', async () => {
+        const service = serviceWith(vi.fn());
+        const getUsers = vi.mocked(service.admin.getUsers);
+        getUsers.mockResolvedValue({
+            content: [
+                {
+                    user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github' },
+                    namespaces: []
+                },
+                {
+                    user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'eclipse' },
+                    namespaces: []
+                }
+            ],
+            page: { number: 0, size: 25, totalElements: 2, totalPages: 1 }
+        } as unknown as UserSearchResult);
+        renderPublisherAdmin(service, 'octocat', 'eclipse');
+
+        await screen.findByText('Danger Zone');
+        expect(service.admin.getPublisherInfo).toHaveBeenCalledWith(expect.anything(), 'eclipse', 'octocat');
+        expect(service.admin.getPublisherInfo).not.toHaveBeenCalledWith(expect.anything(), 'github', 'octocat');
+    });
+
+    it.each([
+        { title: 'with its provider', provider: 'eclipse', query: '?provider=eclipse' },
+        { title: 'with no provider when it has none', provider: undefined, query: '' }
+    ])('links to a picked publisher $title', async ({ provider, query }) => {
+        const service = serviceWith(vi.fn());
+        vi.mocked(service.admin.getUsers).mockResolvedValue({
+            content: [
+                {
+                    user: { loginName: 'octocat', tokensUrl: '', createTokenUrl: '', provider: 'github' },
+                    namespaces: []
+                },
+                {
+                    user: { loginName: 'hubot', tokensUrl: '', createTokenUrl: '', provider },
+                    namespaces: []
+                }
+            ],
+            page: { number: 0, size: 25, totalElements: 2, totalPages: 1 }
+        } as unknown as UserSearchResult);
+        renderPublisherAdmin(service, 'octocat');
+        await screen.findByText('Danger Zone');
+
+        await userEvent.click(screen.getByPlaceholderText('Search by login or display name...'));
+        await userEvent.click(await screen.findByRole('option', { name: /hubot/ }));
+
+        await waitFor(() =>
+            expect(screen.getByTestId('path').textContent).toBe(`${AdminDashboardRoutes.PUBLISHER_ADMIN}/hubot${query}`)
+        );
+    });
+
+    it('selects no one from a deep link without a provider', async () => {
+        const service = serviceWith(vi.fn());
+        renderPublisherAdmin(service, 'octocat', null);
+
+        expect(await screen.findByText(/No publisher found/)).toBeInTheDocument();
+        expect(service.admin.getPublisherInfo).not.toHaveBeenCalled();
+    });
+
+    // A forgotten user's tombstone has no provider, so the server leaves the field out.
+    it('resolves a deep link without a provider to an account that has none', async () => {
+        const service = serviceWith(vi.fn());
+        vi.mocked(service.admin.getUsers).mockResolvedValue({
+            content: [{ user: { loginName: 'deleted-user-7', tokensUrl: '', createTokenUrl: '' }, namespaces: [] }],
+            page: { number: 0, size: 25, totalElements: 1, totalPages: 1 }
+        } as unknown as UserSearchResult);
+        renderPublisherAdmin(service, 'deleted-user-7', null);
+
+        await screen.findByText('Danger Zone');
+        expect(service.admin.getPublisherInfo).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.anything(),
+            'deleted-user-7'
+        );
     });
 });

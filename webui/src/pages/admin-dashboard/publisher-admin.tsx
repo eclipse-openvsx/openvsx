@@ -39,7 +39,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 import { UserRelationships } from '../../extension-registry-types';
 import { ErrorResponse } from '../../server-request';
 import { MainContext } from '../../context';
@@ -68,6 +68,7 @@ const roleIcon = (role: string | undefined) =>
 
 export const PublisherAdmin: FunctionComponent = () => {
     const { publisher: publisherParam } = useParams<{ publisher?: string }>();
+    const providerParam = useSearchParams()[0].get('provider');
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { pageSettings } = useContext(MainContext);
@@ -99,22 +100,24 @@ export const PublisherAdmin: FunctionComponent = () => {
             dismissedParamRef.current = null;
             return;
         }
-        if (selected || publisherParam === dismissedParamRef.current) {
+        if (selected || `${providerParam}/${publisherParam}` === dismissedParamRef.current) {
             return;
         }
-        const match = publishers.find(p => p.user.loginName === publisherParam);
+        const match = publishers.find(
+            p => p.user.loginName === publisherParam && (p.user.provider ?? null) === providerParam
+        );
         if (match) {
             setSelected(match);
         }
-    }, [publisherParam, selected, publishers]);
+    }, [providerParam, publisherParam, selected, publishers]);
 
     const clearSelection = useCallback(() => {
         if (selected || publisherParam) {
-            dismissedParamRef.current = publisherParam ?? null;
+            dismissedParamRef.current = publisherParam ? `${providerParam}/${publisherParam}` : null;
             setSelected(null);
             navigate(AdminDashboardRoutes.PUBLISHER_ADMIN, { replace: true });
         }
-    }, [selected, publisherParam, navigate]);
+    }, [selected, providerParam, publisherParam, navigate]);
 
     const updateContextValue = useMemo(
         () => ({
@@ -139,9 +142,10 @@ export const PublisherAdmin: FunctionComponent = () => {
         }
         setSelected(value);
         setInputValue(value.user.loginName);
-        navigate(`${AdminDashboardRoutes.PUBLISHER_ADMIN}/${encodeURIComponent(value.user.loginName)}`, {
-            replace: true
-        });
+        navigate(
+            `${AdminDashboardRoutes.PUBLISHER_ADMIN}/${encodeURIComponent(value.user.loginName)}${value.user.provider ? `?provider=${encodeURIComponent(value.user.provider)}` : ''}`,
+            { replace: true }
+        );
     };
 
     const handleInputChange = (_event: SyntheticEvent, value: string, reason: AutocompleteInputChangeReason) => {
