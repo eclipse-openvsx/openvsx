@@ -273,6 +273,14 @@ public class RepositoryService {
         return extensionRepo.findByIdIn(extensionIds);
     }
 
+    public @Nullable Integer increaseDownloadCount(long extensionId, int downloads) {
+        return extensionJooqRepo.increaseDownloadCount(extensionId, downloads);
+    }
+
+    public Map<Long, Integer> increaseDownloadCounts(Map<Long, Integer> extensionDownloads) {
+        return extensionJooqRepo.increaseDownloadCounts(extensionDownloads);
+    }
+
     public Streamable<Extension> findExtensions(Namespace namespace) {
         return extensionRepo.findByNamespace(namespace);
     }
